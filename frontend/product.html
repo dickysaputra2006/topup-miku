@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top Up - GameStore</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1 class="logo"><a href="index.html" style="text-decoration: none; color: var(--primary-color);">GameStore</a></h1>
+            <nav id="nav-links">
+                <a href="#" id="login-button" class="hidden">Masuk</a>
+                <a href="dashboard.html" id="dashboard-link" class="hidden">Dashboard</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="order-page-wrapper">
+            <div id="game-info" class="card">
+                <img id="game-image" src="https://via.placeholder.com/200" alt="Game Logo">
+                <div class="game-info-text">
+                    <h2 id="game-name">Memuat nama game...</h2>
+                    <p>Pengiriman Cepat & Terpercaya</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><span>1</span> Masukkan User ID</h3>
+                <form id="order-form" class="order-form-grid">
+                    <input type="text" id="target-game-id" placeholder="Masukkan User ID" required>
+                    <input type="text" id="target-server-id" placeholder="Masukkan Server ID" class="hidden">
+                </form>
+            </div>
+            
+            <div class="card">
+                <h3><span>2</span> Pilih Nominal Top Up</h3>
+                <div id="product-list-container" class="product-grid">
+                    <p>Memuat produk...</p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3><span>3</span> Bayar & Proses</h3>
+                <div id="payment-info">
+                    <p>Metode Pembayaran: <strong>Saldo Akun</strong></p>
+                    <p>Total Bayar: <strong id="total-price">-</strong></p>
+                </div>
+                <button id="submit-order-btn" class="order-button" disabled>Pilih Nominal Dahulu</button>
+            </div>
+        </div>
+    </main>
+
+    <div id="auth-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <button id="close-modal-btn" class="close-modal">&times;</button>
+            <div id="login-container">
+                <h3>Masuk Akun</h3>
+                <p class="form-description">Selamat datang kembali! Silakan masuk.</p>
+                <form id="login-form">
+                    <input name="username" type="text" placeholder="Masukkan Username atau Email Anda" required>
+                    <div class="password-wrapper">
+                        <input name="password" type="password" placeholder="Masukkan Kata Sandi Anda" required>
+                        <i class="fas fa-eye-slash toggle-password"></i>
+                    </div>
+                    <a href="#" class="forgot-password">Lupa Password?</a>
+                    <button type="submit">Masuk</button>
+                </form>
+                <p class="switch-form">Belum punya akun? <a href="#" id="show-register">Daftar di sini</a></p>
+            </div>
+            <div id="register-container" class="hidden">
+    <h3>Daftar Akun Baru</h3>
+    <p class="form-description">Masukkan data Anda untuk membuat akun baru.</p>
+    <form id="register-form">
+        <input name="fullName" type="text" placeholder="Nama Lengkap (Contoh: John Doe)" required>
+        <input name="username" type="text" placeholder="Username (untuk login)" required>
+        <input name="email" type="email" placeholder="Email" required>
+        <input name="nomorWa" type="text" placeholder="Nomor Telepon (Contoh: 62812...)" required>
+        <div class="password-wrapper">
+            <input name="password" type="password" placeholder="Password" required>
+            <i class="fas fa-eye-slash toggle-password"></i>
+        </div>
+        <div class="password-wrapper">
+            <input name="confirmPassword" type="password" placeholder="Konfirmasi Password" required>
+            <i class="fas fa-eye-slash toggle-password"></i>
+        </div>
+        <div class="terms">
+            <input type="checkbox" id="terms-product" name="terms" required>
+            <label for="terms-product">Dengan mendaftar, Anda setuju dengan <a href="#">syarat dan ketentuan</a> kami.</label>
+        </div>
+        <button type="submit">Daftar</button>
+    </form>
+    <p class="switch-form">Sudah punya akun? <a href="#" id="show-login">Masuk</a></p>
+</div>
+            <div id="forgot-password-container" class="hidden">
+                <h3>Lupa Password</h3>
+                <p class="form-description">Masukkan email Anda untuk mengatur ulang password.</p>
+                <form id="forgot-password-form">
+                    <input name="email" type="email" placeholder="Masukkan Email Anda" required>
+                    <button type="submit">Kirim Link Reset</button>
+                </form>
+                <p class="switch-form">Ingat password? <a href="#" id="show-login-from-forgot">Masuk</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="product.js"></script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - GameStore</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1 class="logo"><a href="index.html" style="text-decoration: none; color: var(--primary-color);">GameStore</a></h1>
+            <nav>
+                <a href="#" id="logout-button">Keluar</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="dashboard-container container">
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <a href="#" class="dashboard-nav-link active" data-target="dashboard-main"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+                <a href="deposit.html"><i class="fas fa-wallet"></i> Deposit</a>
+                <a href="#" class="dashboard-nav-link" data-target="cek-pesanan"><i class="fas fa-receipt"></i> Cek Pesanan</a>
+                <a href="transaksi.html"><i class="fas fa-history"></i> Transaksi</a>
+                <a href="mutasi.html"><i class="fas fa-chart-line"></i> Mutasi Harian</a>
+                <a href="#" class="dashboard-nav-link" data-target="integrasi"><i class="fas fa-cogs"></i> Integrasi</a>
+            </nav>
+        </aside>
+
+        <main class="dashboard-content">
+            
+            <section id="dashboard-main" class="dashboard-section">
+                <div class="card profile-summary">
+                    <h3>Ringkasan Akun</h3>
+                    <div class="profile-details">
+                        <div>
+                            <p>Nama Lengkap: <strong id="profile-fullname">Memuat...</strong></p>
+                            <p>Username: <strong id="profile-username">Memuat...</strong></p>
+                            <p>Email: <strong id="profile-email">Memuat...</strong></p>
+                            <p>WhatsApp: <strong id="profile-nomorwa">Memuat...</strong></p>
+                            <p>Role: <strong id="profile-role" style="color: var(--primary-color);">Memuat...</strong></p>
+                        </div>
+                        <div>
+                            <button class="edit-btn">Edit Profil</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card balance-summary">
+                    <h3>GameStore Credits</h3>
+                    <div class="balance-details">
+                        <p class="balance-amount" id="profile-balance">Memuat...</p>
+                        <a href="deposit.html" class="topup-btn" style="text-decoration:none;">Deposit</a>
+                    </div>
+                    <a href="mutasi.html" class="history-link">Penggunaan Credits &rarr;</a>
+                </div>
+                <div class="card transaction-overview">
+                    <h3>Pesanan Saya</h3>
+                    <div class="order-stats">
+                        <div class="stat-item">
+                            <span id="count-berhasil">0</span><p>Berhasil</p>
+                        </div>
+                        <div class="stat-item">
+                            <span id="count-pending">0</span><p>Pending</p>
+                        </div>
+                        <div class="stat-item">
+                            <span id="count-gagal">0</span><p>Gagal</p>
+                        </div>
+                    </div>
+                    <a href="transaksi.html" class="history-link">Lihat Semua Transaksi &rarr;</a>
+                </div>
+            </section>
+
+            
+            <section id="cek-pesanan" class="dashboard-section hidden">
+                <div class="card">
+                    <h3>Cek Pesanan</h3>
+                    <p>Fitur untuk mencari transaksi berdasarkan invoice akan kita bangun di sini nanti.</p>
+                </div>
+            </section>
+            <section id="transaksi" class="dashboard-section hidden">
+                <div class="card">
+                    <h3>Riwayat Transaksi</h3>
+                    <p>Fitur untuk menampilkan semua riwayat transaksi akan kita bangun di sini nanti.</p>
+                </div>
+            </section>
+            
+            <section id="integrasi" class="dashboard-section hidden">
+                <div class="card">
+                    <h3>Integrasi API (H2H)</h3>
+                    <p>Gunakan API Key di bawah ini untuk menghubungkan sistem atau bot Anda ke layanan kami.</p>
+                    <div class="api-key-container">
+                        <p>API Key Anda:</p>
+                        <code id="api-key-display">Belum ada. Klik tombol untuk membuat.</code>
+                    </div>
+                    <button id="generate-api-key-btn" class="topup-btn" style="max-width: 300px; margin-top: 1rem;">Buat / Buat Ulang API Key</button>
+                    <p class="form-description" style="color: #ffc107; margin-top: 1rem;">
+                        <strong>Peringatan:</strong> Jaga kerahasiaan API Key Anda. Key yang baru akan menggantikan yang lama secara permanen.
+                    </p>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <div id="edit-profile-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <button id="close-edit-modal-btn" class="close-modal">&times;</button>
+            <div class="modal-tabs">
+                <button class="tab-link active" data-tab="edit-data-tab">Ubah Profil</button>
+                <button class="tab-link" data-tab="edit-password-tab">Ubah Password</button>
+            </div>
+            <div id="edit-data-tab" class="tab-content active">
+                <h3>Ubah Data Diri</h3>
+                <form id="edit-profile-form">
+                    <label for="edit-fullname">Nama Lengkap</label>
+                    <input type="text" id="edit-fullname" name="fullName" required>
+                    <label for="edit-email">Email</label>
+                    <input type="email" id="edit-email" name="email" required>
+                    <label for="edit-nomorwa">Nomor WhatsApp</label>
+                    <input type="text" id="edit-nomorwa" name="nomorWa" required>
+                    <button type="submit">Simpan Perubahan</button>
+                </form>
+            </div>
+            <div id="edit-password-tab" class="tab-content hidden">
+                <h3>Ubah Password</h3>
+                <form id="change-password-form">
+                    <label for="current-password">Password Saat Ini</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="current-password" name="currentPassword" required>
+                        <i class="fas fa-eye-slash toggle-password"></i>
+                    </div>
+                    <label for="new-password">Password Baru</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="new-password" name="newPassword" required>
+                        <i class="fas fa-eye-slash toggle-password"></i>
+                    </div>
+                    <label for="confirm-new-password">Konfirmasi Password Baru</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="confirm-new-password" name="confirmNewPassword" required>
+                        <i class="fas fa-eye-slash toggle-password"></i>
+                    </div>
+                    <button type="submit">Ubah Password</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

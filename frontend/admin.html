@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - GameStore</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1 class="logo">Admin Panel</h1>
+            <nav>
+                <a href="index.html">Kembali ke Toko</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="admin-page-container container">
+        <aside class="admin-sidebar">
+            <nav class="sidebar-nav">
+                <a href="#" class="admin-nav-link active" data-target="produk-dan-game"><i class="fas fa-gamepad"></i> Produk & Game</a>
+                <a href="#" class="admin-nav-link" data-target="deposit"><i class="fas fa-hand-holding-usd"></i> Persetujuan Deposit</a>
+                <a href="#" class="admin-nav-link" data-target="saldo"><i class="fas fa-wallet"></i> Manajemen Saldo</a>
+                <a href="#" class="admin-nav-link" data-target="margin"><i class="fas fa-percentage"></i> Manajemen Margin</a>
+            </nav>
+        </aside>
+
+        <main class="admin-content">
+            <section id="produk-dan-game" class="admin-section">
+                <div class="card">
+                    <h3>Sinkronisasi Produk Otomatis</h3>
+                    <form id="sync-products-form">
+                        <div class="form-group">
+                            <label for="margin-percent">Margin Harga (%)</label>
+                            <input type="number" id="margin-percent" value="10" required>
+                        </div>
+                        <div class="form-group">
+                            <button type="submit">Sinkronkan Sekarang</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3>Manajemen Game & Produk</h3>
+                    <div class="admin-forms-container">
+                        <form id="add-game-form" class="admin-form">
+                            <h4>Tambah Game Baru</h4>
+                            <label for="game-name">Nama Game</label>
+                            <input type="text" id="game-name" placeholder="Contoh: Mobile Legends" required>
+                            <label for="game-category">Kategori</label>
+                            <select id="game-category" required>
+                                <option value="Mobile Game" selected>Mobile Game</option>
+                                <option value="PC Game">PC Game</option>
+                                <option value="Voucher">Voucher</option>
+                            </select>
+                            <label for="game-image">URL Gambar</label>
+                            <input type="text" id="game-image" placeholder="https://..." required>
+                            <button type="submit">Tambah Game</button>
+                        </form>
+                        <form id="add-product-form" class="admin-form">
+                            <h4>Tambah Produk Baru</h4>
+                            <label for="product-game">Pilih Game</label>
+                            <select id="product-game" required>
+                                <option value="">Memuat game...</option>
+                            </select>
+                            <label for="product-name">Nama Produk</label>
+                            <input type="text" id="product-name" placeholder="Contoh: 100 Diamonds" required>
+                            <label for="product-sku">SKU Provider</label>
+                            <input type="text" id="product-sku" placeholder="Kode unik dari Foxy" required>
+                            <label for="product-price">Harga Jual</label>
+                            <input type="number" id="product-price" placeholder="Contoh: 25000" required>
+                            <button type="submit">Tambah Produk</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3>Daftar Game & Produk</h3>
+                    <div class="admin-master-detail">
+                        <div class="list-wrapper master-list">
+                            <h4>Daftar Game (Klik untuk lihat produk)</h4>
+                            <div class="table-container">
+                                <table id="games-table">
+                                    <thead>
+                                        <tr><th>ID</th><th>Nama Game</th><th>Kategori</th></tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="list-wrapper detail-list">
+                            <h4 id="product-list-title">Pilih Game untuk Melihat Produk</h4>
+                            <div class="table-container">
+                                <table id="products-table">
+                                    <thead>
+                                        <tr><th>Nama Produk</th><th>Harga</th><th>SKU</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td colspan="3" style="text-align: center;">...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="deposit" class="admin-section hidden">
+                <div class="card">
+                    <h3>Permintaan Deposit Pending</h3>
+                    <div class="table-container">
+                        <table id="pending-deposits-table">
+                            <thead>
+                                <tr>
+                                    <th>ID Deposit</th>
+                                    <th>Username</th>
+                                    <th>Jumlah Transfer</th>
+                                    <th>Tanggal</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="saldo" class="admin-section hidden">
+                <div class="card">
+                    <h3>Manajemen Saldo Manual</h3>
+                    <form id="manual-balance-form">
+                        <label for="target-user">Username atau Email Pengguna</label>
+                        <input type="text" id="target-user" placeholder="Masukkan username/email" required>
+                        <label for="manual-amount">Jumlah</label>
+                        <input type="number" id="manual-amount" placeholder="Contoh: 50000" required>
+                        <label for="manual-description">Deskripsi / Keterangan</label>
+                        <input type="text" id="manual-description" placeholder="Contoh: Top up via WA / Koreksi" required>
+                        <div class="manual-balance-actions">
+                            <button type="button" id="add-balance-btn" class="approve-btn">Tambah Saldo</button>
+                            <button type="button" id="reduce-balance-btn" class="failed-btn">Kurangi Saldo</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <section id="margin" class="admin-section hidden">
+                <div class="card">
+                    <h3>Manajemen Margin Keuntungan</h3>
+                    <form id="margin-form">
+                        <div id="margin-fields-container">
+                            <p>Memuat data role...</p>
+                        </div>
+                        <button type="submit">Simpan Semua Margin</button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

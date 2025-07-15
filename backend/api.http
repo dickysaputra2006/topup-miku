@@ -1,0 +1,87 @@
+### (1) Registrasi Pengguna Baru
+POST http://localhost:3000/register
+Content-Type: application/json
+
+{
+    "username": "userbaru",
+    "password": "password123"
+}
+
+### (2) Login dengan Akun yang Benar
+POST http://localhost:3000/login
+Content-Type: application/json
+
+{
+    "username": "userbaru",
+    "password": "password123"
+}
+
+### (3) Login dengan Password yang Salah
+POST http://localhost:3000/login
+Content-Type: application/json
+
+{
+    "username": "userbaru",
+    "password": "passwordsalah"
+}
+
+### (4) Request Top-up (Sukses)
+POST http://localhost:3000/api/topup
+Content-Type: application/json
+
+{
+    "productCode": "TSEL10",
+    "targetNumber": "081234567890"
+}
+
+### (5) Request Top-up (Gagal karena API Key salah)
+# Untuk menguji ini, ubah sementara api_key di server.js menjadi salah
+# misalnya: api_key: 'KUNCI_SALAH'
+POST http://localhost:3000/api/topup
+Content-Type: application/json
+
+{
+    "productCode": "TSEL10",
+    "targetNumber": "081234567890"
+}
+
+### (6) Transaksi H2H dengan API Key yang Benar
+POST http://localhost:3000/h2h/transaction
+Content-Type: application/json
+X-API-Key: abC12-DeF34-gHi56-JkL78-Mn090
+
+{
+    "productCode": "PLN20",
+    "targetNumber": "51234567890"
+}
+
+### (7) Transaksi H2H dengan API Key yang Salah
+POST http://localhost:3000/h2h/transaction
+Content-Type: application/json
+X-API-Key: KUNCI_PALSU_12345
+
+{
+    "productCode": "PLN20",
+    "targetNumber": "51234567890"
+}
+### (8) Transaksi H2H via API Key (Sukses)
+# Ganti 'xxxxxx' dengan API Key Anda dari dashboard
+# Ganti 'productId' dengan ID produk yang valid dari database
+POST http://localhost:3000/h2h/order
+Content-Type: application/json
+X-API-Key: eebffc3143ffce55c278ba0353f1d794656ae27b715a0f7a
+
+{
+    "productId": 2,
+    "targetGameId": "H2H_TEST_ID_123"
+}
+
+### (9) Transaksi H2H dengan API Key Salah
+POST http://localhost:3000/h2h/order
+Content-Type: application/json
+X-API-Key: KUNCI_PALSU_TIDAK_VALID
+
+{
+    "productId": 2,
+    "targetGameId": "H2H_TEST_ID_GAGAL"
+}

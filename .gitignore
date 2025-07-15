@@ -1,0 +1,9 @@
+# Jangan upload dependensi
+node_modules/
+
+# Folder dari VSCode
+.vscode/
+
+# File log dan environment
+*.log
+.env
