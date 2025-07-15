@@ -1,7 +1,9 @@
 // Salin dan ganti seluruh isi file script.js Anda dengan ini.
 document.addEventListener('DOMContentLoaded', function () {
-    const AUTH_API_URL = 'http://localhost:3000/api/auth';
-    const PUBLIC_API_URL = 'http://localhost:3000/api';
+ const AUTH_API_URL = 'https://https://topup-miku.onrender.com/api/auth';
+const PUBLIC_API_URL = 'https://https://topup-miku.onrender.com/api';
+
+
     
     // === Elemen UI ===
     const modal = document.getElementById('auth-modal');
