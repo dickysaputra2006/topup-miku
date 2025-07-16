@@ -12,7 +12,7 @@ const JWT_SECRET = 'kunci-rahasia-yang-sangat-aman-untuk-proyek-ini'; // Ganti d
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
-const FOXY_API_KEY = process.env.FOXY_API_KEY || 'kiosgamee94aab3cdd2d062a2005aedecad41beff393ff8dca6eaf1cfec381c2f96e5dd4'; // Pastikan ini diatur di Render Environment Variables
+const FOXY_API_KEY = process.env.FOXY_API_KEY;
 
 // Middleware
 app.use(cors());
@@ -687,6 +687,69 @@ app.post('/h2h/order', protectH2H, async (req, res) => {
     }
 });
 
+async function checkPendingTransactions() {
+    console.log('Running checkPendingTransactions job...');
+    const client = await pool.connect(); // Dapatkan koneksi dari pool
+    try {
+        await client.query('BEGIN'); // Mulai transaksi database
+
+        // 1. Ambil semua transaksi dengan status 'Pending' yang belum diupdate oleh callback
+        const { rows: pendingTx } = await client.query(
+            `SELECT id, invoice_id, user_id, product_id, price, provider_trx_id FROM transactions WHERE status = 'Pending' FOR UPDATE`
+        ); // Gunakan FOR UPDATE untuk mengunci baris
+
+        if (pendingTx.length === 0) {
+            console.log('No pending transactions found.');
+            await client.query('COMMIT');
+            return;
+        }
+
+        console.log(`Found ${pendingTx.length} pending transactions. Checking status with Foxy API...`);
+
+        for (const tx of pendingTx) {
+            try {
+                // Panggil Foxy API untuk mendapatkan status transaksi
+                // Sesuai dengan modul api foxy Anda, endpoint status adalah /v1/status/{trxId}
+                const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, {
+                    headers: { 'Authorization': FOXY_API_KEY }
+                });
+
+                const foxyStatus = foxyResponse.data.data.status; // Asumsi status ada di response.data.data.status
+                const foxyMessage = foxyResponse.data.message || 'No specific message from provider.';
+
+                console.log(`Transaction ${tx.invoice_id} (Provider ID: ${tx.provider_trx_id}) - Foxy Status: ${foxyStatus}`);
+
+                if (foxyStatus === 'SUCCESS') {
+                    await client.query('UPDATE transactions SET status = \'Success\', updated_at = NOW() WHERE id = $1', [tx.id]);
+                    console.log(`Transaction ${tx.invoice_id} updated to SUCCESS.`);
+                } else if (foxyStatus === 'FAILED' || foxyStatus === 'REFUNDED' || foxyStatus === 'PARTIAL SUCCES' || foxyStatus === 'PARTIAL REFFUND') {
+                    await client.query('UPDATE transactions SET status = \'Failed\', updated_at = NOW() WHERE id = $1', [tx.id]);
+                    // Kembalikan saldo pengguna
+                    await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
+                    // Catat di riwayat saldo
+                    const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} (Gagal/Refund dari provider): ${foxyMessage}`;
+                    await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
+                        [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
+                    console.log(`Transaction ${tx.invoice_id} updated to FAILED/REFUNDED and balance refunded.`);
+                }
+                // Jika statusnya masih 'PENDING' dari Foxy, biarkan saja di database Anda.
+
+            } catch (foxyError) {
+                console.error(`Error checking Foxy status for ${tx.invoice_id}:`, foxyError.response ? foxyError.response.data : foxyError.message);
+                // Tangani error API Foxy, misal log saja, jangan update status di DB jika tidak yakin.
+            }
+        }
+
+        await client.query('COMMIT'); // Commit transaksi setelah semua selesai
+
+    } catch (dbError) {
+        await client.query('ROLLBACK'); // Rollback jika ada error database saat mengambil/memproses
+        console.error('Error in checkPendingTransactions job:', dbError);
+    } finally {
+        client.release(); // Selalu kembalikan koneksi ke pool
+    }
+}
+module.exports = { app, pool, checkPendingTransactions }; 
 app.listen(PORT, () => {
     console.log(`Server berjalan di http://localhost:${PORT}`);
 });
