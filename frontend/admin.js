@@ -204,9 +204,19 @@ let allRoles = [];
 }
 
 function renderProductsForGame(gameId) {
-    if (!productsTableBody) return;
+    if (!productsTableBody) return; // productsTableBody adalah <tbody>
     const filteredProducts = allProducts.filter(p => p.game_id == gameId);
     productsTableBody.innerHTML = ''; // Kosongkan tabel body
+
+    // ====================================================================
+    // PERBAIKAN DI SINI: Cara yang lebih aman untuk mendapatkan thead
+    const productsTable = document.getElementById('products-table'); // Dapatkan elemen <table>
+    const tableHeaderThead = productsTable.querySelector('thead'); // Dapatkan thead dari table
+    
+    if (!tableHeaderThead) { // Tambahkan validasi jika thead tidak ditemukan
+        console.error('Error: Table header (thead) not found for products table.');
+        return; 
+    }
 
     // Render header tabel produk (nama produk, harga pokok, SKU, dan harga per role)
     const tableHeaderRow = document.createElement('tr');
@@ -214,14 +224,17 @@ function renderProductsForGame(gameId) {
     allRoles.forEach(role => {
         tableHeaderRow.innerHTML += `<th>Harga ${role.name}</th>`; // Tambahkan kolom harga per role
     });
-    productsTableBody.previousElementSibling.querySelector('thead').innerHTML = ''; // Clear existing header
-    productsTableBody.previousElementSibling.querySelector('thead').appendChild(tableHeaderRow);
+    
+    tableHeaderThead.innerHTML = ''; // Clear existing header contents
+    tableHeaderThead.appendChild(tableHeaderRow); // Tambahkan baris header baru
+    // ====================================================================
     
     productListTitle.textContent = `Produk untuk: ${allGames.find(g => g.id == gameId)?.name || 'Pilih Game'}`;
 
 
     if (filteredProducts.length === 0) {
-        const colspan = 3 + allRoles.length; // Kolom default + kolom role
+        // Sesuaikan colspan berdasarkan jumlah kolom yang diharapkan
+        const colspan = 3 + allRoles.length; 
         productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
         return;
     }
