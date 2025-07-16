@@ -12,7 +12,7 @@ const JWT_SECRET = 'kunci-rahasia-yang-sangat-aman-untuk-proyek-ini'; // Ganti d
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
-const FOXY_API_KEY = process.env.FOXY_API_KEY || 'GANTI_DENGAN_API_KEY_ANDA'; // Pastikan ini diatur di Render Environment Variables
+const FOXY_API_KEY = process.env.FOXY_API_KEY || 'kiosgamee94aab3cdd2d062a2005aedecad41beff393ff8dca6eaf1cfec381c2f96e5dd4'; // Pastikan ini diatur di Render Environment Variables
 
 // Middleware
 app.use(cors());
