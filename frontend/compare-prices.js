@@ -1,3 +1,12 @@
+// compare-prices.js
+
+// === PERBAIKAN: Deklarasikan variabel di scope GLOBAL ===
+let allProductsData = []; 
+let allGamesData = [];    
+let allRolesData = [];    
+let displayRoles = []; 
+// =======================================================
+
 document.addEventListener('DOMContentLoaded', function() {
     const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api'; 
     
@@ -6,15 +15,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const compareTableBody = document.querySelector("#compare-prices-table tbody");
     const compareTableHeader = document.querySelector("#compare-prices-table thead tr");
     const gameSearchInput = document.getElementById('game-search-input');
-
-    // === PERBAIKAN: Pastikan ini dideklarasikan di scope terluar DOMContentLoaded ===
-    let allProductsData = []; 
-    let allGamesData = [];    
-    let allRolesData = [];    
-    let displayRoles = []; // Variabel untuk menyimpan role yang difilter dan diurutkan
-    // ====================================================================
     
-    const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD']; 
+    const PUBLIC_ROLE_ORDER = ['BRONZE', 'SILVER', 'GOLD', 'PARTNER']; 
 
     async function fetchAllCompareData() {
         if (!compareTableBody || !compareTableHeader || !compareGamesList) return;
@@ -22,18 +24,18 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch(`${PUBLIC_API_URL}/public/compare-prices`);
             if (!response.ok) {
-                const errorData = await response.json(); // Coba ambil pesan error dari response
+                const errorData = await response.json(); 
                 throw new Error(errorData.message || 'Gagal memuat data perbandingan harga dari server.');
             }
             const data = await response.json(); 
 
+            // === PERBAIKAN: Tetapkan nilai ke variabel global yang dideklarasikan di atas ===
             allProductsData = data.products;
             allGamesData = data.games; 
             allRolesData = data.roles;
+            // ==============================================================================
 
-            // === PERBAIKAN: Log data yang diterima untuk debugging ===
             console.log("DEBUG: Data fetched - Products:", allProductsData.length, "Games:", allGamesData.length, "Roles:", allRolesData.length);
-            // =========================================================
 
             displayRoles = allRolesData.filter(role => 
                 PUBLIC_ROLE_ORDER.includes(role.name) 
@@ -43,9 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return indexA - indexB;
             });
 
-            // === PERBAIKAN: Log displayRoles setelah filter/sort ===
             console.log("DEBUG: Display Roles (filtered & sorted):", displayRoles);
-            // =========================================================
 
             renderGamesSidebar(allGamesData, displayRoles); 
             
@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const filteredGames = allGamesData.filter(game => 
                 game.name.toLowerCase().includes(searchTerm)
             );
-            renderGamesSidebar(filteredGames, displayRoles); // === PERBAIKAN: Gunakan variabel global displayRoles ===
+            renderGamesSidebar(filteredGames, displayRoles); 
         });
     }
 
