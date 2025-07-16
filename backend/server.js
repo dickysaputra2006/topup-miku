@@ -382,12 +382,9 @@ app.get('/api/admin/games', protectAdmin, async (req, res) => {
 
 app.get('/api/admin/products', protectAdmin, async (req, res) => {
     try {
-        // Ambil semua produk
-        // === PERUBAHAN DI SINI: MENAMBAHKAN ORDER BY p.price ASC ===
-          const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
+         const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
                              FROM products p JOIN games g ON p.game_id = g.id 
-                             ORDER BY g.name ASC, p.price ASC, p.name ASC`;
-        // =========================================================
+                             ORDER BY g.name ASC, p.price ASC, p.name ASC`; 
         const { rows: products } = await pool.query(sqlProducts);
 
         // Ambil semua margin role
