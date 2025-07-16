@@ -375,29 +375,28 @@ app.get('/api/admin/games', protectAdmin, async (req, res) => {
 app.get('/api/admin/products', protectAdmin, async (req, res) => {
     try {
         // Ambil semua produk
+        // === PERUBAHAN DI SINI: MENAMBAHKAN ORDER BY p.price ASC ===
         const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
                              FROM products p JOIN games g ON p.game_id = g.id 
-                             ORDER BY g.name, p.name ASC`;
+                             ORDER BY g.name, p.name ASC, p.price ASC`; // Order tambahan berdasarkan harga
+        // =========================================================
         const { rows: products } = await pool.query(sqlProducts);
 
-        // Ambil semua margin role (kecuali Admin/Owner, atau sesuai kebutuhan Anda)
+        // Ambil semua margin role
         const sqlRoles = `SELECT id, name, margin_percent FROM roles ORDER BY id ASC`;
         const { rows: roles } = await pool.query(sqlRoles);
 
-        // Buat mapping role untuk akses mudah
         const roleMargins = {};
         roles.forEach(role => {
             roleMargins[role.id] = parseFloat(role.margin_percent);
         });
 
-        // Hitung harga jual untuk setiap produk berdasarkan setiap role
         const productsWithRolePrices = products.map(product => {
-            const productWithPrices = { ...product }; // Copy objek produk
-            // Tambahkan harga untuk setiap role
+            const productWithPrices = { ...product };
             roles.forEach(role => {
-                const margin = roleMargins[role.id] || 0; // Ambil margin role, default 0 jika tidak ditemukan
+                const margin = roleMargins[role.id] || 0;
                 const sellingPrice = product.price * (1 + (margin / 100));
-                productWithPrices[`price_${role.name.toLowerCase()}`] = Math.ceil(sellingPrice); // price_user, price_gold, etc.
+                productWithPrices[`price_${role.name.toLowerCase()}`] = Math.ceil(sellingPrice);
             });
             return productWithPrices;
         });
@@ -495,9 +494,14 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
         const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [userRoleId]);
         if (roleRows.length === 0) throw new Error(`Role dengan ID ${userRoleId} tidak ditemukan.`);
         const margin = roleRows[0].margin_percent;
+
         const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
         if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });
+
+        // === PERUBAHAN DI SINI: MENAMBAHKAN ORDER BY price ASC ===
         const { rows: products } = await pool.query("SELECT id, name, provider_sku, price as base_price FROM products WHERE game_id = $1 AND status = 'Active' ORDER BY price ASC", [gameId]);
+        // =========================================================
+
         const finalProducts = products.map(p => {
             const sellingPrice = p.base_price * (1 + (margin / 100));
             return { id: p.id, name: p.name, provider_sku: p.provider_sku, price: Math.ceil(sellingPrice) };
