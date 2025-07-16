@@ -5,7 +5,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
-
+const { syncProductsWithFoxy } = require('./utils/cronUtils'); 
 const app = express();
 const PORT = 3000;
 const JWT_SECRET = 'kunci-rahasia-yang-sangat-aman-untuk-proyek-ini'; // Ganti dengan kunci rahasia yang lebih kuat!
@@ -371,17 +371,44 @@ app.get('/api/admin/games', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil data game.' });
     }
 });
+
 app.get('/api/admin/products', protectAdmin, async (req, res) => {
     try {
-        // PostgreSQL: JOIN syntax standar
-        const sql = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name FROM products p JOIN games g ON p.game_id = g.id ORDER BY g.name, p.name ASC`;
-        const { rows } = await pool.query(sql);
-        res.json(rows);
+        // Ambil semua produk
+        const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
+                             FROM products p JOIN games g ON p.game_id = g.id 
+                             ORDER BY g.name, p.name ASC`;
+        const { rows: products } = await pool.query(sqlProducts);
+
+        // Ambil semua margin role (kecuali Admin/Owner, atau sesuai kebutuhan Anda)
+        const sqlRoles = `SELECT id, name, margin_percent FROM roles ORDER BY id ASC`;
+        const { rows: roles } = await pool.query(sqlRoles);
+
+        // Buat mapping role untuk akses mudah
+        const roleMargins = {};
+        roles.forEach(role => {
+            roleMargins[role.id] = parseFloat(role.margin_percent);
+        });
+
+        // Hitung harga jual untuk setiap produk berdasarkan setiap role
+        const productsWithRolePrices = products.map(product => {
+            const productWithPrices = { ...product }; // Copy objek produk
+            // Tambahkan harga untuk setiap role
+            roles.forEach(role => {
+                const margin = roleMargins[role.id] || 0; // Ambil margin role, default 0 jika tidak ditemukan
+                const sellingPrice = product.price * (1 + (margin / 100));
+                productWithPrices[`price_${role.name.toLowerCase()}`] = Math.ceil(sellingPrice); // price_user, price_gold, etc.
+            });
+            return productWithPrices;
+        });
+
+        res.json(productsWithRolePrices);
     } catch (error) {
-        console.error('Error fetching admin products:', error);
-        res.status(500).json({ message: 'Server error saat mengambil data produk.' });
+        console.error('Error fetching admin products with role prices:', error);
+        res.status(500).json({ message: 'Server error saat mengambil data produk dengan harga role.' });
     }
 });
+
 app.post('/api/admin/games', protectAdmin, async (req, res) => {
     try {
         const { name, category, imageUrl } = req.body;
@@ -411,80 +438,20 @@ app.post('/api/admin/products', protectAdmin, async (req, res) => {
 });
 
 app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
-    const client = await pool.connect();
     try {
-        await client.query('BEGIN');
-        const { margin_percent } = req.body;
-        if (margin_percent === undefined || isNaN(margin_percent)) throw new Error('Persentase margin tidak valid.');
-
-        const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
-            headers: { 'Authorization': FOXY_API_KEY }
-        });
-
-        console.log('Foxy API Products Response Data:', JSON.stringify(response.data, null, 2));
-
-        const providerProducts = response.data.data;
-
-        if (!Array.isArray(providerProducts)) {
-            throw new Error('Format respons Foxy API tidak sesuai: "data" bukan array.');
+        const { margin_percent } = req.body; // Menerima margin dari frontend
+        if (margin_percent === undefined || isNaN(margin_percent)) {
+            return res.status(400).json({ message: 'Persentase margin tidak valid.' });
         }
-
-        for (const product of providerProducts) {
-            // ====================================================================
-            // PERBAIKAN DI SINI: Gunakan nama properti yang BENAR dari respons Foxy API
-            const gameName = product.category_title; // Nama game ada di 'category_title'
-            const categoryName = product.category_type; // Kategori umum ada di 'category_type'
-            const productName = product.product_name; // Nama produk
-            const productCode = product.product_code; // SKU produk
-            const basePrice = product.product_price; // Harga pokok
-
-            // ====================================================================
-
-            // Validasi dasar: pastikan semua data kunci ada dan tidak null
-            if (!gameName || !categoryName || !productName || !productCode || basePrice === undefined || basePrice === null) {
-                 console.warn(`Produk Foxy dilewati karena data tidak lengkap:`, {
-                     gameName, categoryName, productName, productCode, basePrice, originalProduct: product
-                 });
-                 continue; // Lewati produk ini jika data utamanya tidak lengkap
-            }
-
-            // Cek game, jika tidak ada, buat baru
-            let { rows: games } = await client.query('SELECT id FROM games WHERE name = $1', [gameName]);
-            if (games.length === 0) {
-                console.warn(`Game "${gameName}" tidak ditemukan. Membuat game baru.`);
-                const { rows: newGameResult } = await client.query('INSERT INTO games (name, category, image_url, needs_server_id, status) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-                    [gameName, categoryName, 'https://via.placeholder.com/200', false, 'Active']);
-                games = [{ id: newGameResult[0].id }];
-            }
-            const gameId = games[0].id;
-
-            // Cek kategori produk, jika tidak ada, buat baru
-            let { rows: categories } = await client.query('SELECT id FROM product_categories WHERE name = $1 AND game_id = $2', [categoryName, gameId]);
-            let categoryId;
-            if (categories.length === 0) {
-                const { rows: newCat } = await client.query('INSERT INTO product_categories (game_id, name) VALUES ($1, $2) RETURNING id', [gameId, categoryName]);
-                categoryId = newCat[0].id;
-            } else {
-                categoryId = categories[0].id;
-            }
-
-            const sellingPrice = basePrice * (1 + (margin_percent / 100));
-
-            const sql = `INSERT INTO products (game_id, category_id, name, provider_sku, price, status) 
-                         VALUES ($1, $2, $3, $4, $5, $6) 
-                         ON CONFLICT (provider_sku) DO UPDATE 
-                         SET name = EXCLUDED.name, price = EXCLUDED.price, game_id = EXCLUDED.game_id, category_id = EXCLUDED.category_id, status = EXCLUDED.status`;
-            await client.query(sql, [gameId, categoryId, productName, productCode, sellingPrice, 'Active']);
-        }
-        await client.query('COMMIT');
-        res.json({ message: `Sinkronisasi produk selesai dengan margin ${margin_percent}%.` });
+        
+        // Panggil fungsi sinkronisasi dari utilitas, teruskan margin
+        // Catatan: Fungsi syncProductsWithFoxy di utilitas perlu menerima margin_percent
+        await syncProductsWithFoxy(margin_percent); 
+        
+        res.json({ message: `Sinkronisasi produk berhasil dipicu dengan margin ${margin_percent}%.` });
     } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('Sync error details:', error);
-        console.error('Sync error message:', error.response ? error.response.data : error.message);
-        res.status(500).json({ message: 'Gagal melakukan sinkronisasi. Cek log server untuk detail.' });
-    } finally {
-        client.release();
+        console.error('Manual sync trigger error:', error);
+        res.status(500).json({ message: 'Gagal memicu sinkronisasi manual. Cek log server.' });
     }
 });
 
