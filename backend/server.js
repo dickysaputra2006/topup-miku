@@ -376,9 +376,9 @@ app.get('/api/admin/products', protectAdmin, async (req, res) => {
     try {
         // Ambil semua produk
         // === PERUBAHAN DI SINI: MENAMBAHKAN ORDER BY p.price ASC ===
-        const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
+          const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
                              FROM products p JOIN games g ON p.game_id = g.id 
-                             ORDER BY g.name, p.name ASC, p.price ASC`; // Order tambahan berdasarkan harga
+                             ORDER BY g.name ASC, p.price ASC, p.name ASC`;
         // =========================================================
         const { rows: products } = await pool.query(sqlProducts);
 
@@ -512,7 +512,48 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil data produk.' });
     }
 });
+app.get('/api/public/compare-prices', async (req, res) => {
+    try {
+        // Ambil semua produk (termasuk yang tidak aktif jika perlu untuk perbandingan, atau filter sesuai kebutuhan)
+        const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
+                             FROM products p JOIN games g ON p.game_id = g.id 
+                             WHERE p.status = 'Active' -- Hanya tampilkan produk aktif
+                             ORDER BY g.name ASC, p.name ASC`;
+        const { rows: products } = await pool.query(sqlProducts);
 
+        // Ambil semua margin role (SEMUA, termasuk Admin/Owner jika ingin terlihat di sini)
+        const sqlRoles = `SELECT id, name, margin_percent FROM roles ORDER BY id ASC`;
+        const { rows: roles } = await pool.query(sqlRoles);
+
+        const roleMargins = {};
+        roles.forEach(role => {
+            roleMargins[role.id] = parseFloat(role.margin_percent);
+        });
+
+        // Hitung harga jual untuk setiap produk berdasarkan setiap role
+        const productsWithRolePrices = products.map(product => {
+            const productWithPrices = { 
+                id: product.id,
+                game_name: product.game_name,
+                product_name: product.name,
+                provider_sku: product.provider_sku,
+                base_price: product.price // Harga pokok asli
+            }; 
+            // Tambahkan harga untuk setiap role
+            roles.forEach(role => {
+                const margin = roleMargins[role.id] || 0;
+                const sellingPrice = product.price * (1 + (margin / 100));
+                productWithPrices[`price_${role.name.toLowerCase()}`] = Math.ceil(sellingPrice); // price_user, price_gold, etc.
+            });
+            return productWithPrices;
+        });
+
+        res.json({ products: productsWithRolePrices, roles: roles }); // Kirim juga daftar roles untuk frontend
+    } catch (error) {
+        console.error('Error fetching public compare prices:', error);
+        res.status(500).json({ message: 'Server error saat mengambil data perbandingan harga.' });
+    }
+});
 // === ORDER & H2H ENDPOINTS ===
 app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
