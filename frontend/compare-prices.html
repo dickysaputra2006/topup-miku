@@ -17,23 +17,31 @@
         </div>
     </header>
 
-    <main class="container">
-        <section class="card" style="margin-top: 2rem;">
-            <h3>Perbandingan Harga Produk per Role</h3>
-            <p class="form-description">Lihat perbedaan harga jual untuk setiap jenis akun (role) kami. Dapatkan harga terbaik dengan menjadi reseller!</p>
-            <div class="table-container">
-                <table id="compare-prices-table">
-                    <thead>
-                        <tr></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td colspan="5" style="text-align: center;">Memuat data perbandingan harga...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    </main>
+    <div class="dashboard-container container"> <aside class="sidebar"> <nav class="sidebar-nav">
+                <h4><i class="fas fa-gamepad"></i> Pilih Game</h4>
+                <input type="text" id="game-search-input" placeholder="Cari nama game..." style="width:100%; padding:0.5rem; margin-bottom: 1rem; border-radius: 5px; border: 1px solid var(--border-color); background-color: var(--bg-dark); color: var(--text-color);">
+                <div id="compare-games-list" class="sidebar-nav">
+                    <p style="text-align: center; color: #aaa;">Memuat game...</p>
+                </div>
+            </nav>
+        </aside>
 
+        <main class="dashboard-content"> <section class="card">
+                <h3 id="compare-product-list-title">Pilih Game untuk Melihat Perbandingan Harga</h3>
+                <p class="form-description">Lihat perbedaan harga jual untuk setiap jenis akun (role) kami.</p>
+                <div class="table-container">
+                    <table id="compare-prices-table">
+                        <thead>
+                            <tr></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="5" style="text-align: center;">...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
     <script src="compare-prices.js"></script>
 </body>
 </html>

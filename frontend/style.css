@@ -676,3 +676,78 @@ table th {
     background-color: #6c757d;
     cursor: not-allowed;
 }
+/* === DASHBOARD & ADMIN SHARED LAYOUT === */
+.dashboard-container, .admin-page-container {
+    display: flex;
+    gap: 2rem;
+    margin-top: 2rem;
+    align-items: flex-start; /* Penting agar sidebar tidak memenuhi tinggi */
+}
+.sidebar, .admin-sidebar {
+    flex: 1;
+    max-width: 250px;
+    background-color: var(--bg-surface);
+    padding: 1rem;
+    border-radius: 8px;
+    position: sticky;
+    top: 2rem; /* Membuat sidebar sticky saat scroll */
+    min-height: calc(100vh - 4rem); /* Minimal tinggi sidebar */
+    box-sizing: border-box; /* Pastikan padding dihitung dalam width/height */
+    overflow-y: auto; /* Agar bisa discroll jika daftar game panjang */
+    max-height: calc(100vh - 4rem); /* Batasi tinggi agar sticky tidak terlalu besar */
+}
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+}
+.sidebar-nav a {
+    color: var(--text-color);
+    text-decoration: none;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+.sidebar-nav a:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.sidebar-nav a.active {
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: bold;
+}
+.dashboard-content, .admin-content {
+    flex: 3;
+    display: flex; /* Untuk menata sections di dalamnya */
+    flex-direction: column;
+    gap: 2rem;
+}
+
+/* Tambahan untuk scrollable tables di Admin Panel/Compare Prices Page */
+.table-container {
+    width: 100%;
+    overflow-x: auto; /* Memungkinkan tabel di-scroll horizontal */
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    white-space: nowrap; /* Mencegah teks dalam sel pecah baris */
+}
+table th, table td {
+    border: 1px solid var(--border-color);
+    padding: 0.8rem 1rem;
+    text-align: left;
+}
+table th {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+/* Mengatur lebar kolom agar lebih proporsional untuk banyak harga */
+table th:nth-child(1), table td:nth-child(1) { min-width: 150px; } /* Nama Game/Produk */
+table th:nth-child(2), table td:nth-child(2) { min-width: 200px; } /* Produk/Harga Pokok */
+table th:nth-child(3), table td:nth-child(3) { min-width: 100px; } /* SKU */
+table th:nth-child(4), table td:nth-child(4) { min-width: 120px; } /* Harga Pokok */
