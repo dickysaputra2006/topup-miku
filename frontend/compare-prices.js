@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let allRolesData = [];    
     
    
-    const PUBLIC_ROLE_ORDER = ['BRONZE', 'SILVER', 'GOLD', 'PARTNER']; 
+    const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD']; 
  
 
     // Fungsi utama untuk mengambil semua data perbandingan harga

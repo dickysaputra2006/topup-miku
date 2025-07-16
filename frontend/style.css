@@ -681,36 +681,46 @@ table th {
     display: flex;
     gap: 2rem;
     margin-top: 2rem;
-    align-items: flex-start; /* Penting agar sidebar tidak memenuhi tinggi */
+    align-items: flex-start;
 }
 .sidebar, .admin-sidebar {
     flex: 1;
+    min-width: 200px; /* Tambahkan min-width agar tidak terlalu kecil */
     max-width: 250px;
     background-color: var(--bg-surface);
     padding: 1rem;
     border-radius: 8px;
     position: sticky;
-    top: 2rem; /* Membuat sidebar sticky saat scroll */
-    min-height: calc(100vh - 4rem); /* Minimal tinggi sidebar */
-    box-sizing: border-box; /* Pastikan padding dihitung dalam width/height */
-    overflow-y: auto; /* Agar bisa discroll jika daftar game panjang */
-    max-height: calc(100vh - 4rem); /* Batasi tinggi agar sticky tidak terlalu besar */
+    top: 2rem;
+    min-height: calc(100vh - 4rem);
+    box-sizing: border-box;
+    overflow-y: auto;
+    max-height: calc(100vh - 4rem);
 }
 .sidebar-nav {
     display: flex;
     flex-direction: column;
 }
-.sidebar-nav a {
+.sidebar-nav h4 { /* Style untuk judul sidebar */
+    color: var(--primary-color);
+    margin-top: 0;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+.sidebar-nav a { /* Pastikan link game di sidebar memiliki padding dan display block */
     color: var(--text-color);
     text-decoration: none;
-    padding: 1rem;
+    padding: 0.8rem 1rem; /* Sedikit lebih kecil dari nav header */
     border-radius: 5px;
     margin-bottom: 0.5rem;
-    display: flex;
-    align-items: center;
+    display: block; /* Pastikan mengambil seluruh lebar */
+    align-items: center; /* Untuk ikon jika ada */
     gap: 1rem;
     transition: background-color 0.2s;
     cursor: pointer;
+    white-space: nowrap; /* Mencegah nama game pecah baris */
+    overflow: hidden; /* Sembunyikan overflow jika nama sangat panjang */
+    text-overflow: ellipsis; /* Tambahkan elipsis jika terpotong */
 }
 .sidebar-nav a:hover {
     background-color: rgba(255, 255, 255, 0.05);
@@ -720,12 +730,7 @@ table th {
     color: white;
     font-weight: bold;
 }
-.dashboard-content, .admin-content {
-    flex: 3;
-    display: flex; /* Untuk menata sections di dalamnya */
-    flex-direction: column;
-    gap: 2rem;
-}
+
 
 /* Tambahan untuk scrollable tables di Admin Panel/Compare Prices Page */
 .table-container {
