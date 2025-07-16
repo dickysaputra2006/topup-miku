@@ -1,3 +1,4 @@
+// admin.js
 document.addEventListener('DOMContentLoaded', function() {
     // --- LOGIKA BARU UNTUK NAVIGASI TAB ---
     const navLinks = document.querySelectorAll('.admin-nav-link');
@@ -10,11 +11,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 e.preventDefault();
                 const targetId = link.dataset.target;
 
-                // Atur style link yang aktif
                 navLinks.forEach(navLink => navLink.classList.remove('active'));
                 link.classList.add('active');
 
-                // Tampilkan section yang sesuai
                 sections.forEach(section => {
                     if (section.id === targetId) {
                         section.classList.remove('hidden');
@@ -35,7 +34,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // Deklarasi semua elemen dari halaman admin
     const pendingDepositsTableBody = document.querySelector("#pending-deposits-table tbody");
     const manualBalanceForm = document.getElementById('manual-balance-form');
     const addBalanceBtn = document.getElementById('add-balance-btn');
@@ -50,9 +48,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const marginForm = document.getElementById('margin-form');
     const marginFieldsContainer = document.getElementById('margin-fields-container');
 
-    // Variabel untuk menyimpan data
     let allGames = [];
     let allProducts = [];
+    let allRoles = []; // Variabel untuk menyimpan semua role
+    
+    // ====================================================================
+    // PERUBAHAN DI SINI: Urutan role yang diinginkan
+    const ADMIN_PRICE_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD', 'Admin']; 
+    // ====================================================================
 
     // === Kumpulan Semua Fungsi ===
     async function fetchPendingDeposits() {
@@ -144,18 +147,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function fetchAdminGames() {
-    if (!gamesTableBody) return;
-    try {
-        const response = await fetch(`${ADMIN_API_URL}/games`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!response.ok) throw new Error('Gagal memuat data game');
-        allGames = await response.json();
-        renderGamesTable(allGames);
-    } catch (error) {
-        console.error("Error memuat game:", error);
-        if (gamesTableBody) gamesTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">${error.message}</td></tr>`;
+        if (!gamesTableBody) return;
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/games`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) throw new Error('Gagal memuat data game');
+            allGames = await response.json();
+            renderGamesTable(allGames);
+        } catch (error) {
+            console.error("Error memuat game:", error);
+            if (gamesTableBody) gamesTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">${error.message}</td></tr>`;
+        }
     }
-}
-let allRoles = []; 
+
     function renderGamesTable(games) {
         if (!gamesTableBody) return;
         gamesTableBody.innerHTML = '';
@@ -171,89 +174,91 @@ let allRoles = [];
         });
     }
 
-    async function fetchAdminProducts() {
-    if (!productsTableBody) return;
-    try {
-        const response = await fetch(`${ADMIN_API_URL}/products`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!response.ok) throw new Error('Gagal memuat data produk');
-        allProducts = await response.json();
+     async function fetchAdminProducts() {
+        if (!productsTableBody) return;
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/products`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) throw new Error('Gagal memuat data produk');
+            allProducts = await response.json();
 
-        // Ambil juga daftar role untuk header tabel (jika belum ada)
-        if (allRoles.length === 0) {
-            const rolesResponse = await fetch(`${ADMIN_API_URL}/roles`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!rolesResponse.ok) throw new Error('Gagal memuat data roles untuk header.');
-            allRoles = await rolesResponse.json();
-            // Filter role Admin/Owner jika tidak ingin ditampilkan harganya
-            allRoles = allRoles.filter(role => role.name !== 'Admin' && role.name !== 'Owner'); // Sesuaikan filter
+            // Ambil juga daftar role untuk header tabel (jika belum ada)
+            if (allRoles.length === 0) {
+                const rolesResponse = await fetch(`${ADMIN_API_URL}/roles`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!rolesResponse.ok) throw new Error('Gagal memuat data roles untuk header.');
+                allRoles = await rolesResponse.json();
+            }
+
+            const activeGameRow = document.querySelector('#games-table tbody tr.active-row');
+            if (activeGameRow) {
+                renderProductsForGame(activeGameRow.dataset.gameId);
+            } else {
+                // Untuk colspan default, gunakan ADMIN_PRICE_ROLE_ORDER
+                const colspan = 3 + ADMIN_PRICE_ROLE_ORDER.length; 
+                productsTableBody.innerHTML = '<tr><td colspan="'+colspan+'" style="text-align: center;">Pilih Game untuk Melihat Produk</td></tr>';
+            }
+        } catch (error) {
+            console.error("Error memuat produk atau roles:", error);
+            const colspan = 3 + ADMIN_PRICE_ROLE_ORDER.length; 
+            if (productsTableBody) productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center; color: red;">${error.message}</td></tr>`;
         }
-
-        // Render produk untuk game yang sedang aktif (jika ada)
-        const activeGameRow = document.querySelector('#games-table tbody tr.active-row');
-        if (activeGameRow) {
-            renderProductsForGame(activeGameRow.dataset.gameId);
-        } else {
-            // Tampilkan pesan default jika belum ada game yang dipilih
-            productsTableBody.innerHTML = '<tr><td colspan="'+(3+allRoles.length)+'" style="text-align: center;">Pilih Game untuk Melihat Produk</td></tr>';
-        }
-    } catch (error) {
-        console.error("Error memuat produk atau roles:", error);
-        // Sesuaikan colspan berdasarkan jumlah kolom yang diharapkan
-        const colspan = 3 + allRoles.length; 
-        if (productsTableBody) productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center; color: red;">${error.message}</td></tr>`;
-    }
-}
-
-function renderProductsForGame(gameId) {
-    if (!productsTableBody) return; // productsTableBody adalah <tbody>
-    const filteredProducts = allProducts.filter(p => p.game_id == gameId);
-    productsTableBody.innerHTML = ''; // Kosongkan tabel body
-
-    // ====================================================================
-    // PERBAIKAN DI SINI: Cara yang lebih aman untuk mendapatkan thead
-    const productsTable = document.getElementById('products-table'); // Dapatkan elemen <table>
-    const tableHeaderThead = productsTable.querySelector('thead'); // Dapatkan thead dari table
-    
-    if (!tableHeaderThead) { // Tambahkan validasi jika thead tidak ditemukan
-        console.error('Error: Table header (thead) not found for products table.');
-        return; 
     }
 
-    // Render header tabel produk (nama produk, harga pokok, SKU, dan harga per role)
-    const tableHeaderRow = document.createElement('tr');
-    tableHeaderRow.innerHTML = `<th>Nama Produk</th><th>Harga Pokok</th><th>SKU</th>`;
-    allRoles.forEach(role => {
-        tableHeaderRow.innerHTML += `<th>Harga ${role.name}</th>`; // Tambahkan kolom harga per role
-    });
-    
-    tableHeaderThead.innerHTML = ''; // Clear existing header contents
-    tableHeaderThead.appendChild(tableHeaderRow); // Tambahkan baris header baru
-    // ====================================================================
-    
-    productListTitle.textContent = `Produk untuk: ${allGames.find(g => g.id == gameId)?.name || 'Pilih Game'}`;
+     function renderProductsForGame(gameId) {
+        if (!productsTableBody) return;
+        const filteredProducts = allProducts.filter(p => p.game_id == gameId);
+        productsTableBody.innerHTML = '';
 
-
-    if (filteredProducts.length === 0) {
-        // Sesuaikan colspan berdasarkan jumlah kolom yang diharapkan
-        const colspan = 3 + allRoles.length; 
-        productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
-        return;
-    }
-
-    filteredProducts.forEach(product => {
-        const row = document.createElement('tr');
-        const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price);
-        let rowHtml = `<td>${product.name}</td><td>${formattedBasePrice}</td><td>${product.provider_sku}</td>`;
+        const productsTable = document.getElementById('products-table'); 
+        const tableHeaderThead = productsTable.querySelector('thead');
         
-        // Tambahkan harga per role
-        allRoles.forEach(role => {
-            const rolePriceKey = `price_${role.name.toLowerCase()}`; // e.g., 'price_user', 'price_gold'
-            const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product[rolePriceKey] || 0);
-            rowHtml += `<td>${formattedRolePrice}</td>`;
+        if (!tableHeaderThead) {
+            console.error('Error: Table header (thead) not found for products table.');
+            return; 
+        }
+
+        const tableHeaderRow = document.createElement('tr');
+        tableHeaderRow.innerHTML = `<th>Nama Produk</th><th>Harga Pokok</th><th>SKU</th>`;
+        
+        // ====================================================================
+        // PERUBAHAN DI SINI: Filtering dan urutan roles untuk tampilan tabel Admin
+        const displayRoles = allRoles.filter(role => 
+            ADMIN_PRICE_ROLE_ORDER.includes(role.name) // Hanya sertakan role dari ADMIN_PRICE_ROLE_ORDER
+        ).sort((a, b) => { 
+            const indexA = ADMIN_PRICE_ROLE_ORDER.indexOf(a.name);
+            const indexB = ADMIN_PRICE_ROLE_ORDER.indexOf(b.name);
+            return indexA - indexB;
         });
-        row.innerHTML = rowHtml;
-        productsTableBody.appendChild(row);
-    });
-}
+        // ====================================================================
+
+        displayRoles.forEach(role => {
+            tableHeaderRow.innerHTML += `<th>Harga ${role.name}</th>`;
+        });
+        
+        tableHeaderThead.innerHTML = '';
+        tableHeaderThead.appendChild(tableHeaderRow);
+        
+        productListTitle.textContent = `Produk untuk: ${allGames.find(g => g.id == gameId)?.name || 'Pilih Game'}`;
+
+        if (filteredProducts.length === 0) {
+            const colspan = 3 + displayRoles.length; 
+            productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
+            return;
+        }
+
+        filteredProducts.forEach(product => {
+            const row = document.createElement('tr');
+            const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price);
+            let rowHtml = `<td>${product.name}</td><td>${formattedBasePrice}</td><td>${product.provider_sku}</td>`;
+            
+            displayRoles.forEach(role => {
+                const rolePriceKey = `price_${role.name.toLowerCase()}`;
+                const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product[rolePriceKey] || 0);
+                rowHtml += `<td>${formattedRolePrice}</td>`;
+            });
+            row.innerHTML = rowHtml;
+            productsTableBody.appendChild(row);
+        });
+    }
 
 
     async function fetchAndDisplayMargins() {
@@ -263,7 +268,10 @@ function renderProductsForGame(gameId) {
             const roles = await response.json();
             marginFieldsContainer.innerHTML = '';
             roles.forEach(role => {
-                if (role.name !== 'Admin') {
+                // ====================================================================
+                // PERUBAHAN DI SINI: Hanya tampilkan margin untuk role yang bisa diubah (User, Gold, Silver, Bronze, Partner)
+                // Admin dan Owner tidak perlu diubah marginnya secara terpisah jika mereka punya margin 0% atau dikelola berbeda.
+                if (role.name !== 'Admin' && role.name !== 'Owner') { 
                     const group = document.createElement('div');
                     group.className = 'form-group-horizontal';
                     group.innerHTML = `<label for="margin-role-${role.id}">${role.name}</label><div><input type="number" id="margin-role-${role.id}" data-role-id="${role.id}" value="${role.margin_percent}" step="0.01" required><span>%</span></div>`;
@@ -365,34 +373,32 @@ function renderProductsForGame(gameId) {
     }
 
     if(syncForm) {
-    syncForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const marginInput = document.getElementById('margin-percent');
-        const syncButton = syncForm.querySelector('button');
-        if (confirm(`Anda yakin ingin sinkronisasi produk dengan margin ${marginInput.value}%?`)) {
-            syncButton.disabled = true;
-            syncButton.textContent = 'Mensinkronkan...';
-            try {
-                // Endpoint sync-products sekarang hanya akan memicu proses di backend
-                const response = await fetch(`${ADMIN_API_URL}/sync-products`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ margin_percent: parseFloat(marginInput.value) }) // Meneruskan margin dari frontend
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message);
-                alert(result.message);
-                // Setelah sync, panggil ulang fetchAdminProducts untuk merefresh tampilan
-                await fetchAdminProducts(); 
-            } catch (error) {
-                alert(`Error: ${error.message}`);
-            } finally {
-                syncButton.disabled = false;
-                syncButton.textContent = 'Sinkronkan Sekarang';
+        syncForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const marginInput = document.getElementById('margin-percent');
+            const syncButton = syncForm.querySelector('button');
+            if (confirm(`Anda yakin ingin sinkronisasi produk dengan margin ${marginInput.value}%?`)) {
+                syncButton.disabled = true;
+                syncButton.textContent = 'Mensinkronkan...';
+                try {
+                    const response = await fetch(`${ADMIN_API_URL}/sync-products`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ margin_percent: parseFloat(marginInput.value) })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+                    alert(result.message);
+                    await fetchAdminProducts(); 
+                } catch (error) {
+                    alert(`Error: ${error.message}`);
+                } finally {
+                    syncButton.disabled = false;
+                    syncButton.textContent = 'Sinkronkan Sekarang';
+                }
             }
-        }
-    });
-}
+        });
+    }
 
     // === Menjalankan Fungsi Awal Saat Halaman Dimuat ===
     async function initAdminPage() {
