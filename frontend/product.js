@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // === Bagian 1: Deklarasi Variabel & Elemen ===
     const AUTH_API_URL = 'https://topup-miku.onrender.com/api/auth';
+    const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api'; // Pastikan ini juga benar
     const params = new URLSearchParams(window.location.search);
     const gameId = params.get('gameId');
     const token = localStorage.getItem('authToken');
@@ -17,7 +18,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const orderForm = document.getElementById('order-form');
     const totalPriceEl = document.getElementById('total-price');
     const submitOrderBtn = document.getElementById('submit-order-btn');
-    const serverIdInput = document.getElementById('target-server-id');
+    const targetGameIdInput = document.getElementById('target-game-id'); // Mengganti nama variabel
+    const targetServerIdInput = document.getElementById('target-server-id'); // Mengganti nama variabel
     
     // Elemen Header & Modal Login
     const loginButton = document.getElementById('login-button');
@@ -55,19 +57,26 @@ document.addEventListener('DOMContentLoaded', function() {
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             }
-            const response = await fetch(`https://topup-miku.onrender.com/api/games/${gameId}/products`, { headers });
+            // Menggunakan PUBLIC_API_URL untuk endpoint games
+            const response = await fetch(`${PUBLIC_API_URL}/games/${gameId}/products`, { headers });
             if (!response.ok) throw new Error('Gagal memuat data produk game.');
             const data = await response.json();
             
             gameImageEl.src = data.game.image_url;
             gameNameEl.textContent = data.game.name;
             
+            // Logika untuk menampilkan/menyembunyikan Server ID input
             if (data.game.needs_server_id) {
-                serverIdInput.classList.remove('hidden');
-                serverIdInput.required = true;
+                targetServerIdInput.classList.remove('hidden');
+                targetServerIdInput.required = true;
+            } else {
+                targetServerIdInput.classList.add('hidden');
+                targetServerIdInput.required = false;
+                targetServerIdInput.value = ''; // Kosongkan nilai jika disembunyikan
             }
             renderProducts(data.products);
         } catch (error) {
+            console.error('Error fetching game data:', error); // Log error lebih detail
             productListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
         }
     }
@@ -133,6 +142,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 password: loginForm.querySelector('input[name="password"]').value
             };
             try {
+                // Menggunakan AUTH_API_URL untuk login
                 const response = await fetch(`${AUTH_API_URL}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -168,6 +178,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 password: passwordInput.value
             };
             try {
+                // Menggunakan AUTH_API_URL untuk register
                 const response = await fetch(`${AUTH_API_URL}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -195,28 +206,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Silakan pilih nominal top up terlebih dahulu.');
                 return;
             }
-            const targetGameId = document.getElementById('target-game-id').value;
-            const targetServerId = serverIdInput.value;
+            const targetGameId = targetGameIdInput.value;
+            const targetServerId = targetServerIdInput.value; // Menggunakan variabel yang sudah diganti nama
+            
             if (!targetGameId) {
                 alert('Silakan masukkan User ID Anda terlebih dahulu.');
                 return;
             }
-            if (serverIdInput.required && !targetServerId) {
+            // Validasi Server ID hanya jika inputnya terlihat (tidak hidden) dan diperlukan
+            if (!targetServerIdInput.classList.contains('hidden') && targetServerIdInput.required && !targetServerId) {
                 alert('Silakan masukkan Server ID Anda.');
                 return;
             }
-            const finalTargetId = serverIdInput.required ? `${targetGameId} (${targetServerId})` : targetGameId;
+
+            const finalTargetId = targetServerIdInput.required ? `${targetGameId} (${targetServerId})` : targetGameId;
             if (confirm(`Anda akan membeli produk ini untuk ID: ${finalTargetId} seharga ${totalPriceEl.textContent}. Lanjutkan?`)) {
                 submitOrderBtn.disabled = true;
                 submitOrderBtn.textContent = 'Memproses...';
                 try {
-                    const response = await fetch('https://topup-miku.onrender.com/api/order', {
+                    // Menggunakan PUBLIC_API_URL untuk order
+                    const response = await fetch(`${PUBLIC_API_URL}/order`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             productId: selectedProductId,
-                            targetGameId: document.getElementById('target-game-id').value,
-                            targetServerId: serverIdInput.value || null
+                            targetGameId: targetGameId,
+                            targetServerId: targetServerIdInput.required ? targetServerId : null // Kirim null jika tidak diperlukan
                         })
                     });
                     const result = await response.json();
@@ -242,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // --- Bagian 4: Menjalankan Fungsi Awal ---
+    // === Bagian 4: Menjalankan Fungsi Awal ===
     fetchGameData();
     updateHeaderUI();
 });
