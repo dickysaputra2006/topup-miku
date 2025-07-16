@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- KODE LAMA ANDA YANG SUDAH BERFUNGSI ---
     const ADMIN_API_URL = 'https://topup-miku.onrender.com/api/admin';
-    const API_URL_FOXY_PRODUCTS = 'https://topup-miku.onrender.com/foxy-api/products';
+    const PUBLIC_API_URL = 'https://topup-miku.onrender.com/foxy-api/products';
     const token = localStorage.getItem('authToken');
 
     if (!token) {
