@@ -64,7 +64,7 @@ const API_URL = 'https://topup-miku.onrender.com/api';
                 password: passwordInput.value
             };
             try {
-                const response = await fetch(`${AUTH_API_URL}/register`, {
+                const response = await fetch(`${API_URL_AUTH}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
@@ -89,7 +89,7 @@ const API_URL = 'https://topup-miku.onrender.com/api';
                 password: loginForm.querySelector('input[name="password"]').value
             };
             try {
-                const response = await fetch(`${AUTH_API_URL}/login`, {
+                const response = await fetch(`${API_URL_AUTH}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)

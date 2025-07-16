@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             }
-            const response = await fetch(`http://localhost:3000/api/games/${gameId}/products`, { headers });
+            const response = await fetch(`https://topup-miku.onrender.com/api/games/${gameId}/products`, { headers });
             if (!response.ok) throw new Error('Gagal memuat data produk game.');
             const data = await response.json();
             
@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 submitOrderBtn.disabled = true;
                 submitOrderBtn.textContent = 'Memproses...';
                 try {
-                    const response = await fetch('http://localhost:3000/api/order', {
+                    const response = await fetch('https://topup-miku.onrender.com/api/order', {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify({
