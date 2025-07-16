@@ -11,10 +11,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let allProductsData = []; 
     let allGamesData = [];    
     let allRolesData = [];    
+    let displayRoles = [];    // === PERBAIKAN: Deklarasikan displayRoles secara global di sini ===
     
-    const PUBLIC_ROLE_ORDER = ['BRONZE', 'SILVER', 'GOLD', 'PARTNER']; // Pastikan urutan ini benar
+    const PUBLIC_ROLE_ORDER = ['BRONZE', 'SILVER', 'GOLD', 'PARTNER'];
 
-    // Fungsi utama untuk mengambil semua data perbandingan harga
     async function fetchAllCompareData() {
         if (!compareTableBody || !compareTableHeader || !compareGamesList) return;
 
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
             allGamesData = data.games; 
             allRolesData = data.roles;
 
-            const displayRolesFilteredAndSorted = allRolesData.filter(role => 
+            displayRoles = allRolesData.filter(role => // === PERBAIKAN: Tetapkan nilai ke variabel global displayRoles ===
                 PUBLIC_ROLE_ORDER.includes(role.name) 
             ).sort((a, b) => { 
                 const indexA = PUBLIC_ROLE_ORDER.indexOf(a.name);
@@ -35,10 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return indexA - indexB;
             });
 
-            // ====================================================================
-            // PERBAIKAN DI SINI: Teruskan displayRolesFilteredAndSorted ke renderGamesSidebar
-            renderGamesSidebar(allGamesData, displayRolesFilteredAndSorted); 
-            // ====================================================================
+            renderGamesSidebar(allGamesData, displayRoles); 
             
             if (allGamesData.length > 0) {
                 const firstGameId = allGamesData[0].id;
@@ -48,16 +45,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const firstGameLink = compareGamesList.querySelector(`[data-game-id="${firstGameId}"]`);
                 if(firstGameLink) firstGameLink.classList.add('active');
 
-                // ====================================================================
-                // PERBAIKAN DI SINI: Teruskan displayRolesFilteredAndSorted ke renderProductsTable
-                renderProductsTable(allProductsData.filter(p => p.game_id === firstGameId), displayRolesFilteredAndSorted); 
-                // ====================================================================
+                renderProductsTable(allProductsData.filter(p => p.game_id === firstGameId), displayRoles); 
             } else {
                 compareProductListTitle.textContent = "Tidak ada game tersedia.";
-                // ====================================================================
-                // PERBAIKAN DI SINI: Teruskan displayRolesFilteredAndSorted ke renderProductsTable
-                renderProductsTable([], displayRolesFilteredAndSorted); 
-                // ====================================================================
+                renderProductsTable([], displayRoles);
             }
 
         } catch (error) {
@@ -67,12 +58,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-
-    // Render daftar game di sidebar
-    // ====================================================================
-    // PERBAIKAN DI SINI: Tambahkan `rolesToDisplay` sebagai parameter
     function renderGamesSidebar(gamesToRender, rolesToDisplay) { 
-    // ====================================================================
         compareGamesList.innerHTML = '';
         if (gamesToRender.length === 0) {
             compareGamesList.innerHTML = '<p style="text-align: center; color: #aaa;">Tidak ada game ditemukan.</p>';
@@ -89,10 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.querySelectorAll('#compare-games-list .dashboard-nav-link').forEach(link => link.classList.remove('active'));
                 gameLink.classList.add('active');
                 compareProductListTitle.textContent = `Perbandingan Harga untuk: ${game.name}`;
-                // ====================================================================
-                // PERBAIKAN DI SINI: Teruskan rolesToDisplay ke renderProductsTable
                 renderProductsTable(allProductsData.filter(p => p.game_id === game.id), rolesToDisplay); 
-                // ====================================================================
             });
             compareGamesList.appendChild(gameLink);
         });
@@ -101,12 +84,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Render tabel produk per game yang dipilih
-    function renderProductsTable(products, roles) { // Parameter `roles` ini akan menerima `displayRolesFilteredAndSorted`
+    function renderProductsTable(products, roles) { 
         compareTableBody.innerHTML = '';
         compareTableHeader.innerHTML = ''; 
 
-        // Bangun header tabel dinamis
         let headerHtml = `<th>Nama Game</th><th>Produk</th><th>SKU</th><th>Harga Pokok</th>`;
         roles.forEach(role => {
             headerHtml += `<th>Harga ${role.name}</th>`; 
@@ -136,17 +117,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Event listener untuk input pencarian
     if (gameSearchInput) {
         gameSearchInput.addEventListener('input', () => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGamesData.filter(game => 
                 game.name.toLowerCase().includes(searchTerm)
             );
-            // ====================================================================
-            // PERBAIKAN DI SINI: Teruskan displayRolesFilteredAndSorted ke renderGamesSidebar
-            renderGamesSidebar(filteredGames, displayRolesFilteredAndSorted); 
-            // ====================================================================
+            renderGamesSidebar(filteredGames, displayRoles); // === PERBAIKAN: Gunakan variabel global displayRoles ===
         });
     }
 
