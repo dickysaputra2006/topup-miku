@@ -1,6 +1,6 @@
 // compare-prices.js
 document.addEventListener('DOMContentLoaded', function() {
-    const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api'; // Pastikan ini benar
+    const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api';
     const compareTableBody = document.querySelector("#compare-prices-table tbody");
     const compareTableHeader = document.querySelector("#compare-prices-table thead tr");
 
