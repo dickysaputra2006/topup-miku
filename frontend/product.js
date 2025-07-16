@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     // === Bagian 1: Deklarasi Variabel & Elemen ===
-    const AUTH_API_URL = 'http://localhost:3000/api/auth';
+    const AUTH_API_URL = 'https://topup-miku.onrender.com/api/auth';
     const params = new URLSearchParams(window.location.search);
     const gameId = params.get('gameId');
     const token = localStorage.getItem('authToken');

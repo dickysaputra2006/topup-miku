@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const API_URL = 'http://localhost:3000/api/user/transactions';
+    const API_URL = 'https://topup-miku.onrender.com/api/user/transactions';
     const token = localStorage.getItem('authToken');
     const tableBody = document.querySelector("#transactions-table tbody");
 

@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const API_URL = 'http://localhost:3000/api/deposit/request';
+    const API_URL = 'https://topup-miku.onrender.com/api/deposit/request';
     const token = localStorage.getItem('authToken');
 
     if (!token) {
@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const instructionText = document.getElementById('instruction-text');
 
     depositForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
+        e.preventDefault();this.scrollBy
         const amount = this.querySelector('input[name="amount"]').value;
         
         // Tampilkan بخش instruksi dan pesan loading

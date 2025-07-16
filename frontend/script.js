@@ -1,7 +1,7 @@
 // Salin dan ganti seluruh isi file script.js Anda dengan ini.
 document.addEventListener('DOMContentLoaded', function () {
- const AUTH_API_URL = 'https://https://topup-miku.onrender.com/api/auth';
-const PUBLIC_API_URL = 'https://https://topup-miku.onrender.com/api';
+const API_URL_AUTH = 'https://topup-miku.onrender.com/api/auth';
+const API_URL = 'https://topup-miku.onrender.com/api';
 
 
     

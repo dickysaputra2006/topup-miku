@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const API_URL = 'http://localhost:3000/api/user';
+    const API_URL = 'https://topup-miku.onrender.com/api/user';
     const token = localStorage.getItem('authToken');
 
     if (!token) {
