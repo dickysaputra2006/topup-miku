@@ -200,6 +200,29 @@ app.get('/api/user/apikey', protect, async (req, res) => {
     }
 });
 
+app.get('/api/user/transactions', protect, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const sql = `
+            SELECT 
+                t.invoice_id, 
+                t.target_game_id,              t.price, 
+                t.status, 
+                t.created_at, 
+                p.name as product_name
+            FROM transactions t
+            JOIN products p ON t.product_id = p.id
+            WHERE t.user_id = $1
+            ORDER BY t.created_at DESC
+        `;
+        const { rows } = await pool.query(sql, [userId]);
+        res.json(rows);
+    } catch (error) {
+        console.error("Gagal mengambil riwayat transaksi pengguna:", error);
+        res.status(500).json({ message: 'Server error saat mengambil riwayat transaksi pengguna.' });
+    }
+});
+
 // === DEPOSIT ENDPOINTS ===
 app.post('/api/deposit/request', protect, async (req, res) => {
     const client = await pool.connect(); // Menggunakan client dari pool untuk transaksi
