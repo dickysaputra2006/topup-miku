@@ -36,12 +36,20 @@ app.post('/api/auth/register', async (req, res) => {
         const { fullName, username, email, nomorWa, password } = req.body;
         if (!fullName || !username || !email || !nomorWa || !password) return res.status(400).json({ message: 'Semua kolom wajib diisi!' });
         const hashedPassword = await bcrypt.hash(password, 10);
-        // PostgreSQL: DEFAULT role_id adalah 1, tidak perlu specify jika kolomnya sudah disetel default
-        const sql = 'INSERT INTO users (full_name, username, email, nomor_wa, password) VALUES ($1, $2, $3, $4, $5)';
-        await pool.query(sql, [fullName, username, email, nomorWa, hashedPassword]);
+        
+        // ====================================================================
+        // PERUBAHAN DI SINI: MENGATUR ROLE DEFAULT PENDAFTAR BARU KE 'BRONZE'
+        const { rows: bronzeRole } = await pool.query("SELECT id FROM roles WHERE name = 'BRONZE'");
+        let defaultRoleId = 1; // Default ke User jika BRONZE tidak ditemukan
+        if (bronzeRole.length > 0) {
+            defaultRoleId = bronzeRole[0].id;
+        }
+        const sql = 'INSERT INTO users (full_name, username, email, nomor_wa, password, role_id) VALUES ($1, $2, $3, $4, $5, $6)';
+        await pool.query(sql, [fullName, username, email, nomorWa, hashedPassword, defaultRoleId]);
+        // ====================================================================
+
         res.status(201).json({ message: 'Registrasi berhasil! Silakan login.' });
     } catch (error) {
-        // PostgreSQL duplicate key error code
         if (error.code === '23505') return res.status(409).json({ message: 'Username atau Email sudah digunakan.' });
         console.error('Error during registration:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
@@ -483,6 +491,7 @@ app.get('/api/games', async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil data game.' });
     }
 });
+
 app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
     try {
         const { gameId } = req.params;
@@ -512,48 +521,50 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil data produk.' });
     }
 });
+
 app.get('/api/public/compare-prices', async (req, res) => {
     try {
-        // Ambil semua produk (termasuk yang tidak aktif jika perlu untuk perbandingan, atau filter sesuai kebutuhan)
         const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
                              FROM products p JOIN games g ON p.game_id = g.id 
-                             WHERE p.status = 'Active' -- Hanya tampilkan produk aktif
-                             ORDER BY g.name ASC, p.name ASC`;
+                             WHERE p.status = 'Active' 
+                             ORDER BY g.name ASC, p.price ASC, p.name ASC`; // Urutan produk
         const { rows: products } = await pool.query(sqlProducts);
 
-        // Ambil semua margin role (SEMUA, termasuk Admin/Owner jika ingin terlihat di sini)
         const sqlRoles = `SELECT id, name, margin_percent FROM roles ORDER BY id ASC`;
         const { rows: roles } = await pool.query(sqlRoles);
+
+        // Ambil daftar game juga
+        const sqlGames = "SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC";
+        const { rows: games } = await pool.query(sqlGames);
 
         const roleMargins = {};
         roles.forEach(role => {
             roleMargins[role.id] = parseFloat(role.margin_percent);
         });
 
-        // Hitung harga jual untuk setiap produk berdasarkan setiap role
         const productsWithRolePrices = products.map(product => {
             const productWithPrices = { 
                 id: product.id,
                 game_name: product.game_name,
                 product_name: product.name,
                 provider_sku: product.provider_sku,
-                base_price: product.price // Harga pokok asli
+                base_price: product.price 
             }; 
-            // Tambahkan harga untuk setiap role
             roles.forEach(role => {
                 const margin = roleMargins[role.id] || 0;
                 const sellingPrice = product.price * (1 + (margin / 100));
-                productWithPrices[`price_${role.name.toLowerCase()}`] = Math.ceil(sellingPrice); // price_user, price_gold, etc.
+                productWithPrices[`price_${role.name.toLowerCase()}`] = Math.ceil(sellingPrice);
             });
             return productWithPrices;
         });
 
-        res.json({ products: productsWithRolePrices, roles: roles }); // Kirim juga daftar roles untuk frontend
+        res.json({ products: productsWithRolePrices, roles: roles, games: games }); // Mengirim products, roles, dan games
     } catch (error) {
         console.error('Error fetching public compare prices:', error);
         res.status(500).json({ message: 'Server error saat mengambil data perbandingan harga.' });
     }
 });
+
 // === ORDER & H2H ENDPOINTS ===
 app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
