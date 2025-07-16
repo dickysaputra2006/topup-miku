@@ -144,18 +144,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function fetchAdminGames() {
-        if (!gamesTableBody) return;
-        try {
-            const response = await fetch(`${ADMIN_API_URL}/games`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!response.ok) throw new Error('Gagal memuat data game');
-            allGames = await response.json();
-            renderGamesTable(allGames);
-        } catch (error) {
-            console.error("Error memuat game:", error);
-            if (gamesTableBody) gamesTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">${error.message}</td></tr>`;
-        }
+    if (!gamesTableBody) return;
+    try {
+        const response = await fetch(`${ADMIN_API_URL}/games`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!response.ok) throw new Error('Gagal memuat data game');
+        allGames = await response.json();
+        renderGamesTable(allGames);
+    } catch (error) {
+        console.error("Error memuat game:", error);
+        if (gamesTableBody) gamesTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">${error.message}</td></tr>`;
     }
-
+}
+let allRoles = []; 
     function renderGamesTable(games) {
         if (!gamesTableBody) return;
         gamesTableBody.innerHTML = '';
@@ -172,31 +172,76 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function fetchAdminProducts() {
-        if (!productsTableBody) return;
-        try {
-            const response = await fetch(`${ADMIN_API_URL}/products`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!response.ok) throw new Error('Gagal memuat data produk');
-            allProducts = await response.json();
-        } catch (error) {
-            console.error("Error memuat produk:", error);
-            if (productsTableBody) productsTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">${error.message}</td></tr>`;
+    if (!productsTableBody) return;
+    try {
+        const response = await fetch(`${ADMIN_API_URL}/products`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!response.ok) throw new Error('Gagal memuat data produk');
+        allProducts = await response.json();
+
+        // Ambil juga daftar role untuk header tabel (jika belum ada)
+        if (allRoles.length === 0) {
+            const rolesResponse = await fetch(`${ADMIN_API_URL}/roles`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!rolesResponse.ok) throw new Error('Gagal memuat data roles untuk header.');
+            allRoles = await rolesResponse.json();
+            // Filter role Admin/Owner jika tidak ingin ditampilkan harganya
+            allRoles = allRoles.filter(role => role.name !== 'Admin' && role.name !== 'Owner'); // Sesuaikan filter
         }
+
+        // Render produk untuk game yang sedang aktif (jika ada)
+        const activeGameRow = document.querySelector('#games-table tbody tr.active-row');
+        if (activeGameRow) {
+            renderProductsForGame(activeGameRow.dataset.gameId);
+        } else {
+            // Tampilkan pesan default jika belum ada game yang dipilih
+            productsTableBody.innerHTML = '<tr><td colspan="'+(3+allRoles.length)+'" style="text-align: center;">Pilih Game untuk Melihat Produk</td></tr>';
+        }
+    } catch (error) {
+        console.error("Error memuat produk atau roles:", error);
+        // Sesuaikan colspan berdasarkan jumlah kolom yang diharapkan
+        const colspan = 3 + allRoles.length; 
+        if (productsTableBody) productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center; color: red;">${error.message}</td></tr>`;
+    }
+}
+
+function renderProductsForGame(gameId) {
+    if (!productsTableBody) return;
+    const filteredProducts = allProducts.filter(p => p.game_id == gameId);
+    productsTableBody.innerHTML = ''; // Kosongkan tabel body
+
+    // Render header tabel produk (nama produk, harga pokok, SKU, dan harga per role)
+    const tableHeaderRow = document.createElement('tr');
+    tableHeaderRow.innerHTML = `<th>Nama Produk</th><th>Harga Pokok</th><th>SKU</th>`;
+    allRoles.forEach(role => {
+        tableHeaderRow.innerHTML += `<th>Harga ${role.name}</th>`; // Tambahkan kolom harga per role
+    });
+    productsTableBody.previousElementSibling.querySelector('thead').innerHTML = ''; // Clear existing header
+    productsTableBody.previousElementSibling.querySelector('thead').appendChild(tableHeaderRow);
+    
+    productListTitle.textContent = `Produk untuk: ${allGames.find(g => g.id == gameId)?.name || 'Pilih Game'}`;
+
+
+    if (filteredProducts.length === 0) {
+        const colspan = 3 + allRoles.length; // Kolom default + kolom role
+        productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
+        return;
     }
 
-    function renderProductsForGame(gameId) {
-        if (!productsTableBody) return;
-        const filteredProducts = allProducts.filter(p => p.game_id == gameId);
-        productsTableBody.innerHTML = '';
-        if (filteredProducts.length === 0) {
-            productsTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>';
-            return;
-        }
-        filteredProducts.forEach(product => {
-            const price = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price);
-            const row = `<tr><td>${product.name}</td><td>${price}</td><td>${product.provider_sku}</td></tr>`;
-            productsTableBody.innerHTML += row;
+    filteredProducts.forEach(product => {
+        const row = document.createElement('tr');
+        const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price);
+        let rowHtml = `<td>${product.name}</td><td>${formattedBasePrice}</td><td>${product.provider_sku}</td>`;
+        
+        // Tambahkan harga per role
+        allRoles.forEach(role => {
+            const rolePriceKey = `price_${role.name.toLowerCase()}`; // e.g., 'price_user', 'price_gold'
+            const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product[rolePriceKey] || 0);
+            rowHtml += `<td>${formattedRolePrice}</td>`;
         });
-    }
+        row.innerHTML = rowHtml;
+        productsTableBody.appendChild(row);
+    });
+}
+
 
     async function fetchAndDisplayMargins() {
         if (!marginFieldsContainer) return;
@@ -307,38 +352,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if(syncForm) {
-        syncForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const marginInput = document.getElementById('margin-percent');
-            const syncButton = syncForm.querySelector('button');
-            if (confirm(`Anda yakin ingin sinkronisasi produk dengan margin ${marginInput.value}%?`)) {
-                syncButton.disabled = true;
-                syncButton.textContent = 'Mensinkronkan...';
-                try {
-                    const response = await fetch(`${ADMIN_API_URL}/sync-products`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ margin_percent: parseFloat(marginInput.value) })
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.message);
-                    alert(result.message);
-                    await fetchAdminProducts();
-                    const activeGameRow = document.querySelector('#games-table tbody tr.active-row');
-                    if (activeGameRow) {
-                        renderProductsForGame(activeGameRow.dataset.gameId);
-                    } else {
-                        if (productsTableBody) productsTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Sinkronisasi selesai, klik game untuk lihat produk.</td></tr>';
-                    }
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                } finally {
-                    syncButton.disabled = false;
-                    syncButton.textContent = 'Sinkronkan Sekarang';
-                }
+    syncForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const marginInput = document.getElementById('margin-percent');
+        const syncButton = syncForm.querySelector('button');
+        if (confirm(`Anda yakin ingin sinkronisasi produk dengan margin ${marginInput.value}%?`)) {
+            syncButton.disabled = true;
+            syncButton.textContent = 'Mensinkronkan...';
+            try {
+                // Endpoint sync-products sekarang hanya akan memicu proses di backend
+                const response = await fetch(`${ADMIN_API_URL}/sync-products`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ margin_percent: parseFloat(marginInput.value) }) // Meneruskan margin dari frontend
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                alert(result.message);
+                // Setelah sync, panggil ulang fetchAdminProducts untuk merefresh tampilan
+                await fetchAdminProducts(); 
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                syncButton.disabled = false;
+                syncButton.textContent = 'Sinkronkan Sekarang';
             }
-        });
-    }
+        }
+    });
+}
 
     // === Menjalankan Fungsi Awal Saat Halaman Dimuat ===
     async function initAdminPage() {
