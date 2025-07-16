@@ -131,7 +131,7 @@ const API_URL = 'https://topup-miku.onrender.com/api';
         if (!mobileGameGrid) return;
         
         try {
-            const response = await fetch(`${PUBLIC_API_URL}/games`);
+            const response = await fetch(`${API_URL}/games`);
             if (!response.ok) throw new Error('Gagal mengambil data game');
             const games = await response.json();
             
