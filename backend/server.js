@@ -394,18 +394,13 @@ app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
         const { margin_percent } = req.body;
         if (margin_percent === undefined || isNaN(margin_percent)) throw new Error('Persentase margin tidak valid.');
 
-        // Mengambil produk dari Foxy API yang sebenarnya
         const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
             headers: { 'Authorization': FOXY_API_KEY }
         });
 
-        // ====================================================================
-        // PERHATIAN DI SINI: Logging respons Foxy API untuk debugging
-        // Ini akan sangat membantu jika struktur response.data.data tidak sesuai
         console.log('Foxy API Products Response Data:', JSON.stringify(response.data, null, 2));
-        // ====================================================================
 
-        const providerProducts = response.data.data; // Asumsi 'data' adalah array produk di respons Foxy API
+        const providerProducts = response.data.data;
 
         if (!Array.isArray(providerProducts)) {
             throw new Error('Format respons Foxy API tidak sesuai: "data" bukan array.');
@@ -413,36 +408,38 @@ app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
 
         for (const product of providerProducts) {
             // ====================================================================
-            // PERBAIKAN DI SINI: Pastikan properti yang diakses ada
-            // Gunakan operator OR (||) untuk memberikan nilai default jika properti undefined
-            // Atau sesuaikan dengan nama properti yang BENAR dari respons Foxy API Anda
-            const gameName = product.game || product.game_name || 'Unknown Game'; // Sesuaikan 'product.game_name' jika Foxy pakai nama lain
-            const categoryName = product.category || product.category_name || 'Unknown Category'; // Sesuaikan 'product.category_name' jika Foxy pakai nama lain
-            const productName = product.product_name || product.name || 'Unknown Product'; // Sesuaikan jika nama produk berbeda
-            const productCode = product.product_code || product.sku; // Sesuaikan jika nama SKU berbeda
-            const basePrice = product.product_price || product.price; // Sesuaikan jika nama harga berbeda
+            // PERBAIKAN DI SINI: Gunakan nama properti yang BENAR dari respons Foxy API
+            const gameName = product.category_title; // Nama game ada di 'category_title'
+            const categoryName = product.category_type; // Kategori umum ada di 'category_type'
+            const productName = product.product_name; // Nama produk
+            const productCode = product.product_code; // SKU produk
+            const basePrice = product.product_price; // Harga pokok
+
             // ====================================================================
 
-            if (!gameName || gameName === 'Unknown Game' || !productName || productName === 'Unknown Product' || !productCode || !basePrice) {
-                 console.warn(`Produk Foxy dilewati karena data tidak lengkap:`, product);
+            // Validasi dasar: pastikan semua data kunci ada dan tidak null
+            if (!gameName || !categoryName || !productName || !productCode || basePrice === undefined || basePrice === null) {
+                 console.warn(`Produk Foxy dilewati karena data tidak lengkap:`, {
+                     gameName, categoryName, productName, productCode, basePrice, originalProduct: product
+                 });
                  continue; // Lewati produk ini jika data utamanya tidak lengkap
             }
 
             // Cek game, jika tidak ada, buat baru
-            let { rows: games } = await client.query('SELECT id FROM games WHERE name = $1', [gameName]); // Gunakan gameName yang sudah divalidasi
+            let { rows: games } = await client.query('SELECT id FROM games WHERE name = $1', [gameName]);
             if (games.length === 0) {
                 console.warn(`Game "${gameName}" tidak ditemukan. Membuat game baru.`);
                 const { rows: newGameResult } = await client.query('INSERT INTO games (name, category, image_url, needs_server_id, status) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-                    [gameName, categoryName, 'https://via.placeholder.com/200', false, 'Active']); // Gunakan gameName dan categoryName
+                    [gameName, categoryName, 'https://via.placeholder.com/200', false, 'Active']);
                 games = [{ id: newGameResult[0].id }];
             }
             const gameId = games[0].id;
 
             // Cek kategori produk, jika tidak ada, buat baru
-            let { rows: categories } = await client.query('SELECT id FROM product_categories WHERE name = $1 AND game_id = $2', [categoryName, gameId]); // Gunakan categoryName
+            let { rows: categories } = await client.query('SELECT id FROM product_categories WHERE name = $1 AND game_id = $2', [categoryName, gameId]);
             let categoryId;
             if (categories.length === 0) {
-                const { rows: newCat } = await client.query('INSERT INTO product_categories (game_id, name) VALUES ($1, $2) RETURNING id', [gameId, categoryName]); // Gunakan categoryName
+                const { rows: newCat } = await client.query('INSERT INTO product_categories (game_id, name) VALUES ($1, $2) RETURNING id', [gameId, categoryName]);
                 categoryId = newCat[0].id;
             } else {
                 categoryId = categories[0].id;
@@ -450,7 +447,6 @@ app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
 
             const sellingPrice = basePrice * (1 + (margin_percent / 100));
 
-            // PostgreSQL: Menggunakan ON CONFLICT (provider_sku) DO UPDATE
             const sql = `INSERT INTO products (game_id, category_id, name, provider_sku, price, status) 
                          VALUES ($1, $2, $3, $4, $5, $6) 
                          ON CONFLICT (provider_sku) DO UPDATE 
@@ -461,7 +457,7 @@ app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
         res.json({ message: `Sinkronisasi produk selesai dengan margin ${margin_percent}%.` });
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Sync error details:', error); // Log objek error lengkap
+        console.error('Sync error details:', error);
         console.error('Sync error message:', error.response ? error.response.data : error.message);
         res.status(500).json({ message: 'Gagal melakukan sinkronisasi. Cek log server untuk detail.' });
     } finally {
