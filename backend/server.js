@@ -730,17 +730,31 @@ app.post('/h2h/order', protectH2H, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const { productId, targetGameId } = req.body;
-        const h2hUser = req.user;
+        
+        // Terima productId, targetGameId, DAN targetServerId dari body
+        const { productId, targetGameId, targetServerId } = req.body;
+        const h2hUser = req.user; // User didapat dari middleware protectH2H
 
         if (!productId || !targetGameId) {
             throw new Error('productId dan targetGameId wajib diisi.');
         }
 
-        const { rows: products } = await client.query('SELECT price as base_price, name FROM products WHERE id = $1 AND status = \'Active\' FOR UPDATE', [productId]);
+        // 1. Ambil detail produk & cek apakah butuh server ID
+        const { rows: products } = await client.query(
+            `SELECT p.price as base_price, p.name, p.provider_sku, g.needs_server_id 
+             FROM products p JOIN games g ON p.game_id = g.id 
+             WHERE p.id = $1 AND p.status = 'Active' FOR UPDATE`, 
+            [productId]
+        );
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
         const product = products[0];
 
+        // Validasi Server ID jika game membutuhkannya
+        if (product.needs_server_id && !targetServerId) {
+            throw new Error('Server ID wajib diisi untuk game ini.');
+        }
+
+        // 2. Ambil detail user H2H untuk cek saldo & hitung harga
         const { rows: users } = await client.query('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE', [h2hUser.id]);
         const userForTx = users[0];
 
@@ -748,36 +762,106 @@ app.post('/h2h/order', protectH2H, async (req, res) => {
         const margin = roleRows[0].margin_percent;
         const finalPrice = Math.ceil(product.base_price * (1 + (margin / 100)));
 
-        if (userForTx.balance < finalPrice) throw new Error('Saldo Anda tidak mencukupi.');
+        if (userForTx.balance < finalPrice) throw new Error('Saldo H2H Anda tidak mencukupi.');
         
+        // 3. Potong saldo & catat transaksi sebagai 'Pending'
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, h2hUser.id]);
 
         const invoiceId = `H2H-${Date.now()}${h2hUser.id}`;
-        const txSql = 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id';
-        await client.query(txSql, [invoiceId, h2hUser.id, productId, targetGameId, finalPrice, 'Success']);
+        const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
+        const trx_id_provider = `H2H-PROVIDER-${Date.now()}`; // ID unik untuk provider
+
+        // Status awal adalah 'Pending', bukan 'Success'
+        const txSql = 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)';
+        await client.query(txSql, [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
 
         const historyDesc = `Pembelian H2H: ${product.name} (${invoiceId})`;
         const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
         await client.query(historySql, [h2hUser.id, -finalPrice, 'Purchase', historyDesc, invoiceId]);
 
+        // 4. Teruskan pesanan ke Foxy API (Sama seperti order biasa)
+        const foxyPayload = {
+            product_code: product.provider_sku,
+            user_id: targetGameId,
+            server_id: targetServerId || '',
+            trx_id: trx_id_provider,
+            callback_url: 'https://topup-miku.onrender.com/api/foxy/callback'
+        };
+
+        axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, {
+            headers: {
+                'Authorization': FOXY_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        }).catch(err => {
+            // Log error jika gagal mengirim ke Foxy, tapi jangan batalkan transaksi di sisi Anda
+            console.error("Foxy API Error on H2H order:", err.response ? err.response.data : err.message);
+        });
+
         await client.query('COMMIT');
         
+        // 5. Beri respons bahwa pesanan sedang diproses
         res.status(201).json({ 
             success: true,
-            message: 'Transaksi H2H berhasil!', 
+            message: 'Pesanan H2H Anda sedang diproses!', 
             data: {
                 invoiceId: invoiceId,
+                status: 'Pending',
                 productName: product.name,
-                target: targetGameId,
+                target: finalTargetForDB,
                 price: finalPrice
             }
         });
+
     } catch (error) {
         await client.query('ROLLBACK');
         console.error("H2H Order error:", error);
         res.status(400).json({ success: false, message: error.message || 'Gagal memproses transaksi H2H.' });
     } finally {
         client.release();
+    }
+});
+
+app.get('/h2h/products', protectH2H, async (req, res) => {
+    try {
+        // req.user didapatkan dari middleware protectH2H yang memvalidasi API Key
+        const h2hPartner = req.user;
+
+        // 1. Ambil data role spesifik milik partner H2H ini
+        const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [h2hPartner.role_id]);
+        if (roleRows.length === 0) {
+            throw new Error('Role untuk partner H2H tidak ditemukan.');
+        }
+        const partnerMargin = roleRows[0].margin_percent;
+
+        // 2. Ambil semua produk yang aktif
+        const { rows: allActiveProducts } = await pool.query(
+            `SELECT p.id, p.name as product_name, p.provider_sku, p.price as base_price, g.name as game_name 
+             FROM products p JOIN games g ON p.game_id = g.id WHERE p.status = 'Active' AND g.status = 'Active'
+             ORDER BY g.name, p.price`
+        );
+        
+        // 3. Hitung harga jual untuk partner H2H dan format respons
+        const partnerProductList = allActiveProducts.map(product => {
+            const partnerCost = Math.ceil(product.base_price * (1 + (partnerMargin / 100)));
+            return {
+                productId: product.id,
+                game_name: product.game_name,
+                product_name: product.product_name,
+                sku: product.provider_sku,
+                price: partnerCost // Ini adalah "harga modal" untuk partner H2H
+            };
+        });
+        
+        res.json({
+            success: true,
+            message: 'Daftar produk berhasil diambil.',
+            data: partnerProductList
+        });
+
+    } catch (error) {
+        console.error('H2H Get Products Error:', error);
+        res.status(500).json({ success: false, message: 'Gagal mengambil daftar produk H2H.' });
     }
 });
 
