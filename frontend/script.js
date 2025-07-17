@@ -166,13 +166,14 @@ async function displayGames() {
         allGames.forEach(game => {
             switch (game.category) {
                 case 'Mobile Game':
+                case 'Special MLBB':
                     mobileGames.push(game);
                     break;
                 case 'PC Game':
                     pcGames.push(game);
                     break;
-                case 'Voucher':
-                case 'Lifestyle': // Menangani jika nama kategori dari API adalah 'Lifestyle'
+                case 'Life Style':
+                case 'Lifestyle': 
                     voucherGames.push(game);
                     break;
             }
