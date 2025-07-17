@@ -73,7 +73,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         pcGames.push(game);
                         break;
                     case 'Voucher':
-                    case 'Life style':
+                    case 'Life Style':
                         voucherGames.push(game);
                         break;
                 }
