@@ -1,11 +1,9 @@
-// compare-prices.js
 
-// === PERBAIKAN: Deklarasikan variabel di scope GLOBAL ===
 let allProductsData = []; 
 let allGamesData = [];    
 let allRolesData = [];    
 let displayRoles = []; 
-// =======================================================
+
 
 document.addEventListener('DOMContentLoaded', function() {
     const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api'; 
@@ -29,14 +27,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const data = await response.json(); 
 
-            // === PERBAIKAN: Tetapkan nilai ke variabel global yang dideklarasikan di atas ===
             allProductsData = data.products;
             allGamesData = data.games; 
             allRolesData = data.roles;
-            // ==============================================================================
 
             console.log("DEBUG: Data fetched - Products:", allProductsData.length, "Games:", allGamesData.length, "Roles:", allRolesData.length);
-
+            if (allProductsData.length > 0) {
+                console.log("DEBUG: Example product object:", allProductsData[0]);
+                console.log("DEBUG: Type of product.game_id:", typeof allProductsData[0].game_id);
+            }
+            
             displayRoles = allRolesData.filter(role => 
                 PUBLIC_ROLE_ORDER.includes(role.name) 
             ).sort((a, b) => { 
@@ -57,7 +57,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 const firstGameLink = compareGamesList.querySelector(`[data-game-id="${firstGameId}"]`);
                 if(firstGameLink) firstGameLink.classList.add('active');
 
-                renderProductsTable(allProductsData.filter(p => p.game_id === firstGameId), displayRoles); 
+                // === PERBAIKAN: Pastikan perbandingan ID adalah number ===
+                renderProductsTable(allProductsData.filter(p => p.game_id === Number(firstGameId)), displayRoles); 
+                // =========================================================
+
             } else {
                 compareProductListTitle.textContent = "Tidak ada game tersedia.";
                 renderProductsTable([], displayRoles);
@@ -87,7 +90,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.querySelectorAll('#compare-games-list .dashboard-nav-link').forEach(link => link.classList.remove('active'));
                 gameLink.classList.add('active');
                 compareProductListTitle.textContent = `Perbandingan Harga untuk: ${game.name}`;
-                renderProductsTable(allProductsData.filter(p => p.game_id === game.id), rolesToDisplay); 
+                // === PERBAIKAN: Pastikan perbandingan ID adalah number ===
+                renderProductsTable(allProductsData.filter(p => p.game_id === Number(game.id)), rolesToDisplay); 
+                // =========================================================
             });
             compareGamesList.appendChild(gameLink);
         });
