@@ -35,110 +35,53 @@ h4 {
     margin-bottom: 1rem;
 }
 
-/* === GAYA HEADER & SIDEBAR BARU === */
+/* === HEADER === */
 header {
+    background-color: var(--bg-surface);
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+header .container {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.8rem 1rem;
-    background-color: var(--bg-surface);
-    border-bottom: 1px solid var(--border-color);
 }
-
-header .logo {
-    margin: 0;
-    font-size: 1.5rem;
+.logo {
+    font-size: 1.8rem;
     color: var(--primary-color);
     font-weight: bold;
-    position: absolute; /* Posisikan di tengah */
-    left: 50%;
-    transform: translateX(-50%);
 }
-
-.header-icon-btn {
-    background: none;
-    border: none;
-    color: var(--text-color);
-    font-size: 1.5rem;
-    cursor: pointer;
-    z-index: 10; /* Pastikan tombol bisa diklik */
+header nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
-
-/* GAYA SIDEBAR NAVIGASI */
-nav.sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100%;
-    width: 280px;
-    background-color: var(--bg-dark);
-    z-index: 200;
-    padding: 1rem;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
-    transform: translateX(-100%); /* Sembunyikan ke kiri */
-    transition: transform 0.3s ease-in-out;
-}
-
-nav.sidebar.visible {
-    transform: translateX(0); /* Tampilkan sidebar */
-}
-
-#close-sidebar-btn {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    background: none;
-    border: none;
+header nav a {
     color: white;
-    font-size: 2rem;
-    cursor: pointer;
-}
-
-.sidebar-header {
-    margin-bottom: 2rem;
-    margin-top: 3rem;
-    text-align: center;
-}
-
-.sidebar-button {
     background-color: var(--primary-color);
-    color: white;
-    padding: 0.8rem 1.5rem;
+    padding: 0.5rem 1.5rem;
     border-radius: 5px;
     text-decoration: none;
     font-weight: bold;
+    white-space: nowrap;
 }
-
-nav.sidebar a {
-    color: var(--text-color);
-    text-decoration: none;
-    display: flex; /* Gunakan flexbox untuk ikon dan teks */
-    align-items: center;
-    padding: 1rem;
+.header-btn {
+    /* Style dasar yang sama dengan header nav a */
+    /* Ini memastikan ia memiliki style tombol yang konsisten */
+    color: white;
+    background-color: var(--primary-color);
+    padding: 0.5rem 1.5rem;
     border-radius: 5px;
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
+    text-decoration: none;
+    font-weight: bold;
+    white-space: nowrap;
 }
-
-nav.sidebar a:hover {
-    background-color: var(--bg-surface);
-}
-
-nav.sidebar a i {
-    margin-right: 1rem;
-    width: 20px;
-    text-align: center;
-}
-
-
-#sidebar-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.7);
-    z-index: 199;
+.compare-btn {
+    background-color: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 
@@ -715,13 +658,21 @@ table th {
 #target-game-id:only-child {
     grid-column: 1 / -1;
 }
+
+/* === CSS UNTUK KARTU PEMILIHAN PRODUK (DIPERBAIKI) === */
 .product-card-selectable {
     border: 2px solid var(--border-color);
-    padding: 1rem;
+    padding: 0.5rem;
     border-radius: 8px;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 85px; /* Beri tinggi minimal agar rapi */
+    box-sizing: border-box;
 }
 .product-card-selectable:hover {
     border-color: var(--primary-color);
@@ -729,17 +680,22 @@ table th {
 .product-card-selectable.selected {
     border-color: var(--primary-color);
     background-color: rgba(236, 72, 153, 0.2);
-    transform: scale(1.05);
+    transform: scale(1.02);
     box-shadow: 0 0 15px rgba(236, 72, 153, 0.3);
 }
 .product-card-selectable span {
     font-weight: bold;
+    font-size: 0.9rem;
     display: block;
     margin-bottom: 0.25rem;
+    white-space: normal; /* PENTING: Izinkan teks untuk pindah baris (wrapping) */
+    line-height: 1.2;
 }
 .product-card-selectable small {
     color: #a7a9be;
+    font-size: 0.8rem;
 }
+
 #payment-info {
     display: flex;
     justify-content: space-between;
@@ -945,40 +901,22 @@ input:checked + .slider:before {
         font-size: 0.9rem; 
     }
 
-   
-
-   
-    @keyframes scrollFlashSale {
-        0% {
-            transform: translateX(100%); 
-        }
-        100% {
-            transform: translateX(-100%); 
-        }
-    }
-}
-
-/* === CSS UNTUK FLASH SALE BERJALAN === */
+ /* === CSS UNTUK FLASH SALE BERJALAN === */
 .flash-sale-container {
   overflow: hidden; /* Sembunyikan semua yang keluar dari kotak */
-  position: relative;
-  padding: 0.5rem 0;
 }
-
 .flash-sale-track {
   display: flex; /* Buat item berjajar ke samping */
-  width: max-content; /* Lebar sesuai total item */
-  animation: scroll-left 30s linear infinite;
+  width: max-content; /* Lebar sesuai total item di dalamnya */
+  animation: scroll-left 30s linear infinite; /* Terapkan animasi */
 }
-
 .flash-sale-card {
   background-color: var(--bg-surface);
   border-radius: 8px;
   width: 160px; /* Lebar setiap kartu flash sale */
   margin-right: 1rem;
-  flex-shrink: 0; /* Mencegah kartu menyusut */
+  flex-shrink: 0; /* Mencegah kartu 'penyok' saat ruang sempit */
 }
-
 .flash-sale-card img {
   width: 100%;
   height: 90px;
@@ -986,104 +924,120 @@ input:checked + .slider:before {
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
 }
-
 .flash-sale-info {
   padding: 0.5rem;
 }
-
-.fs-product-name {
-  font-size: 0.8rem;
-  font-weight: bold;
+.fs-product-name, 
+.fs-price-discounted, 
+.fs-price-original {
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: block;
 }
-
+.fs-product-name {
+  font-size: 0.8rem;
+  font-weight: bold;
+}
 .fs-price-discounted {
   font-size: 0.9rem;
   font-weight: bold;
   color: var(--primary-color);
-  display: block;
 }
-
 .fs-price-original {
   font-size: 0.75rem;
   text-decoration: line-through;
   color: #9ca3af;
 }
 
+/* Definisi animasi bergerak dari kanan ke kiri */
 @keyframes scroll-left {
   from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
+  to { transform: translateX(-50%); } /* Geser sejauh setengah dari total lebar track */
 }
 
-
-
-
-nav.sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100%;
-    width: 280px;
-    background-color: var(--bg-dark);
-    z-index: 200;
-    padding: 1rem;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
-    transform: translateX(-100%); 
-    transition: transform 0.3s ease-in-out;
+/* === GAYA HEADER & DROPDOWN BARU (DIPERBAIKI) === */
+header {
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
 }
-nav.sidebar.visible {
-    transform: translateX(0); 
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 60px;
+    padding: 0 1rem;
 }
-#close-sidebar-btn {
-    position: absolute;
-    top: 10px;
-    right: 15px;
+
+/* BAGIAN KIRI: menampung hamburger & logo */
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem; /* Jarak antara hamburger dan logo */
+    position: relative; /* Diperlukan untuk posisi dropdown */
+}
+
+/* BAGIAN KANAN: menampung tombol user */
+.header-right {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.logo-link {
+    text-decoration: none;
+}
+header .logo {
+    font-size: 1.6rem;
+    color: var(--primary-color);
+    font-weight: bold;
+    margin: 0; /* Hapus semua margin */
+}
+
+.header-icon-btn {
     background: none;
     border: none;
-    color: white;
-    font-size: 2rem;
+    color: var(--text-color);
+    font-size: 1.5rem;
     cursor: pointer;
 }
-.sidebar-header {
-    margin-bottom: 2rem;
-    margin-top: 3rem;
-    text-align: center;
-}
-.sidebar-button {
-    background-color: var(--primary-color);
+
+/* Tombol di kanan atas */
+#main-nav .header-btn, .header-user-btn {
     color: white;
-    padding: 0.8rem 1.5rem;
-    border-radius: 5px;
+    background-color: var(--primary-color);
+    padding: 0.5rem 1.2rem;
+    border-radius: 20px;
     text-decoration: none;
     font-weight: bold;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
 }
-nav.sidebar a {
+
+/* Menu Dropdown */
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 10px); /* Muncul di bawah .header-left */
+    left: 0;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    z-index: 100;
+    width: 200px;
+    padding: 0.5rem;
+}
+.dropdown-menu.hidden {
+    display: none;
+}
+.dropdown-menu a {
     color: var(--text-color);
     text-decoration: none;
     display: block;
-    padding: 1rem;
+    padding: 0.8rem 1rem;
     border-radius: 5px;
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
 }
-nav.sidebar a:hover {
-    background-color: var(--bg-surface);
-}
-nav.sidebar a i {
-    margin-right: 1rem;
-    width: 20px;
-}
-
-
-#sidebar-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.7);
-    z-index: 199;
-}
+.dropdown-menu a:hover {
+    background-color: var(--primary-color);
+    color: white;
+}}

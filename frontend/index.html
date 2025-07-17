@@ -10,26 +10,29 @@
 </head>
 
 <body>
-    <header>
-        <div class="header-container container">
-            <div class="menu-container">
-                <button id="hamburger-btn" class="header-icon-btn">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <div id="dropdown-menu" class="dropdown-menu hidden">
-                    <a href="dashboard.html">Dashboard</a>
-                    <a href="compare-prices.html">Pricelist</a>
-                </div>
-            </div>
-            
+<header>
+    <div class="header-container container">
+        <div class="header-left">
+            <button id="hamburger-btn" class="header-icon-btn">
+                <i class="fas fa-bars"></i>
+            </button>
             <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
-    
-            <nav id="main-nav">
-                <a href="dashboard.html" id="nav-dashboard-btn" class="header-btn hidden">Dashboard</a>
-                <a href="#" id="nav-login-btn" class="header-btn">Masuk</a>
-            </nav>
+            <div id="dropdown-menu" class="dropdown-menu hidden">
+                <a href="dashboard.html">Dashboard</a>
+                <a href="compare-prices.html">Pricelist</a>
+                <a href="#" id="dropdown-login-btn">Masuk</a>
+            </div>
         </div>
-    </header>
+
+        <div class="header-right">
+            <a href="dashboard.html" id="user-dashboard-btn" class="header-btn hidden">
+                <i class="fas fa-user-circle"></i>
+                <span id="user-username-text">User</span>
+            </a>
+            <a href="#" id="nav-login-btn" class="header-btn">Masuk</a>
+        </div>
+    </div>
+</header>
 
     <main class="container">
         <section class="hero-section">
