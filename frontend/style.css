@@ -837,3 +837,33 @@ input:checked + .slider:before {
     -ms-transform: translateX(22px);
     transform: translateX(22px);
 }
+
+@media (max-width: 768px) {
+    .product-grid {
+        /* Kita set agar menjadi 4 kolom agar tidak terlalu kecil */
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+/* Untuk layar HP (lebar di bawah 480px) */
+@media (max-width: 480px) {
+    .product-grid {
+        /* Di layar HP, 3 kolom adalah tampilan yang ideal */
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .product-card {
+        /* Kita bisa sesuaikan ukuran kartu agar pas di layar kecil */
+        height: 140px; 
+        padding: 0.5rem;
+    }
+
+    .product-card img {
+        height: 70px; /* Kecilkan juga ukuran gambar di dalamnya */
+    }
+
+    /* Opsional: Kecilkan sedikit judul di HP agar tidak terlalu besar */
+    h2 {
+        font-size: 1.2rem;
+    }
+}
