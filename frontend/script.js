@@ -125,19 +125,20 @@ const API_URL = 'https://topup-miku.onrender.com/api';
         }
     }
     
-    function renderGameGrid(games, containerId) {
+function renderGameGrid(games, containerId) {
     const gridContainer = document.getElementById(containerId);
     if (!gridContainer) return;
 
-    gridContainer.innerHTML = ''; // Kosongkan pesan "Memuat..."
+    gridContainer.innerHTML = ''; // Kosongkan wadah
 
+    // Jika tidak ada game di kategori ini, sembunyikan seluruh bagiannya
     if (games.length === 0) {
-        // Jika tidak ada game di kategori ini, sembunyikan seluruh section
         const section = gridContainer.closest('.content-section');
         if (section) section.classList.add('hidden');
         return;
     }
 
+    // Buat kartu untuk setiap game
     games.forEach(game => {
         const card = document.createElement('a');
         card.href = `product.html?gameId=${game.id}`;
@@ -150,15 +151,13 @@ const API_URL = 'https://topup-miku.onrender.com/api';
     });
 }
 
-
-    // === Fungsi untuk Menampilkan Game (Tidak perlu diubah) ===
-    async function displayGames() {
+async function displayGames() {
     try {
         const response = await fetch(`${API_URL}/games`);
         if (!response.ok) throw new Error('Gagal mengambil data game');
         const allGames = await response.json();
 
-        // 1. Siapkan array untuk setiap kategori
+        // 1. Siapkan array kosong untuk setiap kategori
         const mobileGames = [];
         const pcGames = [];
         const voucherGames = [];
@@ -172,30 +171,23 @@ const API_URL = 'https://topup-miku.onrender.com/api';
                 case 'PC Game':
                     pcGames.push(game);
                     break;
-                case 'Voucher': // Sesuaikan dengan nama kategori dari database Anda untuk "Voucher Digital"
-                case 'Lifestyle': // Mungkin nama kategorinya Lifestyle
+                case 'Voucher':
+                case 'Lifestyle': // Menangani jika nama kategori dari API adalah 'Lifestyle'
                     voucherGames.push(game);
-                    break;
-                default:
-                    // Anda bisa memasukkannya ke kategori 'lainnya' jika perlu
                     break;
             }
         });
 
-        // 3. Render setiap grup game ke dalam wadahnya masing-masing
+        // 3. Render setiap grup ke wadah HTML yang benar
         renderGameGrid(mobileGames, 'mobile-games-grid');
         renderGameGrid(pcGames, 'pc-games-grid');
         renderGameGrid(voucherGames, 'voucher-grid');
 
     } catch (error) {
         console.error('Gagal menampilkan game:', error);
-        // Tampilkan pesan error di semua grid jika fetch gagal
         document.getElementById('mobile-games-grid').innerHTML = '<p>Gagal memuat game. Coba lagi nanti.</p>';
-        document.getElementById('pc-games-grid').innerHTML = '';
-        document.getElementById('voucher-grid').innerHTML = '';
     }
 }
-
     
 
     // === Panggilan Fungsi Awal (Tidak perlu diubah) ===
