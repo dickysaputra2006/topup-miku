@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const compareTableHeader = document.querySelector("#compare-prices-table thead tr");
     const gameSearchInput = document.getElementById('game-search-input');
     
-    const PUBLIC_ROLE_ORDER = ['BRONZE', 'SILVER', 'GOLD', 'PARTNER']; 
+    const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD']; 
 
     async function fetchAllCompareData() {
         if (!compareTableBody || !compareTableHeader || !compareGamesList) return;
@@ -106,7 +106,7 @@ document.addEventListener('DOMContentLoaded', function() {
         compareTableBody.innerHTML = '';
         compareTableHeader.innerHTML = ''; 
 
-        let headerHtml = `<th>Nama Game</th><th>Produk</th><th>SKU</th><th>Harga Pokok</th>`;
+        let headerHtml = `<th>Nama Game</th><th>Produk</th><th>SKU</th>`;
         roles.forEach(role => {
             headerHtml += `<th>Harga ${role.name}</th>`; 
         });
