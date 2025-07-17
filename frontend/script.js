@@ -66,13 +66,14 @@ document.addEventListener('DOMContentLoaded', function () {
             allGames.forEach(game => {
                 switch (game.category) {
                     case 'Mobile Game':
+                    case 'Special MLBB':
                         mobileGames.push(game);
                         break;
                     case 'PC Game':
                         pcGames.push(game);
                         break;
                     case 'Voucher':
-                    case 'Lifestyle':
+                    case 'Life style':
                         voucherGames.push(game);
                         break;
                 }
