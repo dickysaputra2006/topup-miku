@@ -502,6 +502,32 @@ app.put('/api/admin/products/:id/status', protectAdmin, async (req, res) => {
     }
 });
 
+app.put('/api/admin/games/:id/status', protectAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        if (!status || (status !== 'Active' && status !== 'Inactive')) {
+            return res.status(400).json({ message: "Status tidak valid. Gunakan 'Active' atau 'Inactive'." });
+        }
+
+        const { rowCount } = await pool.query(
+            'UPDATE games SET status = $1 WHERE id = $2',
+            [status, id]
+        );
+
+        if (rowCount === 0) {
+            return res.status(404).json({ message: 'Game tidak ditemukan.' });
+        }
+
+        res.json({ message: `Status game berhasil diubah menjadi ${status}.` });
+
+    } catch (error) {
+        console.error('Error updating game status:', error);
+        res.status(500).json({ message: 'Gagal memperbarui status game.' });
+    }
+});
+
 // === PUBLIC ENDPOINTS ===
 app.get('/api/games', async (req, res) => {
     try {
