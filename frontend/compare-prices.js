@@ -1,5 +1,3 @@
-// compare-prices.js
-
 let allProductsData = []; 
 let allGamesData = [];    
 let allRolesData = [];    
@@ -34,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log("DEBUG: Data fetched - Products:", allProductsData.length, "Games:", allGamesData.length, "Roles:", allRolesData.length);
             if (allProductsData.length > 0) {
                 console.log("DEBUG: Example product object:", allProductsData[0]);
-                console.log("DEBUG: Type of product.game_id:", typeof allProductsData[0].game_id); // Log tipe data game_id di produk
+                console.log("DEBUG: Type of product.game_id:", typeof allProductsData[0].game_id);
             }
             
             displayRoles = allRolesData.filter(role => 
@@ -50,18 +48,17 @@ document.addEventListener('DOMContentLoaded', function() {
             renderGamesSidebar(allGamesData, displayRoles); 
             
             if (allGamesData.length > 0) {
-                const firstGameId = allGamesData[0].id;
-                const firstGameName = allGamesData[0].name;
-                compareProductListTitle.textContent = `Perbandingan Harga untuk: ${firstGameName}`;
+                const firstGame = allGamesData[0];
+                compareProductListTitle.textContent = `Perbandingan Harga untuk: ${firstGame.name}`;
                 
-                const firstGameLink = compareGamesList.querySelector(`[data-game-id="${firstGameId}"]`);
-                if(firstGameLink) firstGameLink.classList.add('active');
+                const firstGameLink = compareGamesList.querySelector(`[data-game-id="${firstGame.id}"]`);
+                if (firstGameLink) firstGameLink.classList.add('active');
 
-                // === PERBAIKAN: Pastikan perbandingan ID adalah number untuk kedua sisi ===
-                // Mengkonversi game_id dari produk ke number jika perlu, dan membandingkan dengan ID game yang sudah Number
-                renderProductsTable(allProductsData.filter(p => Number(p.game_id) === Number(firstGameId)), displayRoles); 
-                // =========================================================
-
+                // Filter produk berdasarkan game_name karena game_id tidak tersedia
+                renderProductsTable(
+                    allProductsData.filter(p => p.game_name === firstGame.name),
+                    displayRoles
+                );
             } else {
                 compareProductListTitle.textContent = "Tidak ada game tersedia.";
                 renderProductsTable([], displayRoles);
@@ -84,16 +81,19 @@ document.addEventListener('DOMContentLoaded', function() {
             const gameLink = document.createElement('a');
             gameLink.href = "#"; 
             gameLink.classList.add('dashboard-nav-link'); 
-            gameLink.dataset.gameId = game.id; // game.id sudah number dari backend
+            gameLink.dataset.gameId = game.id;
             gameLink.textContent = game.name;
             gameLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 document.querySelectorAll('#compare-games-list .dashboard-nav-link').forEach(link => link.classList.remove('active'));
                 gameLink.classList.add('active');
                 compareProductListTitle.textContent = `Perbandingan Harga untuk: ${game.name}`;
-                // === PERBAIKAN: Pastikan perbandingan ID adalah number untuk kedua sisi ===
-                renderProductsTable(allProductsData.filter(p => Number(p.game_id) === Number(game.id)), rolesToDisplay); 
-                // =========================================================
+
+                // Filter produk berdasarkan game_name
+                renderProductsTable(
+                    allProductsData.filter(p => p.game_name === game.name),
+                    rolesToDisplay
+                );
             });
             compareGamesList.appendChild(gameLink);
         });
@@ -118,19 +118,24 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        products.sort((a, b) => a.base_price - b.base_price);
+        products.sort((a, b) => parseFloat(a.base_price) - parseFloat(b.base_price));
 
         products.forEach(product => {
             const row = document.createElement('tr');
-            // base_price dari backend adalah string ('10522.00'), harus diubah ke number untuk Intl.NumberFormat
-            const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(parseFloat(product.base_price));
+            const formattedBasePrice = new Intl.NumberFormat('id-ID', {
+                style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+            }).format(parseFloat(product.base_price));
+
             let rowHtml = `<td>${product.game_name}</td><td>${product.product_name}</td><td>${product.provider_sku}</td><td>${formattedBasePrice}</td>`;
             
             roles.forEach(role => {
                 const rolePriceKey = `price_${role.name.toLowerCase()}`;
-                const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(product[rolePriceKey] || 0);
+                const formattedRolePrice = new Intl.NumberFormat('id-ID', {
+                    style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+                }).format(product[rolePriceKey] || 0);
                 rowHtml += `<td>${formattedRolePrice}</td>`;
             });
+
             row.innerHTML = rowHtml;
             compareTableBody.appendChild(row);
         });
