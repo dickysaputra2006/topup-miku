@@ -840,30 +840,108 @@ input:checked + .slider:before {
 
 @media (max-width: 768px) {
     .product-grid {
-        /* Kita set agar menjadi 4 kolom agar tidak terlalu kecil */
+       
         grid-template-columns: repeat(4, 1fr);
     }
 }
 
-/* Untuk layar HP (lebar di bawah 480px) */
+
 @media (max-width: 480px) {
     .product-grid {
-        /* Di layar HP, 3 kolom adalah tampilan yang ideal */
+      
         grid-template-columns: repeat(3, 1fr);
     }
 
     .product-card {
-        /* Kita bisa sesuaikan ukuran kartu agar pas di layar kecil */
+        
         height: 140px; 
         padding: 0.5rem;
     }
 
     .product-card img {
-        height: 70px; /* Kecilkan juga ukuran gambar di dalamnya */
+        height: 70px; 
     }
 
-    /* Opsional: Kecilkan sedikit judul di HP agar tidak terlalu besar */
+    
     h2 {
         font-size: 1.2rem;
     }
+
+.logo {
+        font-size: 1.5rem; 
+    }
+
+  
+    header nav a, .header-btn {
+        padding: 0.4rem 0.8rem; 
+        font-size: 0.8rem; 
+    }
+
+ 
+    .hero-placeholder {
+        height: 150px; 
+        font-size: 1rem;
+    }
+
+  
+    .product-card-small {
+        font-size: 0.9rem; 
+    }
+
+    .flash-sale-container {
+        overflow-x: auto; /* Aktifkan scroll horizontal */
+        white-space: nowrap; /* Agar item tidak pindah baris */
+        padding: 10px 0; /* Beri sedikit ruang atas bawah */
+        -webkit-overflow-scrolling: touch; /* Untuk scroll yang lebih halus di iOS */
+        animation: scrollFlashSale 15s linear infinite; /* Atur animasi */
+    }
+
+    .flash-sale-item {
+        display: inline-block; /* Tata item secara horizontal */
+        padding: 5px 15px; /* Beri ruang di sekitar teks item */
+        background-color: #f9f9f9; /* Warna latar belakang item (bisa disesuaikan) */
+        color: #333; /* Warna teks item (bisa disesuaikan) */
+        border-radius: 5px; /* Sedikit sudut melengkung */
+        margin-right: 10px; /* Beri jarak antar item */
+    }
+
+   
+    @keyframes scrollFlashSale {
+        0% {
+            transform: translateX(100%); 
+        }
+        100% {
+            transform: translateX(-100%); 
+        }
+    }
+}
+
+.flash-sale-container {
+  overflow: hidden; 
+  padding: 0.5rem 0;
+  background-color: var(--bg-surface);
+  border-radius: 8px;
+}
+
+.flash-sale-track {
+  display: flex; 
+  white-space: nowrap;
+  animation: scroll-left 20s linear infinite;
+}
+
+.flash-sale-item {
+  margin: 0 1.5rem; 
+  font-weight: bold;
+  color: var(--primary-color);
+}
+
+
+@keyframes scroll-left {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    
+    transform: translateX(-50%); 
+  }
 }
