@@ -1,9 +1,9 @@
+// compare-prices.js
 
 let allProductsData = []; 
 let allGamesData = [];    
 let allRolesData = [];    
 let displayRoles = []; 
-
 
 document.addEventListener('DOMContentLoaded', function() {
     const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api'; 
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log("DEBUG: Data fetched - Products:", allProductsData.length, "Games:", allGamesData.length, "Roles:", allRolesData.length);
             if (allProductsData.length > 0) {
                 console.log("DEBUG: Example product object:", allProductsData[0]);
-                console.log("DEBUG: Type of product.game_id:", typeof allProductsData[0].game_id);
+                console.log("DEBUG: Type of product.game_id:", typeof allProductsData[0].game_id); // Log tipe data game_id di produk
             }
             
             displayRoles = allRolesData.filter(role => 
@@ -57,8 +57,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 const firstGameLink = compareGamesList.querySelector(`[data-game-id="${firstGameId}"]`);
                 if(firstGameLink) firstGameLink.classList.add('active');
 
-                // === PERBAIKAN: Pastikan perbandingan ID adalah number ===
-                renderProductsTable(allProductsData.filter(p => p.game_id === Number(firstGameId)), displayRoles); 
+                // === PERBAIKAN: Pastikan perbandingan ID adalah number untuk kedua sisi ===
+                // Mengkonversi game_id dari produk ke number jika perlu, dan membandingkan dengan ID game yang sudah Number
+                renderProductsTable(allProductsData.filter(p => Number(p.game_id) === Number(firstGameId)), displayRoles); 
                 // =========================================================
 
             } else {
@@ -83,15 +84,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const gameLink = document.createElement('a');
             gameLink.href = "#"; 
             gameLink.classList.add('dashboard-nav-link'); 
-            gameLink.dataset.gameId = game.id;
+            gameLink.dataset.gameId = game.id; // game.id sudah number dari backend
             gameLink.textContent = game.name;
             gameLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 document.querySelectorAll('#compare-games-list .dashboard-nav-link').forEach(link => link.classList.remove('active'));
                 gameLink.classList.add('active');
                 compareProductListTitle.textContent = `Perbandingan Harga untuk: ${game.name}`;
-                // === PERBAIKAN: Pastikan perbandingan ID adalah number ===
-                renderProductsTable(allProductsData.filter(p => p.game_id === Number(game.id)), rolesToDisplay); 
+                // === PERBAIKAN: Pastikan perbandingan ID adalah number untuk kedua sisi ===
+                renderProductsTable(allProductsData.filter(p => Number(p.game_id) === Number(game.id)), rolesToDisplay); 
                 // =========================================================
             });
             compareGamesList.appendChild(gameLink);
@@ -121,12 +122,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         products.forEach(product => {
             const row = document.createElement('tr');
-            const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.base_price);
+            // base_price dari backend adalah string ('10522.00'), harus diubah ke number untuk Intl.NumberFormat
+            const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(parseFloat(product.base_price));
             let rowHtml = `<td>${product.game_name}</td><td>${product.product_name}</td><td>${product.provider_sku}</td><td>${formattedBasePrice}</td>`;
             
             roles.forEach(role => {
                 const rolePriceKey = `price_${role.name.toLowerCase()}`;
-                const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product[rolePriceKey] || 0);
+                const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(product[rolePriceKey] || 0);
                 rowHtml += `<td>${formattedRolePrice}</td>`;
             });
             row.innerHTML = rowHtml;
