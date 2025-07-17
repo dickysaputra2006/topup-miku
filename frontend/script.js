@@ -125,35 +125,78 @@ const API_URL = 'https://topup-miku.onrender.com/api';
         }
     }
     
+    function renderGameGrid(games, containerId) {
+    const gridContainer = document.getElementById(containerId);
+    if (!gridContainer) return;
+
+    gridContainer.innerHTML = ''; // Kosongkan pesan "Memuat..."
+
+    if (games.length === 0) {
+        // Jika tidak ada game di kategori ini, sembunyikan seluruh section
+        const section = gridContainer.closest('.content-section');
+        if (section) section.classList.add('hidden');
+        return;
+    }
+
+    games.forEach(game => {
+        const card = document.createElement('a');
+        card.href = `product.html?gameId=${game.id}`;
+        card.className = 'product-card';
+        card.innerHTML = `
+            <img src="${game.image_url || './path/to/default/image.png'}" alt="${game.name}">
+            <span>${game.name}</span>
+        `;
+        gridContainer.appendChild(card);
+    });
+}
+
+
     // === Fungsi untuk Menampilkan Game (Tidak perlu diubah) ===
     async function displayGames() {
-        const mobileGameGrid = document.querySelector('#mobile-games-grid'); 
-        if (!mobileGameGrid) return;
-        
-        try {
-            const response = await fetch(`${API_URL}/games`);
-            if (!response.ok) throw new Error('Gagal mengambil data game');
-            const games = await response.json();
-            
-            mobileGameGrid.innerHTML = ''; 
-            
-            games.forEach(game => {
-                if (game.category === 'Mobile Game') {
-                    const card = document.createElement('a');
-                    card.href = `product.html?gameId=${game.id}`; 
-                    card.className = 'product-card';
-                    card.innerHTML = `
-                        <img src="${game.image_url || './path/to/default/image.png'}" alt="${game.name}" style="width:100%; border-radius: 8px; aspect-ratio: 1/1; object-fit: cover;">
-                        <span>${game.name}</span>
-                    `;
-                    mobileGameGrid.appendChild(card);
-                }
-            });
-        } catch (error) {
-            console.error('Gagal menampilkan game:', error);
-            mobileGameGrid.innerHTML = '<p>Gagal memuat game. Coba lagi nanti.</p>';
-        }
+    try {
+        const response = await fetch(`${API_URL}/games`);
+        if (!response.ok) throw new Error('Gagal mengambil data game');
+        const allGames = await response.json();
+
+        // 1. Siapkan array untuk setiap kategori
+        const mobileGames = [];
+        const pcGames = [];
+        const voucherGames = [];
+
+        // 2. Kelompokkan semua game ke dalam array yang sesuai
+        allGames.forEach(game => {
+            switch (game.category) {
+                case 'Mobile Game':
+                    mobileGames.push(game);
+                    break;
+                case 'PC Game':
+                    pcGames.push(game);
+                    break;
+                case 'Voucher': // Sesuaikan dengan nama kategori dari database Anda untuk "Voucher Digital"
+                case 'Lifestyle': // Mungkin nama kategorinya Lifestyle
+                    voucherGames.push(game);
+                    break;
+                default:
+                    // Anda bisa memasukkannya ke kategori 'lainnya' jika perlu
+                    break;
+            }
+        });
+
+        // 3. Render setiap grup game ke dalam wadahnya masing-masing
+        renderGameGrid(mobileGames, 'mobile-games-grid');
+        renderGameGrid(pcGames, 'pc-games-grid');
+        renderGameGrid(voucherGames, 'voucher-grid');
+
+    } catch (error) {
+        console.error('Gagal menampilkan game:', error);
+        // Tampilkan pesan error di semua grid jika fetch gagal
+        document.getElementById('mobile-games-grid').innerHTML = '<p>Gagal memuat game. Coba lagi nanti.</p>';
+        document.getElementById('pc-games-grid').innerHTML = '';
+        document.getElementById('voucher-grid').innerHTML = '';
     }
+}
+
+    
 
     // === Panggilan Fungsi Awal (Tidak perlu diubah) ===
     updateUIAfterLogin();

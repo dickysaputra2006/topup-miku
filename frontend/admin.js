@@ -159,20 +159,38 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function renderGamesTable(games) {
-        if (!gamesTableBody) return;
-        gamesTableBody.innerHTML = '';
-        if (games.length === 0) {
-            gamesTableBody.innerHTML = '<tr><td colspan="3" style="text-align: center;">Belum ada game.</td></tr>';
-            return;
-        }
-        games.forEach(game => {
-            const row = document.createElement('tr');
-            row.dataset.gameId = game.id;
-            row.innerHTML = `<td>${game.id}</td><td>${game.name}</td><td>${game.category}</td>`;
-            gamesTableBody.appendChild(row);
-        });
+    
+function renderGamesTable(games) {
+    if (!gamesTableBody) return;
+    gamesTableBody.innerHTML = '';
+    if (games.length === 0) {
+        gamesTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Belum ada game.</td></tr>';
+        return;
     }
+
+    
+    games.forEach(game => {
+        const row = document.createElement('tr');
+        row.dataset.gameId = game.id;
+
+        // Tentukan apakah toggle harus dalam keadaan ON
+        const isChecked = game.status === 'Active' ? 'checked' : '';
+
+        // Tambahkan sel baru untuk toggle switch
+        row.innerHTML = `
+            <td>${game.id}</td>
+            <td>${game.name}</td>
+            <td>${game.category}</td>
+            <td>
+                <label class="switch">
+                    <input type="checkbox" class="game-status-toggle" ${isChecked}>
+                    <span class="slider"></span>
+                </label>
+            </td>
+        `;
+        gamesTableBody.appendChild(row);
+    });
+}
 
      async function fetchAdminProducts() {
         if (!productsTableBody) return;
@@ -465,6 +483,53 @@ document.addEventListener('DOMContentLoaded', function() {
             } finally {
                 // Aktifkan kembali tombol
                 toggleSwitch.disabled = false;
+            }
+        }
+    });
+}
+
+    if (gamesTableBody) {
+    gamesTableBody.addEventListener('change', async (e) => {
+        // Cek apakah elemen yang diubah adalah toggle switch game
+        if (e.target.classList.contains('game-status-toggle')) {
+            const toggleSwitch = e.target;
+            const row = toggleSwitch.closest('tr');
+            const gameId = row.dataset.gameId;
+            
+            // Tentukan status baru berdasarkan posisi toggle
+            const newStatus = toggleSwitch.checked ? 'Active' : 'Inactive';
+
+            toggleSwitch.disabled = true; // Nonaktifkan sementara
+
+            try {
+                const response = await fetch(`${ADMIN_API_URL}/games/${gameId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    toggleSwitch.checked = !toggleSwitch.checked; // Kembalikan posisi jika gagal
+                    throw new Error(result.message);
+                }
+
+                alert(result.message);
+
+                // Perbarui juga data di state lokal (allGames) agar konsisten
+                const gameIndex = allGames.findIndex(g => g.id == gameId);
+                if (gameIndex > -1) {
+                    allGames[gameIndex].status = newStatus;
+                }
+
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                toggleSwitch.disabled = false; // Aktifkan kembali
             }
         }
     });
