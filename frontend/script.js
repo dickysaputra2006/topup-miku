@@ -3,13 +3,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const API_URL_AUTH = 'https://topup-miku.onrender.com/api/auth';
     const API_URL = 'https://topup-miku.onrender.com/api';
 
-    // Elemen Header & Sidebar Baru
-    const loginButtonHeader = document.getElementById('login-button'); // Tombol Masuk di header (sebelum ada sidebar)
-    const openBtn = document.getElementById('open-sidebar-btn');
-    const closeBtn = document.getElementById('close-sidebar-btn');
-    const sidebar = document.getElementById('sidebar-nav');
-    const overlay = document.getElementById('sidebar-overlay');
-    const sidebarLoginBtn = document.getElementById('sidebar-login-btn'); // Tombol di dalam sidebar
+    // Elemen Header & Dropdown Baru
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const dropdownMenu = document.getElementById('dropdown-menu');
+    const navLoginBtn = document.getElementById('nav-login-btn');
+    const navDashboardBtn = document.getElementById('nav-dashboard-btn');
 
     // Elemen Modal Login/Register
     const modal = document.getElementById('auth-modal');
@@ -26,42 +24,14 @@ document.addEventListener('DOMContentLoaded', function () {
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
 
-    const closeSidebar = () => {
-        if (sidebar && overlay) {
-            sidebar.classList.remove('visible');
-            overlay.classList.add('hidden');
-        }
-    };
-
-    // FUNGSI INI DIMODIFIKASI: untuk update tombol di header DAN di sidebar
-    function updateHeaderUI() {
+    function updateMainNavButtons() {
         const token = localStorage.getItem('authToken');
-        
-        // Sembunyikan/tampilkan tombol Masuk di header lama (jika masih ada)
-        if (loginButtonHeader) {
-            loginButtonHeader.classList.toggle('hidden', !!token);
-        }
-        
-        // Logika untuk tombol di dalam sidebar
-        if (sidebarLoginBtn) {
-            if (token) {
-                try {
-                    const payload = JSON.parse(atob(token.split('.')[1]));
-                    sidebarLoginBtn.textContent = `Hi, ${payload.username}`;
-                    sidebarLoginBtn.href = 'dashboard.html';
-                    sidebarLoginBtn.classList.remove('sidebar-button'); // Hapus style tombol
-                } catch (e) {
-                    console.error("Token tidak valid:", e);
-                    localStorage.removeItem('authToken');
-                    sidebarLoginBtn.textContent = 'Masuk / Daftar';
-                    sidebarLoginBtn.href = '#';
-                    sidebarLoginBtn.classList.add('sidebar-button');
-                }
-            } else {
-                sidebarLoginBtn.textContent = 'Masuk / Daftar';
-                sidebarLoginBtn.href = '#';
-                sidebarLoginBtn.classList.add('sidebar-button');
-            }
+        if (token) {
+            if(navLoginBtn) navLoginBtn.classList.add('hidden');
+            if(navDashboardBtn) navDashboardBtn.classList.remove('hidden');
+        } else {
+            if(navLoginBtn) navLoginBtn.classList.remove('hidden');
+            if(navDashboardBtn) navDashboardBtn.classList.add('hidden');
         }
     }
 
@@ -107,7 +77,6 @@ document.addEventListener('DOMContentLoaded', function () {
                         break;
                 }
             });
-
             renderGameGrid(mobileGames, 'mobile-games-grid');
             renderGameGrid(pcGames, 'pc-games-grid');
             renderGameGrid(voucherGames, 'voucher-grid');
@@ -120,48 +89,38 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // === 3. SEMUA EVENT LISTENER ===
 
-    // Event Listener untuk Sidebar
-    if (openBtn) {
-        openBtn.addEventListener('click', () => {
-            sidebar.classList.add('visible');
-            overlay.classList.remove('hidden');
+    if (hamburgerBtn && dropdownMenu) {
+        hamburgerBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            dropdownMenu.classList.toggle('hidden');
         });
     }
-    if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
-    if (overlay) overlay.addEventListener('click', closeSidebar);
-
-    // Event Listener untuk tombol login (baik di header lama maupun di sidebar baru)
-    if (loginButtonHeader) {
-        loginButtonHeader.addEventListener('click', (e) => {
-            if (!localStorage.getItem('authToken')) {
-                e.preventDefault();
-                showModal();
-            }
-        });
-    }
-    if (sidebarLoginBtn) {
-        sidebarLoginBtn.addEventListener('click', (e) => {
-            if (!localStorage.getItem('authToken')) {
-                e.preventDefault();
-                showModal();
-                closeSidebar(); // Tutup sidebar saat modal login muncul
-            }
+    window.addEventListener('click', () => {
+        if (dropdownMenu && !dropdownMenu.classList.contains('hidden')) {
+            dropdownMenu.classList.add('hidden');
+        }
+    });
+    
+    if (navLoginBtn) {
+        navLoginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            showModal();
         });
     }
 
-    // Event Listener untuk Modal
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
     if (showRegisterLink) showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginContainer.classList.add('hidden'); registerContainer.classList.remove('hidden'); });
     if (showLoginLink) showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); });
 
-    // Event Listener untuk Form
     if (registerForm) {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const password = registerForm.querySelector('input[name="password"]').value;
-            const confirmPassword = registerForm.querySelector('input[name="confirmPassword"]').value;
-            if (password !== confirmPassword) {
+            const passwordInput = registerForm.querySelector('input[name="password"]');
+            const confirmPasswordInput = registerForm.querySelector('input[name="confirmPassword"]');
+            if (passwordInput.value !== confirmPasswordInput.value) {
                 alert('Password dan Konfirmasi Password tidak cocok!');
+                confirmPasswordInput.value = '';
+                confirmPasswordInput.focus();
                 return;
             }
             const data = {
@@ -169,10 +128,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 username: registerForm.querySelector('input[name="username"]').value,
                 email: registerForm.querySelector('input[name="email"]').value,
                 nomorWa: registerForm.querySelector('input[name="nomorWa"]').value,
-                password: password
+                password: passwordInput.value
             };
             try {
-                const response = await fetch(`${API_URL_AUTH}/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                const response = await fetch(`${API_URL_AUTH}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
                 alert(result.message);
@@ -192,7 +155,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 password: loginForm.querySelector('input[name="password"]').value
             };
             try {
-                const response = await fetch(`${API_URL_AUTH}/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                const response = await fetch(`${API_URL_AUTH}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
                 localStorage.setItem('authToken', result.token);
@@ -204,17 +171,17 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Event Listener untuk toggle password
     document.querySelectorAll('.toggle-password').forEach(icon => {
         icon.addEventListener('click', function () {
             const input = this.parentElement.querySelector('input');
-            input.type = input.type === 'password' ? 'text' : 'password';
-            this.classList.toggle('fa-eye');
-            this.classList.toggle('fa-eye-slash');
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            this.classList.toggle('fa-eye', !isPassword);
+            this.classList.toggle('fa-eye-slash', isPassword);
         });
     });
 
     // === 4. PANGGILAN FUNGSI AWAL ===
-    updateHeaderUI();
+    updateMainNavButtons();
     displayGames();
 });

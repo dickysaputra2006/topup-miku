@@ -1,6 +1,6 @@
 /* === GENERAL STYLING === */
 :root {
-    --bg-dark: #1F2937;
+    --bg-dark: #2ce235;
     --bg-surface: #374151;
     --primary-color: #EC4899;
     --success-color: #10B981;
@@ -34,115 +34,84 @@ h4 {
     margin-top: 0;
     margin-bottom: 1rem;
 }
+.hidden {
+    display: none !important;
+}
+.card {
+    background-color: var(--bg-surface);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
 
-/* === GAYA HEADER & SIDEBAR BARU === */
+
+/* === GAYA HEADER & DROPDOWN BARU === */
 header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.8rem 1rem;
     background-color: var(--bg-surface);
     border-bottom: 1px solid var(--border-color);
 }
-
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    height: 60px; /* Beri tinggi tetap untuk header */
+}
+.logo-link {
+    text-decoration: none;
+}
 header .logo {
     margin: 0;
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     color: var(--primary-color);
     font-weight: bold;
-    position: absolute; /* Posisikan di tengah */
-    left: 50%;
-    transform: translateX(-50%);
 }
-
 .header-icon-btn {
     background: none;
     border: none;
     color: var(--text-color);
     font-size: 1.5rem;
     cursor: pointer;
-    z-index: 10; /* Pastikan tombol bisa diklik */
 }
-
-/* GAYA SIDEBAR NAVIGASI */
-nav.sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100%;
-    width: 280px;
-    background-color: var(--bg-dark);
-    z-index: 200;
-    padding: 1rem;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
-    transform: translateX(-100%); /* Sembunyikan ke kiri */
-    transition: transform 0.3s ease-in-out;
-}
-
-nav.sidebar.visible {
-    transform: translateX(0); /* Tampilkan sidebar */
-}
-
-#close-sidebar-btn {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    background: none;
-    border: none;
+#main-nav .header-btn {
     color: white;
-    font-size: 2rem;
-    cursor: pointer;
-}
-
-.sidebar-header {
-    margin-bottom: 2rem;
-    margin-top: 3rem;
-    text-align: center;
-}
-
-.sidebar-button {
     background-color: var(--primary-color);
-    color: white;
-    padding: 0.8rem 1.5rem;
+    padding: 0.5rem 1.2rem;
     border-radius: 5px;
     text-decoration: none;
     font-weight: bold;
+    font-size: 0.9rem;
 }
-
-nav.sidebar a {
+.menu-container {
+    position: relative;
+}
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    z-index: 100;
+    width: 200px;
+    padding: 0.5rem;
+    margin-top: 10px;
+}
+.dropdown-menu a {
     color: var(--text-color);
     text-decoration: none;
-    display: flex; /* Gunakan flexbox untuk ikon dan teks */
-    align-items: center;
-    padding: 1rem;
+    display: block;
+    padding: 0.8rem 1rem;
     border-radius: 5px;
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
 }
-
-nav.sidebar a:hover {
-    background-color: var(--bg-surface);
-}
-
-nav.sidebar a i {
-    margin-right: 1rem;
-    width: 20px;
-    text-align: center;
+.dropdown-menu a:hover {
+    background-color: var(--primary-color);
+    color: white;
 }
 
 
-#sidebar-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.7);
-    z-index: 199;
-}
-
-
-/* === HOMEPAGE & GENERAL SECTIONS === */
+/* === HOMEPAGE SECTIONS === */
 .hero-section {
     margin: 2rem 0;
 }
@@ -159,38 +128,72 @@ nav.sidebar a i {
 .content-section {
     margin-bottom: 3rem;
 }
-.product-grid, .product-grid-small {
+
+/* FLASH SALE BERJALAN */
+.flash-sale-container {
+    overflow: hidden;
+}
+.flash-sale-track {
+    display: flex;
+    width: max-content;
+    animation: scroll-left 30s linear infinite;
+}
+.flash-sale-card {
+    background-color: var(--bg-surface);
+    border-radius: 8px;
+    width: 160px;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+.flash-sale-card img {
+    width: 100%;
+    height: 90px;
+    object-fit: cover;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+.flash-sale-info {
+    padding: 0.5rem;
+}
+.fs-product-name, .fs-price-discounted, .fs-price-original {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.fs-product-name {
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+.fs-price-discounted {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+.fs-price-original {
+    font-size: 0.75rem;
+    text-decoration: line-through;
+    color: #9ca3af;
+}
+@keyframes scroll-left {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}
+
+/* GRID GAME */
+.product-grid {
     display: grid;
     gap: 1rem;
-}
-.product-grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
 }
-.product-grid-small {
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-}
-
-/* Untuk Flash Sale Card */
-.product-card-small {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    aspect-ratio: 16 / 9;
-}
-.product-card-small:hover {
-    transform: scale(1.05);
-    border-color: var(--primary-color);
-}
-
-/* --- KODE BARU UNTUK KARTU GAME UTAMA --- */
 .product-card {
     background-color: var(--bg-surface);
     border: 1px solid var(--border-color);
     border-radius: 8px;
-    height: 180px; /* Atur tinggi yang tetap untuk semua kartu */
+    height: 180px;
     display: flex;
     flex-direction: column;
-    justify-content: space-between; /* Mendorong konten ke atas dan bawah */
+    justify-content: space-between;
     align-items: center;
     padding: 1rem;
     font-weight: bold;
@@ -198,475 +201,28 @@ nav.sidebar a i {
     transition: transform 0.2s ease;
     text-decoration: none;
     color: var(--text-color);
-    overflow: hidden; /* Sembunyikan konten yang meluber */
+    overflow: hidden;
 }
-
 .product-card:hover {
     transform: scale(1.05);
     border-color: var(--primary-color);
 }
-
 .product-card img {
     width: 100%;
-    height: 100px; /* Beri tinggi tetap untuk area gambar */
+    height: 100px;
     border-radius: 8px;
-    object-fit: cover; /* Pastikan gambar mengisi area tanpa distorsi */
-    margin-bottom: 0.5rem; /* Beri sedikit jarak */
+    object-fit: cover;
+    margin-bottom: 0.5rem;
 }
-
 .product-card span {
     display: block;
     width: 100%;
     text-align: center;
-    white-space: nowrap; /* Mencegah teks turun baris */
-    overflow: hidden; /* Sembunyikan teks yang terlalu panjang */
-    text-overflow: ellipsis; /* Tampilkan '...' jika teks terpotong */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-footer {
-    text-align: center;
-    padding: 2rem 0;
-    margin-top: 2rem;
-    background-color: var(--bg-surface);
-    border-top: 1px solid var(--border-color);
-}
-.card {
-    background-color: var(--bg-surface);
-    padding: 1.5rem;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-}
-
-/* === MODAL & FORM STYLING === */
-.hidden {
-    display: none !important;
-}
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.8);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 100;
-}
-.modal-content {
-    background: var(--bg-surface);
-    padding: 2rem;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 400px;
-    position: relative;
-}
-.close-modal {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    background: none;
-    border: none;
-    color: var(--text-color);
-    font-size: 2rem;
-    cursor: pointer;
-}
-.modal-content h3 {
-    text-align: center;
-    margin-bottom: 1rem;
-}
-.form-description {
-    text-align: center;
-    font-size: 0.9rem;
-    color: #a7a9be;
-    margin-top: -0.5rem;
-    margin-bottom: 1.5rem;
-}
-.modal-content input, .admin-form input, .admin-form select, #order-form input, .deposit-form-section input, #sync-products-form input, #margin-form input {
-    width: 100%;
-    padding: 0.8rem;
-    margin-bottom: 1rem;
-    background-color: var(--bg-dark);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    color: var(--text-color);
-    box-sizing: border-box;
-}
-.password-wrapper {
-    position: relative;
-    width: 100%;
-}
-.toggle-password {
-    position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-75%);
-    cursor: pointer;
-}
-.forgot-password {
-    display: block;
-    text-align: right;
-    margin: -0.5rem 0 1rem 0;
-    font-size: 0.8rem;
-    color: var(--primary-color);
-    text-decoration: none;
-}
-.modal-content button[type="submit"], .admin-form button, .deposit-form-section button, #margin-form button, #sync-products-form button {
-    width: 100%;
-    padding: 0.8rem;
-    border: none;
-    background: var(--primary-color);
-    color: white;
-    font-weight: bold;
-    border-radius: 5px;
-    cursor: pointer;
-}
-.switch-form {
-    text-align: center;
-    margin-top: 1.5rem;
-    font-size: 0.9rem;
-}
-.switch-form a {
-    color: var(--primary-color);
-    font-weight: bold;
-}
-.terms {
-    display: flex;
-    align-items: center;
-    font-size: 0.8rem;
-    margin-bottom: 1rem;
-    text-align: left;
-}
-.terms input[type="checkbox"] {
-    width: auto;
-    margin-right: 0.5rem;
-}
-.terms a {
-    color: var(--primary-color);
-}
-
-/* === DASHBOARD & ADMIN SHARED LAYOUT === */
-.dashboard-container, .admin-page-container {
-    display: flex;
-    gap: 2rem;
-    margin-top: 2rem;
-    align-items: flex-start;
-}
-.sidebar, .admin-sidebar {
-    flex: 1;
-    max-width: 250px;
-    background-color: var(--bg-surface);
-    padding: 1rem;
-    border-radius: 8px;
-    position: sticky;
-    top: 2rem;
-}
-.sidebar-nav {
-    display: flex;
-    flex-direction: column;
-}
-.sidebar-nav a {
-    color: var(--text-color);
-    text-decoration: none;
-    padding: 1rem;
-    border-radius: 5px;
-    margin-bottom: 0.5rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    transition: background-color 0.2s;
-    cursor: pointer;
-}
-.sidebar-nav a:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-.sidebar-nav a.active {
-    background-color: var(--primary-color);
-    color: white;
-    font-weight: bold;
-}
-.dashboard-content, .admin-content {
-    flex: 3;
-}
-.dashboard-section, .admin-section {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-}
-
-/* === DASHBOARD PAGE SPECIFIC === */
-.dashboard-content .card {
-    margin-bottom: 2rem;
-}
-.profile-details {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-}
-.profile-details p {
-    margin: 0.5rem 0;
-}
-.edit-btn, .topup-btn {
-    padding: 0.8rem 1.5rem;
-    border: none;
-    border-radius: 5px;
-    font-weight: bold;
-    cursor: pointer;
-    margin-top: 0.5rem;
-}
-.edit-btn {
-    background: none;
-    border: 1px solid var(--primary-color);
-    color: var(--primary-color);
-}
-.topup-btn {
-    background-color: var(--primary-color);
-    color: white;
-}
-.balance-details {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-}
-.balance-amount {
-    font-size: 2.5rem;
-    font-weight: bold;
-    color: var(--primary-color);
-}
-.history-link {
-    color: var(--primary-color);
-    text-decoration: none;
-    font-weight: bold;
-}
-.order-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 1rem;
-    text-align: center;
-    margin-bottom: 1.5rem;
-}
-.stat-item span {
-    font-size: 2rem;
-    font-weight: bold;
-    display: block;
-}
-.api-key-container {
-    background-color: var(--bg-dark);
-    border: 1px solid var(--border-color);
-    padding: 1rem;
-    border-radius: 5px;
-    margin-top: 1rem;
-}
-#api-key-display {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 1rem;
-    color: #a7a9be;
-    word-break: break-all;
-}
-.modal-tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border-color);
-    margin-bottom: 1.5rem;
-}
-.tab-link {
-    background: none;
-    border: none;
-    color: var(--text-color);
-    padding: 1rem;
-    cursor: pointer;
-    font-size: 1rem;
-    border-bottom: 3px solid transparent;
-}
-.tab-link.active {
-    border-bottom-color: var(--primary-color);
-    color: var(--primary-color);
-    font-weight: bold;
-}
-
-/* === ADMIN PAGE SPECIFIC === */
-.admin-wrapper {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-}
-.table-container {
-    width: 100%;
-    overflow-x: auto;
-}
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-}
-table th, table td {
-    border: 1px solid var(--border-color);
-    padding: 0.8rem 1rem;
-    text-align: left;
-}
-table th {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-.approve-btn {
-    background-color: var(--success-color);
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 5px;
-    cursor: pointer;
-}
-.approve-btn:disabled {
-    background-color: #6c757d;
-}
-.failed-btn {
-    background-color: var(--danger-color);
-}
-.manual-balance-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 1rem;
-}
-.manual-balance-actions button {
-    flex-grow: 1;
-    color: white;
-    border: none;
-    padding: 0.8rem;
-    border-radius: 5px;
-    cursor: pointer;
-    font-weight: bold;
-}
-.admin-forms-container {
-    display: flex;
-    gap: 2rem;
-    flex-wrap: wrap;
-}
-.admin-form {
-    flex: 1;
-    min-width: 300px;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    padding: 1.5rem;
-    background-color: rgba(255, 255, 255, 0.03);
-    border-radius: 8px;
-}
-.admin-form h4 {
-    margin-top: 0;
-    text-align: center;
-}
-.admin-form label, #margin-form label, #sync-products-form label {
-    font-size: 0.9rem;
-    color: #a7a9be;
-    margin-top: 0;
-    margin-bottom: 0.2rem;
-}
-.admin-form input, .admin-form select {
-    margin-top: -0.8rem;
-}
-.admin-master-detail {
-    display: flex;
-    gap: 2rem;
-    flex-wrap: wrap;
-}
-.master-list {
-    flex: 1;
-    min-width: 350px;
-}
-.detail-list {
-    flex: 2;
-    min-width: 350px;
-}
-#games-table tbody tr {
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-#games-table tbody tr:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-#games-table tbody tr.active-row {
-    background-color: rgba(236, 72, 153, 0.2);
-    font-weight: bold;
-}
-#margin-fields-container {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-.form-group-horizontal {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.form-group-horizontal label {
-    font-weight: bold;
-}
-.form-group-horizontal div {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-.form-group-horizontal input {
-    width: 80px;
-    text-align: right;
-    margin-bottom: 0;
-}
-#sync-products-form {
-    display: flex;
-    align-items: flex-end;
-    gap: 1rem;
-    flex-wrap: wrap;
-}
-#sync-products-form .form-group {
-    display: flex;
-    flex-direction: column;
-}
-#sync-products-form button {
-    padding: 0.7rem 1.5rem;
-    height: fit-content;
-}
-
-/* === DEPOSIT & MUTASI & TRANSAKSI PAGE === */
-.deposit-wrapper, .mutasi-wrapper, .main-wrapper {
-    max-width: 800px;
-    margin: 2rem auto;
-}
-.payment-instructions-section {
-    margin-top: 2rem;
-    background-color: rgba(255, 255, 255, 0.05);
-    border-left: 5px solid var(--primary-color);
-}
-.payment-instructions-section p {
-    line-height: 1.6;
-}
-#mutasi-table .amount-in {
-    color: var(--success-color);
-    font-weight: bold;
-}
-#mutasi-table .amount-out {
-    color: var(--danger-color);
-    font-weight: bold;
-}
-.status-badge, .badge {
-    padding: 0.3rem 0.8rem;
-    border-radius: 15px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    color: #fff;
-    text-transform: capitalize;
-}
-.status-success, .badge.type-deposit {
-    background-color: var(--success-color);
-}
-.status-pending, .badge.type-purchase {
-    background-color: #ffc107;
-    color: #333;
-}
-.status-failed, .badge.type-refund {
-    background-color: var(--danger-color);
-}
 
 /* === PRODUCT ORDER PAGE === */
 .order-page-wrapper {
@@ -687,38 +243,14 @@ table th {
     border-radius: 8px;
     object-fit: cover;
 }
-#game-info h2 {
-    margin: 0;
-}
-#game-info p {
-    margin: 0.25rem 0 0 0;
-    color: #a7a9be;
-    font-size: 0.9rem;
-}
-.order-page-wrapper .card h3 > span {
-    background-color: var(--primary-color);
-    color: var(--bg-dark);
-    font-size: 1rem;
-    font-weight: bold;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-}
 .order-form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
 }
-#target-game-id:only-child {
-    grid-column: 1 / -1;
-}
-
 .product-card-selectable {
     border: 2px solid var(--border-color);
-    padding: 0.5rem; /* Padding disesuaikan */
+    padding: 0.5rem;
     border-radius: 8px;
     text-align: center;
     cursor: pointer;
@@ -727,57 +259,33 @@ table th {
     flex-direction: column;
     justify-content: center;
     align-items: center;
-    min-height: 85px; /* Beri tinggi minimal agar rapi */
+    min-height: 85px;
     box-sizing: border-box;
 }
-
 .product-card-selectable:hover {
     border-color: var(--primary-color);
 }
-
 .product-card-selectable.selected {
     border-color: var(--primary-color);
     background-color: rgba(236, 72, 153, 0.2);
     transform: scale(1.02);
     box-shadow: 0 0 15px rgba(236, 72, 153, 0.3);
 }
-
 .product-card-selectable span {
     font-weight: bold;
-    font-size: 0.9rem; /* Ukuran font disesuaikan */
+    font-size: 0.9rem;
     display: block;
     margin-bottom: 0.25rem;
-    white-space: normal; /* PENTING: Izinkan teks untuk pindah baris */
+    white-space: normal; /* Izinkan teks pindah baris */
     line-height: 1.2;
 }
-
 .product-card-selectable small {
     color: #a7a9be;
     font-size: 0.8rem;
 }
 
-#payment-info {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 1.5rem;
-    font-size: 1.1rem;
-}
-.order-button {
-    width: 100%;
-    padding: 1rem;
-    font-size: 1.2rem;
-    border: none;
-    background: var(--primary-color);
-    color: white;
-    font-weight: bold;
-    border-radius: 5px;
-    cursor: pointer;
-}
-.order-button:disabled {
-    background-color: #6c757d;
-    cursor: not-allowed;
-}
-/* === DASHBOARD & ADMIN SHARED LAYOUT === */
+
+/* === DASHBOARD LAYOUT (Tidak berubah) === */
 .dashboard-container, .admin-page-container {
     display: flex;
     gap: 2rem;
@@ -786,320 +294,59 @@ table th {
 }
 .sidebar, .admin-sidebar {
     flex: 1;
-    min-width: 200px; /* Tambahkan min-width agar tidak terlalu kecil */
+    min-width: 200px;
     max-width: 250px;
     background-color: var(--bg-surface);
     padding: 1rem;
     border-radius: 8px;
     position: sticky;
     top: 2rem;
-    min-height: calc(100vh - 4rem);
-    box-sizing: border-box;
-    overflow-y: auto;
-    max-height: calc(100vh - 4rem);
 }
-.sidebar-nav {
-    display: flex;
-    flex-direction: column;
+.dashboard-content, .admin-content {
+    flex: 3;
 }
-.sidebar-nav h4 { /* Style untuk judul sidebar */
-    color: var(--primary-color);
-    margin-top: 0;
-    margin-bottom: 1rem;
+
+
+/* === FOOTER === */
+footer {
     text-align: center;
-}
-.sidebar-nav a { /* Pastikan link game di sidebar memiliki padding dan display block */
-    color: var(--text-color);
-    text-decoration: none;
-    padding: 0.8rem 1rem; /* Sedikit lebih kecil dari nav header */
-    border-radius: 5px;
-    margin-bottom: 0.5rem;
-    display: block; /* Pastikan mengambil seluruh lebar */
-    align-items: center; /* Untuk ikon jika ada */
-    gap: 1rem;
-    transition: background-color 0.2s;
-    cursor: pointer;
-    white-space: nowrap; /* Mencegah nama game pecah baris */
-    overflow: hidden; /* Sembunyikan overflow jika nama sangat panjang */
-    text-overflow: ellipsis; /* Tambahkan elipsis jika terpotong */
-}
-.sidebar-nav a:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-.sidebar-nav a.active {
-    background-color: var(--primary-color);
-    color: white;
-    font-weight: bold;
+    padding: 2rem 0;
+    margin-top: 2rem;
+    background-color: var(--bg-surface);
+    border-top: 1px solid var(--border-color);
 }
 
 
-/* Tambahan untuk scrollable tables di Admin Panel/Compare Prices Page */
-.table-container {
-    width: 100%;
-    overflow-x: auto; /* Memungkinkan tabel di-scroll horizontal */
-}
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-    white-space: nowrap; /* Mencegah teks dalam sel pecah baris */
-}
-table th, table td {
-    border: 1px solid var(--border-color);
-    padding: 0.8rem 1rem;
-    text-align: left;
-}
-table th {
-    background-color: rgba(255, 255, 255, 0.05);
-}
-/* Mengatur lebar kolom agar lebih proporsional untuk banyak harga */
-table th:nth-child(1), table td:nth-child(1) { min-width: 150px; } /* Nama Game/Produk */
-table th:nth-child(2), table td:nth-child(2) { min-width: 200px; } /* Produk/Harga Pokok */
-table th:nth-child(3), table td:nth-child(3) { min-width: 100px; } /* SKU */
-table th:nth-child(4), table td:nth-child(4) { min-width: 120px; } /* Harga Pokok */
-/* CSS untuk Toggle Switch */
-.switch {
-    position: relative;
-    display: inline-block;
-    width: 50px; /* Lebar switch */
-    height: 28px; /* Tinggi switch */
-}
-
-.switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    -webkit-transition: .4s;
-    transition: .4s;
-    border-radius: 28px;
-}
-
-.slider:before {
-    position: absolute;
-    content: "";
-    height: 20px; /* Ukuran knob */
-    width: 20px;  /* Ukuran knob */
-    left: 4px;
-    bottom: 4px;
-    background-color: white;
-    -webkit-transition: .4s;
-    transition: .4s;
-    border-radius: 50%;
-}
-
-input:checked + .slider {
-    background-color: #2196F3; /* Warna saat ON */
-}
-
-input:focus + .slider {
-    box-shadow: 0 0 1px #2196F3;
-}
-
-input:checked + .slider:before {
-    -webkit-transform: translateX(22px);
-    -ms-transform: translateX(22px);
-    transform: translateX(22px);
-}
-
+/* === RESPONSIVE RULES === */
 @media (max-width: 768px) {
     .product-grid {
-       
         grid-template-columns: repeat(4, 1fr);
     }
 }
-
-
 @media (max-width: 480px) {
+    /* Atur ulang header untuk mobile */
+    header .logo {
+        position: static; /* Hapus posisi absolut di HP */
+        transform: none;
+        font-size: 1.3rem;
+    }
+    
+    /* Atur grid game di HP */
     .product-grid {
-      
         grid-template-columns: repeat(3, 1fr);
     }
-
     .product-card {
-        
         height: 140px; 
         padding: 0.5rem;
     }
-
     .product-card img {
         height: 70px; 
     }
-
-    
     h2 {
         font-size: 1.2rem;
     }
-
-.logo {
-        font-size: 1.5rem; 
-    }
-
-  
-    header nav a, .header-btn {
-        padding: 0.4rem 0.8rem; 
-        font-size: 0.8rem; 
-    }
-
- 
     .hero-placeholder {
         height: 150px; 
         font-size: 1rem;
     }
-
-  
-    .product-card-small {
-        font-size: 0.9rem; 
-    }
-
-   
-
-   
-    @keyframes scrollFlashSale {
-        0% {
-            transform: translateX(100%); 
-        }
-        100% {
-            transform: translateX(-100%); 
-        }
-    }
-}
-
-/* === CSS UNTUK FLASH SALE BERJALAN === */
-.flash-sale-container {
-  overflow: hidden; /* Sembunyikan semua yang keluar dari kotak */
-  position: relative;
-  padding: 0.5rem 0;
-}
-
-.flash-sale-track {
-  display: flex; /* Buat item berjajar ke samping */
-  width: max-content; /* Lebar sesuai total item */
-  animation: scroll-left 30s linear infinite;
-}
-
-.flash-sale-card {
-  background-color: var(--bg-surface);
-  border-radius: 8px;
-  width: 160px; /* Lebar setiap kartu flash sale */
-  margin-right: 1rem;
-  flex-shrink: 0; /* Mencegah kartu menyusut */
-}
-
-.flash-sale-card img {
-  width: 100%;
-  height: 90px;
-  object-fit: cover;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-}
-
-.flash-sale-info {
-  padding: 0.5rem;
-}
-
-.fs-product-name {
-  font-size: 0.8rem;
-  font-weight: bold;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-}
-
-.fs-price-discounted {
-  font-size: 0.9rem;
-  font-weight: bold;
-  color: var(--primary-color);
-  display: block;
-}
-
-.fs-price-original {
-  font-size: 0.75rem;
-  text-decoration: line-through;
-  color: #9ca3af;
-}
-
-@keyframes scroll-left {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
-
-
-
-nav.sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100%;
-    width: 280px;
-    background-color: var(--bg-dark);
-    z-index: 200;
-    padding: 1rem;
-    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
-    transform: translateX(-100%); 
-    transition: transform 0.3s ease-in-out;
-}
-nav.sidebar.visible {
-    transform: translateX(0); 
-}
-#close-sidebar-btn {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    background: none;
-    border: none;
-    color: white;
-    font-size: 2rem;
-    cursor: pointer;
-}
-.sidebar-header {
-    margin-bottom: 2rem;
-    margin-top: 3rem;
-    text-align: center;
-}
-.sidebar-button {
-    background-color: var(--primary-color);
-    color: white;
-    padding: 0.8rem 1.5rem;
-    border-radius: 5px;
-    text-decoration: none;
-    font-weight: bold;
-}
-nav.sidebar a {
-    color: var(--text-color);
-    text-decoration: none;
-    display: block;
-    padding: 1rem;
-    border-radius: 5px;
-    font-size: 1.1rem;
-    margin-bottom: 0.5rem;
-}
-nav.sidebar a:hover {
-    background-color: var(--bg-surface);
-}
-nav.sidebar a i {
-    margin-right: 1rem;
-    width: 20px;
-}
-
-
-#sidebar-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.7);
-    z-index: 199;
 }

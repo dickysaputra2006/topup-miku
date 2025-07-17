@@ -1,4 +1,39 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // =======================================================
+    // BLOK KODE UNTUK NAVIGASI HEADER
+    // =======================================================
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const dropdownMenu = document.getElementById('dropdown-menu');
+    const navLoginBtn = document.getElementById('nav-login-btn');
+    const navDashboardBtn = document.getElementById('nav-dashboard-btn');
+
+    if (hamburgerBtn && dropdownMenu) {
+        hamburgerBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            dropdownMenu.classList.toggle('hidden');
+        });
+    }
+    window.addEventListener('click', () => {
+        if (dropdownMenu && !dropdownMenu.classList.contains('hidden')) {
+            dropdownMenu.classList.add('hidden');
+        }
+    });
+
+    function updateMainNavButtons() {
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            if(navLoginBtn) navLoginBtn.classList.add('hidden');
+            if(navDashboardBtn) navDashboardBtn.classList.remove('hidden');
+        } else {
+            if(navLoginBtn) navLoginBtn.classList.remove('hidden');
+            if(navDashboardBtn) navDashboardBtn.classList.add('hidden');
+        }
+    }
+    updateMainNavButtons(); 
+    // =======================================================
+    // AKHIR BLOK KODE NAVIGASI
+    // =======================================================
+
     const API_URL = 'https://topup-miku.onrender.com/api/user';
     const token = localStorage.getItem('authToken');
 
@@ -7,7 +42,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // --- Bagian 1: Deklarasi Semua Elemen ---
     const logoutButton = document.getElementById('logout-button');
     const editProfileBtn = document.querySelector('.edit-btn');
     const editModal = document.getElementById('edit-profile-modal');
@@ -15,21 +49,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const editProfileForm = document.getElementById('edit-profile-form');
     const changePasswordForm = document.getElementById('change-password-form');
     
-    // Elemen Navigasi Modal Edit Profil
     const tabLinks = document.querySelectorAll('.tab-link');
     const tabContents = document.querySelectorAll('.tab-content');
 
-    // Elemen Navigasi Sidebar Dashboard
     const dashboardNavLinks = document.querySelectorAll('.dashboard-nav-link');
     const dashboardSections = document.querySelectorAll('.dashboard-section');
 
-    // Elemen Integrasi API
     const generateApiKeyBtn = document.getElementById('generate-api-key-btn');
     const apiKeyDisplay = document.getElementById('api-key-display');
     
-    let apiKeyFetched = false; // Penanda agar tidak fetch berulang
+    let apiKeyFetched = false;
 
-    // --- Bagian 2: Definisi Semua Fungsi ---
     async function fetchProfileData() {
         try {
             const response = await fetch(`${API_URL}/profile`, {
@@ -75,9 +105,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // --- Bagian 3: Menambahkan Semua Event Listeners ---
-
-    // Event Listener untuk Navigasi Sidebar Dashboard
     if (dashboardNavLinks.length > 0 && dashboardSections.length > 0) {
         dashboardNavLinks.forEach(link => {
             link.addEventListener('click', (e) => {
@@ -101,7 +128,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Event Listener untuk tombol Generate API Key
     if (generateApiKeyBtn) {
         generateApiKeyBtn.addEventListener('click', async () => {
             if (confirm('Anda yakin ingin membuat API Key baru? Key yang lama akan diganti dan tidak bisa digunakan lagi.')) {
@@ -121,7 +147,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Event Listener untuk tombol Logout
     if (logoutButton) {
         logoutButton.addEventListener('click', (e) => {
             e.preventDefault();
@@ -130,13 +155,11 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Event Listener untuk Modal Edit Profil
     if (editProfileBtn && editModal && closeEditModalBtn) {
         editProfileBtn.addEventListener('click', () => editModal.classList.remove('hidden'));
         closeEditModalBtn.addEventListener('click', () => editModal.classList.add('hidden'));
     }
 
-    // Event Listener untuk Tab di dalam Modal
     if (tabLinks.length > 0 && tabContents.length > 0) {
         tabLinks.forEach(link => {
             link.addEventListener('click', () => {
@@ -148,7 +171,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Event Listener untuk Form Edit Profil
     if (editProfileForm) {
         editProfileForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -174,7 +196,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Event Listener untuk Form Ubah Password
     if (changePasswordForm) {
         changePasswordForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -204,6 +225,5 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // --- Bagian 4: Menjalankan Fungsi Awal ---
     fetchProfileData();
 });
