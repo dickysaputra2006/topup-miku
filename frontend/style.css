@@ -899,7 +899,7 @@ input:checked + .slider:before {
   
     .product-card-small {
         font-size: 0.9rem; 
-    }
+    }}
 
  /* === CSS UNTUK FLASH SALE BERJALAN === */
 .flash-sale-container {
@@ -1040,4 +1040,4 @@ header .logo {
 .dropdown-menu a:hover {
     background-color: var(--primary-color);
     color: white;
-}}
+}
