@@ -1,18 +1,18 @@
-let allProductsData = []; 
-let allGamesData = [];    
-let allRolesData = [];    
-let displayRoles = []; 
+let allProductsData = [];
+let allGamesData = [];
+let allRolesData = [];
+let displayRoles = [];
 
-document.addEventListener('DOMContentLoaded', function() {
-    const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api'; 
-    
+document.addEventListener('DOMContentLoaded', function () {
+    const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api';
+
     const compareGamesList = document.getElementById('compare-games-list');
     const compareProductListTitle = document.getElementById('compare-product-list-title');
     const compareTableBody = document.querySelector("#compare-prices-table tbody");
     const compareTableHeader = document.querySelector("#compare-prices-table thead tr");
     const gameSearchInput = document.getElementById('game-search-input');
-    
-    const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD']; 
+
+    const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD'];
 
     async function fetchAllCompareData() {
         if (!compareTableBody || !compareTableHeader || !compareGamesList) return;
@@ -20,41 +20,30 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const response = await fetch(`${PUBLIC_API_URL}/public/compare-prices`);
             if (!response.ok) {
-                const errorData = await response.json(); 
+                const errorData = await response.json();
                 throw new Error(errorData.message || 'Gagal memuat data perbandingan harga dari server.');
             }
-            const data = await response.json(); 
+            const data = await response.json();
 
             allProductsData = data.products;
-            allGamesData = data.games; 
+            allGamesData = data.games;
             allRolesData = data.roles;
 
-            console.log("DEBUG: Data fetched - Products:", allProductsData.length, "Games:", allGamesData.length, "Roles:", allRolesData.length);
-            if (allProductsData.length > 0) {
-                console.log("DEBUG: Example product object:", allProductsData[0]);
-                console.log("DEBUG: Type of product.game_id:", typeof allProductsData[0].game_id);
-            }
-            
-            displayRoles = allRolesData.filter(role => 
-                PUBLIC_ROLE_ORDER.includes(role.name) 
-            ).sort((a, b) => { 
-                const indexA = PUBLIC_ROLE_ORDER.indexOf(a.name);
-                const indexB = PUBLIC_ROLE_ORDER.indexOf(b.name);
-                return indexA - indexB;
+            displayRoles = allRolesData.filter(role =>
+                PUBLIC_ROLE_ORDER.includes(role.name)
+            ).sort((a, b) => {
+                return PUBLIC_ROLE_ORDER.indexOf(a.name) - PUBLIC_ROLE_ORDER.indexOf(b.name);
             });
 
-            console.log("DEBUG: Display Roles (filtered & sorted):", displayRoles);
+            renderGamesSidebar(allGamesData, displayRoles);
 
-            renderGamesSidebar(allGamesData, displayRoles); 
-            
             if (allGamesData.length > 0) {
                 const firstGame = allGamesData[0];
                 compareProductListTitle.textContent = `Perbandingan Harga untuk: ${firstGame.name}`;
-                
+
                 const firstGameLink = compareGamesList.querySelector(`[data-game-id="${firstGame.id}"]`);
                 if (firstGameLink) firstGameLink.classList.add('active');
 
-                // Filter produk berdasarkan game_name karena game_id tidak tersedia
                 renderProductsTable(
                     allProductsData.filter(p => p.game_name === firstGame.name),
                     displayRoles
@@ -71,16 +60,17 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function renderGamesSidebar(gamesToRender, rolesToDisplay) { 
+    function renderGamesSidebar(gamesToRender, rolesToDisplay) {
         compareGamesList.innerHTML = '';
         if (gamesToRender.length === 0) {
             compareGamesList.innerHTML = '<p style="text-align: center; color: #aaa;">Tidak ada game ditemukan.</p>';
             return;
         }
+
         gamesToRender.forEach(game => {
             const gameLink = document.createElement('a');
-            gameLink.href = "#"; 
-            gameLink.classList.add('dashboard-nav-link'); 
+            gameLink.href = "#";
+            gameLink.classList.add('dashboard-nav-link');
             gameLink.dataset.gameId = game.id;
             gameLink.textContent = game.name;
             gameLink.addEventListener('click', (e) => {
@@ -89,31 +79,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 gameLink.classList.add('active');
                 compareProductListTitle.textContent = `Perbandingan Harga untuk: ${game.name}`;
 
-                // Filter produk berdasarkan game_name
                 renderProductsTable(
                     allProductsData.filter(p => p.game_name === game.name),
                     rolesToDisplay
                 );
             });
+
             compareGamesList.appendChild(gameLink);
         });
+
         if (gamesToRender.length > 0 && compareGamesList.querySelector('.dashboard-nav-link')) {
             compareGamesList.querySelector('.dashboard-nav-link').classList.add('active');
         }
     }
 
-    function renderProductsTable(products, roles) { 
+    function renderProductsTable(products, roles) {
         compareTableBody.innerHTML = '';
-        compareTableHeader.innerHTML = ''; 
+        compareTableHeader.innerHTML = '';
 
         let headerHtml = `<th>Nama Game</th><th>Produk</th><th>SKU</th>`;
         roles.forEach(role => {
-            headerHtml += `<th>Harga ${role.name}</th>`; 
+            headerHtml += `<th>Harga ${role.name}</th>`;
         });
         compareTableHeader.innerHTML = headerHtml;
 
         if (products.length === 0) {
-            const colspan = 4 + roles.length; 
+            const colspan = 3 + roles.length;
             compareTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
             return;
         }
@@ -122,12 +113,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         products.forEach(product => {
             const row = document.createElement('tr');
-            const formattedBasePrice = new Intl.NumberFormat('id-ID', {
-                style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-            }).format(parseFloat(product.base_price));
 
-            let rowHtml = `<td>${product.game_name}</td><td>${product.product_name}</td><td>${product.provider_sku}</td><td>${formattedBasePrice}</td>`;
-            
+            let rowHtml = `<td>${product.game_name}</td><td>${product.product_name}</td><td>${product.provider_sku}</td>`;
+
             roles.forEach(role => {
                 const rolePriceKey = `price_${role.name.toLowerCase()}`;
                 const formattedRolePrice = new Intl.NumberFormat('id-ID', {
@@ -144,12 +132,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (gameSearchInput) {
         gameSearchInput.addEventListener('input', () => {
             const searchTerm = gameSearchInput.value.toLowerCase();
-            const filteredGames = allGamesData.filter(game => 
+            const filteredGames = allGamesData.filter(game =>
                 game.name.toLowerCase().includes(searchTerm)
             );
-            renderGamesSidebar(filteredGames, displayRoles); 
+            renderGamesSidebar(filteredGames, displayRoles);
         });
     }
 
-    fetchAllCompareData(); 
+    fetchAllCompareData();
 });

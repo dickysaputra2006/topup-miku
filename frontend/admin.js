@@ -204,61 +204,81 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
      function renderProductsForGame(gameId) {
-        if (!productsTableBody) return;
-        const filteredProducts = allProducts.filter(p => p.game_id == gameId);
-        productsTableBody.innerHTML = '';
+    if (!productsTableBody) return;
+    const filteredProducts = allProducts.filter(p => p.game_id == gameId);
+    productsTableBody.innerHTML = '';
 
-        const productsTable = document.getElementById('products-table'); 
-        const tableHeaderThead = productsTable.querySelector('thead');
-        
-        if (!tableHeaderThead) {
-            console.error('Error: Table header (thead) not found for products table.');
-            return; 
-        }
+    const productsTable = document.getElementById('products-table');
+    const tableHeaderThead = productsTable.querySelector('thead');
 
-        const tableHeaderRow = document.createElement('tr');
-        tableHeaderRow.innerHTML = `<th>Nama Produk</th><th>Harga Pokok</th><th>SKU</th>`;
+    if (!tableHeaderThead) {
+        console.error('Error: Table header (thead) not found for products table.');
+        return;
+    }
+
+    const tableHeaderRow = document.createElement('tr');
+    // TAMBAHKAN HEADER BARU 'STATUS' DI SINI
+    tableHeaderRow.innerHTML = `<th>Nama Produk</th><th>Harga Pokok</th><th>SKU</th>`;
+
+    const displayRoles = allRoles.filter(role =>
+        ADMIN_PRICE_ROLE_ORDER.includes(role.name)
+    ).sort((a, b) => {
+        const indexA = ADMIN_PRICE_ROLE_ORDER.indexOf(a.name);
+        const indexB = ADMIN_PRICE_ROLE_ORDER.indexOf(b.name);
+        return indexA - indexB;
+    });
+
+    displayRoles.forEach(role => {
+        tableHeaderRow.innerHTML += `<th>Harga ${role.name}</th>`;
+    });
+
+    // TAMBAHKAN HEADER BARU 'STATUS' DI AKHIR
+    tableHeaderRow.innerHTML += `<th>Status</th>`;
+
+    tableHeaderThead.innerHTML = '';
+    tableHeaderThead.appendChild(tableHeaderRow);
+
+    productListTitle.textContent = `Produk untuk: ${allGames.find(g => g.id == gameId)?.name || 'Pilih Game'}`;
+
+    if (filteredProducts.length === 0) {
+        // PERBARUI COLSPAN
+        const colspan = 4 + displayRoles.length;
+        productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
+        return;
+    }
+
+    filteredProducts.forEach(product => {
+        const row = document.createElement('tr');
+        // TAMBAHKAN data-product-id KE ROW
+        row.dataset.productId = product.id; 
         
-        // ====================================================================
-        // PERUBAHAN DI SINI: Filtering dan urutan roles untuk tampilan tabel Admin
-        const displayRoles = allRoles.filter(role => 
-            ADMIN_PRICE_ROLE_ORDER.includes(role.name) // Hanya sertakan role dari ADMIN_PRICE_ROLE_ORDER
-        ).sort((a, b) => { 
-            const indexA = ADMIN_PRICE_ROLE_ORDER.indexOf(a.name);
-            const indexB = ADMIN_PRICE_ROLE_ORDER.indexOf(b.name);
-            return indexA - indexB;
-        });
-        // ====================================================================
+        const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price);
+        let rowHtml = `<td>${product.name}</td><td>${formattedBasePrice}</td><td>${product.provider_sku}</td>`;
 
         displayRoles.forEach(role => {
-            tableHeaderRow.innerHTML += `<th>Harga ${role.name}</th>`;
+            const rolePriceKey = `price_${role.name.toLowerCase()}`;
+            const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product[rolePriceKey] || 0);
+            rowHtml += `<td>${formattedRolePrice}</td>`;
         });
-        
-        tableHeaderThead.innerHTML = '';
-        tableHeaderThead.appendChild(tableHeaderRow);
-        
-        productListTitle.textContent = `Produk untuk: ${allGames.find(g => g.id == gameId)?.name || 'Pilih Game'}`;
 
-        if (filteredProducts.length === 0) {
-            const colspan = 3 + displayRoles.length; 
-            productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
-            return;
-        }
+        // ====================================================================
+        // INI BAGIAN PENTING: TAMBAHKAN KOLOM DENGAN TOGGLE SWITCH
+        // ====================================================================
+        const isChecked = product.status === 'Active' ? 'checked' : '';
+        rowHtml += `
+            <td>
+                <label class="switch">
+                    <input type="checkbox" class="product-status-toggle" ${isChecked}>
+                    <span class="slider"></span>
+                </label>
+            </td>
+        `;
+        // ====================================================================
 
-        filteredProducts.forEach(product => {
-            const row = document.createElement('tr');
-            const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price);
-            let rowHtml = `<td>${product.name}</td><td>${formattedBasePrice}</td><td>${product.provider_sku}</td>`;
-            
-            displayRoles.forEach(role => {
-                const rolePriceKey = `price_${role.name.toLowerCase()}`;
-                const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product[rolePriceKey] || 0);
-                rowHtml += `<td>${formattedRolePrice}</td>`;
-            });
-            row.innerHTML = rowHtml;
-            productsTableBody.appendChild(row);
-        });
-    }
+        row.innerHTML = rowHtml;
+        productsTableBody.appendChild(row);
+    });
+}
 
 
     async function fetchAndDisplayMargins() {
@@ -399,6 +419,56 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    if (productsTableBody) {
+    productsTableBody.addEventListener('change', async (e) => {
+        // Cek apakah elemen yang diubah adalah toggle switch kita
+        if (e.target.classList.contains('product-status-toggle')) {
+            const toggleSwitch = e.target;
+            const row = toggleSwitch.closest('tr');
+            const productId = row.dataset.productId;
+            
+            // Tentukan status baru berdasarkan posisi toggle
+            const newStatus = toggleSwitch.checked ? 'Active' : 'Inactive';
+
+            // Nonaktifkan tombol sementara untuk mencegah klik ganda
+            toggleSwitch.disabled = true;
+
+            try {
+                const response = await fetch(`${ADMIN_API_URL}/products/${productId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    // Jika gagal, kembalikan posisi toggle ke semula
+                    toggleSwitch.checked = !toggleSwitch.checked; 
+                    throw new Error(result.message);
+                }
+
+                alert(result.message); // Tampilkan pesan sukses
+
+                // Perbarui data produk di state lokal (allProducts) agar tampilan konsisten
+                const productIndex = allProducts.findIndex(p => p.id == productId);
+                if (productIndex > -1) {
+                    allProducts[productIndex].status = newStatus;
+                }
+
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                // Aktifkan kembali tombol
+                toggleSwitch.disabled = false;
+            }
+        }
+    });
+}
 
     // === Menjalankan Fungsi Awal Saat Halaman Dimuat ===
     async function initAdminPage() {
