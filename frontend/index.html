@@ -8,17 +8,29 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
+
 <body>
-    <header>
-        <div class="container">
-            <h1 class="logo">MIKU Store</h1>
-            <nav>
-                <a href="compare-prices.html" class="header-btn compare-btn">
-                    <i class="fas fa-chart-line"></i> Harga Reseller
-                </a>
-                <a href="#" id="login-button">Masuk</a>
-            </nav>
+    <div id="sidebar-overlay" class="hidden"></div>
+    <nav id="sidebar-nav" class="sidebar">
+        <button id="close-sidebar-btn">&times;</button>
+        <div class="sidebar-header">
+            <a href="#" id="sidebar-login-btn" class="sidebar-button">Masuk / Daftar</a>
         </div>
+        <a href="index.html"><i class="fas fa-home"></i> Beranda</a>
+        <a href="dashboard.html"><i class="fas fa-user"></i> Dashboard</a>
+        <a href="compare-prices.html"><i class="fas fa-chart-line"></i> Pricelist</a>
+        <a href="#"><i class="fas fa-search"></i> Lacak Pesanan</a>
+        <a href="#"><i class="fas fa-newspaper"></i> Berita</a>
+    </nav>
+
+    <header>
+        <button id="open-sidebar-btn" class="header-icon-btn">
+            <i class="fas fa-bars"></i>
+        </button>
+        <h1 class="logo">MIKU Store</h1>
+        <button class="header-icon-btn">
+            <i class="fas fa-search"></i>
+        </button>
     </header>
 
     <main class="container">
@@ -26,21 +38,45 @@
             <div class="hero-placeholder">Ini adalah bagian untuk Banner/Carousel</div>
         </section>
 
-        <section class="content-section">
-            <h2><i class="fas fa-bolt"></i> FLASH SALE</h2>
+<section class="content-section">
+    <h2><i class="fas fa-bolt"></i> FLASH SALE</h2>
     <div class="flash-sale-container">
         <div class="flash-sale-track">
-            <span class="flash-sale-item">🔥 Diskon Kilat MLBB!</span>
-            <span class="flash-sale-item">💎 Harga Spesial Free Fire!</span>
-            <span class="flash-sale-item">⚡ Voucher Genshin Impact Terbatas!</span>
-            <span class="flash-sale-item">🚀 Top Up PUBG Hemat!</span>
-            <span class="flash-sale-item">🔥 Diskon Kilat MLBB!</span>
-            <span class="flash-sale-item">💎 Harga Spesial Free Fire!</span>
-            <span class="flash-sale-item">⚡ Voucher Genshin Impact Terbatas!</span>
-            <span class="flash-sale-item">🚀 Top Up PUBG Hemat!</span>
+            <div class="flash-sale-card">
+                <img src="https://path.to/your/image1.png" alt="Produk 1">
+                <div class="flash-sale-info">
+                    <span class="fs-product-name">Weekly Diamond Pass</span>
+                    <span class="fs-price-discounted">Rp 26.600</span>
+                    <span class="fs-price-original">Rp 28.701</span>
+                </div>
+            </div>
+            <div class="flash-sale-card">
+                <img src="https://path.to/your/image2.png" alt="Produk 2">
+                <div class="flash-sale-info">
+                    <span class="fs-product-name">4830 Diamonds</span>
+                    <span class="fs-price-discounted">Rp 980.000</span>
+                    <span class="fs-price-original">Rp 1.017.636</span>
+                </div>
+            </div>
+            <div class="flash-sale-card">
+                <img src="https://path.to/your/image1.png" alt="Produk 1">
+                <div class="flash-sale-info">
+                    <span class="fs-product-name">Weekly Diamond Pass</span>
+                    <span class="fs-price-discounted">Rp 26.600</span>
+                    <span class="fs-price-original">Rp 28.701</span>
+                </div>
+            </div>
+            <div class="flash-sale-card">
+                <img src="https://path.to/your/image2.png" alt="Produk 2">
+                <div class="flash-sale-info">
+                    <span class="fs-product-name">4830 Diamonds</span>
+                    <span class="fs-price-discounted">Rp 980.000</span>
+                    <span class="fs-price-original">Rp 1.017.636</span>
+                </div>
+            </div>
         </div>
     </div>
-        </section>
+</section>
 
 
         <section class="content-section">

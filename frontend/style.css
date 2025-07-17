@@ -35,53 +35,110 @@ h4 {
     margin-bottom: 1rem;
 }
 
-/* === HEADER === */
+/* === GAYA HEADER & SIDEBAR BARU === */
 header {
-    background-color: var(--bg-surface);
-    padding: 1rem 0;
-    border-bottom: 1px solid var(--border-color);
-}
-header .container {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 0.8rem 1rem;
+    background-color: var(--bg-surface);
+    border-bottom: 1px solid var(--border-color);
 }
-.logo {
-    font-size: 1.8rem;
+
+header .logo {
+    margin: 0;
+    font-size: 1.5rem;
     color: var(--primary-color);
     font-weight: bold;
+    position: absolute; /* Posisikan di tengah */
+    left: 50%;
+    transform: translateX(-50%);
 }
-header nav {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+
+.header-icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.5rem;
+    cursor: pointer;
+    z-index: 10; /* Pastikan tombol bisa diklik */
 }
-header nav a {
+
+/* GAYA SIDEBAR NAVIGASI */
+nav.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 280px;
+    background-color: var(--bg-dark);
+    z-index: 200;
+    padding: 1rem;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+    transform: translateX(-100%); /* Sembunyikan ke kiri */
+    transition: transform 0.3s ease-in-out;
+}
+
+nav.sidebar.visible {
+    transform: translateX(0); /* Tampilkan sidebar */
+}
+
+#close-sidebar-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
     color: white;
+    font-size: 2rem;
+    cursor: pointer;
+}
+
+.sidebar-header {
+    margin-bottom: 2rem;
+    margin-top: 3rem;
+    text-align: center;
+}
+
+.sidebar-button {
     background-color: var(--primary-color);
-    padding: 0.5rem 1.5rem;
+    color: white;
+    padding: 0.8rem 1.5rem;
     border-radius: 5px;
     text-decoration: none;
     font-weight: bold;
-    white-space: nowrap;
 }
-.header-btn {
-    /* Style dasar yang sama dengan header nav a */
-    /* Ini memastikan ia memiliki style tombol yang konsisten */
-    color: white;
-    background-color: var(--primary-color);
-    padding: 0.5rem 1.5rem;
-    border-radius: 5px;
+
+nav.sidebar a {
+    color: var(--text-color);
     text-decoration: none;
-    font-weight: bold;
-    white-space: nowrap;
-}
-.compare-btn {
-    background-color: var(--primary-color);
-    color: white;
-    display: flex;
+    display: flex; /* Gunakan flexbox untuk ikon dan teks */
     align-items: center;
-    gap: 0.5rem;
+    padding: 1rem;
+    border-radius: 5px;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+
+nav.sidebar a:hover {
+    background-color: var(--bg-surface);
+}
+
+nav.sidebar a i {
+    margin-right: 1rem;
+    width: 20px;
+    text-align: center;
+}
+
+
+#sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+    z-index: 199;
 }
 
 
@@ -658,31 +715,47 @@ table th {
 #target-game-id:only-child {
     grid-column: 1 / -1;
 }
+
 .product-card-selectable {
     border: 2px solid var(--border-color);
-    padding: 1rem;
+    padding: 0.5rem; /* Padding disesuaikan */
     border-radius: 8px;
     text-align: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 85px; /* Beri tinggi minimal agar rapi */
+    box-sizing: border-box;
 }
+
 .product-card-selectable:hover {
     border-color: var(--primary-color);
 }
+
 .product-card-selectable.selected {
     border-color: var(--primary-color);
     background-color: rgba(236, 72, 153, 0.2);
-    transform: scale(1.05);
+    transform: scale(1.02);
     box-shadow: 0 0 15px rgba(236, 72, 153, 0.3);
 }
+
 .product-card-selectable span {
     font-weight: bold;
+    font-size: 0.9rem; /* Ukuran font disesuaikan */
     display: block;
     margin-bottom: 0.25rem;
+    white-space: normal; /* PENTING: Izinkan teks untuk pindah baris */
+    line-height: 1.2;
 }
+
 .product-card-selectable small {
     color: #a7a9be;
+    font-size: 0.8rem;
 }
+
 #payment-info {
     display: flex;
     justify-content: space-between;
@@ -888,22 +961,7 @@ input:checked + .slider:before {
         font-size: 0.9rem; 
     }
 
-    .flash-sale-container {
-        overflow-x: auto; /* Aktifkan scroll horizontal */
-        white-space: nowrap; /* Agar item tidak pindah baris */
-        padding: 10px 0; /* Beri sedikit ruang atas bawah */
-        -webkit-overflow-scrolling: touch; /* Untuk scroll yang lebih halus di iOS */
-        animation: scrollFlashSale 15s linear infinite; /* Atur animasi */
-    }
-
-    .flash-sale-item {
-        display: inline-block; /* Tata item secara horizontal */
-        padding: 5px 15px; /* Beri ruang di sekitar teks item */
-        background-color: #f9f9f9; /* Warna latar belakang item (bisa disesuaikan) */
-        color: #333; /* Warna teks item (bisa disesuaikan) */
-        border-radius: 5px; /* Sedikit sudut melengkung */
-        margin-right: 10px; /* Beri jarak antar item */
-    }
+   
 
    
     @keyframes scrollFlashSale {
@@ -916,32 +974,132 @@ input:checked + .slider:before {
     }
 }
 
+/* === CSS UNTUK FLASH SALE BERJALAN === */
 .flash-sale-container {
-  overflow: hidden; 
+  overflow: hidden; /* Sembunyikan semua yang keluar dari kotak */
+  position: relative;
   padding: 0.5rem 0;
-  background-color: var(--bg-surface);
-  border-radius: 8px;
 }
 
 .flash-sale-track {
-  display: flex; 
-  white-space: nowrap;
-  animation: scroll-left 20s linear infinite;
+  display: flex; /* Buat item berjajar ke samping */
+  width: max-content; /* Lebar sesuai total item */
+  animation: scroll-left 30s linear infinite;
 }
 
-.flash-sale-item {
-  margin: 0 1.5rem; 
+.flash-sale-card {
+  background-color: var(--bg-surface);
+  border-radius: 8px;
+  width: 160px; /* Lebar setiap kartu flash sale */
+  margin-right: 1rem;
+  flex-shrink: 0; /* Mencegah kartu menyusut */
+}
+
+.flash-sale-card img {
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.flash-sale-info {
+  padding: 0.5rem;
+}
+
+.fs-product-name {
+  font-size: 0.8rem;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.fs-price-discounted {
+  font-size: 0.9rem;
   font-weight: bold;
   color: var(--primary-color);
+  display: block;
+}
+
+.fs-price-original {
+  font-size: 0.75rem;
+  text-decoration: line-through;
+  color: #9ca3af;
+}
+
+@keyframes scroll-left {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 
 
-@keyframes scroll-left {
-  0% {
-    transform: translateX(0%);
-  }
-  100% {
-    
-    transform: translateX(-50%); 
-  }
+
+
+nav.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 280px;
+    background-color: var(--bg-dark);
+    z-index: 200;
+    padding: 1rem;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+    transform: translateX(-100%); 
+    transition: transform 0.3s ease-in-out;
+}
+nav.sidebar.visible {
+    transform: translateX(0); 
+}
+#close-sidebar-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 2rem;
+    cursor: pointer;
+}
+.sidebar-header {
+    margin-bottom: 2rem;
+    margin-top: 3rem;
+    text-align: center;
+}
+.sidebar-button {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.8rem 1.5rem;
+    border-radius: 5px;
+    text-decoration: none;
+    font-weight: bold;
+}
+nav.sidebar a {
+    color: var(--text-color);
+    text-decoration: none;
+    display: block;
+    padding: 1rem;
+    border-radius: 5px;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+nav.sidebar a:hover {
+    background-color: var(--bg-surface);
+}
+nav.sidebar a i {
+    margin-right: 1rem;
+    width: 20px;
+}
+
+
+#sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+    z-index: 199;
 }
