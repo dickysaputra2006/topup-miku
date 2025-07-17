@@ -119,7 +119,14 @@ const protectH2H = async (req, res, next) => {
         return res.status(401).json({ success: false, message: 'API Key tidak ditemukan di header X-API-Key.' });
     }
     try {
-        const { rows } = await pool.query('SELECT * FROM users WHERE api_key = $1', [apiKey]);
+        
+        const sql = `
+            SELECT u.*, r.name as role_name 
+            FROM users u 
+            JOIN roles r ON u.role_id = r.id 
+            WHERE u.api_key = $1`;
+        const { rows } = await pool.query(sql, [apiKey]);
+
         if (rows.length === 0) {
             return res.status(403).json({ success: false, message: 'API Key tidak valid.' });
         }
@@ -927,6 +934,38 @@ async function checkPendingTransactions() {
         client.release(); // Selalu kembalikan koneksi ke pool
     }
 }
+
+app.put('/h2h/profile/callback', protectH2H, async (req, res) => {
+    try {
+        const { callback_url } = req.body;
+        // Validasi URL sederhana
+        if (!callback_url || !callback_url.startsWith('https://')) {
+            return res.status(400).json({ success: false, message: 'URL tidak valid. Harus dimulai dengan https://' });
+        }
+        
+        await pool.query('UPDATE users SET h2h_callback_url = $1 WHERE id = $2', [callback_url, req.user.id]);
+        
+        res.json({ success: true, message: 'Callback URL berhasil diperbarui.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Gagal memperbarui callback URL.' });
+    }
+});
+
+app.get('/h2h/profile', protectH2H, async (req, res) => {
+
+    const profileData = {
+        username: req.user.username,
+        balance: req.user.balance,
+        role: req.user.role_name 
+    };
+
+    res.json({
+        success: true,
+        message: 'Profil berhasil diambil.',
+        data: profileData
+    });
+});
+
 module.exports = { app, pool, checkPendingTransactions }; 
 app.listen(PORT, () => {
     console.log(`Server berjalan di http://localhost:${PORT}`);

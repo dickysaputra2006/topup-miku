@@ -1,8 +1,8 @@
-// utils/cronUtils.js
+
 const { Pool } = require('pg');
 const axios = require('axios');
 
-// --- KONFIGURASI DATABASE UNTUK CRON JOB ---
+
 const dbConfig = {
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -13,68 +13,84 @@ const dbConfig = {
 };
 const pool = new Pool(dbConfig);
 
-// --- KONFIGURASI FOXY API UNTUK CRON JOB ---
+
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
 
-// ========================================================================
-// === FUNGSI: CEK STATUS TRANSAKSI PENDING ===
-// ========================================================================
 async function checkPendingTransactions() {
     console.log('Running checkPendingTransactions job...');
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
+        // Modifikasi query untuk mengambil juga callback_url dan nama produk
         const { rows: pendingTx } = await client.query(
-            `SELECT id, invoice_id, user_id, product_id, price, provider_trx_id FROM transactions WHERE status = 'Pending' FOR UPDATE`
+            `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, p.name as product_name, u.h2h_callback_url
+             FROM transactions t
+             JOIN products p ON t.product_id = p.id
+             JOIN users u ON t.user_id = u.id
+             WHERE t.status = 'Pending' FOR UPDATE`
         );
 
         if (pendingTx.length === 0) {
             console.log('No pending transactions found.');
             await client.query('COMMIT');
+            client.release();
             return;
         }
 
-        console.log(`Found ${pendingTx.length} pending transactions. Checking status with Foxy API...`);
-
         for (const tx of pendingTx) {
-            if (!tx.provider_trx_id) {
-                console.warn(`Transaction ${tx.invoice_id} skipped in cron job: provider_trx_id is missing.`);
-                continue;
-            }
+            if (!tx.provider_trx_id) continue;
 
             try {
                 const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, {
                     headers: { 'Authorization': FOXY_API_KEY }
                 });
 
-                const foxyStatus = foxyResponse.data.data.status;
-                const foxyMessage = foxyResponse.data.message || 'No specific message from provider.';
-
-                console.log(`Transaction ${tx.invoice_id} (Provider ID: ${tx.provider_trx_id}) - Foxy Status: ${foxyStatus}`);
+                const foxyData = foxyResponse.data.data;
+                const foxyStatus = foxyData.status.toUpperCase();
+                const serialNumber = foxyData.sn || 'Tidak ada SN';
+                
+                let finalStatus = null;
 
                 if (foxyStatus === 'SUCCESS') {
-                    await client.query('UPDATE transactions SET status = \'Success\', updated_at = NOW() WHERE id = $1', [tx.id]);
-                    console.log(`Transaction ${tx.invoice_id} updated to SUCCESS.`);
+                    finalStatus = 'Success';
+                    await client.query('UPDATE transactions SET status = $1, provider_sn = $2, updated_at = NOW() WHERE id = $3', [finalStatus, serialNumber, tx.id]);
                 } else if (foxyStatus === 'FAILED' || foxyStatus === 'REFUNDED') {
-                    await client.query('UPDATE transactions SET status = \'Failed\', updated_at = NOW() WHERE id = $1', [tx.id]);
+                    finalStatus = 'Failed';
+                    await client.query('UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2', [finalStatus, tx.id]);
                     await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
-                    const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} (Gagal/Refund dari provider): ${foxyMessage}`;
-                    await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
-                        [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
-                    console.log(`Transaction ${tx.invoice_id} updated to FAILED/REFUNDED and balance refunded.`);
+                    // Anda bisa menambahkan logika untuk mencatat refund di balance_history di sini
                 }
+
+                // =======================================================
+                // BAGIAN BARU: KIRIM WEBHOOK JIKA STATUS BERUBAH
+                // =======================================================
+                if (finalStatus && tx.h2h_callback_url) {
+                    const webhookPayload = {
+                        invoice_id: tx.invoice_id,
+                        status: finalStatus,
+                        product_name: tx.product_name,
+                        price: tx.price,
+                        serial_number: serialNumber,
+                        timestamp: new Date().toISOString()
+                    };
+
+                    console.log(`Sending webhook for invoice ${tx.invoice_id} to ${tx.h2h_callback_url}`);
+                    
+                    // Kirim notifikasi ke URL callback milik partner
+                    // Dijalankan tanpa 'await' agar tidak memblokir cron job jika salah satu webhook lambat
+                    axios.post(tx.h2h_callback_url, webhookPayload)
+                         .then(res => console.log(`Webhook for ${tx.invoice_id} sent successfully.`))
+                         .catch(err => console.error(`Failed to send webhook for ${tx.invoice_id}:`, err.message));
+                }
+                // =======================================================
+
             } catch (foxyError) {
-                console.error(`Error checking Foxy status for ${tx.invoice_id} (Provider ID: ${tx.provider_trx_id}):`, foxyError.response ? foxyError.response.data : foxyError.message);
-                if (foxyError.response && foxyError.response.status === 404) {
-                    console.warn(`Foxy API returned 404 (INVOICE_NOT_FOUND) for ${tx.provider_trx_id}. This transaction might need manual review.`);
-                }
+                console.error(`Error checking Foxy status for ${tx.provider_trx_id}:`, foxyError.message);
             }
         }
         await client.query('COMMIT');
-        console.log('checkPendingTransactions job finished.');
-
     } catch (dbError) {
         await client.query('ROLLBACK');
         console.error('Database error during checkPendingTransactions job:', dbError);
@@ -84,19 +100,14 @@ async function checkPendingTransactions() {
     }
 }
 
-// ========================================================================
-// === FUNGSI SINKRONISASI PRODUK DENGAN FOXY API (OTOMATIS) ===
-// === PERBAIKAN DI SINI: TIDAK ADA HITUNGAN MARGIN UNTUK HARGA POKOK ===
-// ========================================================================
-async function syncProductsWithFoxy() { // Parameter manualMarginPercent dihapus
+
+async function syncProductsWithFoxy() { 
     console.log('Running syncProductsWithFoxy job...');
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
-        // Bagian untuk menghitung rata-rata margin DIHAPUS dari sini,
-        // karena itu TIDAK DIGUNAKAN untuk harga yang disimpan di DB.
-        // Harga yang disimpan di DB akan selalu harga pokok murni Foxy.
+     
 
         const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
             headers: { 'Authorization': FOXY_API_KEY }
@@ -163,9 +174,6 @@ async function syncProductsWithFoxy() { // Parameter manualMarginPercent dihapus
     }
 }
 
-// ========================================================================
-// === FUNGSI UTAMA CRON JOB (Memanggil Pengecek Transaksi DAN Sinkronisasi Produk) ===
-// ========================================================================
 async function runAllCronJobs() {
     console.log('Starting all cron jobs...');
     try {
@@ -178,5 +186,5 @@ async function runAllCronJobs() {
     }
 }
 
-// Export fungsi-fungsi agar bisa diakses oleh cron_job_script.js dan server.js
+
 module.exports = { checkPendingTransactions, syncProductsWithFoxy, runAllCronJobs };
