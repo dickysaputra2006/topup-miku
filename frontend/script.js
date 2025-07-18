@@ -2,12 +2,12 @@ document.addEventListener('DOMContentLoaded', function () {
     // === 1. DEKLARASI KONSTANTA & ELEMEN ===
     const API_URL_AUTH = 'https://topup-miku.onrender.com/api/auth';
     const API_URL = 'https://topup-miku.onrender.com/api';
+    const token = localStorage.getItem('authToken');
 
-    // Elemen Header & Dropdown Baru
+    // Elemen Header & Dropdown
     const hamburgerBtn = document.getElementById('hamburger-btn');
     const dropdownMenu = document.getElementById('dropdown-menu');
-    const navLoginBtn = document.getElementById('nav-login-btn');
-    const navDashboardBtn = document.getElementById('nav-dashboard-btn');
+    const userAuthButton = document.getElementById('user-auth-button');
 
     // Elemen Modal Login/Register
     const modal = document.getElementById('auth-modal');
@@ -19,12 +19,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
 
-    // ELEMEN BARU UNTUK SEARCH
+    // Elemen Search (Dropdown)
     const searchBtn = document.getElementById('search-btn');
-    const searchOverlay = document.getElementById('search-overlay');
-    const closeSearchBtn = document.getElementById('close-search-btn');
+    const searchContainer = document.getElementById('search-container');
     const searchInput = document.getElementById('search-input');
-    const mainContentSections = document.querySelectorAll('.content-section, .hero-section, footer');
+    const searchResults = document.getElementById('search-results');
+    
     let allGamesData = [];
 
     // === 2. DEFINISI SEMUA FUNGSI ===
@@ -32,14 +32,37 @@ document.addEventListener('DOMContentLoaded', function () {
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
 
-    function updateMainNavButtons() {
-        const token = localStorage.getItem('authToken');
+    async function updateAuthButton() {
+        if (!userAuthButton) return;
+
         if (token) {
-            if(navLoginBtn) navLoginBtn.classList.add('hidden');
-            if(navDashboardBtn) navDashboardBtn.classList.remove('hidden');
+            try {
+                const response = await fetch(`${API_URL}/user/profile`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Sesi tidak valid.');
+                const user = await response.json();
+                
+                userAuthButton.innerHTML = `<i class="fas fa-user-circle"></i> ${user.username}`;
+                userAuthButton.href = 'dashboard.html';
+                userAuthButton.onclick = null;
+
+            } catch (error) {
+                localStorage.removeItem('authToken');
+                userAuthButton.textContent = 'Masuk';
+                userAuthButton.href = '#';
+                userAuthButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showModal();
+                });
+            }
         } else {
-            if(navLoginBtn) navLoginBtn.classList.remove('hidden');
-            if(navDashboardBtn) navDashboardBtn.classList.add('hidden');
+            userAuthButton.textContent = 'Masuk';
+            userAuthButton.href = '#';
+            userAuthButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                showModal();
+            });
         }
     }
 
@@ -47,17 +70,20 @@ document.addEventListener('DOMContentLoaded', function () {
         const gridContainer = document.getElementById(containerId);
         if (!gridContainer) return;
         gridContainer.innerHTML = '';
+
+        const parentSection = gridContainer.closest('.content-section');
         if (games.length === 0) {
-            const section = gridContainer.closest('.content-section');
-            if (section) section.classList.add('hidden');
+            if (parentSection) parentSection.classList.add('hidden');
             return;
         }
+        if (parentSection) parentSection.classList.remove('hidden');
+        
         games.forEach(game => {
             const card = document.createElement('a');
             card.href = `product.html?gameId=${game.id}`;
             card.className = 'product-card';
             card.innerHTML = `
-                <img src="${game.image_url || './path/to/default/image.png'}" alt="${game.name}">
+                <img src="${game.image_url || 'https://via.placeholder.com/150'}" alt="${game.name}">
                 <span>${game.name}</span>
             `;
             gridContainer.appendChild(card);
@@ -68,25 +94,12 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const response = await fetch(`${API_URL}/games`);
             if (!response.ok) throw new Error('Gagal mengambil data game');
-            const allGames = await response.json();
-             allGamesData = allGames;
-            const mobileGames = [], pcGames = [], voucherGames = [];
+            allGamesData = await response.json();
+            
+            const mobileGames = allGamesData.filter(g => g.category === 'Mobile Game' || g.category === 'Special MLBB');
+            const pcGames = allGamesData.filter(g => g.category === 'PC Game');
+            const voucherGames = allGamesData.filter(g => g.category === 'Voucher' || g.category === 'Life Style');
 
-            allGames.forEach(game => {
-                switch (game.category) {
-                    case 'Mobile Game':
-                    case 'Special MLBB':
-                        mobileGames.push(game);
-                        break;
-                    case 'PC Game':
-                        pcGames.push(game);
-                        break;
-                    case 'Voucher':
-                    case 'Life Style':
-                        voucherGames.push(game);
-                        break;
-                }
-            });
             renderGameGrid(mobileGames, 'mobile-games-grid');
             renderGameGrid(pcGames, 'pc-games-grid');
             renderGameGrid(voucherGames, 'voucher-grid');
@@ -97,65 +110,44 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function filterAndDisplayGames(searchTerm) {
-        const lowerCaseSearchTerm = searchTerm.toLowerCase();
-        
-        // Hapus atau buat section hasil pencarian
-        let searchResultsSection = document.getElementById('search-results-section');
-        if (searchResultsSection) {
-            searchResultsSection.remove();
-        }
+    function handleSearch(term) {
+        if (!searchResults) return;
+        const lowerTerm = term.toLowerCase();
+        searchResults.innerHTML = '';
 
-        // Jika input kosong, tampilkan kembali semua section asli dan keluar
-        if (lowerCaseSearchTerm === '') {
-            mainContentSections.forEach(section => section.classList.remove('hidden'));
+        if (lowerTerm.length < 1) return;
+
+        const filtered = allGamesData.filter(game => game.name.toLowerCase().includes(lowerTerm));
+
+        if (filtered.length === 0) {
+            searchResults.innerHTML = '<p style="padding: 1rem; text-align: center; color: #aaa;">Game tidak ditemukan.</p>';
             return;
         }
 
-        // Jika ada input, sembunyikan section asli
-        mainContentSections.forEach(section => section.classList.add('hidden'));
-
-        const filteredGames = allGamesData.filter(game => 
-            game.name.toLowerCase().includes(lowerCaseSearchTerm)
-        );
-
-        // Buat section baru untuk hasil pencarian
-        searchResultsSection = document.createElement('section');
-        searchResultsSection.id = 'search-results-section';
-        searchResultsSection.className = 'content-section';
-        searchResultsSection.innerHTML = `
-            <h2>Hasil Pencarian untuk: "${searchTerm}"</h2>
-            <div id="search-results-grid" class="product-grid"></div>
-        `;
-
-        const mainContainer = document.querySelector('main.container');
-        mainContainer.insertBefore(searchResultsSection, mainContainer.firstChild);
-
-        if (filteredGames.length === 0) {
-            document.getElementById('search-results-grid').innerHTML = '<p>Game tidak ditemukan.</p>';
-        } else {
-            renderGameGrid(filteredGames, 'search-results-grid');
-        }
+        filtered.forEach(game => {
+            const item = document.createElement('a');
+            item.href = `product.html?gameId=${game.id}`;
+            item.style.display = 'flex';
+            item.style.alignItems = 'center';
+            item.style.padding = '0.8rem 1rem';
+            item.style.textDecoration = 'none';
+            item.style.color = 'var(--text-color)';
+            item.innerHTML = `
+                <img src="${game.image_url || 'https://via.placeholder.com/40'}" alt="${game.name}" style="width: 40px; height: 40px; border-radius: 5px; object-fit: cover;">
+                <span style="margin-left: 1rem;">${game.name}</span>
+            `;
+            item.onmouseover = () => item.style.backgroundColor = 'var(--primary-color)';
+            item.onmouseout = () => item.style.backgroundColor = 'transparent';
+            searchResults.appendChild(item);
+        });
     }
 
     // === 3. SEMUA EVENT LISTENER ===
 
-    if (hamburgerBtn && dropdownMenu) {
+    if (hamburgerBtn) {
         hamburgerBtn.addEventListener('click', (event) => {
             event.stopPropagation();
-            dropdownMenu.classList.toggle('hidden');
-        });
-    }
-    window.addEventListener('click', () => {
-        if (dropdownMenu && !dropdownMenu.classList.contains('hidden')) {
-            dropdownMenu.classList.add('hidden');
-        }
-    });
-    
-    if (navLoginBtn) {
-        navLoginBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            showModal();
+            if(dropdownMenu) dropdownMenu.classList.toggle('hidden');
         });
     }
 
@@ -191,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!response.ok) throw new Error(result.message);
                 alert(result.message);
                 registerForm.reset();
-                showLoginLink.click();
+                if(showLoginLink) showLoginLink.click();
             } catch (error) {
                 alert(`Error Registrasi: ${error.message}`);
             }
@@ -215,7 +207,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (!response.ok) throw new Error(result.message);
                 localStorage.setItem('authToken', result.token);
                 alert(result.message);
-                window.location.href = 'dashboard.html';
+                window.location.reload();
             } catch (error) {
                 alert(`Error Login: ${error.message}`);
             }
@@ -223,37 +215,29 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if(searchBtn) {
-        searchBtn.addEventListener('click', () => {
-            searchOverlay.classList.remove('hidden');
-            searchInput.focus();
+        searchBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if(searchContainer) searchContainer.classList.toggle('hidden');
+            if(searchInput && !searchContainer.classList.contains('hidden')) {
+                searchInput.focus();
+            }
         });
     }
 
-    if(closeSearchBtn) {
-        closeSearchBtn.addEventListener('click', () => {
-            searchOverlay.classList.add('hidden');
-            searchInput.value = ''; // Kosongkan input
-            filterAndDisplayGames(''); // Tampilkan kembali semua game
-        });
-    }
-    
     if(searchInput) {
-        searchInput.addEventListener('input', () => {
-            filterAndDisplayGames(searchInput.value);
-        });
+        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
     }
 
-    document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
-            const input = this.parentElement.querySelector('input');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
-        });
+    window.addEventListener('click', (e) => {
+        if (dropdownMenu && !dropdownMenu.classList.contains('hidden') && !hamburgerBtn.contains(e.target)) {
+            dropdownMenu.classList.add('hidden');
+        }
+        if (searchContainer && !searchContainer.classList.contains('hidden') && !searchContainer.contains(e.target) && !searchBtn.contains(e.target)) {
+            searchContainer.classList.add('hidden');
+        }
     });
 
     // === 4. PANGGILAN FUNGSI AWAL ===
-    updateMainNavButtons();
+    updateAuthButton();
     displayGames();
 });

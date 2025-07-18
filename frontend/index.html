@@ -26,24 +26,20 @@
 
         <div class="header-right">
             <a href="compare-prices.html" class="header-btn">Pricelist</a>
-            <a href="dashboard.html" id="user-dashboard-btn" class="header-btn hidden">
-                <i class="fas fa-user-circle"></i>
-                <span id="user-username-text">User</span>
-            </a>
-            <a href="#" id="nav-login-btn" class="header-btn">Masuk</a>
-            
+            <a href="#" id="user-auth-button" class="header-btn">Masuk</a>
             <button id="search-btn" class="header-icon-btn">
-                <i class="fas fa-search"></i>
-            </button>
+             <i class="fas fa-search"></i>
+        </button>
         </div>
     </div>
 </header>
 
-<div id="search-overlay" class="search-overlay-container hidden">
-    <div class="search-bar-wrapper">
-        <input type="text" id="search-input" placeholder="Cari game favoritmu...">
-        <button id="close-search-btn" class="close-search-button">&times;</button>
+<div id="search-container" class="search-container hidden">
+    <div class="search-input-wrapper">
+        <input type="text" id="search-input" placeholder="Cari game...">
     </div>
+    <div id="search-results" class="search-results-list">
+        </div>
 </div>
 
 

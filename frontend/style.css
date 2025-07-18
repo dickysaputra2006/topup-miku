@@ -1060,56 +1060,57 @@ header .logo {
         display: block !important; 
     }
 }
-/* === STYLING UNTUK FITUR PENCARIAN === */
-.search-overlay-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
-    z-index: 150; /* Di atas modal login */
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    padding-top: 15vh;
-}
 
-.search-bar-wrapper {
-    position: relative;
+.search-container {
+    position: absolute;
+    top: 65px; /* Sedikit di bawah header */
+    left: 50%;
+    transform: translateX(-50%);
     width: 90%;
-    max-width: 600px;
+    max-width: 500px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 200;
 }
 
-#search-input {
+.search-input-wrapper {
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.search-input-wrapper input {
     width: 100%;
-    padding: 1rem 3rem 1rem 1.5rem; /* Beri ruang untuk tombol close */
-    font-size: 1.2rem;
-    border-radius: 50px;
-    border: 2px solid var(--primary-color);
-    background-color: var(--bg-surface);
+    padding: 0.8rem;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
     color: var(--text-color);
     box-sizing: border-box;
 }
-#search-input:focus {
-    outline: none;
-    box-shadow: 0 0 15px var(--primary-color);
+
+.search-results-list {
+    max-height: 40vh;
+    overflow-y: auto;
 }
 
-.close-search-button {
-    position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    background: none;
-    border: none;
+.search-results-list a {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.8rem 1rem;
+    text-decoration: none;
     color: var(--text-color);
-    font-size: 2.5rem;
-    cursor: pointer;
-    line-height: 1;
 }
 
-/* Bagian untuk hasil pencarian */
-#search-results-section {
-    margin-bottom: 3rem;
+.search-results-list a:hover {
+    background-color: var(--primary-color);
+}
+
+.search-results-list img {
+    width: 40px;
+    height: 40px;
+    border-radius: 5px;
+    object-fit: cover;
 }
