@@ -1239,12 +1239,15 @@ html, body {
         margin-top: 1rem;
     }
 }
+
 .scroll-wrapper {
-    position: relative; /* Wajib untuk posisi tombol */
+    position: relative;
+    width: 100%;
+    overflow: hidden;
 }
 
 .scroll-btn {
-    display: flex; /* Tampilkan tombol di semua ukuran layar */
+    display: flex;
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
@@ -1269,11 +1272,15 @@ html, body {
 .scroll-btn.left { left: 5px; }
 .scroll-btn.right { right: 5px; }
 
-/* Sembunyikan scrollbar bawaan di semua browser */
 .table-container {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
 }
 .table-container::-webkit-scrollbar {
-    display: none; /* Chrome, Safari, Opera */
+    display: none;
+}
+@media (min-width: 769px) {
+    #dropdown-menu {
+        display: none !important;
+    }
 }

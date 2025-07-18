@@ -11,9 +11,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const compareTableBody = document.querySelector("#compare-prices-table tbody");
     const compareTableHeader = document.querySelector("#compare-prices-table thead tr");
     const gameSearchInput = document.getElementById('game-search-input');
-    const tableContainer = document.querySelector('.table-container');
-    const scrollLeftBtn = document.getElementById('scroll-left-btn');
-    const scrollRightBtn = document.getElementById('scroll-right-btn');
+
 
     const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD'];
 
@@ -154,6 +152,25 @@ if (tableContainer && scrollLeftBtn && scrollRightBtn) {
         // Geser ke kanan sejauh 250px
         tableContainer.scrollBy({ left: 250, behavior: 'smooth' });
     });
+}
+
+const scrollWrapper = document.querySelector('.scroll-wrapper');
+if (scrollWrapper) {
+    const tableContainer = scrollWrapper.querySelector('.table-container');
+    const scrollLeftBtn = scrollWrapper.querySelector('#scroll-left-btn');
+    const scrollRightBtn = scrollWrapper.querySelector('#scroll-right-btn');
+
+    if (tableContainer && scrollLeftBtn && scrollRightBtn) {
+        scrollLeftBtn.addEventListener('click', () => {
+            // Geser ke kiri sejauh 250px
+            tableContainer.scrollBy({ left: -250, behavior: 'smooth' });
+        });
+
+        scrollRightBtn.addEventListener('click', () => {
+            // Geser ke kanan sejauh 250px
+            tableContainer.scrollBy({ left: 250, behavior: 'smooth' });
+        });
+    }
 }
 
     fetchAllCompareData();
