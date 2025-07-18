@@ -1,3 +1,4 @@
+// compare-prices.js - VERSI FINAL DENGAN PERBAIKAN
 let allProductsData = [];
 let allGamesData = [];
 let allRolesData = [];
@@ -11,7 +12,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const compareTableBody = document.querySelector("#compare-prices-table tbody");
     const compareTableHeader = document.querySelector("#compare-prices-table thead tr");
     const gameSearchInput = document.getElementById('game-search-input');
-
+    
+    // Deklarasi untuk tombol scroll
+    const tableContainer = document.querySelector('.table-container');
+    const scrollLeftBtn = document.getElementById('scroll-left-btn');
+    const scrollRightBtn = document.getElementById('scroll-right-btn');
 
     const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD'];
 
@@ -89,8 +94,10 @@ document.addEventListener('DOMContentLoaded', function () {
             compareGamesList.appendChild(gameLink);
         });
 
-        if (gamesToRender.length > 0 && compareGamesList.querySelector('.dashboard-nav-link')) {
-            compareGamesList.querySelector('.dashboard-nav-link').classList.add('active');
+        // Pilih game pertama secara default jika ada
+        const firstLink = compareGamesList.querySelector('.dashboard-nav-link');
+        if (firstLink) {
+            firstLink.classList.add('active');
         }
     }
 
@@ -114,9 +121,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         products.forEach(product => {
             const row = document.createElement('tr');
-
             let rowHtml = `<td>${product.game_name}</td><td>${product.product_name}</td><td>${product.provider_sku}</td>`;
-
             roles.forEach(role => {
                 const rolePriceKey = `price_${role.name.toLowerCase()}`;
                 const formattedRolePrice = new Intl.NumberFormat('id-ID', {
@@ -124,7 +129,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 }).format(product[rolePriceKey] || 0);
                 rowHtml += `<td>${formattedRolePrice}</td>`;
             });
-
             row.innerHTML = rowHtml;
             compareTableBody.appendChild(row);
         });
@@ -140,38 +144,15 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-
-
-if (tableContainer && scrollLeftBtn && scrollRightBtn) {
-    scrollLeftBtn.addEventListener('click', () => {
-        // Geser ke kiri sejauh 250px
-        tableContainer.scrollBy({ left: -250, behavior: 'smooth' });
-    });
-
-    scrollRightBtn.addEventListener('click', () => {
-        // Geser ke kanan sejauh 250px
-        tableContainer.scrollBy({ left: 250, behavior: 'smooth' });
-    });
-}
-
-const scrollWrapper = document.querySelector('.scroll-wrapper');
-if (scrollWrapper) {
-    const tableContainer = scrollWrapper.querySelector('.table-container');
-    const scrollLeftBtn = scrollWrapper.querySelector('#scroll-left-btn');
-    const scrollRightBtn = scrollWrapper.querySelector('#scroll-right-btn');
-
+    // Fungsi untuk tombol scroll
     if (tableContainer && scrollLeftBtn && scrollRightBtn) {
         scrollLeftBtn.addEventListener('click', () => {
-            // Geser ke kiri sejauh 250px
             tableContainer.scrollBy({ left: -250, behavior: 'smooth' });
         });
-
         scrollRightBtn.addEventListener('click', () => {
-            // Geser ke kanan sejauh 250px
             tableContainer.scrollBy({ left: 250, behavior: 'smooth' });
         });
     }
-}
 
     fetchAllCompareData();
 });

@@ -1,15 +1,23 @@
 document.addEventListener('DOMContentLoaded', function() {
     // --- KODE UNTUK MENU HAMBURGER DI DASHBOARD ---
-    const menuToggleBtn = document.querySelector('.header-left #menu-toggle-btn');
     const sidebar = document.querySelector('.sidebar');
-    
-    if (menuToggleBtn && sidebar) {
-        menuToggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            sidebar.classList.toggle('active');
-            document.body.classList.toggle('menu-open');
-        });
-    }
+    document.querySelectorAll('#menu-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sidebar.classList.toggle('active');
+        document.body.classList.toggle('menu-open');
+    });
+});
+
+document.addEventListener('click', function (event) {
+        if (sidebar && sidebar.classList.contains('active')) {
+            if (!sidebar.contains(event.target) && !event.target.closest('#menu-toggle-btn')) {
+                sidebar.classList.remove('active');
+                document.body.classList.remove('menu-open');
+            }
+        }
+    });
+  
 
     const API_URL = 'https://topup-miku.onrender.com/api/user';
     const token = localStorage.getItem('authToken');
