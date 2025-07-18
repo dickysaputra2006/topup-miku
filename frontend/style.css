@@ -1251,6 +1251,9 @@ html, body {
         height: 36px;
     }
 }
+
+
+/* 1. Atur z-index agar header (th) selalu di atas body tabel (td) */
 table th {
     z-index: 3;
 }
