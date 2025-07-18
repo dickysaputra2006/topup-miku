@@ -1018,49 +1018,50 @@ html, body {
 
 @media (max-width: 768px) {
     .header-container {
-        flex-wrap: wrap; /* Izinkan item turun ke bawah */
-        position: relative; /* Diperlukan untuk dropdown */
+        flex-wrap: wrap; 
+        position: relative; 
     }
     .header-center {
-        order: 3; /* Pindahkan search bar ke urutan terakhir */
-        width: 100%; /* Ambil lebar penuh */
-        display: flex; /* Pastikan search bar muncul */
-        padding: 0 0.5rem 0.5rem; /* Beri sedikit jarak */
+        order: 3; 
+        width: 100%; 
+        display: flex; 
+        padding: 0 0.5rem 0.5rem; 
     }
-    #hamburger-btn { display: block; }
+    #hamburger-btn { 
+        display: block; 
+        padding-left: 0; 
+        margin-right: 0.5rem; 
+    }
     .header-right .pricelist-btn { display: none; }
     .header-right { gap: 0.5rem; }
-    
-    /* Hapus ikon search palsu di kanan */
-    .header-right::after {
-        content: none;
-    }
+    .header-right::after { content: none; }
 
-    /* Perbaiki posisi dan tampilan dropdown menu */
+    
     .dropdown-menu {
-        position: absolute;
-        top: calc(100% + 5px); /* Muncul tepat di bawah header-left */
-        left: 0;
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-color);
-        border-radius: 8px;
-        z-index: 100;
-        width: 200px;
-        padding: 0.5rem;
+        position: fixed; 
+        left: -100%; 
+        top: 0;
+        width: 70%; 
+        max-width: 300px;
+        height: 100vh; 
+        background-color: var(--bg-dark); 
+        padding: 1.5rem;
+        transition: left 0.3s ease-in-out; 
+        border: none;
+        border-right: 1px solid var(--border-color); 
+        box-shadow: 5px 0 15px rgba(0,0,0,0.2);
     }
-    .dropdown-menu.hidden {
-        display: none;
+   
+    .dropdown-menu.active {
+        left: 0; 
     }
     .dropdown-menu a {
         color: var(--text-color);
         text-decoration: none;
         display: block;
-        padding: 0.8rem 1rem;
-        border-radius: 5px;
-    }
-    .dropdown-menu a:hover {
-        background-color: var(--primary-color);
-        color: white;
+        padding: 1rem 0; 
+        border-bottom: 1px solid var(--border-color); 
+        font-size: 1.1rem;
     }
 }
 
