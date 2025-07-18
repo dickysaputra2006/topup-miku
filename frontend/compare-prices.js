@@ -144,15 +144,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Fungsi untuk tombol scroll
-    if (tableContainer && scrollLeftBtn && scrollRightBtn) {
-        scrollLeftBtn.addEventListener('click', () => {
-            tableContainer.scrollBy({ left: -250, behavior: 'smooth' });
-        });
-        scrollRightBtn.addEventListener('click', () => {
-            tableContainer.scrollBy({ left: 250, behavior: 'smooth' });
-        });
-    }
+    
 
     fetchAllCompareData();
 });
