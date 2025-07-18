@@ -1068,3 +1068,18 @@ html, body {
 @media (min-width: 769px) {
     #hamburger-btn { display: none; }
 }
+@media (max-width: 768px) {
+    .header-left .header-icon-btn {
+        background: none;
+        border: none;
+        color: var(--text-color);
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0;
+    }
+    .header-container {
+        padding-top: 0.5rem; /* Beri jarak atas */
+        height: auto; /* Biarkan tinggi menyesuaikan */
+        min-height: 60px;
+    }
+}
