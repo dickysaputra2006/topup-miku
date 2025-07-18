@@ -220,13 +220,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     
     window.addEventListener('click', (e) => {
-        if (dropdownMenu && dropdownMenu.classList.contains('active') && !hamburgerBtn.contains(e.target)) {
-            dropdownMenu.classList.remove('active');
-        }
-        if (searchResults && !searchResults.classList.contains('hidden') && !searchInput.contains(e.target)) {
-            searchResults.classList.add('hidden');
-        }
-    });
+    if (dropdownMenu && dropdownMenu.classList.contains('active') && !dropdownMenu.contains(e.target) && !hamburgerBtn.contains(e.target)) {
+        dropdownMenu.classList.remove('active');
+    }
+    if (searchResults && !searchResults.classList.contains('hidden') && !searchInput.contains(e.target)) {
+        searchResults.classList.add('hidden');
+    }
+});
 
     // === 4. PANGGILAN FUNGSI AWAL ===
     updateAuthButton();

@@ -19,6 +19,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    
+if (mainContent) {
+    mainContent.addEventListener('click', () => {
+        if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
+            sidebar.classList.remove('active');
+            document.body.classList.remove('menu-open');
+        }
+    });
+}
     // --- AKHIR KODE BARU ---
 
     const API_URL = 'https://topup-miku.onrender.com/api/user';
@@ -220,4 +230,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     fetchProfileData();
+    document.querySelectorAll('.toggle-password').forEach(icon => {
+        icon.addEventListener('click', function () {
+            const input = this.parentElement.querySelector('input');
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            this.classList.toggle('fa-eye', !isPassword);
+            this.classList.toggle('fa-eye-slash', isPassword);
+        });
+    });
 });

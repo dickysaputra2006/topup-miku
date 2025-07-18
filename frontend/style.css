@@ -1130,3 +1130,24 @@ html, body {
     width: 100%;
     overflow-x: auto; 
 }
+.toggle-password {
+    color: var(--primary-color); /* Ubah warna ikon mata */
+}
+
+
+@media (max-width: 768px) {
+    .store-link-btn {
+        display: none !important;
+    }
+}
+.store-link-btn-mobile {
+    display: none; /* Sembunyikan di desktop */
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-color); /* Garis pemisah */
+}
+
+@media (max-width: 768px) {
+    .store-link-btn-mobile {
+        display: flex !important; /* Tampilkan hanya di HP */
+    }
+}

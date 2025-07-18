@@ -5,13 +5,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const sections = document.querySelectorAll('.admin-section');
     const menuToggleBtn = document.getElementById('menu-toggle-btn');
     const sidebar = document.getElementById('admin-sidebar');
-    
+    const mainContent = document.querySelector('.dashboard-content, .admin-content');
+
     if (menuToggleBtn && sidebar) {
         menuToggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
             document.body.classList.toggle('menu-open');
         });
     }
+
+
+if (mainContent) {
+    mainContent.addEventListener('click', () => {
+        if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
+            sidebar.classList.remove('active');
+            document.body.classList.remove('menu-open');
+        }
+    });
+}
 
     // Pastikan elemennya ada sebelum menambahkan fungsi klik
     if (navLinks.length > 0 && sections.length > 0) {
