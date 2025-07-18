@@ -121,7 +121,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // === 3. EVENT LISTENERS & PANGGILAN AWAL ===
 
-    if (hamburgerBtn) hamburgerBtn.addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.classList.toggle('hidden'); });
+    if (hamburgerBtn) {
+    hamburgerBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        
+        if (dropdownMenu) dropdownMenu.classList.toggle('active');
+    });
+}
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
     if (showRegisterLink) showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginContainer.classList.add('hidden'); registerContainer.classList.remove('hidden'); });
     if (showLoginLink) showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); });

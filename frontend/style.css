@@ -1016,71 +1016,93 @@ html, body {
 }
 
 
+/* === RESPONSIVE STYLING === */
+
 @media (max-width: 768px) {
+    /* 1. Perbaikan Layout Utama */
+    .container {
+        width: 100%;
+        padding: 0 1rem;
+        box-sizing: border-box;
+    }
     .header-container {
-        flex-wrap: wrap; 
-        position: relative; 
+        flex-wrap: wrap;
+        position: relative;
+        height: auto;
+        min-height: 60px;
+        padding-top: 0.5rem;
     }
+
+    /* 2. Perbaikan Header & Search Bar */
     .header-center {
-        order: 3; 
-        width: 100%; 
-        display: flex; 
-        padding: 0 0.5rem 0.5rem; 
+        order: 3;
+        width: 100%;
+        display: flex;
+        padding: 0.5rem 0.5rem 0.5rem;
     }
-    #hamburger-btn { 
-        display: block; 
-        padding-left: 0; 
-        margin-right: 0.5rem; 
+    #hamburger-btn {
+        display: block;
+        padding-left: 0;
+        margin-right: 0.5rem;
+        background: none; border: none;
+        color: var(--text-color);
+        font-size: 1.5rem; cursor: pointer;
     }
     .header-right .pricelist-btn { display: none; }
     .header-right { gap: 0.5rem; }
     .header-right::after { content: none; }
 
-    
+    /* 3. Perbaikan Dropdown Menu Hamburger */
     .dropdown-menu {
-        position: fixed; 
-        left: -100%; 
+        position: fixed;
+        left: -100%;
         top: 0;
-        width: 70%; 
+        width: 70%;
         max-width: 300px;
-        height: 100vh; 
-        background-color: var(--bg-dark); 
+        height: 100vh;
+        background-color: var(--bg-dark);
         padding: 1.5rem;
-        transition: left 0.3s ease-in-out; 
+        transition: left 0.3s ease-in-out;
         border: none;
-        border-right: 1px solid var(--border-color); 
+        border-right: 1px solid var(--border-color);
         box-shadow: 5px 0 15px rgba(0,0,0,0.2);
+        z-index: 200;
     }
-   
-    .dropdown-menu.active {
-        left: 0; 
-    }
+    .dropdown-menu.active { left: 0; }
     .dropdown-menu a {
         color: var(--text-color);
         text-decoration: none;
         display: block;
-        padding: 1rem 0; 
-        border-bottom: 1px solid var(--border-color); 
+        padding: 1rem 0;
+        border-bottom: 1px solid var(--border-color);
         font-size: 1.1rem;
+    }
+
+    /* 4. Perbaikan Layout Admin & Dashboard */
+    .dashboard-container, .admin-page-container {
+        flex-direction: column; /* Ubah jadi vertikal */
+    }
+    .sidebar, .admin-sidebar {
+        position: static; /* Hapus sticky */
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    .dashboard-content, .admin-content {
+        width: 100%;
+    }
+
+    /* 5. Perbaikan Flash Sale Agar Mepet */
+    .flash-sale-container {
+        margin-left: -1rem;
+        margin-right: -1rem;
+    }
+    .flash-sale-track {
+        padding-left: 1rem; /* Beri jarak awal */
     }
 }
 
 
 @media (min-width: 769px) {
     #hamburger-btn { display: none; }
-}
-@media (max-width: 768px) {
-    .header-left .header-icon-btn {
-        background: none;
-        border: none;
-        color: var(--text-color);
-        font-size: 1.5rem;
-        cursor: pointer;
-        padding: 0;
-    }
-    .header-container {
-        padding-top: 0.5rem; /* Beri jarak atas */
-        height: auto; /* Biarkan tinggi menyesuaikan */
-        min-height: 60px;
-    }
 }
