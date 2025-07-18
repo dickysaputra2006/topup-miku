@@ -25,7 +25,19 @@
     </header>
 
     <div class="dashboard-container container">
-        <aside id="dashboard-sidebar" class="sidebar collapsed">
+    <aside class="sidebar">
+        <button id="menu-toggle-btn" class="header-icon-btn">
+            <i class="fas fa-bars"></i>
+        </button>
+        <nav class="sidebar-nav">
+            <a href="#" class="dashboard-nav-link active" data-target="dashboard-main"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+            <a href="deposit.html"><i class="fas fa-wallet"></i> Deposit</a>
+            <a href="#" class="dashboard-nav-link" data-target="cek-pesanan"><i class="fas fa-receipt"></i> Cek Pesanan</a>
+            <a href="transaksi.html"><i class="fas fa-history"></i> Transaksi</a>
+            <a href="mutasi.html"><i class="fas fa-chart-line"></i> Mutasi Harian</a>
+            <a href="#" class="dashboard-nav-link" data-target="integrasi"><i class="fas fa-cogs"></i> Integrasi</a>
+        </nav>
+    </aside>
 
         <main class="dashboard-content">
             

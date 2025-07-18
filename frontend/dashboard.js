@@ -1,47 +1,25 @@
+// dashboard.js - VERSI FINAL
 document.addEventListener('DOMContentLoaded', function() {
-    // =======================================================
-    // BLOK KODE UNTUK NAVIGASI HEADER
-    // =======================================================
-    const hamburgerBtn = document.getElementById('hamburger-btn');
-    const dropdownMenu = document.getElementById('dropdown-menu');
-    const navLoginBtn = document.getElementById('nav-login-btn');
-    const navDashboardBtn = document.getElementById('nav-dashboard-btn');
+    // --- KODE BARU UNTUK MENU HAMBURGER DI DASHBOARD ---
     const menuToggleBtn = document.getElementById('menu-toggle-btn');
-    const sidebar = document.getElementById('dashboard-sidebar');
+    const sidebar = document.querySelector('.sidebar, .admin-sidebar');
+    const mainContent = document.querySelector('.dashboard-content, .admin-content');
     
     if (menuToggleBtn && sidebar) {
         menuToggleBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('collapsed');
+            sidebar.classList.toggle('active');
             document.body.classList.toggle('menu-open');
         });
-    }
 
-    if (hamburgerBtn && dropdownMenu) {
-        hamburgerBtn.addEventListener('click', (event) => {
-            event.stopPropagation();
-            dropdownMenu.classList.toggle('hidden');
+        // Menutup menu saat klik di luar (khusus HP)
+        mainContent.addEventListener('click', () => {
+            if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
+                sidebar.classList.remove('active');
+                document.body.classList.remove('menu-open');
+            }
         });
     }
-    window.addEventListener('click', () => {
-        if (dropdownMenu && !dropdownMenu.classList.contains('hidden')) {
-            dropdownMenu.classList.add('hidden');
-        }
-    });
-
-    function updateMainNavButtons() {
-        const token = localStorage.getItem('authToken');
-        if (token) {
-            if(navLoginBtn) navLoginBtn.classList.add('hidden');
-            if(navDashboardBtn) navDashboardBtn.classList.remove('hidden');
-        } else {
-            if(navLoginBtn) navLoginBtn.classList.remove('hidden');
-            if(navDashboardBtn) navDashboardBtn.classList.add('hidden');
-        }
-    }
-    updateMainNavButtons(); 
-    // =======================================================
-    // AKHIR BLOK KODE NAVIGASI
-    // =======================================================
+    // --- AKHIR KODE BARU ---
 
     const API_URL = 'https://topup-miku.onrender.com/api/user';
     const token = localStorage.getItem('authToken');

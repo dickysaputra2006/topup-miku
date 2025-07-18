@@ -24,7 +24,17 @@
     </header>
 
     <div class="admin-page-container container">
-        <aside id="admin-sidebar" class="admin-sidebar collapsed">
+    <aside class="admin-sidebar">
+        <button id="menu-toggle-btn" class="header-icon-btn">
+            <i class="fas fa-bars"></i>
+        </button>
+        <nav class="sidebar-nav">
+            <a href="#" class="admin-nav-link active" data-target="produk-dan-game"><i class="fas fa-gamepad"></i> Produk & Game</a>
+            <a href="#" class="admin-nav-link" data-target="deposit"><i class="fas fa-hand-holding-usd"></i> Persetujuan Deposit</a>
+            <a href="#" class="admin-nav-link" data-target="saldo"><i class="fas fa-wallet"></i> Manajemen Saldo</a>
+            <a href="#" class="admin-nav-link" data-target="margin"><i class="fas fa-percentage"></i> Manajemen Margin</a>
+        </nav>
+    </aside>
 
         <main class="admin-content">
             <section id="produk-dan-game" class="admin-section">
