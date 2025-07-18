@@ -35,55 +35,6 @@ h4 {
     margin-bottom: 1rem;
 }
 
-/* === HEADER === */
-header {
-    background-color: var(--bg-surface);
-    padding: 1rem 0;
-    border-bottom: 1px solid var(--border-color);
-}
-header .container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.logo {
-    font-size: 1.8rem;
-    color: var(--primary-color);
-    font-weight: bold;
-}
-header nav {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-header nav a {
-    color: white;
-    background-color: var(--primary-color);
-    padding: 0.5rem 1.5rem;
-    border-radius: 5px;
-    text-decoration: none;
-    font-weight: bold;
-    white-space: nowrap;
-}
-.header-btn {
-    /* Style dasar yang sama dengan header nav a */
-    /* Ini memastikan ia memiliki style tombol yang konsisten */
-    color: white;
-    background-color: var(--primary-color);
-    padding: 0.5rem 1.5rem;
-    border-radius: 5px;
-    text-decoration: none;
-    font-weight: bold;
-    white-space: nowrap;
-}
-.compare-btn {
-    background-color: var(--primary-color);
-    color: white;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
 
 /* === HOMEPAGE & GENERAL SECTIONS === */
 .hero-section {
@@ -950,151 +901,102 @@ input:checked + .slider:before {
   color: #9ca3af;
 }
 
-/* Definisi animasi bergerak dari kanan ke kiri */
+
 @keyframes scroll-left {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); } /* Geser sejauh setengah dari total lebar track */
 }
 
-/* === GAYA HEADER & DROPDOWN BARU (DIPERBAIKI) === */
-header {
-    background-color: var(--bg-surface);
-    border-bottom: 1px solid var(--border-color);
+/* === FINAL HEADER & SEARCH STYLING === */
+
+/* 1. Mencegah Layar Geser di HP */
+html, body {
+    overflow-x: hidden;
+    width: 100%;
 }
+
+/* 2. Struktur & Elemen Header Utama */
 .header-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 1rem;
+    padding: 0 1rem;
     height: 60px;
-    padding: 0 1.2rem;
 }
-
-/* BAGIAN KIRI: menampung hamburger & logo */
 .header-left {
     display: flex;
     align-items: center;
-    gap: 1rem; /* Jarak antara hamburger dan logo */
-    position: relative; /* Diperlukan untuk posisi dropdown */
+    flex-shrink: 0;
 }
-
-/* BAGIAN KANAN: menampung tombol user */
+.header-center {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+}
 .header-right {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    gap: 1rem;
+    flex-shrink: 0;
 }
-
-.logo-link {
-    text-decoration: none;
-}
-header .logo {
+.logo { 
+    margin: 0; 
     font-size: 1.6rem;
     color: var(--primary-color);
     font-weight: bold;
-    margin: 0; /* Hapus semua margin */
 }
-
-.header-icon-btn {
-    background: none;
-    border: none;
-    color: var(--text-color);
-    font-size: 1.5rem;
-    cursor: pointer;
-}
-
-/* Tombol di kanan atas */
-#main-nav .header-btn, .header-user-btn {
+.logo-link { text-decoration: none; }
+.header-btn {
     color: white;
     background-color: var(--primary-color);
-    padding: 0.5rem 1.2rem;
-    border-radius: 20px;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
     text-decoration: none;
     font-weight: bold;
-    font-size: 0.9rem;
+    white-space: nowrap;
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
-/* Menu Dropdown */
-.dropdown-menu {
-    position: absolute;
-    top: calc(100% + 10px); /* Muncul di bawah .header-left */
-    left: 0;
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    z-index: 100;
-    width: 200px;
-    padding: 0.5rem;
-}
-.dropdown-menu.hidden {
-    display: none;
-}
-.dropdown-menu a {
-    color: var(--text-color);
-    text-decoration: none;
-    display: block;
-    padding: 0.8rem 1rem;
-    border-radius: 5px;
-}
-.dropdown-menu a:hover {
-    background-color: var(--primary-color);
-    color: white;
-}
-@media (min-width: 769px) {
-  .header-right {
-    display: flex !important; 
-    align-items: center;
-    gap: 1rem; 
-  }
-  #hamburger-btn, .dropdown-menu {
-    display: none !important; 
-  }
-}
-
-@media (max-width: 768px) {
-    .header-right {
-        display: none !important; 
-    }
-    #hamburger-btn {
-        display: block !important; 
-    }
-}
 
 .search-container {
-    position: absolute;
-    top: 65px; /* Sedikit di bawah header */
-    left: 50%;
-    transform: translateX(-50%);
-    width: 90%;
-    max-width: 500px;
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    z-index: 200;
-}
-
-.search-input-wrapper {
-    padding: 0.5rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.search-input-wrapper input {
+    position: relative;
     width: 100%;
-    padding: 0.8rem;
+    max-width: 450px;
+}
+.search-input-wrapper {
+    position: relative;
+}
+.search-input-wrapper .search-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+}
+#search-input {
+    width: 100%;
+    padding: 0.7rem 1rem 0.7rem 40px;
     background-color: var(--bg-dark);
     border: 1px solid var(--border-color);
-    border-radius: 5px;
+    border-radius: 25px;
     color: var(--text-color);
     box-sizing: border-box;
 }
-
 .search-results-list {
+    position: absolute;
+    top: 110%;
+    left: 0;
+    width: 100%;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
     max-height: 40vh;
     overflow-y: auto;
+    z-index: 200;
 }
-
 .search-results-list a {
     display: flex;
     align-items: center;
@@ -1103,14 +1005,36 @@ header .logo {
     text-decoration: none;
     color: var(--text-color);
 }
-
 .search-results-list a:hover {
     background-color: var(--primary-color);
 }
-
-.search-results-list img {
+.search-results-list a img {
     width: 40px;
     height: 40px;
     border-radius: 5px;
     object-fit: cover;
+}
+
+
+@media (max-width: 768px) {
+    #hamburger-btn { display: block; }
+    .header-center { display: none; } /* Sembunyikan search bar di tengah */
+    .header-right .pricelist-btn { display: none; } /* Sembunyikan tombol "Pricelist" */
+    .header-right { gap: 0.5rem; }
+    
+    /* Tombol Search baru di kanan untuk HP */
+    .header-right::after {
+        content: '\f002'; /* Kode ikon search */
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        color: var(--text-color);
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 0.5rem;
+    }
+}
+
+
+@media (min-width: 769px) {
+    #hamburger-btn { display: none; }
 }
