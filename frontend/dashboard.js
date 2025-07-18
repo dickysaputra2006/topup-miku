@@ -1,28 +1,15 @@
-// dashboard.js - VERSI FINAL (Fungsi Buka/Tutup Menu Sudah Benar)
 document.addEventListener('DOMContentLoaded', function() {
     // --- KODE UNTUK MENU HAMBURGER DI DASHBOARD ---
-    const menuToggleBtn = document.getElementById('menu-toggle-btn');
+    const menuToggleBtn = document.querySelector('.header-left #menu-toggle-btn');
     const sidebar = document.querySelector('.sidebar');
-    const mainContent = document.querySelector('.dashboard-content');
     
     if (menuToggleBtn && sidebar) {
-        // Logika ini akan BUKA/TUTUP menu setiap kali hamburger diklik
-        menuToggleBtn.addEventListener('click', () => {
+        menuToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
             sidebar.classList.toggle('active');
             document.body.classList.toggle('menu-open');
         });
     }
-
-    // Logika ini akan TUTUP menu saat area konten di kanan diklik
-    if (mainContent) {
-        mainContent.addEventListener('click', () => {
-            if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('active')) {
-                sidebar.classList.remove('active');
-                document.body.classList.remove('menu-open');
-            }
-        });
-    }
-    // --- AKHIR KODE MENU ---
 
     const API_URL = 'https://topup-miku.onrender.com/api/user';
     const token = localStorage.getItem('authToken');
