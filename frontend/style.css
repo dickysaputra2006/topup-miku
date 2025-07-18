@@ -1120,15 +1120,13 @@ html, body {
 }
 
 .admin-master-detail {
-    flex-wrap: nowrap; /* Mencegah item turun ke bawah */
+    display: grid;
+    grid-template-columns: 40% 1fr; 
+    gap: 2rem;
+    width: 100%;
 }
 
-.master-list {
-    flex: 1; /* Biarkan mengambil 1 bagian dari ruang */
-    min-width: 300px; /* Lebar minimal */
-}
-
-.detail-list {
-    flex: 2; /* Biarkan mengambil 2 bagian dari ruang (lebih lebar) */
-    min-width: 400px; /* Lebar minimal */
+.table-container {
+    width: 100%;
+    overflow-x: auto; 
 }
