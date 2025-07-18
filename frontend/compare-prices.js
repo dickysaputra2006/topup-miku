@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const compareTableBody = document.querySelector("#compare-prices-table tbody");
     const compareTableHeader = document.querySelector("#compare-prices-table thead tr");
     const gameSearchInput = document.getElementById('game-search-input');
+    const tableContainer = document.querySelector('.table-container');
+    const scrollLeftBtn = document.getElementById('scroll-left-btn');
+    const scrollRightBtn = document.getElementById('scroll-right-btn');
 
     const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD'];
 
@@ -138,6 +141,20 @@ document.addEventListener('DOMContentLoaded', function () {
             renderGamesSidebar(filteredGames, displayRoles);
         });
     }
+
+
+
+if (tableContainer && scrollLeftBtn && scrollRightBtn) {
+    scrollLeftBtn.addEventListener('click', () => {
+        // Geser ke kiri sejauh 250px
+        tableContainer.scrollBy({ left: -250, behavior: 'smooth' });
+    });
+
+    scrollRightBtn.addEventListener('click', () => {
+        // Geser ke kanan sejauh 250px
+        tableContainer.scrollBy({ left: 250, behavior: 'smooth' });
+    });
+}
 
     fetchAllCompareData();
 });

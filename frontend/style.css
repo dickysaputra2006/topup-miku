@@ -1199,3 +1199,81 @@ html, body {
         border-color: var(--primary-color);
     }
 }
+#logout-button {
+    color: var(--text-color);
+    text-decoration: none;
+    padding: 1rem;
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+#logout-button:hover {
+    background-color: var(--danger-color); /* Warna merah saat di-hover */
+    color: white;
+}
+#game-search-input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-dark);
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+    /* Atur pembungkusnya agar mepet ke tepi layar */
+    .pricelist-search-wrapper {
+        margin-left: -1rem;
+        margin-right: -1rem;
+        padding: 0 1rem;
+        background-color: var(--bg-surface);
+        border-bottom: 1px solid var(--border-color);
+    }
+    #game-search-input {
+        margin-top: 1rem;
+    }
+}
+.scroll-wrapper {
+    position: relative; /* Wajib untuk posisi tombol */
+}
+
+.scroll-btn {
+    display: flex; /* Tampilkan tombol di semua ukuran layar */
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+.scroll-btn:hover {
+    opacity: 1;
+}
+.scroll-btn.left { left: 5px; }
+.scroll-btn.right { right: 5px; }
+
+/* Sembunyikan scrollbar bawaan di semua browser */
+.table-container {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+.table-container::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}

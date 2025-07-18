@@ -1,18 +1,19 @@
-// dashboard.js - VERSI FINAL YANG SUDAH DIRAPIKAN
+// dashboard.js - VERSI FINAL (Fungsi Buka/Tutup Menu Sudah Benar)
 document.addEventListener('DOMContentLoaded', function() {
     // --- KODE UNTUK MENU HAMBURGER DI DASHBOARD ---
     const menuToggleBtn = document.getElementById('menu-toggle-btn');
-    const sidebar = document.querySelector('.sidebar, .admin-sidebar');
-    const mainContent = document.querySelector('.dashboard-content, .admin-content');
+    const sidebar = document.querySelector('.sidebar');
+    const mainContent = document.querySelector('.dashboard-content');
     
     if (menuToggleBtn && sidebar) {
+        // Logika ini akan BUKA/TUTUP menu setiap kali hamburger diklik
         menuToggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('active');
             document.body.classList.toggle('menu-open');
         });
     }
 
-    // Fungsi untuk menutup menu saat area konten diklik
+    // Logika ini akan TUTUP menu saat area konten di kanan diklik
     if (mainContent) {
         mainContent.addEventListener('click', () => {
             if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('active')) {
