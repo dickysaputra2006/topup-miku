@@ -93,27 +93,34 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (dashboardNavLinks.length > 0 && dashboardSections.length > 0) {
-        dashboardNavLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                const targetId = link.dataset.target;
-                if (!targetId) return;
+    dashboardNavLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const targetId = link.dataset.target;
+            if (!targetId) return;
 
-                dashboardNavLinks.forEach(navLink => navLink.classList.remove('active'));
-                link.classList.add('active');
+            
+            if (sidebar && sidebar.classList.contains('active')) {
+                sidebar.classList.remove('active');
+                document.body.classList.remove('menu-open');
+            }
+            
 
-                dashboardSections.forEach(section => {
-                    if (section) {
-                       section.classList.toggle('hidden', section.id !== targetId);
-                    }
-                });
+            dashboardNavLinks.forEach(navLink => navLink.classList.remove('active'));
+            link.classList.add('active');
 
-                if (targetId === 'integrasi' && !apiKeyFetched) {
-                    fetchApiKey();
+            dashboardSections.forEach(section => {
+                if (section) {
+                   section.classList.toggle('hidden', section.id !== targetId);
                 }
             });
+
+            if (targetId === 'integrasi' && !apiKeyFetched) {
+                fetchApiKey();
+            }
         });
-    }
+    });
+}
 
     if (generateApiKeyBtn) {
         generateApiKeyBtn.addEventListener('click', async () => {

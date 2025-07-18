@@ -1118,3 +1118,17 @@ html, body {
     #hamburger-btn { display: none; }
     #menu-toggle-btn { display: none; }
 }
+
+.admin-master-detail {
+    flex-wrap: nowrap; /* Mencegah item turun ke bawah */
+}
+
+.master-list {
+    flex: 1; /* Biarkan mengambil 1 bagian dari ruang */
+    min-width: 300px; /* Lebar minimal */
+}
+
+.detail-list {
+    flex: 2; /* Biarkan mengambil 2 bagian dari ruang (lebih lebar) */
+    min-width: 400px; /* Lebar minimal */
+}
