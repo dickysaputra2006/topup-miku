@@ -15,9 +15,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 
-if (mainContent) {
-    mainContent.addEventListener('click', () => {
-        if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
+const mainContentAdmin = document.querySelector('.admin-content');
+if (mainContentAdmin) {
+    mainContentAdmin.addEventListener('click', () => {
+        if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('active')) {
             sidebar.classList.remove('active');
             document.body.classList.remove('menu-open');
         }

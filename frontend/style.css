@@ -1082,7 +1082,7 @@ html, body {
         color: var(--text-color);
         font-size: 1.5rem; cursor: pointer;
     }
-    .sidebar, .admin-sidebar {
+      .sidebar, .admin-sidebar {
         position: fixed;
         left: -100%;
         top: 0;
@@ -1091,6 +1091,8 @@ html, body {
         transition: left 0.3s ease-in-out;
         max-width: 300px;
         width: 75%;
+        /* Pastikan sidebar tidak 'sticky' di HP */
+        position: fixed;
     }
     .sidebar.active, .admin-sidebar.active {
         left: 0;
@@ -1141,13 +1143,59 @@ html, body {
     }
 }
 .store-link-btn-mobile {
-    display: none; /* Sembunyikan di desktop */
+    display: none; 
     margin-top: 1rem;
-    border-top: 1px solid var(--border-color); /* Garis pemisah */
+    border-top: 1px solid var(--border-color);
 }
 
 @media (max-width: 768px) {
-    .store-link-btn-mobile {
-        display: flex !important; /* Tampilkan hanya di HP */
+    
+    .sidebar .store-link-btn-mobile {
+        display: flex !important;
+    }
+
+    
+    .header-right .store-link-btn {
+        display: none !important;
+    }
+}
+@media (max-width: 768px) {
+    .pricelist-container {
+        flex-direction: column; /* Susun dari atas ke bawah */
+    }
+
+    .game-selector {
+        position: static; /* Hapus sticky */
+        width: 100%;
+        max-width: 100%;
+        min-height: auto;
+        padding: 0;
+        background-color: transparent;
+        border: none;
+    }
+
+    #compare-games-list {
+        display: flex; /* Buat item game berjajar ke samping */
+        overflow-x: auto; /* Aktifkan scroll horizontal */
+        padding-bottom: 1rem; /* Beri jarak bawah untuk scrollbar */
+        /* Properti untuk menyembunyikan scrollbar visual */
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+    }
+    /* Menyembunyikan scrollbar visual untuk Chrome, Safari, Opera */
+    #compare-games-list::-webkit-scrollbar {
+        display: none;
+    }
+
+    #compare-games-list .dashboard-nav-link {
+        flex-shrink: 0; /* Mencegah tombol 'penyok' */
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-color);
+        margin-right: 0.5rem;
+    }
+
+    #compare-games-list .dashboard-nav-link.active {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
     }
 }

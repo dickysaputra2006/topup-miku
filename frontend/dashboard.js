@@ -1,6 +1,6 @@
-// dashboard.js - VERSI FINAL
+// dashboard.js - VERSI FINAL YANG SUDAH DIRAPIKAN
 document.addEventListener('DOMContentLoaded', function() {
-    // --- KODE BARU UNTUK MENU HAMBURGER DI DASHBOARD ---
+    // --- KODE UNTUK MENU HAMBURGER DI DASHBOARD ---
     const menuToggleBtn = document.getElementById('menu-toggle-btn');
     const sidebar = document.querySelector('.sidebar, .admin-sidebar');
     const mainContent = document.querySelector('.dashboard-content, .admin-content');
@@ -10,26 +10,18 @@ document.addEventListener('DOMContentLoaded', function() {
             sidebar.classList.toggle('active');
             document.body.classList.toggle('menu-open');
         });
+    }
 
-        // Menutup menu saat klik di luar (khusus HP)
+    // Fungsi untuk menutup menu saat area konten diklik
+    if (mainContent) {
         mainContent.addEventListener('click', () => {
-            if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
+            if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('active')) {
                 sidebar.classList.remove('active');
                 document.body.classList.remove('menu-open');
             }
         });
     }
-
-    
-if (mainContent) {
-    mainContent.addEventListener('click', () => {
-        if (window.innerWidth <= 768 && sidebar.classList.contains('active')) {
-            sidebar.classList.remove('active');
-            document.body.classList.remove('menu-open');
-        }
-    });
-}
-    // --- AKHIR KODE BARU ---
+    // --- AKHIR KODE MENU ---
 
     const API_URL = 'https://topup-miku.onrender.com/api/user';
     const token = localStorage.getItem('authToken');
@@ -103,34 +95,32 @@ if (mainContent) {
     }
 
     if (dashboardNavLinks.length > 0 && dashboardSections.length > 0) {
-    dashboardNavLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            const targetId = link.dataset.target;
-            if (!targetId) return;
+        dashboardNavLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const targetId = link.dataset.target;
+                if (!targetId) return;
 
-            
-            if (sidebar && sidebar.classList.contains('active')) {
-                sidebar.classList.remove('active');
-                document.body.classList.remove('menu-open');
-            }
-            
+                if (sidebar && sidebar.classList.contains('active')) {
+                    sidebar.classList.remove('active');
+                    document.body.classList.remove('menu-open');
+                }
 
-            dashboardNavLinks.forEach(navLink => navLink.classList.remove('active'));
-            link.classList.add('active');
+                dashboardNavLinks.forEach(navLink => navLink.classList.remove('active'));
+                link.classList.add('active');
 
-            dashboardSections.forEach(section => {
-                if (section) {
-                   section.classList.toggle('hidden', section.id !== targetId);
+                dashboardSections.forEach(section => {
+                    if (section) {
+                       section.classList.toggle('hidden', section.id !== targetId);
+                    }
+                });
+
+                if (targetId === 'integrasi' && !apiKeyFetched) {
+                    fetchApiKey();
                 }
             });
-
-            if (targetId === 'integrasi' && !apiKeyFetched) {
-                fetchApiKey();
-            }
         });
-    });
-}
+    }
 
     if (generateApiKeyBtn) {
         generateApiKeyBtn.addEventListener('click', async () => {
@@ -230,6 +220,7 @@ if (mainContent) {
     }
     
     fetchProfileData();
+
     document.querySelectorAll('.toggle-password').forEach(icon => {
         icon.addEventListener('click', function () {
             const input = this.parentElement.querySelector('input');

@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const showLoginLink = document.getElementById('show-login');
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
+    const dropdownLoginBtn = document.getElementById('dropdown-login-btn');
 
     // Elemen Search
     const searchInput = document.getElementById('search-input');
@@ -128,6 +129,13 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
     
+if (dropdownLoginBtn) {
+    dropdownLoginBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        showModal(); // Panggil fungsi untuk menampilkan modal login
+    });
+}
+
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
     if (showRegisterLink) showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginContainer.classList.add('hidden'); registerContainer.classList.remove('hidden'); });
     if (showLoginLink) showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); });
