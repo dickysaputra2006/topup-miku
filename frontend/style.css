@@ -1163,14 +1163,15 @@ html, body {
     }
 
     .game-selector {
-        position: static; /* Hapus sticky */
-        width: 100%;
-        max-width: 100%;
-        min-height: auto;
-        padding: 0;
-        background-color: transparent;
-        border: none;
-    }
+    position: static; 
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+    padding: 1rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px; 
+}
 
     #compare-games-list {
         display: flex; /* Buat item game berjajar ke samping */
@@ -1222,20 +1223,6 @@ html, body {
     background-color: var(--bg-dark);
     color: var(--text-color);
     box-sizing: border-box;
-}
-
-@media (max-width: 768px) {
-    /* Atur pembungkusnya agar mepet ke tepi layar */
-    .pricelist-search-wrapper {
-        margin-left: -1rem;
-        margin-right: -1rem;
-        padding: 0 1rem;
-        background-color: var(--bg-surface);
-        border-bottom: 1px solid var(--border-color);
-    }
-    #game-search-input {
-        margin-top: 1rem;
-    }
 }
 
 
