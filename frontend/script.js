@@ -5,10 +5,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const token = localStorage.getItem('authToken');
 
     // Elemen Header & Dropdown
-    const header = document.querySelector('header'); // Tambahkan ini
+    const header = document.querySelector('header');
     const hamburgerBtn = document.getElementById('hamburger-btn');
     const dropdownMenu = document.getElementById('dropdown-menu');
     const userAuthButton = document.getElementById('user-auth-button');
+    const headerRight = document.querySelector('.header-right');
 
     // Elemen Modal Login/Register
     const modal = document.getElementById('auth-modal');
@@ -23,7 +24,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Elemen Search
     const searchInput = document.getElementById('search-input');
     const searchResults = document.getElementById('search-results');
-    const headerRight = document.querySelector('.header-right'); // Tambahkan ini
     
     let allGamesData = [];
 
@@ -124,8 +124,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (hamburgerBtn) hamburgerBtn.addEventListener('click', (e) => { e.stopPropagation(); dropdownMenu.classList.toggle('hidden'); });
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
     if (showRegisterLink) showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginContainer.classList.add('hidden'); registerContainer.classList.remove('hidden'); });
-    
     if (showLoginLink) showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); });
+
+    // --- LOGIKA FORM REGISTER (LENGKAP) ---
     if (registerForm) {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -161,6 +162,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // --- LOGIKA FORM LOGIN (LENGKAP) ---
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -185,28 +187,46 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-if (searchInput) {
+    // --- LOGIKA TOGGLE PASSWORD (LENGKAP) ---
+    document.querySelectorAll('.toggle-password').forEach(icon => {
+        icon.addEventListener('click', function () {
+            const input = this.parentElement.querySelector('input');
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            this.classList.toggle('fa-eye', !isPassword);
+            this.classList.toggle('fa-eye-slash', isPassword);
+        });
+    });
+
+    if (searchInput) {
         searchInput.addEventListener('input', () => handleSearch(searchInput.value));
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 
-    
     if (headerRight) {
         headerRight.addEventListener('click', (e) => {
-            // Cek apakah yang diklik adalah ikon search buatan dari CSS
             if (e.target === headerRight && window.getComputedStyle(headerRight, '::after').getPropertyValue('content') !== 'none') {
                 const headerCenter = document.querySelector('.header-center');
                 if (headerCenter) {
-                    headerCenter.style.display = headerCenter.style.display === 'flex' ? 'none' : 'flex';
-                    if (headerCenter.style.display === 'flex') {
-                        searchInput.focus();
-                    }
+                    const isDisplayed = window.getComputedStyle(headerCenter).display === 'flex';
+                    headerCenter.style.display = isDisplayed ? 'none' : 'flex';
+                    if (!isDisplayed) searchInput.focus();
                 }
             }
         });
     }
-
     
+    // --- LOGIKA KLIK DI LUAR (LENGKAP) ---
+    window.addEventListener('click', (e) => {
+        if (dropdownMenu && !dropdownMenu.classList.contains('hidden') && !hamburgerBtn.contains(e.target)) {
+            dropdownMenu.classList.add('hidden');
+        }
+        if (searchResults && !searchResults.classList.contains('hidden') && !searchInput.contains(e.target)) {
+            searchResults.classList.add('hidden');
+        }
+    });
+
+    // === 4. PANGGILAN FUNGSI AWAL ===
     updateAuthButton();
     displayGames();
 });

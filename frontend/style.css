@@ -1017,20 +1017,50 @@ html, body {
 
 
 @media (max-width: 768px) {
+    .header-container {
+        flex-wrap: wrap; /* Izinkan item turun ke bawah */
+        position: relative; /* Diperlukan untuk dropdown */
+    }
+    .header-center {
+        order: 3; /* Pindahkan search bar ke urutan terakhir */
+        width: 100%; /* Ambil lebar penuh */
+        display: flex; /* Pastikan search bar muncul */
+        padding: 0 0.5rem 0.5rem; /* Beri sedikit jarak */
+    }
     #hamburger-btn { display: block; }
-    .header-center { display: none; } /* Sembunyikan search bar di tengah */
-    .header-right .pricelist-btn { display: none; } /* Sembunyikan tombol "Pricelist" */
+    .header-right .pricelist-btn { display: none; }
     .header-right { gap: 0.5rem; }
     
-    /* Tombol Search baru di kanan untuk HP */
+    /* Hapus ikon search palsu di kanan */
     .header-right::after {
-        content: '\f002'; /* Kode ikon search */
-        font-family: 'Font Awesome 6 Free';
-        font-weight: 900;
-        color: var(--text-color);
-        font-size: 1.2rem;
-        cursor: pointer;
+        content: none;
+    }
+
+    /* Perbaiki posisi dan tampilan dropdown menu */
+    .dropdown-menu {
+        position: absolute;
+        top: calc(100% + 5px); /* Muncul tepat di bawah header-left */
+        left: 0;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        z-index: 100;
+        width: 200px;
         padding: 0.5rem;
+    }
+    .dropdown-menu.hidden {
+        display: none;
+    }
+    .dropdown-menu a {
+        color: var(--text-color);
+        text-decoration: none;
+        display: block;
+        padding: 0.8rem 1rem;
+        border-radius: 5px;
+    }
+    .dropdown-menu a:hover {
+        background-color: var(--primary-color);
+        color: white;
     }
 }
 
