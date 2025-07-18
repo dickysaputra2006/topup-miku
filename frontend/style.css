@@ -1244,6 +1244,7 @@ html, body {
     position: relative;
     width: 100%;
     overflow: hidden;
+    padding-right: 50px;
 }
 
 .scroll-btn {
@@ -1270,7 +1271,10 @@ html, body {
     opacity: 1;
 }
 .scroll-btn.left { left: 5px; }
-.scroll-btn.right { right: 5px; }
+.scroll-btn.right {
+    right: 10px;
+    z-index: 20; 
+}
 
 .table-container {
     -ms-overflow-style: none;  /* IE and Edge */
@@ -1282,5 +1286,12 @@ html, body {
 @media (min-width: 769px) {
     #dropdown-menu {
         display: none !important;
+    }
+}
+@media (max-width: 480px) {
+    #game-search-input {
+        font-size: 0.85rem;
+        padding: 6px 10px;
+        height: 36px;
     }
 }
