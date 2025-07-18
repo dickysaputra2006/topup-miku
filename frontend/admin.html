@@ -9,26 +9,22 @@
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body>
-<header>
-    <div class="header-container container">
-        <div class="header-left">
-            <h1 class="logo">Admin Panel</h1>
+    <header>
+        <div class="header-container container">
+            <div class="header-left">
+                <button id="menu-toggle-btn" class="header-icon-btn">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 class="logo">Admin Panel</h1>
+            </div>
+            <div class="header-right">
+                <a href="index.html" class="header-btn">Kembali ke Toko</a>
+            </div>
         </div>
-        <div class="header-right">
-            <a href="index.html" class="header-btn">Kembali ke Toko</a>
-        </div>
-    </div>
-</header>
+    </header>
 
     <div class="admin-page-container container">
-        <aside class="admin-sidebar">
-            <nav class="sidebar-nav">
-                <a href="#" class="admin-nav-link active" data-target="produk-dan-game"><i class="fas fa-gamepad"></i> Produk & Game</a>
-                <a href="#" class="admin-nav-link" data-target="deposit"><i class="fas fa-hand-holding-usd"></i> Persetujuan Deposit</a>
-                <a href="#" class="admin-nav-link" data-target="saldo"><i class="fas fa-wallet"></i> Manajemen Saldo</a>
-                <a href="#" class="admin-nav-link" data-target="margin"><i class="fas fa-percentage"></i> Manajemen Margin</a>
-            </nav>
-        </aside>
+        <aside id="admin-sidebar" class="admin-sidebar collapsed">
 
         <main class="admin-content">
             <section id="produk-dan-game" class="admin-section">

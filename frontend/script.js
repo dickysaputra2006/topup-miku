@@ -122,17 +122,16 @@ document.addEventListener('DOMContentLoaded', function () {
     // === 3. EVENT LISTENERS & PANGGILAN AWAL ===
 
     if (hamburgerBtn) {
-    hamburgerBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        
-        if (dropdownMenu) dropdownMenu.classList.toggle('active');
-    });
-}
+        hamburgerBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdownMenu) dropdownMenu.classList.toggle('active');
+        });
+    }
+    
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
     if (showRegisterLink) showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginContainer.classList.add('hidden'); registerContainer.classList.remove('hidden'); });
     if (showLoginLink) showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); });
 
-    // --- LOGIKA FORM REGISTER (LENGKAP) ---
     if (registerForm) {
         registerForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -168,7 +167,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // --- LOGIKA FORM LOGIN (LENGKAP) ---
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -193,7 +191,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // --- LOGIKA TOGGLE PASSWORD (LENGKAP) ---
     document.querySelectorAll('.toggle-password').forEach(icon => {
         icon.addEventListener('click', function () {
             const input = this.parentElement.querySelector('input');
@@ -222,10 +219,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
     
-    // --- LOGIKA KLIK DI LUAR (LENGKAP) ---
     window.addEventListener('click', (e) => {
-        if (dropdownMenu && !dropdownMenu.classList.contains('hidden') && !hamburgerBtn.contains(e.target)) {
-            dropdownMenu.classList.add('hidden');
+        if (dropdownMenu && dropdownMenu.classList.contains('active') && !hamburgerBtn.contains(e.target)) {
+            dropdownMenu.classList.remove('active');
         }
         if (searchResults && !searchResults.classList.contains('hidden') && !searchInput.contains(e.target)) {
             searchResults.classList.add('hidden');

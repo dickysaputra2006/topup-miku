@@ -1106,3 +1106,36 @@ html, body {
 @media (min-width: 769px) {
     #hamburger-btn { display: none; }
 }
+@media (max-width: 768px) {
+    #menu-toggle-btn {
+        display: block; /* Tampilkan tombol hamburger */
+    }
+    .sidebar, .admin-sidebar {
+        position: fixed;
+        left: -100%; /* Sembunyi di luar layar */
+        top: 0;
+        height: 100vh;
+        z-index: 300;
+        transition: left 0.3s ease-in-out;
+        max-width: 300px;
+        width: 75%;
+    }
+    .sidebar:not(.collapsed),
+    .admin-sidebar:not(.collapsed) {
+        left: 0; /* Munculkan saat class 'collapsed' dihapus */
+    }
+    .dashboard-content, .admin-content {
+        margin-left: 0; /* Konten ambil lebar penuh */
+    }
+    /* Overlay gelap saat menu terbuka */
+    body.menu-open::after {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        z-index: 299;
+    }
+}

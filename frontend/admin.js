@@ -3,6 +3,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- LOGIKA BARU UNTUK NAVIGASI TAB ---
     const navLinks = document.querySelectorAll('.admin-nav-link');
     const sections = document.querySelectorAll('.admin-section');
+    const menuToggleBtn = document.getElementById('menu-toggle-btn');
+    const sidebar = document.getElementById('admin-sidebar');
+    
+    if (menuToggleBtn && sidebar) {
+        menuToggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            document.body.classList.toggle('menu-open');
+        });
+    }
 
     // Pastikan elemennya ada sebelum menambahkan fungsi klik
     if (navLinks.length > 0 && sections.length > 0) {

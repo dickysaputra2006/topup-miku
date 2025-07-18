@@ -6,6 +6,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const dropdownMenu = document.getElementById('dropdown-menu');
     const navLoginBtn = document.getElementById('nav-login-btn');
     const navDashboardBtn = document.getElementById('nav-dashboard-btn');
+    const menuToggleBtn = document.getElementById('menu-toggle-btn');
+    const sidebar = document.getElementById('dashboard-sidebar');
+    
+    if (menuToggleBtn && sidebar) {
+        menuToggleBtn.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            document.body.classList.toggle('menu-open');
+        });
+    }
 
     if (hamburgerBtn && dropdownMenu) {
         hamburgerBtn.addEventListener('click', (event) => {
