@@ -19,6 +19,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
 
+    // ELEMEN BARU UNTUK SEARCH
+    const searchBtn = document.getElementById('search-btn');
+    const searchOverlay = document.getElementById('search-overlay');
+    const closeSearchBtn = document.getElementById('close-search-btn');
+    const searchInput = document.getElementById('search-input');
+    const mainContentSections = document.querySelectorAll('.content-section, .hero-section, footer');
+    let allGamesData = [];
+
     // === 2. DEFINISI SEMUA FUNGSI ===
 
     function showModal() { if (modal) modal.classList.remove('hidden'); }
@@ -61,6 +69,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch(`${API_URL}/games`);
             if (!response.ok) throw new Error('Gagal mengambil data game');
             const allGames = await response.json();
+             allGamesData = allGames;
             const mobileGames = [], pcGames = [], voucherGames = [];
 
             allGames.forEach(game => {
@@ -85,6 +94,47 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error('Gagal menampilkan game:', error);
             const mobileGrid = document.getElementById('mobile-games-grid');
             if(mobileGrid) mobileGrid.innerHTML = '<p>Gagal memuat game. Coba lagi nanti.</p>';
+        }
+    }
+
+    function filterAndDisplayGames(searchTerm) {
+        const lowerCaseSearchTerm = searchTerm.toLowerCase();
+        
+        // Hapus atau buat section hasil pencarian
+        let searchResultsSection = document.getElementById('search-results-section');
+        if (searchResultsSection) {
+            searchResultsSection.remove();
+        }
+
+        // Jika input kosong, tampilkan kembali semua section asli dan keluar
+        if (lowerCaseSearchTerm === '') {
+            mainContentSections.forEach(section => section.classList.remove('hidden'));
+            return;
+        }
+
+        // Jika ada input, sembunyikan section asli
+        mainContentSections.forEach(section => section.classList.add('hidden'));
+
+        const filteredGames = allGamesData.filter(game => 
+            game.name.toLowerCase().includes(lowerCaseSearchTerm)
+        );
+
+        // Buat section baru untuk hasil pencarian
+        searchResultsSection = document.createElement('section');
+        searchResultsSection.id = 'search-results-section';
+        searchResultsSection.className = 'content-section';
+        searchResultsSection.innerHTML = `
+            <h2>Hasil Pencarian untuk: "${searchTerm}"</h2>
+            <div id="search-results-grid" class="product-grid"></div>
+        `;
+
+        const mainContainer = document.querySelector('main.container');
+        mainContainer.insertBefore(searchResultsSection, mainContainer.firstChild);
+
+        if (filteredGames.length === 0) {
+            document.getElementById('search-results-grid').innerHTML = '<p>Game tidak ditemukan.</p>';
+        } else {
+            renderGameGrid(filteredGames, 'search-results-grid');
         }
     }
 
@@ -169,6 +219,27 @@ document.addEventListener('DOMContentLoaded', function () {
             } catch (error) {
                 alert(`Error Login: ${error.message}`);
             }
+        });
+    }
+
+    if(searchBtn) {
+        searchBtn.addEventListener('click', () => {
+            searchOverlay.classList.remove('hidden');
+            searchInput.focus();
+        });
+    }
+
+    if(closeSearchBtn) {
+        closeSearchBtn.addEventListener('click', () => {
+            searchOverlay.classList.add('hidden');
+            searchInput.value = ''; // Kosongkan input
+            filterAndDisplayGames(''); // Tampilkan kembali semua game
+        });
+    }
+    
+    if(searchInput) {
+        searchInput.addEventListener('input', () => {
+            filterAndDisplayGames(searchInput.value);
         });
     }
 

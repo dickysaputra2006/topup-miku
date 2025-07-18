@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MIKU Store</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -25,14 +25,27 @@
         </div>
 
         <div class="header-right">
+            <a href="compare-prices.html" class="header-btn">Pricelist</a>
             <a href="dashboard.html" id="user-dashboard-btn" class="header-btn hidden">
                 <i class="fas fa-user-circle"></i>
                 <span id="user-username-text">User</span>
             </a>
             <a href="#" id="nav-login-btn" class="header-btn">Masuk</a>
+            
+            <button id="search-btn" class="header-icon-btn">
+                <i class="fas fa-search"></i>
+            </button>
         </div>
     </div>
 </header>
+
+<div id="search-overlay" class="search-overlay-container hidden">
+    <div class="search-bar-wrapper">
+        <input type="text" id="search-input" placeholder="Cari game favoritmu...">
+        <button id="close-search-btn" class="close-search-button">&times;</button>
+    </div>
+</div>
+
 
     <main class="container">
         <section class="hero-section">
