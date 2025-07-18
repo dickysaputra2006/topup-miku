@@ -1251,3 +1251,39 @@ html, body {
         height: 36px;
     }
 }
+table th {
+    z-index: 3;
+}
+
+/* 2. Logika untuk membekukan Kolom Pertama (Nama Game) */
+table th:nth-child(1),
+table td:nth-child(1) {
+    position: -webkit-sticky; /* Untuk kompatibilitas Safari */
+    position: sticky;
+    left: 0; /* Tempelkan di paling kiri */
+    z-index: 2;
+    /* Beri warna background agar kolom yang di-scroll tidak tembus pandang */
+    background-color: var(--bg-surface); 
+}
+
+/* 3. Logika untuk membekukan Kolom Kedua (Produk) */
+table th:nth-child(2),
+table td:nth-child(2) {
+    position: -webkit-sticky;
+    position: sticky;
+    /* Posisikan di sebelah kanan kolom pertama. Sesuaikan nilainya jika lebar kolom pertama berubah. */
+    left: 150px; 
+    z-index: 2;
+    background-color: var(--bg-surface);
+}
+
+/* 4. Logika untuk membekukan Kolom Ketiga (SKU) */
+table th:nth-child(3),
+table td:nth-child(3) {
+    position: -webkit-sticky;
+    position: sticky;
+    /* Posisikan di sebelah kanan total lebar kolom 1 dan 2. */
+    left: 350px; /* (150px dari kolom 1 + 200px dari kolom 2) */
+    z-index: 2;
+    background-color: var(--bg-surface);
+}
