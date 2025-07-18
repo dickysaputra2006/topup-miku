@@ -911,7 +911,6 @@ input:checked + .slider:before {
 
 /* 1. Mencegah Layar Geser di HP */
 html, body {
-    overflow-x: hidden;
     width: 100%;
 }
 
@@ -1022,7 +1021,6 @@ html, body {
         padding: 0 1rem;
         box-sizing: border-box;
     }
-    html, body { overflow-x: hidden; }
 
     /* 2. Header di index.html */
     .header-container {
