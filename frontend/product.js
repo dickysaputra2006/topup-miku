@@ -141,7 +141,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === Bagian 3: Menambahkan Semua Event Listeners ===
 
-    if (loginButton) loginButton.addEventListener('click', (e) => { e.preventDefault(); showModal(); });
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
 
     if (showRegisterLink) {
