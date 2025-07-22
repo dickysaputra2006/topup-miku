@@ -559,7 +559,7 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
         if (roleRows.length === 0) throw new Error(`Role dengan ID ${userRoleId} tidak ditemukan.`);
         const margin = roleRows[0].margin_percent;
 
-        const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
+        const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id, target_id_label FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
         if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });
 
         // === PERUBAHAN DI SINI: MENAMBAHKAN ORDER BY price ASC ===
@@ -574,6 +574,19 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
     } catch (error) {
         console.error("Gagal mengambil produk game (public):", error);
         res.status(500).json({ message: 'Server error saat mengambil data produk.' });
+    }
+});
+
+app.get('/api/games/:gameId/servers', async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const sql = "SELECT server_name FROM game_servers WHERE game_id = $1 ORDER BY server_name ASC";
+        const { rows } = await pool.query(sql, [gameId]);
+        // Kirim array nama server, e.g., ["America", "Asia", "Europe"]
+        res.json(rows.map(row => row.server_name));
+    } catch (error) {
+        console.error('Error fetching game servers:', error);
+        res.status(500).json({ message: 'Server error saat mengambil data server game.' });
     }
 });
 
