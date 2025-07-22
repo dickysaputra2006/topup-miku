@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const totalPriceEl = document.getElementById('total-price');
     const submitOrderBtn = document.getElementById('submit-order-btn');
     const targetGameIdInput = document.getElementById('target-game-id'); 
-    const targetServerIdInput = document.getElementById('target-server-id'); 
+    const serverInputContainer = document.getElementById('server-input-container'); 
     const userAuthButton = document.getElementById('user-auth-button');
 
     // Elemen Header & Modal Login
@@ -81,34 +81,52 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
     async function fetchGameData() {
-        try {
-            const headers = {};
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-            // Menggunakan PUBLIC_API_URL untuk endpoint games
-            const response = await fetch(`${PUBLIC_API_URL}/games/${gameId}/products`, { headers });
-            if (!response.ok) throw new Error('Gagal memuat data produk game.');
-            const data = await response.json();
-            
-            gameImageEl.src = data.game.image_url;
-            gameNameEl.textContent = data.game.name;
-            
-            // Logika untuk menampilkan/menyembunyikan Server ID input
-            if (data.game.needs_server_id) {
-                targetServerIdInput.classList.remove('hidden');
-                targetServerIdInput.required = true;
-            } else {
-                targetServerIdInput.classList.add('hidden');
-                targetServerIdInput.required = false;
-                targetServerIdInput.value = ''; // Kosongkan nilai jika disembunyikan
-            }
-            renderProducts(data.products);
-        } catch (error) {
-            console.error('Error fetching game data:', error); // Log error lebih detail
-            productListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
+    try {
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
         }
+        const response = await fetch(`${PUBLIC_API_URL}/games/${gameId}/products`, { headers });
+        if (!response.ok) throw new Error('Gagal memuat data produk game.');
+        const data = await response.json();
+
+        gameImageEl.src = data.game.image_url;
+        gameNameEl.textContent = data.game.name;
+
+        if (data.game.target_id_label) {
+    targetGameIdInput.placeholder = data.game.target_id_label;
+            }
+
+        
+        serverInputContainer.innerHTML = ''; 
+
+        if (data.game.needs_server_id) {
+            // Panggil API untuk cek apakah ada daftar server tetap
+            const serverListResponse = await fetch(`${PUBLIC_API_URL}/games/${gameId}/servers`);
+            const serverList = await serverListResponse.json();
+
+            if (serverList.length > 0) {
+                // Jika ada daftar server, buat dropdown
+                let optionsHtml = serverList.map(server => `<option value="${server}">${server}</option>`).join('');
+                serverInputContainer.innerHTML = `
+                    <select id="target-server-id" required>
+                        <option value="" disabled selected>-- Pilih Server --</option>
+                        ${optionsHtml}
+                    </select>
+                `;
+            } else {
+                // Jika tidak ada, buat input teks biasa
+                serverInputContainer.innerHTML = `<input type="text" id="target-server-id" placeholder="Masukkan Server ID" required>`;
+            }
+        }
+       
+
+        renderProducts(data.products);
+    } catch (error) {
+        console.error('Error fetching game data:', error);
+        productListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
     }
+}
 
     function renderProducts(products) {
         productListContainer.innerHTML = '';
@@ -224,56 +242,63 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (submitOrderBtn) {
-        submitOrderBtn.addEventListener('click', async () => {
-            if (!token) {
-                alert('Anda harus login untuk melakukan transaksi.');
-                showModal();
-                return;
-            }
-            if (!selectedProductId) {
-                alert('Silakan pilih nominal top up terlebih dahulu.');
-                return;
-            }
-            const targetGameId = targetGameIdInput.value;
-            const targetServerId = targetServerIdInput.value; // Menggunakan variabel yang sudah diganti nama
-            
-            if (!targetGameId) {
-                alert('Silakan masukkan User ID Anda terlebih dahulu.');
-                return;
-            }
-            // Validasi Server ID hanya jika inputnya terlihat (tidak hidden) dan diperlukan
-            if (!targetServerIdInput.classList.contains('hidden') && targetServerIdInput.required && !targetServerId) {
-                alert('Silakan masukkan Server ID Anda.');
-                return;
-            }
+    submitOrderBtn.addEventListener('click', async () => {
+        if (!token) {
+            alert('Anda harus login untuk melakukan transaksi.');
+            showModal();
+            return;
+        }
+        if (!selectedProductId) {
+            alert('Silakan pilih nominal top up terlebih dahulu.');
+            return;
+        }
+        
+        const targetGameId = targetGameIdInput.value;
 
-            const finalTargetId = targetServerIdInput.required ? `${targetGameId} (${targetServerId})` : targetGameId;
-            if (confirm(`Anda akan membeli produk ini untuk ID: ${finalTargetId} seharga ${totalPriceEl.textContent}. Lanjutkan?`)) {
-                submitOrderBtn.disabled = true;
-                submitOrderBtn.textContent = 'Memproses...';
-                try {
-                    // Menggunakan PUBLIC_API_URL untuk order
-                    const response = await fetch(`${PUBLIC_API_URL}/order`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            productId: selectedProductId,
-                            targetGameId: targetGameId,
-                            targetServerId: targetServerIdInput.required ? targetServerId : null // Kirim null jika tidak diperlukan
-                        })
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.message);
-                    alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nSilakan cek riwayat transaksi di dashboard Anda.`);
-                    window.location.href = 'dashboard.html';
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                    submitOrderBtn.disabled = false;
-                    submitOrderBtn.textContent = 'Beli Sekarang';
-                }
+        // --- Perubahan 1 ---
+        const targetServerIdEl = document.getElementById('target-server-id');
+        const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
+
+        if (!targetGameId) {
+            alert('Silakan masukkan User ID Anda terlebih dahulu.');
+            return;
+        }
+        
+        // --- Perubahan 2 ---
+        if (targetServerIdEl && targetServerIdEl.required && !targetServerId) {
+            alert('Silakan masukkan atau pilih Server ID Anda.');
+            return;
+        }
+
+        // --- Perubahan 3 ---
+        const finalTargetId = targetServerId ? `${targetGameId} (${targetServerId})` : targetGameId;
+        
+        if (confirm(`Anda akan membeli produk ini untuk ID: ${finalTargetId} seharga ${totalPriceEl.textContent}. Lanjutkan?`)) {
+            submitOrderBtn.disabled = true;
+            submitOrderBtn.textContent = 'Memproses...';
+            try {
+                const response = await fetch(`${PUBLIC_API_URL}/order`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        productId: selectedProductId,
+                        targetGameId: targetGameId,
+                        // --- Perubahan 4 ---
+                        targetServerId: targetServerId 
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nSilakan cek riwayat transaksi di dashboard Anda.`);
+                window.location.href = 'dashboard.html';
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+                submitOrderBtn.disabled = false;
+                submitOrderBtn.textContent = 'Beli Sekarang';
             }
-        });
-    }
+        }
+    });
+}
     
     document.querySelectorAll('.toggle-password').forEach(icon => {
         icon.addEventListener('click', function() {
