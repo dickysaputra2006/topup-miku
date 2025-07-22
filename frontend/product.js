@@ -18,12 +18,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const orderForm = document.getElementById('order-form');
     const totalPriceEl = document.getElementById('total-price');
     const submitOrderBtn = document.getElementById('submit-order-btn');
-    const targetGameIdInput = document.getElementById('target-game-id'); // Mengganti nama variabel
-    const targetServerIdInput = document.getElementById('target-server-id'); // Mengganti nama variabel
-    
+    const targetGameIdInput = document.getElementById('target-game-id'); 
+    const targetServerIdInput = document.getElementById('target-server-id'); 
+    const userAuthButton = document.getElementById('user-auth-button');
+
     // Elemen Header & Modal Login
-    const loginButton = document.getElementById('login-button');
-    const dashboardLink = document.getElementById('dashboard-link');
     const modal = document.getElementById('auth-modal');
     const closeModalButton = document.getElementById('close-modal-btn');
     const loginContainer = document.getElementById('login-container');
@@ -40,16 +39,46 @@ document.addEventListener('DOMContentLoaded', function() {
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
 
-    function updateHeaderUI() {
-        if (!loginButton || !dashboardLink) return;
-        if (token) {
-            loginButton.classList.add('hidden');
-            dashboardLink.classList.remove('hidden');
-        } else {
-            loginButton.classList.remove('hidden');
-            dashboardLink.classList.add('hidden');
+    async function updateAuthButtonOnProductPage() {
+    if (!userAuthButton) return;
+
+    // Cek jika pengguna sudah login (ada token)
+    if (token) {
+        try {
+            // Ambil data profil pengguna dari server
+            const response = await fetch(`${PUBLIC_API_URL}/user/profile`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error('Sesi tidak valid.');
+
+            const user = await response.json();
+
+            // Ubah tombol menjadi nama pengguna dan arahkan ke dashboard
+            userAuthButton.innerHTML = `<i class="fas fa-user-circle"></i> ${user.username}`;
+            userAuthButton.href = 'dashboard.html';
+            userAuthButton.onclick = null; // Hapus fungsi klik lama
+
+        } catch (error) {
+            // Jika token tidak valid/error, kembali ke 상태 "Masuk"
+            localStorage.removeItem('authToken');
+            userAuthButton.textContent = 'Masuk';
+            userAuthButton.href = '#';
+            userAuthButton.onclick = (e) => {
+                e.preventDefault();
+                showModal();
+            };
         }
+    } else {
+        // Jika tidak ada token (belum login)
+        userAuthButton.textContent = 'Masuk';
+        userAuthButton.href = '#';
+        userAuthButton.onclick = (e) => {
+            e.preventDefault();
+            showModal(); // Panggil fungsi untuk menampilkan modal login
+        };
     }
+}
 
     async function fetchGameData() {
         try {
@@ -259,5 +288,5 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === Bagian 4: Menjalankan Fungsi Awal ===
     fetchGameData();
-    updateHeaderUI();
+    updateAuthButtonOnProductPage();
 });
