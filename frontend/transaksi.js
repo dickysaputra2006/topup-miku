@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const statusClass = `status-${tx.status.toLowerCase()}`;
 
             row.innerHTML = `
-                <td>${tx.invoice_id}</td>
+                <td><a href="invoice.html?id=${tx.invoice_id}" class="history-link">${tx.invoice_id}</a></td>
                 <td>${new Date(tx.created_at).toLocaleString('id-ID')}</td>
                 <td>${tx.product_name}</td>
                 <td>${tx.target_game_id}</td>

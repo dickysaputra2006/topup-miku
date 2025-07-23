@@ -1238,4 +1238,30 @@ html, body {
         height: 36px;
     }
 }
+/* Style untuk dropdown server (SESUAI TEMA GELAP) */
+#server-input-container select {
+    width: 100%;
+    box-sizing: border-box; /* Agar padding tidak merusak lebar */
+    padding: 0.8rem; /* Samakan dengan input lain */
+    margin-bottom: 1rem; /* Samakan dengan input lain */
+    background-color: var(--bg-dark); /* Warna background gelap */
+    border: 1px solid var(--border-color); /* Warna border */
+    border-radius: 5px; /* Samakan dengan input lain */
+    color: var(--text-color); /* Warna teks putih */
+    font-size: 1em;
+    cursor: pointer;
 
+    /* Menghilangkan panah default dan menggantinya dengan ikon kustom */
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23F3F4F6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+}
+
+#server-input-container select:hover,
+#server-input-container select:focus {
+    border-color: var(--primary-color); /* Warna pink saat hover/fokus */
+    outline: none;
+    box-shadow: 0 0 5px rgba(236, 72, 153, 0.3); /* Bayangan pink lembut */
+}
