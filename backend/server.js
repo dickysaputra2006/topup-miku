@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const { syncProductsWithFoxy } = require('./utils/cronUtils'); 
 const app = express();
 const PORT = 3000;
-const JWT_SECRET = 'kunci-rahasia-yang-sangat-aman-untuk-proyek-ini'; // Ganti dengan kunci rahasia yang lebih kuat!
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
