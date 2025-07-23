@@ -238,6 +238,40 @@ app.get('/api/user/transactions', protect, async (req, res) => {
     }
 });
 
+app.get('/api/user/transaction/:invoiceId', protect, async (req, res) => {
+    try {
+        const { invoiceId } = req.params;
+        const userId = req.user.id;
+
+        const sql = `
+            SELECT
+                t.invoice_id,
+                t.status,
+                t.created_at,
+                t.price,
+                t.target_game_id,
+                t.provider_sn,
+                p.name as product_name,
+                g.category as game_category,
+                g.name as game_name
+            FROM transactions t
+            JOIN products p ON t.product_id = p.id
+            JOIN games g ON p.game_id = g.id
+            WHERE t.invoice_id = $1 AND t.user_id = $2
+        `;
+        const { rows } = await pool.query(sql, [invoiceId, userId]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Transaksi tidak ditemukan atau bukan milik Anda.' });
+        }
+
+        res.json(rows[0]);
+    } catch (error) {
+        console.error("Gagal mengambil detail transaksi:", error);
+        res.status(500).json({ message: 'Server error saat mengambil detail transaksi.' });
+    }
+});
+
 // === DEPOSIT ENDPOINTS ===
 app.post('/api/deposit/request', protect, async (req, res) => {
     const client = await pool.connect(); // Menggunakan client dari pool untuk transaksi
