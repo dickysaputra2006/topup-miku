@@ -184,27 +184,40 @@ if (mainContentAdmin) {
 function renderGamesTable(games) {
     if (!gamesTableBody) return;
     gamesTableBody.innerHTML = '';
+
+    // Tambahkan header kolom baru di thead
+    const tableHeader = document.querySelector("#games-table thead tr");
+    if (tableHeader) {
+        tableHeader.innerHTML = '<th>ID</th><th>Nama Game</th><th>Kategori</th><th>Status</th><th>Perlu Server?</th>';
+    }
+
     if (games.length === 0) {
-        gamesTableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Belum ada game.</td></tr>';
+        gamesTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Belum ada game.</td></tr>';
         return;
     }
 
-    
     games.forEach(game => {
         const row = document.createElement('tr');
         row.dataset.gameId = game.id;
 
-        // Tentukan apakah toggle harus dalam keadaan ON
-        const isChecked = game.status === 'Active' ? 'checked' : '';
+        const isStatusChecked = game.status === 'Active' ? 'checked' : '';
+        // Tentukan apakah toggle "Perlu Server" harus aktif
+        const needsServerChecked = game.needs_server_id ? 'checked' : '';
 
-        // Tambahkan sel baru untuk toggle switch
+        // Tambahkan sel baru untuk toggle "Perlu Server?"
         row.innerHTML = `
             <td>${game.id}</td>
             <td>${game.name}</td>
             <td>${game.category}</td>
             <td>
                 <label class="switch">
-                    <input type="checkbox" class="game-status-toggle" ${isChecked}>
+                    <input type="checkbox" class="game-status-toggle" ${isStatusChecked}>
+                    <span class="slider"></span>
+                </label>
+            </td>
+            <td>
+                <label class="switch">
+                    <input type="checkbox" class="needs-server-toggle" ${needsServerChecked}>
                     <span class="slider"></span>
                 </label>
             </td>
@@ -509,18 +522,17 @@ function renderGamesTable(games) {
     });
 }
 
-    if (gamesTableBody) {
+ if (gamesTableBody) {
     gamesTableBody.addEventListener('change', async (e) => {
-        // Cek apakah elemen yang diubah adalah toggle switch game
+        
+        // BLOK 1: Logika untuk Toggle Status Game (YANG SUDAH ADA)
         if (e.target.classList.contains('game-status-toggle')) {
             const toggleSwitch = e.target;
             const row = toggleSwitch.closest('tr');
             const gameId = row.dataset.gameId;
-            
-            // Tentukan status baru berdasarkan posisi toggle
             const newStatus = toggleSwitch.checked ? 'Active' : 'Inactive';
 
-            toggleSwitch.disabled = true; // Nonaktifkan sementara
+            toggleSwitch.disabled = true;
 
             try {
                 const response = await fetch(`${ADMIN_API_URL}/games/${gameId}/status`, {
@@ -531,26 +543,51 @@ function renderGamesTable(games) {
                     },
                     body: JSON.stringify({ status: newStatus })
                 });
-
                 const result = await response.json();
-
                 if (!response.ok) {
-                    toggleSwitch.checked = !toggleSwitch.checked; // Kembalikan posisi jika gagal
+                    toggleSwitch.checked = !toggleSwitch.checked;
                     throw new Error(result.message);
                 }
-
                 alert(result.message);
-
-                // Perbarui juga data di state lokal (allGames) agar konsisten
                 const gameIndex = allGames.findIndex(g => g.id == gameId);
                 if (gameIndex > -1) {
                     allGames[gameIndex].status = newStatus;
                 }
-
             } catch (error) {
                 alert(`Error: ${error.message}`);
             } finally {
-                toggleSwitch.disabled = false; // Aktifkan kembali
+                toggleSwitch.disabled = false;
+            }
+        } 
+        
+        // BLOK 2: Logika untuk Toggle "Perlu Server" (YANG KITA GABUNGKAN)
+        else if (e.target.classList.contains('needs-server-toggle')) {
+            const toggleSwitch = e.target;
+            const row = toggleSwitch.closest('tr');
+            const gameId = row.dataset.gameId;
+            const newNeedsServerStatus = toggleSwitch.checked;
+
+            toggleSwitch.disabled = true;
+
+            try {
+                const response = await fetch(`${ADMIN_API_URL}/games/${gameId}/needs-server`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ needsServer: newNeedsServerStatus })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    toggleSwitch.checked = !toggleSwitch.checked;
+                    throw new Error(result.message);
+                }
+                alert(result.message);
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                toggleSwitch.disabled = false;
             }
         }
     });
