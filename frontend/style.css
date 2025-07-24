@@ -1265,3 +1265,53 @@ html, body {
     outline: none;
     box-shadow: 0 0 5px rgba(236, 72, 153, 0.3); /* Bayangan pink lembut */
 }
+/* Tata letak untuk form pencarian dan dropdown */
+.game-selector-form {
+    display: flex;
+    gap: 1rem;
+    margin: 1rem 0 2rem 0;
+    flex-wrap: wrap; /* Agar responsif di layar kecil */
+}
+
+/* Membuat input pencarian dan dropdown mengisi ruang yang tersedia */
+.game-selector-form input,
+.game-selector-form select {
+    flex: 1;
+    min-width: 250px; /* Lebar minimum sebelum pindah baris */
+}
+
+/* Style konsisten untuk dropdown (menggunakan style select yang ada) */
+#game-selector-dropdown {
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23F3F4F6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+}
+
+/* Tata letak untuk kartu info game yang muncul */
+.game-info-details {
+    display: grid;
+    /* Membuat 2 kolom, dan menjadi 1 kolom di layar kecil */
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.game-info-details p {
+    margin: 0;
+    padding: 0.8rem;
+    background-color: var(--bg-dark);
+    border-radius: 5px;
+}
+
+/* Tata letak untuk setiap baris toggle */
+.game-info-toggle {
+    display: flex;
+    justify-content: space-between; /* Tulisan di kiri, tombol di kanan */
+    align-items: center;
+    padding: 0.8rem;
+    background-color: var(--bg-dark);
+    border-radius: 5px;
+}

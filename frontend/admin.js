@@ -6,6 +6,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const menuToggleBtn = document.getElementById('menu-toggle-btn');
     const sidebar = document.getElementById('admin-sidebar');
     const mainContent = document.querySelector('.dashboard-content, .admin-content');
+    const gameSearchInput = document.getElementById('game-search-input');
+    const gameSelectorDropdown = document.getElementById('game-selector-dropdown');
+    const gameInfoContainer = document.getElementById('game-info-container');
+    const productListContainer = document.getElementById('product-list-container');
 
     if (menuToggleBtn && sidebar) {
         menuToggleBtn.addEventListener('click', () => {
@@ -168,63 +172,69 @@ if (mainContentAdmin) {
     }
 
     async function fetchAdminGames() {
-        if (!gamesTableBody) return;
-        try {
-            const response = await fetch(`${ADMIN_API_URL}/games`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!response.ok) throw new Error('Gagal memuat data game');
-            allGames = await response.json();
-            renderGamesTable(allGames);
-        } catch (error) {
-            console.error("Error memuat game:", error);
-            if (gamesTableBody) gamesTableBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: red;">${error.message}</td></tr>`;
-        }
+    try {
+        const response = await fetch(`${ADMIN_API_URL}/games`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!response.ok) throw new Error('Gagal memuat data game');
+        allGames = await response.json();
+
+        // Panggil fungsi baru untuk mengisi dropdown
+        populateGameDropdown(allGames);
+
+    } catch (error) {
+        console.error("Error memuat game:", error);
+        // Beri pesan error di dropdown jika gagal
+        gameSelectorDropdown.innerHTML = `<option value="">${error.message}</option>`;
     }
+}
 
-    
-function renderGamesTable(games) {
-    if (!gamesTableBody) return;
-    gamesTableBody.innerHTML = '';
+    // Fungsi untuk mengisi dropdown dengan daftar game
+function populateGameDropdown(games) {
+    gameSelectorDropdown.innerHTML = '<option value="">-- Silakan Pilih Game --</option>'; // Reset
+    games.forEach(game => {
+        const option = document.createElement('option');
+        option.value = game.id;
+        option.textContent = game.name;
+        gameSelectorDropdown.appendChild(option);
+    });
+}
 
-    // Tambahkan header kolom baru di thead
-    const tableHeader = document.querySelector("#games-table thead tr");
-    if (tableHeader) {
-        tableHeader.innerHTML = '<th>ID</th><th>Nama Game</th><th>Kategori</th><th>Status</th><th>Perlu Server?</th>';
-    }
-
-    if (games.length === 0) {
-        gamesTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Belum ada game.</td></tr>';
+// Fungsi untuk menampilkan detail game yang dipilih
+function displayGameInfo(game) {
+    if (!game) {
+        gameInfoContainer.innerHTML = '';
+        gameInfoContainer.classList.add('hidden');
         return;
     }
 
-    games.forEach(game => {
-        const row = document.createElement('tr');
-        row.dataset.gameId = game.id;
+    const isStatusChecked = game.status === 'Active' ? 'checked' : '';
+    const needsServerChecked = game.needs_server_id ? 'checked' : '';
 
-        const isStatusChecked = game.status === 'Active' ? 'checked' : '';
-        // Tentukan apakah toggle "Perlu Server" harus aktif
-        const needsServerChecked = game.needs_server_id ? 'checked' : '';
-
-        // Tambahkan sel baru untuk toggle "Perlu Server?"
-        row.innerHTML = `
-            <td>${game.id}</td>
-            <td>${game.name}</td>
-            <td>${game.category}</td>
-            <td>
+    gameInfoContainer.classList.remove('hidden');
+    gameInfoContainer.innerHTML = `
+        <div class="game-info-header">
+            <h3>Pengaturan untuk: ${game.name}</h3>
+        </div>
+        <div class="game-info-details">
+            <p><strong>ID Game:</strong> ${game.id}</p>
+            <p><strong>Kategori:</strong> ${game.category}</p>
+            <div class="game-info-toggle">
+                <strong>Status Aktif:</strong>
                 <label class="switch">
-                    <input type="checkbox" class="game-status-toggle" ${isStatusChecked}>
+                    <input type="checkbox" class="game-status-toggle" data-game-id="${game.id}" ${isStatusChecked}>
                     <span class="slider"></span>
                 </label>
-            </td>
-            <td>
+            </div>
+            <div class="game-info-toggle">
+                <strong>Perlu Server ID?:</strong>
                 <label class="switch">
-                    <input type="checkbox" class="needs-server-toggle" ${needsServerChecked}>
+                    <input type="checkbox" class="needs-server-toggle" data-game-id="${game.id}" ${needsServerChecked}>
                     <span class="slider"></span>
                 </label>
-            </td>
-        `;
-        gamesTableBody.appendChild(row);
-    });
+            </div>
+        </div>
+    `;
 }
+
 
      async function fetchAdminProducts() {
         if (!productsTableBody) return;
@@ -429,20 +439,6 @@ function renderGamesTable(games) {
         });
     }
     
-    if (gamesTableBody) {
-        gamesTableBody.addEventListener('click', (e) => {
-            const clickedRow = e.target.closest('tr');
-            if (!clickedRow || !clickedRow.dataset.gameId) return;
-            document.querySelectorAll('#games-table tbody tr').forEach(row => row.classList.remove('active-row'));
-            clickedRow.classList.add('active-row');
-            const gameId = clickedRow.dataset.gameId;
-            const game = allGames.find(g => g.id == gameId);
-            if (game) {
-                productListTitle.textContent = `Produk untuk: ${game.name}`;
-                renderProductsForGame(gameId);
-            }
-        });
-    }
 
     if(syncForm) {
         syncForm.addEventListener('submit', async (e) => {
@@ -522,73 +518,28 @@ function renderGamesTable(games) {
     });
 }
 
- if (gamesTableBody) {
-    gamesTableBody.addEventListener('change', async (e) => {
-        
-        // BLOK 1: Logika untuk Toggle Status Game (YANG SUDAH ADA)
-        if (e.target.classList.contains('game-status-toggle')) {
-            const toggleSwitch = e.target;
-            const row = toggleSwitch.closest('tr');
-            const gameId = row.dataset.gameId;
-            const newStatus = toggleSwitch.checked ? 'Active' : 'Inactive';
+// Event listener untuk kotak pencarian
+if (gameSearchInput) {
+    gameSearchInput.addEventListener('input', () => {
+        const searchTerm = gameSearchInput.value.toLowerCase();
+        const filteredGames = allGames.filter(game => game.name.toLowerCase().includes(searchTerm));
+        populateGameDropdown(filteredGames);
+    });
+}
 
-            toggleSwitch.disabled = true;
-
-            try {
-                const response = await fetch(`${ADMIN_API_URL}/games/${gameId}/status`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ status: newStatus })
-                });
-                const result = await response.json();
-                if (!response.ok) {
-                    toggleSwitch.checked = !toggleSwitch.checked;
-                    throw new Error(result.message);
-                }
-                alert(result.message);
-                const gameIndex = allGames.findIndex(g => g.id == gameId);
-                if (gameIndex > -1) {
-                    allGames[gameIndex].status = newStatus;
-                }
-            } catch (error) {
-                alert(`Error: ${error.message}`);
-            } finally {
-                toggleSwitch.disabled = false;
-            }
-        } 
-        
-        // BLOK 2: Logika untuk Toggle "Perlu Server" (YANG KITA GABUNGKAN)
-        else if (e.target.classList.contains('needs-server-toggle')) {
-            const toggleSwitch = e.target;
-            const row = toggleSwitch.closest('tr');
-            const gameId = row.dataset.gameId;
-            const newNeedsServerStatus = toggleSwitch.checked;
-
-            toggleSwitch.disabled = true;
-
-            try {
-                const response = await fetch(`${ADMIN_API_URL}/games/${gameId}/needs-server`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ needsServer: newNeedsServerStatus })
-                });
-                const result = await response.json();
-                if (!response.ok) {
-                    toggleSwitch.checked = !toggleSwitch.checked;
-                    throw new Error(result.message);
-                }
-                alert(result.message);
-            } catch (error) {
-                alert(`Error: ${error.message}`);
-            } finally {
-                toggleSwitch.disabled = false;
-            }
+// Event listener untuk dropdown
+if (gameSelectorDropdown) {
+    gameSelectorDropdown.addEventListener('change', () => {
+        const selectedGameId = gameSelectorDropdown.value;
+        if (selectedGameId) {
+            const selectedGame = allGames.find(g => g.id == selectedGameId);
+            displayGameInfo(selectedGame);
+            renderProductsForGame(selectedGameId); // Fungsi ini sudah ada
+            productListContainer.classList.remove('hidden');
+        } else {
+            // Sembunyikan semua jika tidak ada game yang dipilih
+            displayGameInfo(null);
+            productListContainer.classList.add('hidden');
         }
     });
 }

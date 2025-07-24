@@ -85,18 +85,32 @@
                 </div>
                 <div class="card">
                     <h3>Daftar Game & Produk</h3>
-                    <div class="admin-master-detail">
-                        <div class="list-wrapper master-list">
-                            <h4>Daftar Game (Klik untuk lihat produk)</h4>
-                            <div class="table-container">
-                                <table id="games-table">
-                                    <thead>
-                                           <tr><th>ID</th><th>Nama Game</th><th>Kategori</th><th>Status</th></tr>
-                                      </thead>
-                                    <tbody></tbody>
-                                </table>
-                            </div>
-                        </div>
+                    <div class="admin-game-manager">
+    <h4><i class="fas fa-search"></i> Pilih Game untuk Dikelola</h4>
+    <div class="game-selector-form">
+        <input type="text" id="game-search-input" placeholder="Ketik untuk mencari game...">
+        <select id="game-selector-dropdown">
+            <option value="">-- Silakan Pilih Game --</option>
+        </select>
+    </div>
+
+    <div id="game-info-container" class="card hidden" style="margin-top: 2rem;">
+        </div>
+
+    <div id="product-list-container" class="hidden" style="margin-top: 2rem;">
+        <h4 id="product-list-title">Produk</h4>
+        <div class="table-container">
+            <table id="products-table">
+                <thead>
+                    <tr></tr> 
+                </thead>
+                <tbody>
+                    <tr><td colspan="3" style="text-align: center;">...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
                         <div class="list-wrapper detail-list">
                             <h4 id="product-list-title">Pilih Game untuk Melihat Produk</h4>
                             <div class="table-container">
