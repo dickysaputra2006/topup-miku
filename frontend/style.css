@@ -282,6 +282,7 @@ footer {
 .dashboard-content, .admin-content {
     flex: 3;
     width: 100%;
+    min-width: 0;
 }
 .dashboard-section, .admin-section {
     display: flex;
