@@ -26,9 +26,10 @@ async function checkPendingTransactions() {
     try {
         await client.query('BEGIN');
 
-        // Modifikasi query untuk mengambil juga callback_url dan nama produk
         const { rows: pendingTx } = await client.query(
-            `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, p.name as product_name, u.h2h_callback_url
+            `SELECT 
+                t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts, 
+                p.name as product_name, u.h2h_callback_url
              FROM transactions t
              JOIN products p ON t.product_id = p.id
              JOIN users u ON t.user_id = u.id
@@ -38,8 +39,7 @@ async function checkPendingTransactions() {
         if (pendingTx.length === 0) {
             console.log('No pending transactions found.');
             await client.query('COMMIT');
-            // client.release(); // <-- BARIS INI YANG DIHAPUS KARENA MENYEBABKAN ERROR
-            return; // Langsung keluar dari fungsi, 'finally' akan tetap berjalan
+            return; 
         }
 
         for (const tx of pendingTx) {
@@ -63,10 +63,8 @@ async function checkPendingTransactions() {
                     finalStatus = 'Failed';
                     await client.query('UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2', [finalStatus, tx.id]);
                     await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
-                    // Anda bisa menambahkan logika untuk mencatat refund di balance_history di sini
                 }
 
-                // BAGIAN UNTUK KIRIM WEBHOOK JIKA STATUS BERUBAH
                 if (finalStatus && tx.h2h_callback_url) {
                     const webhookPayload = {
                         invoice_id: tx.invoice_id,
@@ -76,25 +74,34 @@ async function checkPendingTransactions() {
                         serial_number: serialNumber,
                         timestamp: new Date().toISOString()
                     };
-
                     console.log(`Sending webhook for invoice ${tx.invoice_id} to ${tx.h2h_callback_url}`);
-                    
                     axios.post(tx.h2h_callback_url, webhookPayload)
                          .then(res => console.log(`Webhook for ${tx.invoice_id} sent successfully.`))
                          .catch(err => console.error(`Failed to send webhook for ${tx.invoice_id}:`, err.message));
                 }
 
             } catch (foxyError) {
-                console.error(`Error checking Foxy status for ${tx.provider_trx_id}:`, foxyError.message);
+                if (foxyError.response && foxyError.response.status === 404) {
+                    const MAX_ATTEMPTS = 5;
+                    if (tx.check_attempts < MAX_ATTEMPTS) {
+                        console.warn(`Transaction ${tx.provider_trx_id} not found on Foxy. Attempt ${tx.check_attempts + 1}. Retrying on next run.`);
+                        await client.query('UPDATE transactions SET check_attempts = check_attempts + 1 WHERE id = $1', [tx.id]);
+                    } else {
+                        console.error(`Transaction ${tx.provider_trx_id} not found after ${MAX_ATTEMPTS} attempts. Marking as Failed.`);
+                        await client.query('UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2', ['Failed', tx.id]);
+                        await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
+                    }
+                } else {
+                    console.error(`Error checking Foxy status for ${tx.provider_trx_id}:`, foxyError.message);
+                }
             }
         }
         await client.query('COMMIT');
     } catch (dbError) {
         await client.query('ROLLBACK');
         console.error('Database error during checkPendingTransactions job:', dbError);
-        throw dbError; // Lempar error agar cron job script tahu ada kegagalan
+        throw dbError;
     } finally {
-        // Blok ini akan SELALU dijalankan, memastikan koneksi kembali ke pool
         client.release();
     }
 }
