@@ -1368,14 +1368,27 @@ html, body {
     width: 100%;
   }
 }
-.admin-page-container {
-  border: 2px dashed red;
-}
+@media (min-width: 769px) {
+  .admin-page-container {
+    display: flex;
+    flex-direction: row;
+    gap: 2rem;
+    align-items: flex-start;
+  }
 
-.admin-sidebar {
-  background: rgba(255, 0, 0, 0.1);
-}
+  .admin-sidebar {
+    flex: 0 0 250px;
+    max-width: 250px;
+    position: sticky;
+    top: 2rem;
+  }
 
-.admin-content {
-  background: rgba(0, 255, 0, 0.1);
+  .admin-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .admin-section {
+    width: 100%;
+  }
 }
