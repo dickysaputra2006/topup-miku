@@ -1347,8 +1347,8 @@ html, body {
 }
 @media (min-width: 769px) {
   .admin-page-container {
-    display: flex;
-    flex-direction: row;
+    display: flex !important;
+    flex-direction: row !important;
     align-items: flex-start;
   }
 
@@ -1357,7 +1357,6 @@ html, body {
     max-width: 250px;
     position: sticky;
     top: 2rem;
-    height: fit-content;
   }
 
   .admin-content {
@@ -1368,4 +1367,15 @@ html, body {
   .admin-section {
     width: 100%;
   }
+}
+.admin-page-container {
+  border: 2px dashed red;
+}
+
+.admin-sidebar {
+  background: rgba(255, 0, 0, 0.1);
+}
+
+.admin-content {
+  background: rgba(0, 255, 0, 0.1);
 }
