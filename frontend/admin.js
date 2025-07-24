@@ -300,20 +300,37 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (gameSelectorDropdown) {
-        gameSelectorDropdown.addEventListener('change', () => {
-            const selectedGameId = gameSelectorDropdown.value;
-            if (selectedGameId) {
-                const selectedGame = allGames.find(g => g.id == selectedGameId);
-                displayGameInfo(selectedGame);
-                renderProductsForGame(selectedGameId);
-                productListContainer.classList.remove('hidden');
-            } else {
-                displayGameInfo(null);
-                productListContainer.classList.add('hidden');
+   if (gameSelectorDropdown) {
+    gameSelectorDropdown.addEventListener('change', () => {
+        const selectedGameId = gameSelectorDropdown.value;
+
+        // Ambil elemen judulnya
+        const productListTitle = document.getElementById('product-list-title');
+
+        if (selectedGameId) {
+            const selectedGame = allGames.find(g => g.id == selectedGameId);
+            displayGameInfo(selectedGame);
+            renderProductsForGame(selectedGameId);
+
+            // Tampilkan container produk dan SEMBUNYIKAN judulnya
+            productListContainer.classList.remove('hidden');
+            if (productListTitle) {
+                productListTitle.classList.add('hidden');
             }
-        });
-    }
+
+        } else {
+            // Sembunyikan semua jika tidak ada game yang dipilih
+            displayGameInfo(null);
+            productListContainer.classList.add('hidden');
+            
+            // TAMPILKAN kembali judulnya dan reset teksnya
+            if (productListTitle) {
+                productListTitle.classList.remove('hidden');
+                productListTitle.textContent = 'Pilih Game untuk Melihat Produk';
+            }
+        }
+    });
+}
     
     if (gameInfoContainer) {
         gameInfoContainer.addEventListener('change', async (e) => {
