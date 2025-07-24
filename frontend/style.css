@@ -1345,3 +1345,27 @@ html, body {
     padding-top: 0.8rem;
     padding-bottom: 0.8rem;
 }
+@media (min-width: 769px) {
+  .admin-page-container {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .admin-sidebar {
+    flex: 0 0 250px;
+    max-width: 250px;
+    position: sticky;
+    top: 2rem;
+    height: fit-content;
+  }
+
+  .admin-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .admin-section {
+    width: 100%;
+  }
+}
