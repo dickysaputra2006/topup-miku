@@ -281,6 +281,7 @@ footer {
 }
 .dashboard-content, .admin-content {
     flex: 3;
+    width: 100%;
 }
 .dashboard-section, .admin-section {
     display: flex;
@@ -1304,6 +1305,7 @@ html, body {
     padding: 0.8rem;
     background-color: var(--bg-dark);
     border-radius: 5px;
+    text-align: center;
 }
 
 /* Tata letak untuk setiap baris toggle */
@@ -1314,4 +1316,18 @@ html, body {
     padding: 0.8rem;
     background-color: var(--bg-dark);
     border-radius: 5px;
+}
+/* Style untuk dropdown di halaman admin agar sesuai tema */
+#game-selector-dropdown {
+    padding: 0.8rem;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-color);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23F3F4F6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
 }
