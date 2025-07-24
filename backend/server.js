@@ -243,6 +243,7 @@ app.get('/api/user/transaction/:invoiceId', protect, async (req, res) => {
         const { invoiceId } = req.params;
         const userId = req.user.id;
 
+        // Query ini menggabungkan 3 tabel untuk mendapatkan semua detail
         const sql = `
             SELECT
                 t.invoice_id,
@@ -566,6 +567,32 @@ app.put('/api/admin/games/:id/status', protectAdmin, async (req, res) => {
     } catch (error) {
         console.error('Error updating game status:', error);
         res.status(500).json({ message: 'Gagal memperbarui status game.' });
+    }
+});
+
+app.put('/api/admin/games/:id/needs-server', protectAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { needsServer } = req.body; // Menerima nilai boolean (true/false)
+
+        if (typeof needsServer !== 'boolean') {
+            return res.status(400).json({ message: "Nilai 'needsServer' harus boolean." });
+        }
+
+        const { rowCount } = await pool.query(
+            'UPDATE games SET needs_server_id = $1 WHERE id = $2',
+            [needsServer, id]
+        );
+
+        if (rowCount === 0) {
+            return res.status(404).json({ message: 'Game tidak ditemukan.' });
+        }
+
+        res.json({ message: `Pengaturan 'Perlu Server' untuk game berhasil diubah.` });
+
+    } catch (error) {
+        console.error('Error updating game needs_server_id:', error);
+        res.status(500).json({ message: 'Gagal memperbarui pengaturan game.' });
     }
 });
 
