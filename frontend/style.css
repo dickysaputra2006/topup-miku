@@ -1331,3 +1331,17 @@ html, body {
     background-repeat: no-repeat;
     background-position: right 1rem center;
 }
+/* Perbaikan untuk form sinkronisasi agar selaras */
+#sync-products-form {
+    align-items: flex-end; /* Pastikan semua item rata bawah */
+}
+
+#sync-products-form .form-group {
+    margin-bottom: 0; /* Hapus margin bawah dari grup form */
+}
+
+#sync-products-form button {
+    /* Samakan padding vertikal dengan input field */
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+}
