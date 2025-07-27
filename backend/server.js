@@ -9,6 +9,9 @@ const { syncProductsWithFoxy } = require('./utils/cronUtils');
 const app = express();
 const PORT = 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
+const { validateGameId } = require('./utils/validators/cek-id-game.js');
+const { checkAllMobapayPromosML } = require('./utils/validators/stalk-ml-promo.js');
+const { cekPromoMcggMobapay } = require('./utils/validators/stalk-mcgg.js');
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
@@ -691,6 +694,63 @@ app.get('/api/public/compare-prices', async (req, res) => {
     } catch (error) {
         console.error('Error fetching public compare prices:', error);
         res.status(500).json({ message: 'Server error saat mengambil data perbandingan harga.' });
+    }
+});
+
+app.post('/api/validate-id', async (req, res) => {
+    const { gameCode, userId, zoneId } = req.body;
+
+    if (!gameCode || !userId) {
+        return res.status(400).json({ success: false, message: 'gameCode dan userId wajib diisi.' });
+    }
+
+    try {
+        let result;
+
+        // Logika "Router" untuk memilih validator yang tepat
+        switch (gameCode) {
+            case 'mobile-legends-region': // Untuk Cek Region + DD ML
+                // Jalankan keduanya secara paralel untuk efisiensi
+                const [pgsResult, mobapayResult] = await Promise.all([
+                    validateGameId(gameCode, userId, zoneId),
+                    checkAllMobapayPromosML(userId, zoneId)
+                ]);
+
+                // Gabungkan hasilnya
+                result = { 
+                    success: pgsResult.success,
+                    message: pgsResult.message,
+                    data: {
+                        ...pgsResult.data, // Ambil nickname & region dari sini
+                        promo: mobapayResult.data // Ambil data promo dari sini
+                    }
+                };
+                break;
+
+            case 'magic-chess-vc': // Ganti dengan game code untuk MCGG
+                result = await cekPromoMcggMobapay(userId, zoneId);
+                break;
+
+            default: // Untuk semua game lain
+                result = await validateGameId(gameCode, userId, zoneId);
+                break;
+        }
+
+        if (result.success) {
+            res.json(result);
+        } else {
+            // Kirim respons "invalid_id" jika API validator mengonfirmasi ID salah
+            res.status(404).json({ success: false, reason: 'invalid_id', message: result.message });
+        }
+
+    } catch (error) {
+        // Jika server kita gagal menghubungi API validator (misalnya timeout atau API down)
+        console.error('Validation API Error:', error);
+        res.status(503).json({ 
+            success: false, 
+            reason: 'api_error', 
+            message: 'Layanan validasi sedang sibuk. Silakan coba lagi nanti.' 
+        });
     }
 });
 
