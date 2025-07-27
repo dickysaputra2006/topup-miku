@@ -751,39 +751,25 @@ app.post('/api/validate-id', async (req, res) => {
 
 
 app.get('/api/games/validatable', async (req, res) => {
-    console.log('[VALIDATABLE] Endpoint diakses.'); // LOG 1
     try {
         const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
-        console.log('[VALIDATABLE] Mencoba membaca file di:', filePath); // LOG 2
-
         const cekIdDataBuffer = await fs.readFile(filePath);
-        console.log('[VALIDATABLE] Berhasil membaca file.'); // LOG 3
-
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
-        console.log('[VALIDATABLE] Berhasil parse JSON.'); // LOG 4
         
-        const validatableGameNames = cekIdGames.map(g => g.name).filter(Boolean);
-        console.log(`[VALIDATABLE] Ditemukan ${validatableGameNames.length} nama game untuk dicari di DB.`); // LOG 5
+        // Langsung proses dan kirim semua game dari file JSON
+        const finalResult = cekIdGames
+            .filter(game => game.name) // Hanya ambil game yang punya properti 'name'
+            .map((game, index) => ({
+                id: index, // Gunakan index sebagai ID sementara
+                name: game.name,
+                gameCode: game.game,
+                hasZoneIdForValidation: game.hasZoneId
+            }));
 
-        const sql = `SELECT id, name, needs_server_id FROM games WHERE name = ANY($1::text[]) ORDER BY name ASC`;
-        const { rows } = await pool.query(sql, [validatableGameNames]);
-        console.log(`[VALIDATABLE] Query DB berhasil, ditemukan ${rows.length} game yang cocok.`); // LOG 6
-        
-        const finalResult = rows.map(dbGame => {
-            const cekIdInfo = cekIdGames.find(g => g.name === dbGame.name);
-            return {
-                ...dbGame,
-                gameCode: cekIdInfo ? cekIdInfo.game : null,
-                hasZoneIdForValidation: cekIdInfo ? cekIdInfo.hasZoneId : false
-            };
-        });
-
-        console.log('[VALIDATABLE] Berhasil memproses hasil, mengirim respons...'); // LOG 7
         res.json(finalResult);
 
     } catch (error) {
-        // Jika ada error di mana pun, ini akan tercatat
-        console.error("[VALIDATABLE] Terjadi ERROR:", error); 
+        console.error("Error fetching validatable games from JSON:", error);
         res.status(500).json({ message: 'Server error saat mengambil data game dari file.' });
     }
 });
