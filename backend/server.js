@@ -12,6 +12,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
 const { checkAllMobapayPromosML } = require('./utils/validators/stalk-ml-promo.js');
 const { cekPromoMcggMobapay } = require('./utils/validators/stalk-mcgg.js');
+const fs = require('fs').promises;
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
@@ -698,59 +699,78 @@ app.get('/api/public/compare-prices', async (req, res) => {
 });
 
 app.post('/api/validate-id', async (req, res) => {
-    const { gameCode, userId, zoneId } = req.body;
+    const { gameId, userId, zoneId } = req.body;
 
-    if (!gameCode || !userId) {
-        return res.status(400).json({ success: false, message: 'gameCode dan userId wajib diisi.' });
+    if (!gameId || !userId) {
+        return res.status(400).json({ success: false, message: 'gameId dan userId wajib diisi.' });
     }
 
     try {
+        const { rows: gameDetails } = await pool.query('SELECT name FROM games WHERE id = $1', [gameId]);
+        if (gameDetails.length === 0) {
+            return res.status(404).json({ success: false, message: 'Game tidak ditemukan di database kami.' });
+        }
+        const gameName = gameDetails[0].name;
+
+        // PERUBAHAN PATH: Membaca dari folder utils/
+        const cekIdDataBuffer = await fs.readFile('./utils/data_cekid.json');
+        const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
+        const gameInfo = cekIdGames.find(g => g.name === gameName);
+
+        if (!gameInfo) {
+            return res.status(400).json({ success: false, message: 'Game ini tidak mendukung validasi ID.' });
+        }
+        const gameCode = gameInfo.game;
+
         let result;
-
-        // Logika "Router" untuk memilih validator yang tepat
-        switch (gameCode) {
-            case 'mobile-legends-region': // Untuk Cek Region + DD ML
-                // Jalankan keduanya secara paralel untuk efisiensi
-                const [pgsResult, mobapayResult] = await Promise.all([
-                    validateGameId(gameCode, userId, zoneId),
-                    checkAllMobapayPromosML(userId, zoneId)
-                ]);
-
-                // Gabungkan hasilnya
-                result = { 
-                    success: pgsResult.success,
-                    message: pgsResult.message,
-                    data: {
-                        ...pgsResult.data, // Ambil nickname & region dari sini
-                        promo: mobapayResult.data // Ambil data promo dari sini
-                    }
-                };
-                break;
-
-            case 'magic-chess-vc': // Ganti dengan game code untuk MCGG
-                result = await cekPromoMcggMobapay(userId, zoneId);
-                break;
-
-            default: // Untuk semua game lain
-                result = await validateGameId(gameCode, userId, zoneId);
-                break;
+        if (gameCode === 'mobile-legends-region') {
+            const [pgsResult, mobapayResult] = await Promise.all([
+                validateGameId(gameCode, userId, zoneId),
+                checkAllMobapayPromosML(userId, zoneId)
+            ]);
+            result = { success: pgsResult.success, message: pgsResult.message, data: { ...pgsResult.data, promo: mobapayResult.data }};
+        } else if (gameCode === 'magic-chess-vc') {
+             result = await cekPromoMcggMobapay(userId, zoneId);
+        } else {
+            result = await validateGameId(gameCode, userId, zoneId);
         }
 
         if (result.success) {
             res.json(result);
         } else {
-            // Kirim respons "invalid_id" jika API validator mengonfirmasi ID salah
             res.status(404).json({ success: false, reason: 'invalid_id', message: result.message });
         }
 
     } catch (error) {
-        // Jika server kita gagal menghubungi API validator (misalnya timeout atau API down)
         console.error('Validation API Error:', error);
-        res.status(503).json({ 
-            success: false, 
-            reason: 'api_error', 
-            message: 'Layanan validasi sedang sibuk. Silakan coba lagi nanti.' 
+        res.status(503).json({ success: false, reason: 'api_error', message: 'Layanan validasi sedang sibuk.' });
+    }
+});
+
+app.get('/api/games/validatable', async (req, res) => {
+    try {
+        // PERUBAHAN PATH: Membaca dari folder utils/
+        const cekIdDataBuffer = await fs.readFile('./utils/data_cekid.json');
+        const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
+        
+        const validatableGameNames = cekIdGames.map(g => g.name);
+
+        const sql = `SELECT id, name, needs_server_id FROM games WHERE name = ANY($1::text[]) ORDER BY name ASC`;
+        const { rows } = await pool.query(sql, [validatableGameNames]);
+        
+        const finalResult = rows.map(dbGame => {
+            const cekIdInfo = cekIdGames.find(g => g.name === dbGame.name);
+            return {
+                ...dbGame,
+                gameCode: cekIdInfo ? cekIdInfo.game : null,
+                hasZoneIdForValidation: cekIdInfo ? cekIdInfo.hasZoneId : false
+            };
         });
+
+        res.json(finalResult);
+    } catch (error) {
+        console.error("Error fetching validatable games:", error);
+        res.status(500).json({ message: 'Server error saat mengambil data game.' });
     }
 });
 

@@ -1,0 +1,1370 @@
+[
+  {
+    "name": "Mobile Legends",
+    "game": "mobile-legends",
+    "hasZoneId": true
+  },
+  {
+    "name": "Free Fire",
+    "game": "free-fire",
+    "hasZoneId": false
+  },
+  {
+    "name": "Genshin Impact",
+    "game": "genshin-impact",
+    "hasZoneId": true
+  },
+  {
+    "name": "Zenless Zone Zero",
+    "game": "zenless-zone-zero",
+    "hasZoneId": true
+  },
+  {
+    "name": "Honor of Kings",
+    "game": "honor-of-kings",
+    "hasZoneId": false
+  },
+  {
+    "game": "test5",
+    "hasZoneId": false
+  },
+  {
+    "name": "VALORANT",
+    "game": "valorant",
+    "hasZoneId": false
+  },
+  {
+    "name": "Call of Duty Mobile",
+    "game": "call-of-duty-mobile",
+    "hasZoneId": false
+  },
+  {
+    "name": "ZEPETO",
+    "game": "zepeto",
+    "hasZoneId": false
+  },
+  {
+    "name": "EA SPORTS FC Mobile",
+    "game": "ea-sports-fc-mobile",
+    "hasZoneId": false
+  },
+  {
+    "name": "Steam Wallet Code - Indonesia",
+    "game": "steam-wallet-code-indonesia",
+    "hasZoneId": false
+  },
+  {
+    "name": "Honkai: Star Rail",
+    "game": "honkai-star-rail",
+    "hasZoneId": true
+  },
+  {
+    "name": "Undawn",
+    "game": "undawn",
+    "hasZoneId": false
+  },
+  {
+    "name": "League of Legends: Wild Rift",
+    "game": "league-of-legends-wild-rift",
+    "hasZoneId": false
+  },
+  {
+    "name": "Super Sus",
+    "game": "super-sus",
+    "hasZoneId": false
+  },
+  {
+    "name": "Hago",
+    "game": "hago",
+    "hasZoneId": false
+  },
+  {
+    "name": "League of Legends",
+    "game": "league-of-legends",
+    "hasZoneId": false
+  },
+  {
+    "name": "Free Fire MAX",
+    "game": "free-fire-max",
+    "hasZoneId": false
+  },
+  {
+    "name": "Arena of Valor",
+    "game": "arena-of-valor",
+    "hasZoneId": false
+  },
+  {
+    "name": "Revelation: Infinite Journey",
+    "game": "revelation-infinite-journey",
+    "hasZoneId": false
+  },
+  {
+    "name": "Roblox Gift Cards",
+    "game": "roblox-gift-cards",
+    "hasZoneId": false
+  },
+  {
+    "name": "AFK Journey",
+    "game": "afk-journey",
+    "hasZoneId": false
+  },
+  {
+    "name": "ForsakenWorld 2",
+    "game": "forsakenworld-2",
+    "hasZoneId": false
+  },
+  {
+    "name": "Watcher of Realms",
+    "game": "watcher-of-realms",
+    "hasZoneId": true
+  },
+  {
+    "name": "Farming Simulator 25",
+    "game": "farming-simulator-25",
+    "hasZoneId": false
+  },
+  {
+    "name": "Two Point Museum",
+    "game": "two-point-museum",
+    "hasZoneId": false
+  },
+  {
+    "name": "Umamusume: Pretty Derby - Party Dash",
+    "game": "umamusume-pretty-derby-party-dash",
+    "hasZoneId": false
+  },
+  {
+    "name": "Goddess Paradise: New Chapter",
+    "game": "goddess-paradise-new-chapter",
+    "hasZoneId": true
+  },
+  {
+    "name": "Heaven Burns Red",
+    "game": "heaven-burns-red",
+    "hasZoneId": false
+  },
+  {
+    "name": "Teamfight Tactics Mobile",
+    "game": "teamfight-tactics-mobile",
+    "hasZoneId": false
+  },
+  {
+    "name": "COLORBANG",
+    "game": "colorbang",
+    "hasZoneId": false
+  },
+  {
+    "name": "Potato Hero: Zombie Survival",
+    "game": "potato-hero-zombie-survival",
+    "hasZoneId": true
+  },
+  {
+    "name": "Poppo Live",
+    "game": "poppo-live",
+    "hasZoneId": false
+  },
+  {
+    "name": "Ghost Story: Love Destiny",
+    "game": "ghost-story-love-destiny",
+    "hasZoneId": false
+  },
+  {
+    "name": "OCTOPATH TRAVELER: CotC",
+    "game": "octopath-traveler-cotc",
+    "hasZoneId": true
+  },
+  {
+    "name": "Isekai Feast: Tales of Recipes",
+    "game": "isekai-feast-tales-of-recipes",
+    "hasZoneId": true
+  },
+  {
+    "name": "MOB RUSH",
+    "game": "mob-rush",
+    "hasZoneId": true
+  },
+  {
+    "name": "Aether Gazer",
+    "game": "aether-gazer",
+    "hasZoneId": false
+  },
+  {
+    "name": "Moonlight Blade M",
+    "game": "moonlight-blade-m",
+    "hasZoneId": false
+  },
+  {
+    "name": "ASTRA: Knights of Veda",
+    "game": "astra-knights-of-veda",
+    "hasZoneId": true
+  },
+  {
+    "name": "PHANTASY STAR ONLINE 2 NEW GENESIS",
+    "game": "phantasy-star-online-2-new-genesis",
+    "hasZoneId": false
+  },
+  {
+    "name": "Pixel Gun 3D",
+    "game": "pixel-gun-3d",
+    "hasZoneId": false
+  },
+  {
+    "name": "Legacy Fate: Sacred and Fearless",
+    "game": "legacy-fate-sacred-and-fearless",
+    "hasZoneId": true
+  },
+  {
+    "name": "Heroic Uncle Kim: Idle RPG",
+    "game": "heroic-uncle-kim-idle-rpg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Paw Rumble",
+    "game": "paw-rumble",
+    "hasZoneId": false
+  },
+  {
+    "name": "Monster Saga: Evolution",
+    "game": "monster-saga-evolution",
+    "hasZoneId": true
+  },
+  {
+    "name": "Whisper of Shadow",
+    "game": "whisper-of-shadow",
+    "hasZoneId": false
+  },
+  {
+    "name": "Invincible: Guarding the Globe",
+    "game": "invincible-guarding-the-globe",
+    "hasZoneId": false
+  },
+  {
+    "name": "Arena Breakout",
+    "game": "arena-breakout",
+    "hasZoneId": false
+  },
+  {
+    "name": "Among Heroes: Fantasy Samkok",
+    "game": "among-heroes-fantasy-samkok",
+    "hasZoneId": true
+  },
+  {
+    "name": "War Planet Online",
+    "game": "war-planet-online",
+    "hasZoneId": false
+  },
+  {
+    "name": "Advent of God:Legends",
+    "game": "advent-of-godlegends",
+    "hasZoneId": true
+  },
+  {
+    "name": "Stumble Guys",
+    "game": "stumble-guys",
+    "hasZoneId": false
+  },
+  {
+    "name": "Love and Deepspace",
+    "game": "love-and-deepspace",
+    "hasZoneId": false
+  },
+  {
+    "name": "Legend of Mushroom: Rush",
+    "game": "legend-of-mushroom-rush",
+    "hasZoneId": true
+  },
+  {
+    "name": "Blood Strike",
+    "game": "blood-strike",
+    "hasZoneId": true
+  },
+  {
+    "name": "EGGY PARTY",
+    "game": "eggy-party",
+    "hasZoneId": true
+  },
+  {
+    "name": "Harry Potter: Magic Awakened",
+    "game": "harry-potter-magic-awakened",
+    "hasZoneId": true
+  },
+  {
+    "name": "Metal Slug: Awakening",
+    "game": "metal-slug-awakening",
+    "hasZoneId": false
+  },
+  {
+    "name": "Disney Magic Kingdoms",
+    "game": "disney-magic-kingdoms",
+    "hasZoneId": false
+  },
+  {
+    "name": "MapleStory M",
+    "game": "maplestory-m",
+    "hasZoneId": true
+  },
+  {
+    "name": "Growtopia",
+    "game": "growtopia",
+    "hasZoneId": false
+  },
+  {
+    "name": "State of Survival",
+    "game": "state-of-survival",
+    "hasZoneId": false
+  },
+  {
+    "name": "Honkai Impact 3",
+    "game": "honkai-impact-3",
+    "hasZoneId": false
+  },
+  {
+    "name": "LifeAfter",
+    "game": "lifeafter",
+    "hasZoneId": true
+  },
+  {
+    "name": "Punishing: Gray Raven",
+    "game": "punishing-gray-raven",
+    "hasZoneId": true
+  },
+  {
+    "name": "Dragon Raja",
+    "game": "dragon-raja",
+    "hasZoneId": false
+  },
+  {
+    "name": "Astral Guardians: Cyber Fantasy",
+    "game": "astral-guardians-cyber-fantasy",
+    "hasZoneId": true
+  },
+  {
+    "name": "Point Blank",
+    "game": "point-blank",
+    "hasZoneId": false
+  },
+  {
+    "name": "ONE PUNCH MAN: The Strongest",
+    "game": "one-punch-man-the-strongest",
+    "hasZoneId": true
+  },
+  {
+    "name": "Ragnarok X: Next Generation",
+    "game": "ragnarok-x-next-generation",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mobile Legends: Adventure",
+    "game": "mobile-legends-adventure",
+    "hasZoneId": true
+  },
+  {
+    "name": "Be The King: Judge Destiny",
+    "game": "be-the-king-judge-destiny",
+    "hasZoneId": true
+  },
+  {
+    "name": "Ragnarok M: Eternal Love Big Cat Coin",
+    "game": "ragnarok-m-eternal-love-big-cat-coin",
+    "hasZoneId": true
+  },
+  {
+    "name": "Top Eleven",
+    "game": "top-eleven",
+    "hasZoneId": false
+  },
+  {
+    "name": "Idol Party",
+    "game": "idol-party",
+    "hasZoneId": false
+  },
+  {
+    "name": "Scroll of Onmyoji: Sakura & Sword",
+    "game": "scroll-of-onmyoji-sakura-and-sword",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mirage: Perfect Skyline",
+    "game": "mirage-perfect-skyline",
+    "hasZoneId": true
+  },
+  {
+    "name": "Identity V",
+    "game": "identity-v",
+    "hasZoneId": true
+  },
+  {
+    "name": "Captain Tsubasa: Dream Team",
+    "game": "captain-tsubasa-dream-team",
+    "hasZoneId": false
+  },
+  {
+    "name": "Onmyoji Arena",
+    "game": "onmyoji-arena",
+    "hasZoneId": false
+  },
+  {
+    "name": "Auto Chess ",
+    "game": "auto-chess",
+    "hasZoneId": false
+  },
+  {
+    "name": "Azur Lane",
+    "game": "azur-lane",
+    "hasZoneId": true
+  },
+  {
+    "name": "Football Master 2",
+    "game": "football-master-2",
+    "hasZoneId": false
+  },
+  {
+    "name": "Sausage Man",
+    "game": "sausage-man",
+    "hasZoneId": false
+  },
+  {
+    "name": "Crisis Action",
+    "game": "crisis-action",
+    "hasZoneId": true
+  },
+  {
+    "name": "8 Ball Pool",
+    "game": "8-ball-pool",
+    "hasZoneId": false
+  },
+  {
+    "name": "Shining Nikki",
+    "game": "shining-nikki",
+    "hasZoneId": false
+  },
+  {
+    "name": "MU Origin 2",
+    "game": "mu-origin-2",
+    "hasZoneId": true
+  },
+  {
+    "name": "Cloud Song: Saga of Skywalkers",
+    "game": "cloud-song-saga-of-skywalkers",
+    "hasZoneId": false
+  },
+  {
+    "name": "Heroes Evolved",
+    "game": "heroes-evolved",
+    "hasZoneId": true
+  },
+  {
+    "name": "World War Heroes",
+    "game": "world-war-heroes",
+    "hasZoneId": false
+  },
+  {
+    "name": "Asphalt 9: Legends",
+    "game": "asphalt-9-legends",
+    "hasZoneId": true
+  },
+  {
+    "name": "Dragon City",
+    "game": "dragon-city",
+    "hasZoneId": false
+  },
+  {
+    "name": "MARVEL Duel",
+    "game": "marvel-duel",
+    "hasZoneId": false
+  },
+  {
+    "name": "Basketrio",
+    "game": "basketrio",
+    "hasZoneId": true
+  },
+  {
+    "name": "Tom and Jerry: Chase",
+    "game": "tom-and-jerry-chase",
+    "hasZoneId": true
+  },
+  {
+    "name": "Modern Combat 5: Blackout",
+    "game": "modern-combat-5-blackout",
+    "hasZoneId": false
+  },
+  {
+    "name": "Idle Legends",
+    "game": "idle-legends",
+    "hasZoneId": true
+  },
+  {
+    "name": "Saint Seiya: Awakening",
+    "game": "saint-seiya-awakening",
+    "hasZoneId": true
+  },
+  {
+    "name": "Wild Hunter: Goddess",
+    "game": "wild-hunter-goddess",
+    "hasZoneId": true
+  },
+  {
+    "game": "test101",
+    "hasZoneId": false
+  },
+  {
+    "name": "Mahjong Soul",
+    "game": "mahjong-soul",
+    "hasZoneId": false
+  },
+  {
+    "name": "Yong Heroes",
+    "game": "yong-heroes",
+    "hasZoneId": true
+  },
+  {
+    "name": "Era of Celestials",
+    "game": "era-of-celestials",
+    "hasZoneId": true
+  },
+  {
+    "name": "The Lord of the Rings: Rise to War",
+    "game": "the-lord-of-the-rings-rise-to-war",
+    "hasZoneId": true
+  },
+  {
+    "name": "Laplace M",
+    "game": "laplace-m",
+    "hasZoneId": false
+  },
+  {
+    "name": "Crasher Origin",
+    "game": "crasher-origin",
+    "hasZoneId": true
+  },
+  {
+    "name": "Cooking Adventure",
+    "game": "cooking-adventure",
+    "hasZoneId": false
+  },
+  {
+    "name": "Food Fantasy Crystal",
+    "game": "food-fantasy-crystal",
+    "hasZoneId": false
+  },
+  {
+    "name": "Legends of Runeterra",
+    "game": "legends-of-runeterra",
+    "hasZoneId": false
+  },
+  {
+    "name": "Tamashi: Rise of Yokai",
+    "game": "tamashi-rise-of-yokai",
+    "hasZoneId": true
+  },
+  {
+    "name": "Path to Nowhere",
+    "game": "path-to-nowhere",
+    "hasZoneId": false
+  },
+  {
+    "name": "Speed Drifters",
+    "game": "speed-drifters",
+    "hasZoneId": false
+  },
+  {
+    "name": "MARVEL SNAP",
+    "game": "marvel-snap",
+    "hasZoneId": false
+  },
+  {
+    "name": "The Return of Condor Heroes",
+    "game": "the-return-of-condor-heroes",
+    "hasZoneId": true
+  },
+  {
+    "name": "Diablo: Immortal",
+    "game": "diablo-immortal",
+    "hasZoneId": false
+  },
+  {
+    "name": "King of Avalon",
+    "game": "king-of-avalon",
+    "hasZoneId": false
+  },
+  {
+    "name": "Dark Continent: Mist",
+    "game": "dark-continent-mist",
+    "hasZoneId": true
+  },
+  {
+    "name": "Echocalypse",
+    "game": "echocalypse",
+    "hasZoneId": true
+  },
+  {
+    "name": "Time Raiders",
+    "game": "time-raiders",
+    "hasZoneId": true
+  },
+  {
+    "name": "Elemental Titans: 3D Idle Arena",
+    "game": "elemental-titans-3d-idle-arena",
+    "hasZoneId": false
+  },
+  {
+    "name": "MU ORIGIN 3",
+    "game": "mu-origin-3",
+    "hasZoneId": false
+  },
+  {
+    "name": "Modern Strike Online",
+    "game": "modern-strike-online",
+    "hasZoneId": false
+  },
+  {
+    "name": "Westward Adventure",
+    "game": "westward-adventure",
+    "hasZoneId": false
+  },
+  {
+    "name": "Jade Legends: Immortal Realm ",
+    "game": "jade-legends-immortal-realm",
+    "hasZoneId": true
+  },
+  {
+    "name": "Thetan Arena",
+    "game": "thetan-arena",
+    "hasZoneId": false
+  },
+  {
+    "name": "Sky: Children of the Light",
+    "game": "sky-children-of-the-light",
+    "hasZoneId": false
+  },
+  {
+    "name": "Phantom Blade: Executioners",
+    "game": "phantom-blade-executioners",
+    "hasZoneId": false
+  },
+  {
+    "name": "YS 6 Mobile VNG",
+    "game": "ys-6-mobile-vng",
+    "hasZoneId": false
+  },
+  {
+    "name": "Embers: Last Duel",
+    "game": "embers-last-duel",
+    "hasZoneId": false
+  },
+  {
+    "name": "Arena Mania: Magic Heroes",
+    "game": "arena-mania-magic-heroes",
+    "hasZoneId": true
+  },
+  {
+    "name": "City of Crime: Gang Wars",
+    "game": "city-of-crime-gang-wars",
+    "hasZoneId": false
+  },
+  {
+    "name": "Entropy 2099",
+    "game": "entropy-2099",
+    "hasZoneId": false
+  },
+  {
+    "name": "DEAD TARGET: Zombie Games 3D",
+    "game": "dead-target-zombie-games-3d",
+    "hasZoneId": false
+  },
+  {
+    "name": "Life Makeover",
+    "game": "life-makeover",
+    "hasZoneId": false
+  },
+  {
+    "name": "Kings Choice",
+    "game": "kings-choice",
+    "hasZoneId": false
+  },
+  {
+    "name": "Ludo Club",
+    "game": "ludo-club",
+    "hasZoneId": false
+  },
+  {
+    "name": "Teen Patti Gold",
+    "game": "teen-patti-gold",
+    "hasZoneId": false
+  },
+  {
+    "name": "Indoplay - Capsa Domino QQ Poker",
+    "game": "indoplay-capsa-domino-qq-poker",
+    "hasZoneId": false
+  },
+  {
+    "name": "Island King",
+    "game": "island-king",
+    "hasZoneId": false
+  },
+  {
+    "name": "BarbarQ",
+    "game": "barbarq",
+    "hasZoneId": false
+  },
+  {
+    "name": "LUXY: Domino and Poker",
+    "game": "luxy-domino-and-poker",
+    "hasZoneId": false
+  },
+  {
+    "name": "Domino QiuQiu TopFun",
+    "game": "domino-qiuqiu-topfun",
+    "hasZoneId": false
+  },
+  {
+    "name": "Magic Chess Go Go",
+    "game": "magic-chess-go-go",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mobile Legends Indonesia",
+    "game": "mobile-legends-id-cs",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mobile Legends Brazil",
+    "game": "mobile-legends-br-cs",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mobile Legends Malaysia",
+    "game": "mobile-legends-my-cs",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mobile Legends Singapore",
+    "game": "mobile-legends-sg-cs",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mobile Legends Philippines",
+    "game": "mobile-legends-ph-cs",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mobile Legends Kamboja",
+    "game": "mobile-legends-km-cs",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mobile Legends With Region",
+    "game": "mobile-legends-region",
+    "hasZoneId": true
+  },
+  {
+    "name": "Angel Squad (DG)",
+    "game": "angel-squad-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "AoV (DG)",
+    "game": "aov-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Atlantica Online (DG)",
+    "game": "atlantica-online-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Battlenet (DG)",
+    "game": "battlenet-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Bilibili (DG)",
+    "game": "Bilibili-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Bleach Mobile 3D (DG)",
+    "game": "bleach-mobile-3d-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Blizzard Gift Card (DG)",
+    "game": "blizzard-gift-card-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Blood Strike (DG)",
+    "game": "blood_strike-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Boxing Star (DG)",
+    "game": "boxing-star-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Call of Duty Mobile (DG)",
+    "game": "call-of-duty-mobile-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "DG Mini Games (DG)",
+    "game": "dg-mini-games-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "DG Rings (DG)",
+    "game": "dg-rings-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Data Package Free Fire (DG)",
+    "game": "data-package-free-fire-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Data Package Mobile Legends (DG)",
+    "game": "data-package-mobile-legends-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Dragon Raja (DG)",
+    "game": "dragon-raja-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "DreadOut (DG)",
+    "game": "dreadout-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Dynastones (DG)",
+    "game": "dynastones-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "EA Sports FC Mobile (DG)",
+    "game": "ea-sports-fc-mobile-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Echocalypse (DG)",
+    "game": "echocalypse-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Eggy Party (DG)",
+    "game": "eggy_party-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Football Master 2 (DG)",
+    "game": "football-master-2-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Fortnite (DG)",
+    "game": "fortnite-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Fortnite (DG)",
+    "game": "fortnite-replicate-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Free Fire (FF) (DG)",
+    "game": "freefire-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Game Speed Up (DG)",
+    "game": "game-speed-up-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Game Speed Up Bundling (DG)",
+    "game": "game-speed-up-bundling-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "GameMax COD Warzone  (DG)",
+    "game": "gamemax-cod-warzone-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "GameQoo Bundling (DG)",
+    "game": "gameqoo_bundling-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "GamesMAX Booster DG Rings (DG)",
+    "game": "gamesmax-booster-dg-rings-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "GamesMax (DG)",
+    "game": "gamesmax-booster-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Garena Shells (DG)",
+    "game": "garena-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Garuda Eleven (DG)",
+    "game": "garuda-eleven-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Genshin Impact (DG)",
+    "game": "genshin-crystal-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Google Play (DG)",
+    "game": "google-play-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Google Play Pass (DG)",
+    "game": "paket-google-play-pass-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Google Playpass Ketengan (DG)",
+    "game": "google-playpass-ketengan-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Growtopia (DG)",
+    "game": "growtopia-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "HOK E-wallet (DG)",
+    "game": "honor-of-kings-e-wallet-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Harry Potter Magic Awakened (DG)",
+    "game": "harry-potter-magic-awakened-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Heroes Evolved (DG)",
+    "game": "heroes-evolved-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Heroes Evolved Point Card (DG)",
+    "game": "heroes-evolved-point-card-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Honkai Star Rail (DG)",
+    "game": "honkai_star_rail-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Honor of Kings (DG)",
+    "game": "honor-of-kings-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Langit Musik (DG)",
+    "game": "langit-musik-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Laplace Mobile (DG)",
+    "game": "laplace-mobile-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "League of Legends : Wild Rift (DG)",
+    "game": "league-of-legends-wild-rift-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "LifeAfter (DG)",
+    "game": "life-after-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "LifeAfter (DG)",
+    "game": "life-after-replicate-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Lita (DG)",
+    "game": "lita-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Lokapala (DG)",
+    "game": "lokapala-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Luna Fantasia (DG)",
+    "game": "luna_fantasia-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "MU Origin 3 (DG)",
+    "game": "mu-origin-3-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Magnet Majamojo Bundling (DG)",
+    "game": "magnet_majamojo_bundling-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Maxstream (DG)",
+    "game": "maxstream-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Megaxus (DG)",
+    "game": "mi-cash-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Metal Slug (DG)",
+    "game": "metal-slug-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Minecraft (DG)",
+    "game": "minecraft-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Mobile Legends (DG)",
+    "game": "mobile-legends-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "MusicMax (DG)",
+    "game": "musicmax-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "NetEase Pay (DG)",
+    "game": "netease-pay-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Nintendo Membership (DG)",
+    "game": "nintendo-membership-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "One Punch Man : The Strongest (DG)",
+    "game": "one-punch-man-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "PUBG Mobile (DG)",
+    "game": "pubg-mobile-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Paw Rumble (DG)",
+    "game": "paw-rumble-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Perfect World (DG)",
+    "game": "perfect-world-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Point Blank (DG)",
+    "game": "point-blank-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Pokemon Unite (DG)",
+    "game": "gamesmax-booster-pokemon-unite-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "RF Classic (DG)",
+    "game": "rf-classic-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "RF Remastered (DG)",
+    "game": "rf-remastered-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Ragnarok Origin (DG)",
+    "game": "ro_origin-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Ragnarok Retro (DG)",
+    "game": "ragnarok-retro-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Razer Gold (DG)",
+    "game": "razer-gold-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Revelation Mobile (DG)",
+    "game": "revelation-mobile-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Sausage Man (DG)",
+    "game": "sausage-man-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Speed Drifters (DG)",
+    "game": "speed-drifters-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "State of Survival (DG)",
+    "game": "state-of-survival-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Steam (DG)",
+    "game": "voucher-steam-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Super Sus (DG)",
+    "game": "super-sus-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "The Legend of Neverland (DG)",
+    "game": "the-legend-of-neverland-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Tinder (DG)",
+    "game": "tinder-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Tom and Jerry : Chase (DG)",
+    "game": "tom-and-jerry-chase-dg",
+    "hasZoneId": true
+  },
+  {
+    "name": "Top Up Gods of Myth (DG)",
+    "game": "gods-of-myth-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Uncharted Waters Origin (DG)",
+    "game": "uncharted-waters-origin-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Undawn (DG)",
+    "game": "undawn-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Unipin Credits (DG)",
+    "game": "unipin-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Vidio (DG)",
+    "game": "vidio-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Vision+ (DG)",
+    "game": "visionplus-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Viu (DG)",
+    "game": "viu-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Voucher PUBG Mobile (DG)",
+    "game": "pubg-mobile-voucher-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "Voucher Point Blank (DG)",
+    "game": "voucher-point-blank-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "WeTV (DG)",
+    "game": "wetv-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "XBOX Live Gift Card (DG)",
+    "game": "xbox-live-dg",
+    "hasZoneId": false
+  },
+  {
+    "name": "AU2 Mobile (HK)",
+    "game": "au2-mobile",
+    "hasZoneId": false
+  },
+  {
+    "name": "PUBG Mobile Global 2 (FAST)",
+    "game": "pubg-mobile-tp",
+    "hasZoneId": false
+  },
+  {
+    "name": "Honor Of Kings 2 (WORK, FAST)",
+    "game": "honor-of-kings-tp",
+    "hasZoneId": false
+  },
+  {
+    "name": "Goddes Victory: Nikke (FAST)",
+    "game": "goddes-victory-nikke-tp",
+    "hasZoneId": true
+  },
+  {
+    "name": "Higgs Domino",
+    "game": "higgs-domino",
+    "hasZoneId": false
+  },
+  {
+    "name": "AU2 Mobile 2",
+    "game": "au2-mobile-2",
+    "hasZoneId": false
+  },
+  {
+    "name": "Mobile Legends (Mobapay)",
+    "game": "mobile-legends-mp",
+    "hasZoneId": true
+  },
+  {
+    "name": "Clash Royale",
+    "game": "clash-royale-st",
+    "hasZoneId": false
+  },
+  {
+    "name": "Clash of Clans",
+    "game": "clash-of-st",
+    "hasZoneId": false
+  },
+  {
+    "name": "Mobile Legends Bang Bang (Work Fast)",
+    "game": "mobile-legends-bang-bang-vc",
+    "hasZoneId": true
+  },
+  {
+    "name": "Honor of Kings (Work Fast)",
+    "game": "honor-of-kings-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "PUBG Mobile (Work Fast)",
+    "game": "pubg-mobile-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Free Fire (Work Fast)",
+    "game": "free-fire-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Free Fire MAX (Work Fast)",
+    "game": "free-fire-max-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Valorant (Work Fast)",
+    "game": "valorant-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "PUBG Mobile (Global) (Work Fast)",
+    "game": "pubg-mobile-global-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Whiteout Survival (Work Fast)",
+    "game": "whiteout-survival-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Arena Breakout (Work Fast)",
+    "game": "arena-breakout-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Call Of Duty Mobile ID (Work Fast)",
+    "game": "call-of-duty-mobile-id-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Cloud Song : Saga of Skywalkers (Work Fast)",
+    "game": "cloud-song-saga-of-skywalkers-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Dragon Raja (Work Fast)",
+    "game": "dragon-raja-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Genshin Impact (Work Fast)",
+    "game": "genshin-impact-vc",
+    "hasZoneId": true
+  },
+  {
+    "name": "Laplace M (Work Fast)",
+    "game": "laplace-m-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "League of Legends: Wild Rift (Work Fast)",
+    "game": "league-of-legends-wild-rift-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "LifeAfter (Work Fast)",
+    "game": "lifeafter-vc",
+    "hasZoneId": true
+  },
+  {
+    "name": "Mirage:Perfect Skyline (Work Fast)",
+    "game": "mirageperfect-skyline-vc",
+    "hasZoneId": true
+  },
+  {
+    "name": "Ragnarok X: Next Generation (Work Fast)",
+    "game": "ragnarok-x-next-generation-vc",
+    "hasZoneId": true
+  },
+  {
+    "name": "Revelation Mobile (Work Fast)",
+    "game": "revelation-mobile-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Sausage Man (Work Fast)",
+    "game": "sausage-man-vc",
+    "hasZoneId": false
+  },
+  {
+    "name": "Super SUS (Work Fast)",
+    "game": "super-sus-vc",
+    "hasZoneId": false
+  }
+]
