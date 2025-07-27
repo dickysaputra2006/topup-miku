@@ -714,7 +714,7 @@ app.post('/api/validate-id', async (req, res) => {
         const gameName = gameDetails[0].name;
 
         // PERUBAHAN PATH: Membaca dari folder utils/
-        const filePath = path.join(__dirname, 'utils', 'data_cekid.json');
+        const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
         const gameInfo = cekIdGames.find(g => g.name === gameName);
@@ -750,7 +750,7 @@ app.post('/api/validate-id', async (req, res) => {
 });
 
 app.get('/api/games/validatable', async (req, res) => {
-    const filePath = path.join(__dirname, 'utils', 'data_cekid.json');
+    const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
     let cekIdGames;
 
     try {
