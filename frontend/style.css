@@ -1392,3 +1392,37 @@ html, body {
     width: 100%;
   }
 }
+/* Style untuk wrapper input pencarian di halaman validasi */
+.pricelist-search-wrapper {
+    padding: 0 1rem; /* Beri jarak di dalam sidebar */
+    margin-bottom: 1rem;
+}
+
+#game-validate-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.8rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-dark);
+    color: var(--text-color);
+}
+
+/* Style untuk hasil validasi (pesan sukses/error) */
+#validator-result-container .card {
+    border-left-width: 5px;
+    padding: 1.5rem;
+}
+
+#validator-result-container .card p {
+    margin: 0.5rem 0;
+    font-size: 1.1rem;
+}
+
+#validator-result-container .card h4 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+}

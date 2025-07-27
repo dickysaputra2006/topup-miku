@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const validatorTitle = document.getElementById('validator-title');
     const formContainer = document.getElementById('validator-form-container');
     const resultContainer = document.getElementById('validator-result-container');
+    const gameSearchInput = document.getElementById('game-validate-search-input');
     let allValidatableGames = [];
 
     async function fetchValidatableGames() {
@@ -23,13 +24,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const gameLink = document.createElement('a');
             gameLink.href = "#";
             gameLink.classList.add('dashboard-nav-link');
-            gameLink.dataset.gameId = game.id;
+            gameLink.dataset.gameName = game.name;
             gameLink.textContent = game.name;
             gameLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 document.querySelectorAll('#validate-games-list .dashboard-nav-link').forEach(link => link.classList.remove('active'));
                 gameLink.classList.add('active');
-                const selectedGame = allValidatableGames.find(g => g.id == game.id);
+                const selectedGame = allValidatableGames.find(g => g.name == game.name);
                 renderValidationForm(selectedGame);
             });
             gamesListContainer.appendChild(gameLink);
@@ -105,6 +106,16 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    if (gameSearchInput) {
+    gameSearchInput.addEventListener('input', () => {
+        const searchTerm = gameSearchInput.value.toLowerCase();
+        const filteredGames = allValidatableGames.filter(game => 
+            game.name.toLowerCase().includes(searchTerm)
+        );
+        renderGamesList(filteredGames); // Panggil ulang fungsi render dengan data yang sudah difilter
+    });
+}
 
     fetchValidatableGames();
 });
