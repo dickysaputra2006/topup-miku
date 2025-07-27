@@ -33,27 +33,56 @@ document.addEventListener('DOMContentLoaded', function () {
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
 
+   
+
     async function updateAuthButton() {
-        if (!userAuthButton) return;
+        const userAuthButton = document.getElementById('user-auth-button');
+        const dropdownAuthButton = document.getElementById('dropdown-auth-btn'); 
+        
+
+        if (!userAuthButton || !dropdownAuthButton) return; // Pastikan kedua tombol ada
+
         if (token) {
             try {
                 const response = await fetch(`${API_URL}/user/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (!response.ok) throw new Error('Sesi tidak valid.');
                 const user = await response.json();
-                userAuthButton.innerHTML = `<i class="fas fa-user-circle"></i> ${user.username}`;
+
+                // --- UPDATE KEDUA TOMBOL SAAT LOGIN ---
+                const loggedInHtml = `<i class="fas fa-user-circle"></i> ${user.username}`;
+                userAuthButton.innerHTML = loggedInHtml;
                 userAuthButton.href = 'dashboard.html';
                 userAuthButton.onclick = null;
+
+                dropdownAuthButton.textContent = 'Keluar'; // Ubah teks menjadi "Keluar"
+                dropdownAuthButton.href = '#';
+                dropdownAuthButton.onclick = (e) => { // Tambahkan fungsi logout
+                    e.preventDefault();
+                    localStorage.removeItem('authToken');
+                    window.location.reload();
+                };
+                // --------------------------------------
+
             } catch (error) {
                 localStorage.removeItem('authToken');
-                updateAuthButton();
+                updateAuthButton(); // Panggil ulang fungsi untuk reset
             }
         } else {
+            // --- UPDATE KEDUA TOMBOL SAAT LOGOUT ---
             userAuthButton.textContent = 'Masuk';
             userAuthButton.href = '#';
-            userAuthButton.addEventListener('click', (e) => {
+            userAuthButton.onclick = (e) => {
                 e.preventDefault();
                 showModal();
-            });
+            };
+
+            dropdownAuthButton.textContent = 'Masuk'; // Kembalikan teks menjadi "Masuk"
+            dropdownAuthButton.href = '#';
+            dropdownAuthButton.onclick = (e) => { // Kembalikan fungsi untuk buka modal
+                e.preventDefault();
+                showModal();
+            };
+            
         }
     }
 
