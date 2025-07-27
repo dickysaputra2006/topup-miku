@@ -750,18 +750,30 @@ app.post('/api/validate-id', async (req, res) => {
 });
 
 app.get('/api/games/validatable', async (req, res) => {
-    try {
-        
-        const filePath = path.join(__dirname, 'utils', 'data_cekid.json');
-        const cekIdDataBuffer = await fs.readFile(filePath);
-        const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
-        
-        // --- PERBAIKAN DI SINI ---
-        // Kita saring untuk memastikan hanya mengambil game yang punya nama
-        const validatableGameNames = cekIdGames
-            .map(g => g.name)
-            .filter(Boolean); // .filter(Boolean) akan menghapus nilai 'undefined' atau null
+    const filePath = path.join(__dirname, 'utils', 'data_cekid.json');
+    let cekIdGames;
 
+    try {
+        // Tahap 1: Membaca file dari server
+        const cekIdDataBuffer = await fs.readFile(filePath);
+        
+        // Tahap 2: Mencoba mengubah teks menjadi format JSON
+        cekIdGames = JSON.parse(cekIdDataBuffer.toString());
+
+    } catch (error) {
+        console.error("KRITIS: Gagal membaca atau parse file data_cekid.json!", error);
+        
+        if (error instanceof SyntaxError) {
+            // Ini error jika format JSON di dalam file salah
+            return res.status(500).json({ message: 'Server Error: Format file data_cekid.json tidak valid (mungkin ada salah koma).' });
+        }
+        // Ini error jika file tidak ditemukan (masalah path/nama file)
+        return res.status(500).json({ message: 'Server Error: File data_cekid.json tidak dapat ditemukan.' });
+    }
+
+    try {
+        // Tahap 3: Memproses data dan query ke database
+        const validatableGameNames = cekIdGames.map(g => g.name).filter(Boolean);
         const sql = `SELECT id, name, needs_server_id FROM games WHERE name = ANY($1::text[]) ORDER BY name ASC`;
         const { rows } = await pool.query(sql, [validatableGameNames]);
         
@@ -775,9 +787,10 @@ app.get('/api/games/validatable', async (req, res) => {
         });
 
         res.json(finalResult);
+
     } catch (error) {
-        console.error("Error fetching validatable games:", error);
-        res.status(500).json({ message: 'Server error saat mengambil data game.' });
+        console.error("Error saat query database dengan data dari JSON:", error);
+        return res.status(500).json({ message: 'Server Error: Gagal saat memproses data game.' });
     }
 });
 
