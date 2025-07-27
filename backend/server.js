@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs').promises;
 const { Pool } = require('pg'); // Menggunakan driver PostgreSQL
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
@@ -7,12 +8,12 @@ const axios = require('axios');
 const crypto = require('crypto');
 const { syncProductsWithFoxy } = require('./utils/cronUtils'); 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
 const { checkAllMobapayPromosML } = require('./utils/validators/stalk-ml-promo.js');
 const { cekPromoMcggMobapay } = require('./utils/validators/stalk-mcgg.js');
-const fs = require('fs').promises;
+const path = require('path');
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
@@ -713,7 +714,8 @@ app.post('/api/validate-id', async (req, res) => {
         const gameName = gameDetails[0].name;
 
         // PERUBAHAN PATH: Membaca dari folder utils/
-        const cekIdDataBuffer = await fs.readFile('./utils/data_cekid.json');
+        const filePath = path.join(__dirname, 'utils', 'data_cekid.json');
+        const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
         const gameInfo = cekIdGames.find(g => g.name === gameName);
 
@@ -749,8 +751,9 @@ app.post('/api/validate-id', async (req, res) => {
 
 app.get('/api/games/validatable', async (req, res) => {
     try {
-        // Pastikan nama file ini (data_cekid.json) SESUAI PERSIS dengan file yang Anda simpan
-        const cekIdDataBuffer = await fs.readFile('./utils/data_cekid.json');
+        
+        const filePath = path.join(__dirname, 'utils', 'data_cekid.json');
+        const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
         
         // --- PERBAIKAN DI SINI ---
@@ -1126,5 +1129,5 @@ app.get('/h2h/profile', protectH2H, async (req, res) => {
 
 module.exports = { app, pool, checkPendingTransactions }; 
 app.listen(PORT, () => {
-    console.log(`Server berjalan di http://localhost:${PORT}`);
+    console.log(`Server berjalan di port ${PORT}`);
 });
