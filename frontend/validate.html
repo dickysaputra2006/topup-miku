@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Perbandingan Harga - GameStore</title>
+    <title>Validasi ID Game - GameStore</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -15,44 +15,32 @@
                  <a href="index.html" class="logo-link"><h1 class="logo">GameStore</h1></a>
             </div>
             <div class="header-right">
-                <a href="validate.html" class="header-btn">Validasi ID</a> <a href="index.html" class="header-btn">Kembali ke Toko</a>
+                <a href="index.html" class="header-btn">Kembali ke Toko</a>
             </div>
         </div>
     </header>
 
     <div class="dashboard-container container pricelist-container">
         <aside class="sidebar game-selector">
-
             <nav class="sidebar-nav">
                 <h4><i class="fas fa-gamepad"></i> Pilih Game</h4>
-                    <div class="pricelist-search-wrapper">
-                      <input type="text" id="game-search-input" placeholder="Cari nama game...">
-                    </div>
-                <div id="compare-games-list" class="sidebar-nav">
+                <div id="validate-games-list" class="sidebar-nav">
                     <p style="text-align: center; color: #aaa;">Memuat game...</p>
                 </div>
             </nav>
         </aside>
 
         <main class="dashboard-content">
-            <section class="card">
-                <h3 id="compare-product-list-title">Pilih Game untuk Melihat Perbandingan Harga</h3>
-                <p class="form-description">Lihat perbedaan harga jual untuk setiap jenis akun (role) kami. Dapatkan harga terbaik dengan menjadi reseller!</p>
-<div class="table-container">
-    <table id="compare-prices-table">
-        <thead>
-            <tr></tr>
-        </thead>
-        <tbody>
-            <tr><td colspan="5" style="text-align: center;">...</td></tr>
-        </tbody>
-    </table>
-</div> 
-
+            <section id="validator-container" class="card">
+                <h3 id="validator-title">Pilih Game dari Daftar di Samping</h3>
+                <div id="validator-form-container">
+                    </div>
+                <div id="validator-result-container" style="margin-top: 2rem;">
+                    </div>
             </section>
         </main>
     </div>
 
-    <script src="compare-prices.js"></script>
+    <script src="validate.js"></script>
 </body>
 </html>
