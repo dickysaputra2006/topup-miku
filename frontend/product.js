@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const params = new URLSearchParams(window.location.search);
     const gameId = params.get('gameId');
     const token = localStorage.getItem('authToken');
+    const validationResultEl = document.getElementById('validation-result');
 
     if (!gameId) {
         document.querySelector('main').innerHTML = '<h1 style="text-align:center;">Game tidak ditemukan. Silakan kembali ke halaman utama.</h1>';
