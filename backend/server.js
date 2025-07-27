@@ -700,20 +700,14 @@ app.get('/api/public/compare-prices', async (req, res) => {
 });
 
 app.post('/api/validate-id', async (req, res) => {
-    const { gameId, userId, zoneId } = req.body;
+    // PERUBAHAN: Kita sekarang menerima gameName, bukan gameId
+    const { gameName, userId, zoneId } = req.body; 
 
-    if (!gameId || !userId) {
-        return res.status(400).json({ success: false, message: 'gameId dan userId wajib diisi.' });
+    if (!gameName || !userId) {
+        return res.status(400).json({ success: false, message: 'gameName dan userId wajib diisi.' });
     }
 
     try {
-        const { rows: gameDetails } = await pool.query('SELECT name FROM games WHERE id = $1', [gameId]);
-        if (gameDetails.length === 0) {
-            return res.status(404).json({ success: false, message: 'Game tidak ditemukan di database kami.' });
-        }
-        const gameName = gameDetails[0].name;
-
-        // PERUBAHAN PATH: Membaca dari folder utils/
         const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
@@ -731,7 +725,7 @@ app.post('/api/validate-id', async (req, res) => {
                 checkAllMobapayPromosML(userId, zoneId)
             ]);
             result = { success: pgsResult.success, message: pgsResult.message, data: { ...pgsResult.data, promo: mobapayResult.data }};
-        } else if (gameCode === 'magic-chess-vc') {
+        } else if (gameCode === 'magic-chess-go-go') {
              result = await cekPromoMcggMobapay(userId, zoneId);
         } else {
             result = await validateGameId(gameCode, userId, zoneId);
@@ -749,18 +743,17 @@ app.post('/api/validate-id', async (req, res) => {
     }
 });
 
-
 app.get('/api/games/validatable', async (req, res) => {
     try {
         const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
-        
+
         // Langsung proses dan kirim semua game dari file JSON
         const finalResult = cekIdGames
             .filter(game => game.name) // Hanya ambil game yang punya properti 'name'
             .map((game, index) => ({
-                id: index, // Gunakan index sebagai ID sementara
+                id: game.name, // Gunakan nama game sebagai ID unik
                 name: game.name,
                 gameCode: game.game,
                 hasZoneIdForValidation: game.hasZoneId
