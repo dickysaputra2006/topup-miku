@@ -749,33 +749,25 @@ app.post('/api/validate-id', async (req, res) => {
     }
 });
 
+
 app.get('/api/games/validatable', async (req, res) => {
-    const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
-    let cekIdGames;
-
+    console.log('[VALIDATABLE] Endpoint diakses.'); // LOG 1
     try {
-        // Tahap 1: Membaca file dari server
+        const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
+        console.log('[VALIDATABLE] Mencoba membaca file di:', filePath); // LOG 2
+
         const cekIdDataBuffer = await fs.readFile(filePath);
-        
-        // Tahap 2: Mencoba mengubah teks menjadi format JSON
-        cekIdGames = JSON.parse(cekIdDataBuffer.toString());
+        console.log('[VALIDATABLE] Berhasil membaca file.'); // LOG 3
 
-    } catch (error) {
-        console.error("KRITIS: Gagal membaca atau parse file data_cekid.json!", error);
+        const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
+        console.log('[VALIDATABLE] Berhasil parse JSON.'); // LOG 4
         
-        if (error instanceof SyntaxError) {
-            // Ini error jika format JSON di dalam file salah
-            return res.status(500).json({ message: 'Server Error: Format file data_cekid.json tidak valid (mungkin ada salah koma).' });
-        }
-        // Ini error jika file tidak ditemukan (masalah path/nama file)
-        return res.status(500).json({ message: 'Server Error: File data_cekid.json tidak dapat ditemukan.' });
-    }
-
-    try {
-        // Tahap 3: Memproses data dan query ke database
         const validatableGameNames = cekIdGames.map(g => g.name).filter(Boolean);
+        console.log(`[VALIDATABLE] Ditemukan ${validatableGameNames.length} nama game untuk dicari di DB.`); // LOG 5
+
         const sql = `SELECT id, name, needs_server_id FROM games WHERE name = ANY($1::text[]) ORDER BY name ASC`;
         const { rows } = await pool.query(sql, [validatableGameNames]);
+        console.log(`[VALIDATABLE] Query DB berhasil, ditemukan ${rows.length} game yang cocok.`); // LOG 6
         
         const finalResult = rows.map(dbGame => {
             const cekIdInfo = cekIdGames.find(g => g.name === dbGame.name);
@@ -786,11 +778,13 @@ app.get('/api/games/validatable', async (req, res) => {
             };
         });
 
+        console.log('[VALIDATABLE] Berhasil memproses hasil, mengirim respons...'); // LOG 7
         res.json(finalResult);
 
     } catch (error) {
-        console.error("Error saat query database dengan data dari JSON:", error);
-        return res.status(500).json({ message: 'Server Error: Gagal saat memproses data game.' });
+        // Jika ada error di mana pun, ini akan tercatat
+        console.error("[VALIDATABLE] Terjadi ERROR:", error); 
+        res.status(500).json({ message: 'Server error saat mengambil data game dari file.' });
     }
 });
 
