@@ -749,11 +749,15 @@ app.post('/api/validate-id', async (req, res) => {
 
 app.get('/api/games/validatable', async (req, res) => {
     try {
-        // PERUBAHAN PATH: Membaca dari folder utils/
+        // Pastikan nama file ini (data_cekid.json) SESUAI PERSIS dengan file yang Anda simpan
         const cekIdDataBuffer = await fs.readFile('./utils/data_cekid.json');
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
         
-        const validatableGameNames = cekIdGames.map(g => g.name);
+        // --- PERBAIKAN DI SINI ---
+        // Kita saring untuk memastikan hanya mengambil game yang punya nama
+        const validatableGameNames = cekIdGames
+            .map(g => g.name)
+            .filter(Boolean); // .filter(Boolean) akan menghapus nilai 'undefined' atau null
 
         const sql = `SELECT id, name, needs_server_id FROM games WHERE name = ANY($1::text[]) ORDER BY name ASC`;
         const { rows } = await pool.query(sql, [validatableGameNames]);
