@@ -700,7 +700,6 @@ app.get('/api/public/compare-prices', async (req, res) => {
 });
 
 app.post('/api/validate-id', async (req, res) => {
-    // PERUBAHAN: Kita sekarang menerima gameName, bukan gameId
     const { gameName, userId, zoneId } = req.body; 
 
     if (!gameName || !userId) {
