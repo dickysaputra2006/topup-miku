@@ -6,7 +6,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
-const { syncProductsWithFoxy } = require('./utils/cronUtils');
+const { syncProductsWithFoxy } = require('./utils/cronUtils.js');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
 const { checkAllMobapayPromosML } = require('./utils/validators/stalk-ml-promo.js');
 const { cekPromoMcggMobapay } = require('./utils/validators/stalk-mcgg.js');
@@ -639,8 +639,8 @@ app.post('/api/validate-id', async (req, res) => {
     if (!gameName || !userId) {
         return res.status(400).json({ success: false, message: 'gameName dan userId wajib diisi.' });
     }
+
     try {
-        // PERBAIKAN FINAL: Membuat path absolut yang pasti benar
         const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
@@ -651,26 +651,25 @@ app.post('/api/validate-id', async (req, res) => {
         }
         const gameCode = gameInfo.game;
 
-        let result;
-        if (gameCode === 'mobile-legends-region') {
-            const [pgsResult, mobapayResult] = await Promise.all([
-                validateGameId(gameCode, userId, zoneId),
-                checkAllMobapayPromosML(userId, zoneId)
-            ]);
-            result = { success: pgsResult.success, message: pgsResult.message, data: { ...pgsResult.data, promo: mobapayResult.data } };
-        } else if (gameInfo.name === 'Magic Chess Go Go') {
-            result = await cekPromoMcggMobapay(userId, zoneId);
-        } else {
-            result = await validateGameId(gameCode, userId, zoneId);
-        }
+        console.log(`--- [Mode Sederhana] Memulai validasi HANYA ke PGS untuk game: ${gameCode} ---`);
+        
+        // Langsung panggil fungsi validasi PGS dan tunggu hasilnya.
+        const result = await validateGameId(gameCode, userId, zoneId);
+        
+        console.log('[Mode Sederhana] Menerima hasil langsung dari PGS:', JSON.stringify(result, null, 2));
 
         if (result.success) {
-            res.json(result);
+            console.log('[Mode Sederhana] Validasi PGS berhasil, mengirim data ke frontend.');
+            // Kirim 'result' langsung karena sudah berisi { success: true, data: {...} }
+            res.json(result); 
         } else {
+            console.log('[Mode Sederhana] Validasi PGS gagal, mengirim pesan error ke frontend.');
+            // Mengirim status 404 (atau 400) seperti logika sebelumnya, tapi sekarang kita tahu ini murni dari PGS
             res.status(404).json({ success: false, reason: 'invalid_id', message: result.message });
         }
+
     } catch (error) {
-        console.error('Validation API Error:', error);
+        console.error('Validation API Error (Blok Catch Utama):', error);
         res.status(503).json({ success: false, reason: 'api_error', message: 'Layanan validasi sedang sibuk atau terjadi error.' });
     }
 });
