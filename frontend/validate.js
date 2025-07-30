@@ -21,18 +21,26 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderGamesList(games) {
         gamesListContainer.innerHTML = '';
         games.forEach(game => {
+            // Hanya tampilkan game yang memiliki properti 'name'
+            if (!game.name) return;
+
             const gameLink = document.createElement('a');
             gameLink.href = "#";
             gameLink.classList.add('dashboard-nav-link');
-            gameLink.dataset.gameName = game.name; // Menggunakan nama game sebagai referensi
+            // Gunakan game.name sebagai referensi unik untuk event listener
+            gameLink.dataset.gameName = game.name;
             gameLink.textContent = game.name;
+            
             gameLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 document.querySelectorAll('#validate-games-list .dashboard-nav-link').forEach(link => link.classList.remove('active'));
                 gameLink.classList.add('active');
-                // PERBAIKAN: Mencari game berdasarkan nama
+                
+                // Cari game yang diklik dari data yang sudah kita fetch
                 const selectedGame = allValidatableGames.find(g => g.name === game.name);
-                renderValidationForm(selectedGame);
+                if (selectedGame) {
+                    renderValidationForm(selectedGame);
+                }
             });
             gamesListContainer.appendChild(gameLink);
         });
@@ -43,6 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
         resultContainer.innerHTML = '';
         
         let formHtml = `<form id="validate-form"><label for="user-id">User ID</label><input type="text" id="user-id" required>`;
+        // Gunakan properti 'hasZoneIdForValidation' dari data game
         if (game.hasZoneIdForValidation) {
             formHtml += `<label for="zone-id">Server / Zone ID</label><input type="text" id="zone-id" required>`;
         }
@@ -65,24 +74,34 @@ document.addEventListener('DOMContentLoaded', function() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        // KIRIM NAMA GAME SESUAI YANG DIKLIK
                         gameName: game.name,
                         userId: userId,
                         zoneId: zoneId
                     })
                 });
+
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
                 
-                let successHtml = `<div class="card" style="border-left: 5px solid var(--success-color);"><p style="color:var(--success-color); font-weight: bold;">✅ Akun Ditemukan!</p><p><strong>Nickname:</strong> ${result.data.username || result.nickname}</p>`;
-                if(result.data.region) successHtml += `<p><strong>Region:</strong> ${result.data.region}</p>`;
-                if(result.data.promo && result.data.promo.doubleDiamond) {
+                let successHtml = `<div class="card" style="border-left: 5px solid var(--success-color);">
+                                      <p style="color:var(--success-color); font-weight: bold;">✅ Akun Ditemukan!</p>
+                                      <p><strong>Nickname:</strong> ${result.data.username || result.data.nickname}</p>`;
+
+                if (result.data.region) {
+                    successHtml += `<p><strong>Region:</strong> ${result.data.region}</p>`;
+                }
+
+                if (result.data.promo && result.data.promo.doubleDiamond && result.data.promo.doubleDiamond.items.length > 0) {
                     successHtml += `<br><h4>Status Double Diamond</h4>`;
                     result.data.promo.doubleDiamond.items.forEach(item => {
                         successHtml += `<p>${item.name}: ${item.available ? '✅ Tersedia' : '❌ Telah Digunakan'}</p>`;
                     });
                 }
+                
                 successHtml += `</div>`;
                 resultContainer.innerHTML = successHtml;
+
             } catch (error) {
                 resultContainer.innerHTML = `<div class="card" style="border-left: 5px solid var(--danger-color);"><p style="color:var(--danger-color);">❌ ${error.message}</p></div>`;
             } finally {
@@ -95,7 +114,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (gameSearchInput) {
         gameSearchInput.addEventListener('input', () => {
             const searchTerm = gameSearchInput.value.toLowerCase();
-            const filteredGames = allValidatableGames.filter(game => game.name.toLowerCase().includes(searchTerm));
+            const filteredGames = allValidatableGames.filter(game => game.name && game.name.toLowerCase().includes(searchTerm));
             renderGamesList(filteredGames);
         });
     }
