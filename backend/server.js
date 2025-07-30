@@ -596,7 +596,22 @@ app.put('/api/admin/games/:id/needs-server', protectAdmin, async (req, res) => {
 
 // === PUBLIC ENDPOINTS ===
 
+
+
+
+app.get('/api/games', async (req, res) => {
+    try {
+        const sql = "SELECT * FROM games WHERE status = 'Active' ORDER BY name ASC";
+        const { rows } = await pool.query(sql);
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching public games:', error);
+        res.status(500).json({ message: 'Server error saat mengambil data game.' });
+    }
+});
+
 app.get('/api/games/validatable', async (req, res) => {
+    console.log("--- SERVER VERSI TERBARU BERJALAN ---");
     try {
         const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
@@ -651,18 +666,6 @@ app.post('/api/validate-id', async (req, res) => {
     } catch (error) {
         console.error('Validation API Error:', error);
         res.status(503).json({ success: false, reason: 'api_error', message: 'Layanan validasi sedang sibuk atau terjadi error.' });
-    }
-});
-
-
-app.get('/api/games', async (req, res) => {
-    try {
-        const sql = "SELECT * FROM games WHERE status = 'Active' ORDER BY name ASC";
-        const { rows } = await pool.query(sql);
-        res.json(rows);
-    } catch (error) {
-        console.error('Error fetching public games:', error);
-        res.status(500).json({ message: 'Server error saat mengambil data game.' });
     }
 });
 
