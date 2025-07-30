@@ -634,43 +634,42 @@ app.get('/api/games/validatable', async (req, res) => {
     }
 });
 
-app.post('/api/validate-id', async (req, res) => {
-    const { gameName, userId, zoneId } = req.body;
-    if (!gameName || !userId) {
-        return res.status(400).json({ success: false, message: 'gameName dan userId wajib diisi.' });
+app.post('/api/v1/validate', async (req, res) => {
+    const { gameCode, userId, zoneId } = req.body;
+
+    if (!gameCode || !userId) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Parameter gameCode dan userId wajib diisi.' 
+        });
     }
 
     try {
-        const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
-        const cekIdDataBuffer = await fs.readFile(filePath);
-        const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
-        const gameInfo = cekIdGames.find(g => g.name === gameName);
+        console.log(`[API v1] Menerima permintaan validasi untuk game: ${gameCode}`);
 
-        if (!gameInfo) {
-            return res.status(400).json({ success: false, message: 'Game ini tidak mendukung validasi ID.' });
-        }
-        const gameCode = gameInfo.game;
-
-        console.log(`--- [Mode Sederhana] Memulai validasi HANYA ke PGS untuk game: ${gameCode} ---`);
-        
-        // Langsung panggil fungsi validasi PGS dan tunggu hasilnya.
+        // Langsung panggil fungsi validasi utama dengan data yang diberikan
         const result = await validateGameId(gameCode, userId, zoneId);
-        
-        console.log('[Mode Sederhana] Menerima hasil langsung dari PGS:', JSON.stringify(result, null, 2));
+
+        console.log(`[API v1] Hasil dari validateGameId:`, JSON.stringify(result, null, 2));
 
         if (result.success) {
-            console.log('[Mode Sederhana] Validasi PGS berhasil, mengirim data ke frontend.');
-            // Kirim 'result' langsung karena sudah berisi { success: true, data: {...} }
-            res.json(result); 
+            // Jika berhasil, kirim respons sukses dengan data
+            res.status(200).json(result);
         } else {
-            console.log('[Mode Sederhana] Validasi PGS gagal, mengirim pesan error ke frontend.');
-            // Mengirim status 404 (atau 400) seperti logika sebelumnya, tapi sekarang kita tahu ini murni dari PGS
-            res.status(404).json({ success: false, reason: 'invalid_id', message: result.message });
+            // Jika gagal, kirim status 404 (Not Found) atau 400 (Bad Request)
+            // 400 lebih cocok untuk input yang tidak valid
+            res.status(400).json({
+                success: false,
+                message: result.message || "ID/Zone tidak valid atau tidak ditemukan."
+            });
         }
 
     } catch (error) {
-        console.error('Validation API Error (Blok Catch Utama):', error);
-        res.status(503).json({ success: false, reason: 'api_error', message: 'Layanan validasi sedang sibuk atau terjadi error.' });
+        console.error('[API v1] Terjadi error tak terduga:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Terjadi kesalahan internal pada server.'
+        });
     }
 });
 
