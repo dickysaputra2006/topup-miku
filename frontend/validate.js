@@ -1,5 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const API_URL = 'https://topup-miku.onrender.com/api';
+    // Endpoint API baru kita
+    const API_URL = 'https://topup-miku.onrender.com/api/v1'; 
     const gamesListContainer = document.getElementById('validate-games-list');
     const validatorTitle = document.getElementById('validator-title');
     const formContainer = document.getElementById('validator-form-container');
@@ -9,7 +10,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function fetchValidatableGames() {
         try {
-            const response = await fetch(`${API_URL}/games/validatable`);
+            // Kita tetap mengambil daftar game dari endpoint lama
+            const response = await fetch('https://topup-miku.onrender.com/api/games/validatable');
             if (!response.ok) throw new Error('Gagal memuat daftar game.');
             allValidatableGames = await response.json();
             renderGamesList(allValidatableGames);
@@ -26,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const gameLink = document.createElement('a');
             gameLink.href = "#";
             gameLink.classList.add('dashboard-nav-link');
-            gameLink.dataset.gameName = game.name;
+            gameLink.dataset.gameCode = game.gameCode; // Simpan gameCode di dataset
             gameLink.textContent = game.name;
             
             gameLink.addEventListener('click', (e) => {
@@ -34,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.querySelectorAll('#validate-games-list .dashboard-nav-link').forEach(link => link.classList.remove('active'));
                 gameLink.classList.add('active');
                 
-                const selectedGame = allValidatableGames.find(g => g.name === game.name);
+                const selectedGame = allValidatableGames.find(g => g.gameCode === game.gameCode);
                 if (selectedGame) {
                     renderValidationForm(selectedGame);
                 }
@@ -66,11 +68,12 @@ document.addEventListener('DOMContentLoaded', function() {
             submitButton.textContent = 'Mengecek...';
             
             try {
-                const response = await fetch(`${API_URL}/validate-id`, {
+                // Mengirim request ke endpoint BARU dengan payload BARU
+                const response = await fetch(`${API_URL}/validate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        gameName: game.name,
+                        gameCode: game.gameCode, // MENGIRIM gameCode
                         userId: userId,
                         zoneId: zoneId
                     })
@@ -79,21 +82,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
                 
-                // --- KODE TAMPILAN HASIL YANG SUDAH DISESUAIKAN ---
                 let successHtml = `<div class="card" style="border-left: 5px solid var(--success-color);">
                                       <p style="color:var(--success-color); font-weight: bold;">✅ Akun Ditemukan!</p>
                                       <p><strong>Nickname:</strong> ${result.data.username}</p>`;
 
-                // Tetap tampilkan region jika ada dari respons PGS
                 if (result.data.region) {
                     successHtml += `<p><strong>Region:</strong> ${result.data.region}</p>`;
                 }
                 
-                // SEMUA KODE YANG BERHUBUNGAN DENGAN PROMO TELAH DIHAPUS TOTAL
-                
                 successHtml += `</div>`;
                 resultContainer.innerHTML = successHtml;
-                // --- AKHIR PERUBAHAN ---
 
             } catch (error) {
                 resultContainer.innerHTML = `<div class="card" style="border-left: 5px solid var(--danger-color);"><p style="color:var(--danger-color);">❌ ${error.message}</p></div>`;
