@@ -1,39 +1,38 @@
 const express = require('express');
 const fs = require('fs').promises;
-const { Pool } = require('pg'); // Menggunakan driver PostgreSQL
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
-const { syncProductsWithFoxy } = require('./utils/cronUtils'); 
-const app = express();
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET;
+const { syncProductsWithFoxy } = require('./utils/cronUtils');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
 const { checkAllMobapayPromosML } = require('./utils/validators/stalk-ml-promo.js');
 const { cekPromoMcggMobapay } = require('./utils/validators/stalk-mcgg.js');
 const path = require('path');
 
+const app = express();
+const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET;
+
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
 
-// Middleware
+// Middleware (HARUS DI ATAS SEMUA RUTE)
 app.use(cors());
 app.use(express.json());
 
-
 const dbConfig = {
-    user: process.env.DB_USER, // Akses variabel lingkungan bernama DB_USER
-    host: process.env.DB_HOST, // Akses variabel lingkungan bernama DB_HOST
-    database: process.env.DB_NAME, // Akses variabel lingkungan bernama DB_NAME
-    password: process.env.DB_PASSWORD, // Akses variabel lingkungan bernama DB_PASSWORD
-    port: process.env.DB_PORT, // Akses variabel lingkungan bernama DB_PORT (pastikan ini di-parse sebagai angka jika perlu)
-    ssl: { rejectUnauthorized: false } // Penting untuk koneksi SSL di Render
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASSWORD,
+    port: process.env.DB_PORT,
+    ssl: { rejectUnauthorized: false }
 };
-
-const pool = new Pool(dbConfig); // Membuat pool koneksi PostgreSQL
+const pool = new Pool(dbConfig);
 
 // === AUTH ENDPOINTS ===
 app.post('/api/auth/register', async (req, res) => {
@@ -41,18 +40,13 @@ app.post('/api/auth/register', async (req, res) => {
         const { fullName, username, email, nomorWa, password } = req.body;
         if (!fullName || !username || !email || !nomorWa || !password) return res.status(400).json({ message: 'Semua kolom wajib diisi!' });
         const hashedPassword = await bcrypt.hash(password, 10);
-        
-        // ====================================================================
-        // PERUBAHAN DI SINI: MENGATUR ROLE DEFAULT PENDAFTAR BARU KE 'BRONZE'
         const { rows: bronzeRole } = await pool.query("SELECT id FROM roles WHERE name = 'BRONZE'");
-        let defaultRoleId = 1; // Default ke User jika BRONZE tidak ditemukan
+        let defaultRoleId = 1;
         if (bronzeRole.length > 0) {
             defaultRoleId = bronzeRole[0].id;
         }
         const sql = 'INSERT INTO users (full_name, username, email, nomor_wa, password, role_id) VALUES ($1, $2, $3, $4, $5, $6)';
         await pool.query(sql, [fullName, username, email, nomorWa, hashedPassword, defaultRoleId]);
-        // ====================================================================
-
         res.status(201).json({ message: 'Registrasi berhasil! Silakan login.' });
     } catch (error) {
         if (error.code === '23505') return res.status(409).json({ message: 'Username atau Email sudah digunakan.' });
@@ -65,7 +59,6 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) return res.status(400).json({ message: 'Input tidak boleh kosong.' });
-        // PostgreSQL: `ILIKE` untuk case-insensitive comparison, atau `LOWER()`
         const sql = 'SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = $1 OR u.email = $2';
         const { rows } = await pool.query(sql, [username, username]);
         if (rows.length === 0) return res.status(401).json({ message: 'Username atau password salah.' });
@@ -700,42 +693,36 @@ app.get('/api/public/compare-prices', async (req, res) => {
 });
 
 app.post('/api/validate-id', async (req, res) => {
-    const { gameName, userId, zoneId } = req.body; 
-
+    const { gameName, userId, zoneId } = req.body;
     if (!gameName || !userId) {
         return res.status(400).json({ success: false, message: 'gameName dan userId wajib diisi.' });
     }
-
     try {
         const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
         const gameInfo = cekIdGames.find(g => g.name === gameName);
-
         if (!gameInfo) {
             return res.status(400).json({ success: false, message: 'Game ini tidak mendukung validasi ID.' });
         }
         const gameCode = gameInfo.game;
-
         let result;
         if (gameCode === 'mobile-legends-region') {
             const [pgsResult, mobapayResult] = await Promise.all([
                 validateGameId(gameCode, userId, zoneId),
                 checkAllMobapayPromosML(userId, zoneId)
             ]);
-            result = { success: pgsResult.success, message: pgsResult.message, data: { ...pgsResult.data, promo: mobapayResult.data }};
-        } else if (gameCode === 'magic-chess-go-go') {
-             result = await cekPromoMcggMobapay(userId, zoneId);
+            result = { success: pgsResult.success, message: pgsResult.message, data: { ...pgsResult.data, promo: mobapayResult.data } };
+        } else if (gameCode === 'magic-chess-go-go') { // Pastikan 'gameCode' ini benar
+            result = await cekPromoMcggMobapay(userId, zoneId);
         } else {
             result = await validateGameId(gameCode, userId, zoneId);
         }
-
         if (result.success) {
             res.json(result);
         } else {
             res.status(404).json({ success: false, reason: 'invalid_id', message: result.message });
         }
-
     } catch (error) {
         console.error('Validation API Error:', error);
         res.status(503).json({ success: false, reason: 'api_error', message: 'Layanan validasi sedang sibuk.' });
