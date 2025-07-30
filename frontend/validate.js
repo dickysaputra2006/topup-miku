@@ -70,7 +70,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch(`${API_URL}/validate-id`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                // PERBAIKAN DI SINI: Mengirim game.name dari parameter fungsi
                 body: JSON.stringify({
                     gameName: game.name, // Mengirim nama game yang sudah dipilih
                     userId: userId,
