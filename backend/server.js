@@ -611,22 +611,23 @@ app.get('/api/games', async (req, res) => {
 });
 
 app.get('/api/games/validatable', async (req, res) => {
-    console.log("--- SERVER VERSI TERBARU BERJALAN ---");
     try {
-        const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
+        // PERBAIKAN FINAL: Membuat path absolut yang pasti benar
+        const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
-        
+
         const finalResult = cekIdGames.filter(game => game.name).map((game, index) => ({
-            id: game.name, // Menggunakan nama sebagai ID unik di frontend
+            id: game.name,
             name: game.name,
             gameCode: game.game,
             hasZoneIdForValidation: game.hasZoneId
         }));
+
         res.json(finalResult);
     } catch (error) {
         console.error("Error fetching validatable games from JSON:", error);
-        res.status(500).json({ message: 'Server error: Gagal memproses file data validasi.' });
+        res.status(500).json({ message: 'Server error saat mengambil data game dari file.' });
     }
 });
 
@@ -636,15 +637,17 @@ app.post('/api/validate-id', async (req, res) => {
         return res.status(400).json({ success: false, message: 'gameName dan userId wajib diisi.' });
     }
     try {
-        const filePath = path.join(__dirname, 'utils', 'validators', 'data_cekid.json');
+        // PERBAIKAN FINAL: Membuat path absolut yang pasti benar
+        const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
         const gameInfo = cekIdGames.find(g => g.name === gameName);
+
         if (!gameInfo) {
             return res.status(400).json({ success: false, message: 'Game ini tidak mendukung validasi ID.' });
         }
         const gameCode = gameInfo.game;
-        
+
         let result;
         if (gameCode === 'mobile-legends-region') {
             const [pgsResult, mobapayResult] = await Promise.all([
@@ -652,12 +655,12 @@ app.post('/api/validate-id', async (req, res) => {
                 checkAllMobapayPromosML(userId, zoneId)
             ]);
             result = { success: pgsResult.success, message: pgsResult.message, data: { ...pgsResult.data, promo: mobapayResult.data } };
-        } else if (gameInfo.name === 'Magic Chess Go Go') { // Mencocokkan dengan nama
+        } else if (gameInfo.name === 'Magic Chess Go Go') {
             result = await cekPromoMcggMobapay(userId, zoneId);
         } else {
             result = await validateGameId(gameCode, userId, zoneId);
         }
-        
+
         if (result.success) {
             res.json(result);
         } else {
