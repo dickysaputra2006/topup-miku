@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const registerForm = document.getElementById('register-form');
 
     let selectedProductId = null;
+    let isValidationSuccess = false;
 
     // === Bagian 2: Definisi Semua Fungsi ===
 
@@ -166,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Pindahkan selectedProductId ke dalam scope fungsi ini agar tidak bentrok
     let currentSelectedProductId = null;
-    let isValidationSuccess = false;
+    
 
     // Fungsi inti yang akan menjalankan validasi
    const handleValidation = async () => {
