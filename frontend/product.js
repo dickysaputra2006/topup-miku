@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
 
-    let selectedProductId = null;
+    let selectedProductId = null;id
 
     // === Bagian 2: Definisi Semua Fungsi ===
 
@@ -163,30 +163,33 @@ document.addEventListener('DOMContentLoaded', function() {
     const serverIdInputContainer = document.getElementById('server-input-container');
     const resultContainer = document.getElementById('validation-result');
     const productListContainer = document.getElementById('product-list-container');
-    let selectedProductId = null; // Lacak produk yang dipilih
-
-    // Lacak perubahan produk yang dipilih oleh pengguna
-    productListContainer.addEventListener('click', (e) => {
-        const card = e.target.closest('.product-card-selectable');
-        if (card && card.dataset.productId) {
-            selectedProductId = card.dataset.productId;
-            // Panggil ulang validasi jika pengguna mengubah pilihan produk setelah mengisi ID
-            if (targetIdInput.value) {
-                handleValidation();
-            }
-        }
-    });
     
-    // Fungsi inti untuk menjalankan validasi
+    // Kita akan mengambil productId saat pengguna memilih produk
+    let selectedProductId = null;
+
+    // Tambahkan event listener di container produk
+    if (productListContainer) {
+        productListContainer.addEventListener('click', (e) => {
+            const card = e.target.closest('.product-card-selectable');
+            if (card && card.dataset.productId) {
+                // Simpan ID produk yang dipilih
+                selectedProductId = card.dataset.productId;
+                // Panggil ulang validasi jika pengguna mengubah pilihan produk
+                if (targetIdInput.value) {
+                    handleValidation();
+                }
+            }
+        });
+    }
+
     const handleValidation = async () => {
-        // Hanya jalankan jika sebuah produk sudah dipilih
+        // Jangan jalankan jika belum ada produk yang dipilih
         if (!selectedProductId) return;
 
         const userId = targetIdInput.value;
         const serverIdInput = document.getElementById('target-server-id');
         const zoneId = serverIdInput ? serverIdInput.value : null;
 
-        // Jangan lakukan apa-apa jika User ID kosong
         if (!userId) {
             resultContainer.innerHTML = '';
             return;
@@ -195,16 +198,15 @@ document.addEventListener('DOMContentLoaded', function() {
         resultContainer.innerHTML = `<p style="color: #ccc;">Mengecek nickname...</p>`;
 
         try {
-            // Panggil endpoint validasi BARU berdasarkan ID produk
+            // PERBAIKAN: Gunakan endpoint yang benar
             const response = await fetch(`${PUBLIC_API_URL}/products/${selectedProductId}/validate`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, zoneId })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, zoneId }) // Body tidak perlu gameCode lagi
             });
 
             const result = await response.json();
             
-            // Jika produk tidak butuh validasi, server akan mengembalikan pesan sukses
             if (result.message && result.message.includes('tidak memerlukan validasi')) {
                 resultContainer.innerHTML = `<p style="color: var(--success-color);">✅ ${result.message}</p>`;
                 return;
@@ -220,19 +222,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Tambahkan event listener ke input ID utama
-    targetIdInput.addEventListener('blur', handleValidation);
+    if (targetIdInput) {
+        targetIdInput.addEventListener('blur', handleValidation);
+    }
     
-    // Gunakan MutationObserver untuk mendeteksi kapan input server ID ditambahkan ke DOM
-    const observer = new MutationObserver(() => {
-        const serverIdInput = document.getElementById('target-server-id');
-        if (serverIdInput) {
-            serverIdInput.addEventListener('blur', handleValidation);
-            observer.disconnect(); // Hentikan observasi setelah ditemukan
-        }
-    });
-    observer.observe(serverIdInputContainer, { childList: true, subtree: true });
-}
+    if (serverIdInputContainer) {
+        const observer = new MutationObserver(() => {
+            const serverIdInput = document.getElementById('target-server-id');
+            if (serverIdInput) {
+                serverIdInput.addEventListener('blur', handleValidation);
+                observer.disconnect();
+            }
+        });
+        observer.observe(serverIdInputContainer, { childList: true, subtree: true });
+    }
+    }
     // === Bagian 3: Menambahkan Semua Event Listeners ===
 
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
@@ -389,7 +393,7 @@ document.addEventListener('DOMContentLoaded', function() {
     validationResultEl.innerHTML = `<i>Memvalidasi ID...</i>`;
     submitOrderBtn.disabled = true; // Nonaktifkan tombol beli saat validasi
 
-    const response = await fetch(`${PUBLIC_API_URL}/validate-id`, {
+    const response = await fetch(`${PUBLIC_API_URL}/products/:productId/validate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gameCode, userId, zoneId })
