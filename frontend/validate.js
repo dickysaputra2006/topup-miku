@@ -57,48 +57,56 @@ document.addEventListener('DOMContentLoaded', function() {
         formContainer.innerHTML = formHtml;
 
         document.getElementById('validate-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const submitButton = e.target.querySelector('button');
-            const userId = document.getElementById('user-id').value;
-            const zoneIdEl = document.getElementById('zone-id');
-            const zoneId = zoneIdEl ? zoneIdEl.value : null;
+    e.preventDefault();
+    const submitButton = e.target.querySelector('button');
+    const userId = document.getElementById('user-id').value;
+    const zoneIdEl = document.getElementById('zone-id');
+    const zoneId = zoneIdEl ? zoneIdEl.value : null;
 
-            resultContainer.innerHTML = '<p>Mengecek...</p>';
-            submitButton.disabled = true;
-            submitButton.textContent = 'Mengecek...';
-            
-            try {
-                // Mengirim request ke endpoint BARU dengan payload BARU
-                const response = await fetch(`${API_URL}/validate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        gameCode: game.gameCode, // MENGIRIM gameCode
-                        userId: userId,
-                        zoneId: zoneId
-                    })
-                });
+    resultContainer.innerHTML = '<p>Mengecek...</p>';
+    submitButton.disabled = true;
+    submitButton.textContent = 'Mengecek...';
+    
+    try {
+        const response = await fetch(`${API_URL}/validate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                gameCode: game.gameCode,
+                userId: userId,
+                zoneId: zoneId
+            })
+        });
 
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message);
-                
-                let successHtml = `<div class="card" style="border-left: 5px solid var(--success-color);">
-                                      <p style="color:var(--success-color); font-weight: bold;">✅ Akun Ditemukan!</p>
-                                      <p><strong>Nickname:</strong> ${result.data.username}</p>`;
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        
+        // --- PERUBAHAN TAMPILAN HASIL ---
+        let successHtml = `<div class="card" style="border-left: 5px solid var(--success-color);">
+                              <p style="color:var(--success-color); font-weight: bold;">✅ Akun Ditemukan!</p>
+                              <p><strong>Nickname:</strong> ${result.data.username}</p>`;
 
-                if (result.data.region) {
-                    successHtml += `<p><strong>Region:</strong> ${result.data.region}</p>`;
-                }
-                
-                successHtml += `</div>`;
-                resultContainer.innerHTML = successHtml;
+        if (result.data.region) {
+            successHtml += `<p><strong>Region:</strong> ${result.data.region}</p>`;
+        }
 
-            } catch (error) {
-                resultContainer.innerHTML = `<div class="card" style="border-left: 5px solid var(--danger-color);"><p style="color:var(--danger-color);">❌ ${error.message}</p></div>`;
-            } finally {
-                submitButton.disabled = false;
-                submitButton.textContent = 'Cek Akun';
-            }
+        // Cek apakah ada data promo, dan di dalamnya ada data doubleDiamond
+        if (result.data.promo && result.data.promo.doubleDiamond && result.data.promo.doubleDiamond.items.length > 0) {
+            successHtml += `<br><h4>Status Double Diamond</h4>`;
+            result.data.promo.doubleDiamond.items.forEach(item => {
+                successHtml += `<p>${item.name}: ${item.available ? '✅ Tersedia' : '❌ Telah Digunakan'}</p>`;
+            });
+        }
+        
+        successHtml += `</div>`;
+        resultContainer.innerHTML = successHtml;
+
+    } catch (error) {
+        resultContainer.innerHTML = `<div class="card" style="border-left: 5px solid var(--danger-color);"><p style="color:var(--danger-color);">❌ ${error.message}</p></div>`;
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Cek Akun';
+    }
         });
     }
 

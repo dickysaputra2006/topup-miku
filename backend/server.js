@@ -641,38 +641,59 @@ app.post('/api/v1/validate', async (req, res) => {
     const { gameCode, userId, zoneId } = req.body;
 
     if (!gameCode || !userId) {
-        return res.status(400).json({ 
-            success: false, 
-            message: 'Parameter gameCode dan userId wajib diisi.' 
-        });
+        return res.status(400).json({ success: false, message: 'Parameter gameCode dan userId wajib diisi.' });
     }
 
     try {
         console.log(`[API v1] Menerima permintaan validasi untuk game: ${gameCode}`);
+        let result;
 
-        // Langsung panggil fungsi validasi utama dengan data yang diberikan
-        const result = await validateGameId(gameCode, userId, zoneId);
+        // --- LOGIKA KONDISIONAL BERDASARKAN GAMECODE ---
 
-        console.log(`[API v1] Hasil dari validateGameId:`, JSON.stringify(result, null, 2));
+        if (gameCode === 'mobile-legends-region') {
+            // Langkah 1: Validasi Nickname & Region ke PGS
+            const pgsResult = await validateGameId(gameCode, userId, zoneId);
+            if (!pgsResult.success) {
+                // Jika validasi dasar gagal, langsung kirim error
+                return res.status(400).json({ success: false, message: pgsResult.message });
+            }
+
+            // Langkah 2: Jika PGS berhasil, lanjutkan cek promo ke Mobapay
+            const mobapayResult = await checkAllMobapayPromosML(userId, zoneId);
+
+            // Gabungkan hasilnya
+            const finalData = { 
+                ...pgsResult.data, 
+                promo: mobapayResult.data // Tambahkan data promo
+            };
+            result = { success: true, data: finalData };
+
+        } else if (gameCode === 'magic-chess-go-go') {
+            // Panggil fungsi validasi khusus untuk Magic Chess
+            result = await cekPromoMcggMobapay(userId, zoneId);
+            // Sesuaikan format agar konsisten
+            if(result.success) {
+                result = { success: true, data: { username: result.nickname, promo: { doubleDiamond: { items: result.promoProducts } } } };
+            }
+
+        } else {
+            // Untuk semua game lain, jalankan validasi biasa
+            result = await validateGameId(gameCode, userId, zoneId);
+        }
+
+        // --- AKHIR LOGIKA KONDISIONAL ---
+
+        console.log(`[API v1] Hasil akhir sebelum dikirim:`, JSON.stringify(result, null, 2));
 
         if (result.success) {
-            // Jika berhasil, kirim respons sukses dengan data
             res.status(200).json(result);
         } else {
-            // Jika gagal, kirim status 404 (Not Found) atau 400 (Bad Request)
-            // 400 lebih cocok untuk input yang tidak valid
-            res.status(400).json({
-                success: false,
-                message: result.message || "ID/Zone tidak valid atau tidak ditemukan."
-            });
+            res.status(400).json({ success: false, message: result.message || "ID/Zone tidak valid atau tidak ditemukan." });
         }
 
     } catch (error) {
         console.error('[API v1] Terjadi error tak terduga:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Terjadi kesalahan internal pada server.'
-        });
+        res.status(500).json({ success: false, message: 'Terjadi kesalahan internal pada server.' });
     }
 });
 
