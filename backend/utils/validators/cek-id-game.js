@@ -1,12 +1,12 @@
 const axios = require('axios');
 
-// Fungsi baru untuk menerapkan aturan pada hasil validasi
+// Fungsi untuk menerapkan aturan pada hasil validasi
 function applyValidationRules(validationData, rules) {
     if (!rules || Object.keys(rules).length === 0) {
         return { valid: true }; // Jika tidak ada aturan, selalu valid
     }
 
-    const { region } = validationData;
+    const region = validationData.region || '';
 
     // Aturan untuk region yang diizinkan (allowedRegions)
     if (rules.allowedRegions && !rules.allowedRegions.includes(region.toUpperCase())) {
@@ -26,7 +26,7 @@ async function validateGameId(gameCode, userId, zoneId = null, rules = {}) {
     const pgsApiKey = process.env.PGS_API_KEY;
 
     if (!pgsKey || !pgsApiKey) {
-        return { success: false, message: "Kunci API untuk validasi belum diatur di server." };
+        return { success: false, message: "API Key untuk PGSCODE belum diatur di server." };
     }
 
     try {
@@ -44,21 +44,22 @@ async function validateGameId(gameCode, userId, zoneId = null, rules = {}) {
         if (zoneId) {
             payload.target.server_id = String(zoneId).trim();
         }
-
-        const response = await axios.post(apiUrl, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         
+        // --- INI BAGIAN YANG DIPERBAIKI ---
+        // 'payload' harus menjadi argumen kedua, bukan bagian dari objek ketiga.
+        const response = await axios.post(apiUrl, payload, {
+            headers: { 'Content-Type': 'application/json' }
+        });
+        // --- AKHIR PERBAIKAN ---
+
         if (response.data && response.data.status === true && response.data.data && response.data.data.username) {
             const validationData = response.data.data;
             
-            // Terapkan aturan di sini!
             const ruleCheck = applyValidationRules(validationData, rules);
-
             if (!ruleCheck.valid) {
-                // Gagal karena aturan tidak terpenuhi
                 return { success: false, message: ruleCheck.message };
             }
             
-            // Sukses dan lolos semua aturan
             return { success: true, data: validationData };
         } else {
             const errorMessage = response.data?.data?.msg || response.data?.message || "ID/Zone tidak valid atau tidak ditemukan.";
@@ -66,7 +67,8 @@ async function validateGameId(gameCode, userId, zoneId = null, rules = {}) {
         }
     } catch (error) {
         console.error(`[validateGame] Error saat request API untuk ${gameCode}:`, error.response ? error.response.data : error.message);
-        throw new Error("Terjadi kesalahan saat menghubungi server validasi.");
+        // Jangan lempar error agar tidak crash, cukup kembalikan pesan error
+        return { success: false, message: "Terjadi kesalahan saat menghubungi server validasi." };
     }
 }
 
