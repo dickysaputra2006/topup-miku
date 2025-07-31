@@ -1426,3 +1426,8 @@ html, body {
     border-top: 1px solid var(--border-color);
     padding-top: 1rem;
 }
+.edit-btn.edit-validation-btn {
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
+}

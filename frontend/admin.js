@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const marginForm = document.getElementById('margin-form');
     const marginFieldsContainer = document.getElementById('margin-fields-container');
     const applyToAllBtn = document.getElementById('apply-validation-to-all-btn');
+    const validatorSearchInput = document.getElementById('validator-search-input');
 
     // === KONFIGURASI & STATE ===
     const ADMIN_API_URL = '/api/admin';
@@ -448,6 +449,33 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    if (validatorSearchInput) {
+    validatorSearchInput.addEventListener('input', () => {
+        const searchTerm = validatorSearchInput.value.toLowerCase();
+        const currentSelectedValue = validationSelector.value; // Simpan nilai yang sedang dipilih
+
+        // Kosongkan dropdown dulu
+        validationSelector.innerHTML = '<option value="">-- Tidak Perlu Validasi --</option>';
+
+        // Filter dan isi ulang dropdown berdasarkan pencarian
+        const filteredGames = allValidatableGamesData.filter(game => 
+            game.name && game.name.toLowerCase().includes(searchTerm)
+        );
+
+        filteredGames.forEach(game => {
+            const option = document.createElement('option');
+            option.value = game.gameCode;
+            option.textContent = game.name;
+            validationSelector.appendChild(option);
+        });
+
+        // Kembalikan pilihan sebelumnya jika masih ada di daftar hasil filter
+        if (filteredGames.some(g => g.gameCode === currentSelectedValue)) {
+            validationSelector.value = currentSelectedValue;
+        }
+    });
+}
 }
 
     if (menuToggleBtn.length > 0 && sidebar) {
