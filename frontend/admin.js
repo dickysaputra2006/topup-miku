@@ -335,13 +335,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === EVENT LISTENERS ===
 
+        if (validationForm && validationSelector) {
         validationSelector.addEventListener('change', () => {
-    if (validationSelector.value) {
-        validationRulesContainer.classList.remove('hidden');
-    } else {
-        validationRulesContainer.classList.add('hidden');
-    }
-});
+            if (validationSelector.value) {
+                validationRulesContainer.classList.remove('hidden');
+            } else {
+                validationRulesContainer.classList.add('hidden');
+            }
+        });
 
         validationForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -370,6 +371,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (productIndex > -1) allProducts[productIndex].validation_config = config;
             } catch (error) { alert(`Error: ${error.message}`); }
         });
+    }
 
     if (menuToggleBtn.length > 0 && sidebar) {
         menuToggleBtn.forEach(btn => btn.addEventListener('click', () => {
