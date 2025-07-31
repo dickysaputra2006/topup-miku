@@ -1431,3 +1431,104 @@ html, body {
     z-index: 2;
     cursor: pointer;
 }
+.validation-result {
+   margin-top: 1rem;
+   padding: 1rem;
+   border-radius: 5px;
+}
+
+.validation-result.success {
+   background-color: #e6ffed;
+   border: 1px solid #a7ffa3;
+   color: #28a745;
+}
+
+.validation-result.error {
+   background-color: #ffe6e6;
+   border: 1px solid #ffa3a3;
+   color: #dc3545;
+}
+
+.validation-title {
+   font-weight: bold;
+   margin-bottom: 0.5rem;
+}
+
+.validation-title i {
+   margin-right: 0.5rem;
+}
+/* Perbaikan untuk teks tenggelam di form validasi admin */
+#validation-rules-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem; /* Memberi jarak antar input */
+}
+#validation-rules-container input {
+    margin-bottom: 0; /* Hapus margin bawah dari input di dalam container ini */
+}
+/* Untuk hasil validasi di halaman produk */
+.validation-result-inline {
+    margin-top: 1rem;
+    padding: 0.8rem 1rem;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+}
+.validation-result-inline.success {
+    background-color: #1a3a32;
+    border: 1px solid var(--success-color);
+    color: var(--success-color);
+}
+.validation-result-inline.error {
+    background-color: #3e2227;
+    border: 1px solid var(--danger-color);
+    color: var(--danger-color);
+}
+.validation-result-inline i {
+    margin-right: 0.5rem;
+}
+/* Styling untuk Modal Konfirmasi Pesanan */
+.confirmation-details h4 {
+    color: var(--text-color);
+    font-size: 1rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.8rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+
+.confirmation-details p {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.6rem 0;
+    font-size: 0.9rem;
+}
+
+.confirmation-details p span {
+    color: #a7a9be;
+}
+
+.confirmation-details .total-payment {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+
+.confirmation-details hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1rem 0;
+}
+
+.confirmation-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.confirmation-actions .order-button,
+.confirmation-actions .edit-btn {
+    width: auto;
+    padding: 0.8rem 1.5rem;
+}

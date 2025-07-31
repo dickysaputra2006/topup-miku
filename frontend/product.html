@@ -110,5 +110,37 @@
     </div>
 
     <script src="product.js"></script>
+
+<div id="order-confirmation-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <button id="close-confirm-modal-btn" class="close-modal">&times;</button>
+        <h3>Konfirmasi Pesanan</h3>
+        <p class="form-description">
+            <i class="fas fa-info-circle"></i> Harap periksa kembali pesanan Anda sebelum melanjutkan ke proses pembayaran. Pastikan data yang Anda masukkan sudah benar.
+        </p>
+
+        <div class="confirmation-details">
+            <h4>Informasi Akun</h4>
+            <p><span>IGN:</span> <strong id="confirm-ign">-</strong></p>
+            <p><span>User ID:</span> <strong id="confirm-userid">-</strong></p>
+            <p><span>Server ID:</span> <strong id="confirm-serverid">-</strong></p>
+
+            <h4>Ringkasan Pesanan</h4>
+            <p><span>Kategori:</span> <strong id="confirm-kategori">-</strong></p>
+            <p><span>Produk:</span> <strong id="confirm-produk">-</strong></p>
+            <p><span>Harga:</span> <strong id="confirm-harga">-</strong></p>
+            <p><span>Metode Pembayaran:</span> <strong>Saldo Akun</strong></p>
+            <hr>
+            <p class="total-payment"><span>Total Pembayaran</span> <strong id="confirm-total">-</strong></p>
+        </div>
+
+        <div class="confirmation-actions">
+            <button id="cancel-order-btn" class="edit-btn">Batalkan</button>
+            <button id="confirm-order-btn" class="order-button">Bayar Sekarang <i class="fas fa-arrow-right"></i></button>
+        </div>
+    </div>
+</div>
+
+
 </body>
 </html>

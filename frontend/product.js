@@ -164,64 +164,77 @@ document.addEventListener('DOMContentLoaded', function() {
     const resultContainer = document.getElementById('validation-result');
     const productListContainer = document.getElementById('product-list-container');
     
-    // Kita akan mengambil productId saat pengguna memilih produk
-    let selectedProductId = null;
+    // Pindahkan selectedProductId ke dalam scope fungsi ini agar tidak bentrok
+    let currentSelectedProductId = null;
 
-    // Tambahkan event listener di container produk
-    if (productListContainer) {
-        productListContainer.addEventListener('click', (e) => {
-            const card = e.target.closest('.product-card-selectable');
-            if (card && card.dataset.productId) {
-                // Simpan ID produk yang dipilih
-                selectedProductId = card.dataset.productId;
-                // Panggil ulang validasi jika pengguna mengubah pilihan produk
-                if (targetIdInput.value) {
-                    handleValidation();
-                }
-            }
-        });
-    }
-
+    // Fungsi inti yang akan menjalankan validasi
     const handleValidation = async () => {
-        // Jangan jalankan jika belum ada produk yang dipilih
-        if (!selectedProductId) return;
+        // Jangan jalankan jika tidak ada produk yang dipilih atau tidak ada User ID
+        if (!currentSelectedProductId || !targetIdInput.value) {
+            resultContainer.innerHTML = '';
+            return;
+        }
 
         const userId = targetIdInput.value;
         const serverIdInput = document.getElementById('target-server-id');
         const zoneId = serverIdInput ? serverIdInput.value : null;
 
-        if (!userId) {
-            resultContainer.innerHTML = '';
-            return;
-        }
-
         resultContainer.innerHTML = `<p style="color: #ccc;">Mengecek nickname...</p>`;
 
         try {
-            // PERBAIKAN: Gunakan endpoint yang benar
-            const response = await fetch(`${PUBLIC_API_URL}/products/${selectedProductId}/validate`, {
+            const response = await fetch(`${PUBLIC_API_URL}/products/${currentSelectedProductId}/validate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, zoneId }) // Body tidak perlu gameCode lagi
+                body: JSON.stringify({ userId, zoneId })
             });
 
             const result = await response.json();
-            
+
+            // Tampilan jika produk tidak memerlukan validasi
             if (result.message && result.message.includes('tidak memerlukan validasi')) {
-                resultContainer.innerHTML = `<p style="color: var(--success-color);">✅ ${result.message}</p>`;
+                resultContainer.innerHTML = `<div class="validation-result-inline success">
+                    <i class="fas fa-check-circle"></i> ${result.message}
+                </div>`;
                 return;
             }
 
+            // Tampilan jika validasi gagal
             if (!response.ok) {
-                throw new Error(result.message);
+                resultContainer.innerHTML = `<div class="validation-result-inline error">
+                    <i class="fas fa-times-circle"></i> ${result.message}
+                </div>`;
+                return;
             }
 
-            resultContainer.innerHTML = `<p style="color: var(--success-color);">✅ Nickname: <strong>${result.data.username}</strong></p>`;
+            // Tampilan jika validasi sukses
+            let message = `<div class="validation-result-inline success">
+                            <i class="fas fa-check-circle"></i> 
+                            Nickname: <strong>${result.data.username}</strong>`;
+            if (result.data.region) {
+                message += ` (Region: ${result.data.region})`;
+            }
+            message += `</div>`;
+            resultContainer.innerHTML = message;
+
         } catch (error) {
-            resultContainer.innerHTML = `<p style="color: var(--danger-color);">❌ ${error.message}</p>`;
+            resultContainer.innerHTML = `<div class="validation-result-inline error">
+                <i class="fas fa-times-circle"></i> ${error.message}
+            </div>`;
         }
     };
 
+    // Saat pengguna memilih kartu produk
+    if (productListContainer) {
+        productListContainer.addEventListener('click', (e) => {
+            const card = e.target.closest('.product-card-selectable');
+            if (card && card.dataset.productId) {
+                currentSelectedProductId = card.dataset.productId;
+                handleValidation();
+            }
+        });
+    }
+
+    // Saat pengguna selesai mengetik di kolom ID atau Zone ID
     if (targetIdInput) {
         targetIdInput.addEventListener('blur', handleValidation);
     }
@@ -236,7 +249,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         observer.observe(serverIdInputContainer, { childList: true, subtree: true });
     }
-    }
+}
     // === Bagian 3: Menambahkan Semua Event Listeners ===
 
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
@@ -322,10 +335,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (submitOrderBtn) {
+    // Deklarasikan elemen modal di luar event listener
+    const confirmModal = document.getElementById('order-confirmation-modal');
+    const closeConfirmBtn = document.getElementById('close-confirm-modal-btn');
+    const cancelBtn = document.getElementById('cancel-order-btn');
+    const confirmBtn = document.getElementById('confirm-order-btn');
+
+    // Event listener untuk tombol "Beli Sekarang" utama
     submitOrderBtn.addEventListener('click', async () => {
         if (!token) {
             alert('Anda harus login untuk melakukan transaksi.');
-            showModal();
+            showModal(); // Buka modal login/register
             return;
         }
         if (!selectedProductId) {
@@ -333,52 +353,76 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        const targetGameId = targetGameIdInput.value;
-
-        // --- Perubahan 1 ---
+        const targetGameId = document.getElementById('target-game-id').value;
         const targetServerIdEl = document.getElementById('target-server-id');
         const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
 
-        if (!targetGameId) {
-            alert('Silakan masukkan User ID Anda terlebih dahulu.');
-            return;
-        }
-        
-        // --- Perubahan 2 ---
-        if (targetServerIdEl && targetServerIdEl.required && !targetServerId) {
-            alert('Silakan masukkan atau pilih Server ID Anda.');
+        if (!targetGameId || (targetServerIdEl && targetServerIdEl.required && !targetServerId)) {
+            alert('Silakan lengkapi User ID dan Server ID Anda.');
             return;
         }
 
-        // --- Perubahan 3 ---
-        const finalTargetId = targetServerId ? `${targetGameId} (${targetServerId})` : targetGameId;
-        
-        if (confirm(`Anda akan membeli produk ini untuk ID: ${finalTargetId} seharga ${totalPriceEl.textContent}. Lanjutkan?`)) {
-            submitOrderBtn.disabled = true;
-            submitOrderBtn.textContent = 'Memproses...';
-            try {
-                const response = await fetch(`${PUBLIC_API_URL}/order`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        productId: selectedProductId,
-                        targetGameId: targetGameId,
-                        // --- Perubahan 4 ---
-                        targetServerId: targetServerId 
-                    })
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message);
-                alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nSilakan cek riwayat transaksi di dashboard Anda.`);
-                window.location.href = 'dashboard.html';
-            } catch (error) {
-                alert(`Error: ${error.message}`);
-                submitOrderBtn.disabled = false;
-                submitOrderBtn.textContent = 'Beli Sekarang';
-            }
+        // Ambil data dari halaman untuk ditampilkan di modal
+        const nickname = document.querySelector('#validation-result strong')?.textContent || 'Belum divalidasi';
+        const gameCategory = gameNameEl.textContent;
+        const selectedProductCard = document.querySelector('.product-card-selectable.selected');
+        const productName = selectedProductCard ? selectedProductCard.querySelector('span').textContent : 'Tidak dipilih';
+        const productPrice = selectedProductCard ? selectedProductCard.querySelector('small').textContent : '-';
+
+        // Isi modal dengan data yang relevan
+        document.getElementById('confirm-ign').textContent = nickname;
+        document.getElementById('confirm-userid').textContent = targetGameId;
+        document.getElementById('confirm-serverid').textContent = targetServerId || '-';
+        document.getElementById('confirm-kategori').textContent = gameCategory;
+        document.getElementById('confirm-produk').textContent = productName;
+        document.getElementById('confirm-harga').textContent = productPrice;
+        document.getElementById('confirm-total').textContent = totalPriceEl.textContent;
+
+        // Tampilkan modal konfirmasi
+        confirmModal.classList.remove('hidden');
+    });
+
+    // Fungsi untuk menyembunyikan modal
+    const hideConfirmModal = () => confirmModal.classList.add('hidden');
+
+    // Tambahkan event listener untuk tombol-tombol di dalam modal
+    closeConfirmBtn.addEventListener('click', hideConfirmModal);
+    cancelBtn.addEventListener('click', hideConfirmModal);
+
+    // Event listener untuk tombol "Bayar Sekarang" di DALAM MODAL
+    confirmBtn.addEventListener('click', async () => {
+        confirmBtn.disabled = true;
+        confirmBtn.innerHTML = 'Memproses...';
+
+        const targetGameId = document.getElementById('target-game-id').value;
+        const targetServerIdEl = document.getElementById('target-server-id');
+        const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
+
+        try {
+            const response = await fetch(`${PUBLIC_API_URL}/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    productId: selectedProductId,
+                    targetGameId: targetGameId,
+                    targetServerId: targetServerId 
+                })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            
+            hideConfirmModal();
+            alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nAnda akan diarahkan ke halaman dashboard.`);
+            window.location.href = 'dashboard.html';
+
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        } finally {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = 'Bayar Sekarang <i class="fas fa-arrow-right"></i>';
         }
     });
-    }
+}
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
         icon.addEventListener('click', function() {

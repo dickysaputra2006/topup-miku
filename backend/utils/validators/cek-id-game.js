@@ -6,16 +6,18 @@ function applyValidationRules(validationData, rules) {
         return { valid: true }; // Jika tidak ada aturan, selalu valid
     }
 
-    const region = validationData.region || '';
+    const region = validationData.region || 'TIDAK DIKETAHUI';
 
     // Aturan untuk region yang diizinkan (allowedRegions)
     if (rules.allowedRegions && !rules.allowedRegions.includes(region.toUpperCase())) {
-        return { valid: false, message: `Akun ini bukan dari region yang diizinkan (${rules.allowedRegions.join(', ')}).` };
+        // --- PERUBAHAN PESAN ERROR ---
+        return { valid: false, message: `Region akun Anda (${region}) tidak diizinkan. Produk ini hanya untuk region: ${rules.allowedRegions.join(', ')}.` };
     }
 
     // Aturan untuk region yang dilarang (disallowedRegions)
     if (rules.disallowedRegions && rules.disallowedRegions.includes(region.toUpperCase())) {
-        return { valid: false, message: `Akun dari region ${region} tidak dapat membeli produk ini.` };
+        // --- PERUBAHAN PESAN ERROR ---
+        return { valid: false, message: `Region akun Anda (${region}) tidak dapat membeli produk ini. Silakan pilih produk global lain.` };
     }
 
     return { valid: true }; // Lolos semua aturan
