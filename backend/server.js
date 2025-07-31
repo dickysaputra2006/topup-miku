@@ -23,6 +23,8 @@ const FOXY_API_KEY = process.env.FOXY_API_KEY;
 // Middleware (HARUS DI ATAS SEMUA RUTE)
 app.use(cors());
 app.use(express.json());
+const frontendPath = path.join(__dirname, '..');
+app.use(express.static(frontendPath));
 
 const dbConfig = {
     user: process.env.DB_USER,
