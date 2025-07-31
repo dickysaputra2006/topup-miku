@@ -306,9 +306,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     async function fetchAllValidatableGames() {
+    // Tambahkan pengecekan di awal fungsi
+    if (!validationSelector) {
+        return; // Hentikan fungsi jika dropdown tidak ada di halaman ini
+    }
+
     try {
         const response = await fetch(`${PUBLIC_API_URL}/games/validatable`);
         allValidatableGamesData = await response.json();
+        
         validationSelector.innerHTML = '<option value="">-- Tidak Perlu Validasi --</option>';
         allValidatableGamesData.forEach(game => {
             if (game.name) {
@@ -318,7 +324,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 validationSelector.appendChild(option);
             }
         });
-    } catch (error) { console.error("Gagal memuat data game untuk validasi:", error); }
+    } catch (error) { 
+        console.error("Gagal memuat data game untuk validasi:", error); 
+        // Tambahkan pengecekan di sini juga untuk keamanan
+        if (validationSelector) {
+            validationSelector.innerHTML = `<option value="">Error!</option>`;
+        }
+    }
 }
 
     function showValidationEditor(product) {
