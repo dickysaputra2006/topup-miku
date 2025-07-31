@@ -166,10 +166,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Pindahkan selectedProductId ke dalam scope fungsi ini agar tidak bentrok
     let currentSelectedProductId = null;
+    let isValidationSuccess = false;
 
     // Fungsi inti yang akan menjalankan validasi
-    const handleValidation = async () => {
-        // Jangan jalankan jika tidak ada produk yang dipilih atau tidak ada User ID
+   const handleValidation = async () => {
+        isValidationSuccess = false; // Reset status setiap kali validasi baru dimulai
         if (!currentSelectedProductId || !targetIdInput.value) {
             resultContainer.innerHTML = '';
             return;
@@ -213,8 +214,16 @@ document.addEventListener('DOMContentLoaded', function() {
             if (result.data.region) {
                 message += ` (Region: ${result.data.region})`;
             }
+
+            if (!response.ok) {
+             isValidationSuccess = false; // <--- TAMBAHKAN INI
+             resultContainer.innerHTML = `<div class="validation-result error">...</div>`;
+             return;
+        }
+
             message += `</div>`;
             resultContainer.innerHTML = message;
+            isValidationSuccess = true;
 
         } catch (error) {
             resultContainer.innerHTML = `<div class="validation-result-inline error">
@@ -342,10 +351,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmBtn = document.getElementById('confirm-order-btn');
 
     // Event listener untuk tombol "Beli Sekarang" utama
-    submitOrderBtn.addEventListener('click', async () => {
+    submitOrderBtn.addEventListener('click', () => {
+        // Cek dulu status validasi sebelum melanjutkan
+        // 'isValidationSuccess' didapatkan dari fungsi setupLiveValidation
+        if (!isValidationSuccess) {
+            alert('Validasi ID gagal atau region tidak sesuai. Harap periksa kembali User ID Anda atau pilih produk lain yang sesuai.');
+            return; // Hentikan proses jika validasi tidak sukses
+        }
+
         if (!token) {
             alert('Anda harus login untuk melakukan transaksi.');
-            showModal(); // Buka modal login/register
+            showModal();
             return;
         }
         if (!selectedProductId) {
@@ -379,49 +395,53 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('confirm-total').textContent = totalPriceEl.textContent;
 
         // Tampilkan modal konfirmasi
-        confirmModal.classList.remove('hidden');
+        if (confirmModal) confirmModal.classList.remove('hidden');
     });
 
     // Fungsi untuk menyembunyikan modal
-    const hideConfirmModal = () => confirmModal.classList.add('hidden');
+    const hideConfirmModal = () => {
+        if (confirmModal) confirmModal.classList.add('hidden');
+    };
 
     // Tambahkan event listener untuk tombol-tombol di dalam modal
-    closeConfirmBtn.addEventListener('click', hideConfirmModal);
-    cancelBtn.addEventListener('click', hideConfirmModal);
+    if (closeConfirmBtn) closeConfirmBtn.addEventListener('click', hideConfirmModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', hideConfirmModal);
 
     // Event listener untuk tombol "Bayar Sekarang" di DALAM MODAL
-    confirmBtn.addEventListener('click', async () => {
-        confirmBtn.disabled = true;
-        confirmBtn.innerHTML = 'Memproses...';
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', async () => {
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = 'Memproses...';
 
-        const targetGameId = document.getElementById('target-game-id').value;
-        const targetServerIdEl = document.getElementById('target-server-id');
-        const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
+            const targetGameId = document.getElementById('target-game-id').value;
+            const targetServerIdEl = document.getElementById('target-server-id');
+            const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
 
-        try {
-            const response = await fetch(`${PUBLIC_API_URL}/order`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    productId: selectedProductId,
-                    targetGameId: targetGameId,
-                    targetServerId: targetServerId 
-                })
-            });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.message);
-            
-            hideConfirmModal();
-            alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nAnda akan diarahkan ke halaman dashboard.`);
-            window.location.href = 'dashboard.html';
+            try {
+                const response = await fetch(`${PUBLIC_API_URL}/order`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        productId: selectedProductId,
+                        targetGameId: targetGameId,
+                        targetServerId: targetServerId 
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                
+                hideConfirmModal();
+                alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nAnda akan diarahkan ke halaman dashboard.`);
+                window.location.href = 'dashboard.html';
 
-        } catch (error) {
-            alert(`Error: ${error.message}`);
-        } finally {
-            confirmBtn.disabled = false;
-            confirmBtn.innerHTML = 'Bayar Sekarang <i class="fas fa-arrow-right"></i>';
-        }
-    });
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = 'Bayar Sekarang <i class="fas fa-arrow-right"></i>';
+            }
+        });
+    }
 }
 
     document.querySelectorAll('.toggle-password').forEach(icon => {

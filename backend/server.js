@@ -692,17 +692,51 @@ app.post('/api/products/:productId/validate', async (req, res) => {
 // Endpoint baru untuk halaman validasi (yang menampilkan promo)
 app.post('/api/full-validate', async (req, res) => {
     const { gameCode, userId, zoneId, rules } = req.body;
-    if (!gameCode || !userId) return res.status(400).json({ success: false, message: 'Parameter tidak lengkap.' });
+
+    if (!gameCode || !userId) {
+        return res.status(400).json({ success: false, message: 'Parameter tidak lengkap.' });
+    }
+
     try {
-        const pgsResult = await validateGameId(gameCode, userId, zoneId, rules || {});
-        if (!pgsResult.success) return res.status(400).json({ success: false, message: pgsResult.message });
-        let result = pgsResult;
-        if (gameCode.includes('mobile-legends')) {
-            const mobapayResult = await checkAllMobapayPromosML(userId, zoneId);
-            result.data.promo = mobapayResult.data;
+        let result;
+
+        // --- INI ADALAH LOGIKA YANG SEHARUSNYA ---
+        if (gameCode.includes('magic-chess-go-go')) {
+            // Logika khusus untuk Magic Chess
+            const mcggResult = await cekPromoMcggMobapay(userId, zoneId);
+            if (mcggResult.success) {
+                result = { 
+                    success: true, 
+                    data: { 
+                        username: mcggResult.nickname, 
+                        promo: { doubleDiamond: { items: mcggResult.promoProducts } } 
+                    } 
+                };
+            } else {
+                result = mcggResult; // Kembalikan hasil errornya
+            }
+
+        } else {
+            // Logika untuk semua game lain (termasuk Mobile Legends)
+            const pgsResult = await validateGameId(gameCode, userId, zoneId, rules || {});
+            if (!pgsResult.success) {
+                return res.status(400).json({ success: false, message: pgsResult.message });
+            }
+            
+            result = pgsResult;
+
+            // Jika ini ML, tambahkan data promo
+            if (gameCode.includes('mobile-legends-region')) {
+                const mobapayResult = await checkAllMobapayPromosML(userId, zoneId);
+                result.data.promo = mobapayResult.data;
+            }
         }
+        // --- AKHIR DARI LOGIKA YANG SEHARUSNYA ---
+
         res.json(result);
+
     } catch (error) {
+        console.error(`Error validasi lengkap untuk ${gameCode}:`, error);
         res.status(500).json({ success: false, message: 'Terjadi kesalahan internal.' });
     }
 });
