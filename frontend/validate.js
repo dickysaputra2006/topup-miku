@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Endpoint API baru kita
     const API_URL = '/api/v1'; 
+    const PUBLIC_API_URL = '/api';
     const gamesListContainer = document.getElementById('validate-games-list');
     const validatorTitle = document.getElementById('validator-title');
     const formContainer = document.getElementById('validator-form-container');
