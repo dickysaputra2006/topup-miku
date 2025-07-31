@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
 
-    let selectedProductId = null;id
+    let selectedProductId = null;
 
     // === Bagian 2: Definisi Semua Fungsi ===
 
