@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const syncForm = document.getElementById('sync-products-form');
     const marginForm = document.getElementById('margin-form');
     const marginFieldsContainer = document.getElementById('margin-fields-container');
+    const applyToAllBtn = document.getElementById('apply-validation-to-all-btn');
 
     // === KONFIGURASI & STATE ===
     const ADMIN_API_URL = '/api/admin';
@@ -334,30 +335,78 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 
     function showValidationEditor(product) {
-        selectedProductIdForValidation = product.id;
-        validationEditor.classList.remove('hidden');
-        const config = product.validation_config || {};
-        const rules = config.rules || {};
-        validationSelector.value = config.validator || "";
-        allowedRegionsInput.value = (rules.allowedRegions || []).join(',');
-        disallowedRegionsInput.value = (rules.disallowedRegions || []).join(',');
+    selectedProductIdForValidation = product.id;
+    if(!validationEditor) return; // Pengecekan elemen utama
+
+    validationEditor.classList.remove('hidden');
+    const config = product.validation_config || {};
+    const rules = config.rules || {};
+
+    if(validationSelector) validationSelector.value = config.validator || "";
+    if(allowedRegionsInput) allowedRegionsInput.value = (rules.allowedRegions || []).join(',');
+    if(disallowedRegionsInput) disallowedRegionsInput.value = (rules.disallowedRegions || []).join(',');
+
+    // Pengecekan krusial untuk 'validationRulesContainer'
+    if(validationRulesContainer) {
         validationRulesContainer.classList.toggle('hidden', !validationSelector.value);
     }
+}
 
 
     // === EVENT LISTENERS ===
 
         if (validationForm && validationSelector) {
-        validationSelector.addEventListener('change', () => {
-            if (validationSelector.value) {
-                validationRulesContainer.classList.remove('hidden');
-            } else {
-                validationRulesContainer.classList.add('hidden');
-            }
-        });
 
-        validationForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
+    // Event listener untuk dropdown Tipe Validator
+    validationSelector.addEventListener('change', () => {
+        validationRulesContainer.classList.toggle('hidden', !validationSelector.value);
+    });
+
+    // Event listener untuk tombol "Simpan Pengaturan Validasi"
+    validationForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const validator = validationSelector.value;
+        const allowed = allowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+        const disallowed = disallowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+        let config = null;
+        if (validator) {
+            config = { validator };
+            if (allowed.length > 0 || disallowed.length > 0) {
+                config.rules = {};
+                if (allowed.length > 0) config.rules.allowedRegions = allowed;
+                if (disallowed.length > 0) config.rules.disallowedRegions = disallowed;
+            }
+        }
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/products/${selectedProductIdForValidation}/validation`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ validation_config: config })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            alert('Pengaturan validasi berhasil disimpan!');
+            const productIndex = allProducts.findIndex(p => p.id == selectedProductIdForValidation);
+            if (productIndex > -1) allProducts[productIndex].validation_config = config;
+        } catch (error) { alert(`Error: ${error.message}`); }
+    });
+
+    // Event listener untuk tombol "Terapkan ke Semua"
+    if (applyToAllBtn) {
+        applyToAllBtn.addEventListener('click', async () => {
+            if (!selectedProductIdForValidation) {
+                alert('Pilih satu produk terlebih dahulu untuk dijadikan acuan.');
+                return;
+            }
+            const selectedGameId = gameSelectorDropdown.value;
+            if (!selectedGameId) {
+                alert('Pilih game dari dropdown di atas.');
+                return;
+            }
+            if (!confirm(`Anda yakin ingin menerapkan pengaturan validasi ini ke SEMUA produk lain di game ini?`)) {
+                return;
+            }
+
             const validator = validationSelector.value;
             const allowed = allowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
             const disallowed = disallowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
@@ -370,20 +419,36 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (disallowed.length > 0) config.rules.disallowedRegions = disallowed;
                 }
             }
+            
+            const productIdsToUpdate = allProducts
+                .filter(p => p.game_id == selectedGameId)
+                .map(p => p.id);
+
             try {
-                const response = await fetch(`${ADMIN_API_URL}/products/${selectedProductIdForValidation}/validation`, {
+                const response = await fetch(`${ADMIN_API_URL}/products/bulk-validation`, {
                     method: 'PUT',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ validation_config: config })
+                    body: JSON.stringify({
+                        productIds: productIdsToUpdate,
+                        validation_config: config
+                    })
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
-                alert('Pengaturan validasi berhasil disimpan!');
-                const productIndex = allProducts.findIndex(p => p.id == selectedProductIdForValidation);
-                if (productIndex > -1) allProducts[productIndex].validation_config = config;
-            } catch (error) { alert(`Error: ${error.message}`); }
+                
+                alert(`Berhasil! Pengaturan validasi telah diterapkan ke ${productIdsToUpdate.length} produk.`);
+                
+                productIdsToUpdate.forEach(id => {
+                    const productIndex = allProducts.findIndex(p => p.id == id);
+                    if (productIndex > -1) allProducts[productIndex].validation_config = config;
+                });
+
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
         });
     }
+}
 
     if (menuToggleBtn.length > 0 && sidebar) {
         menuToggleBtn.forEach(btn => btn.addEventListener('click', () => {

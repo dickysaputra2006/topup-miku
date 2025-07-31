@@ -610,6 +610,27 @@ app.put('/api/admin/products/:id/validation', protectAdmin, async (req, res) => 
     }
 });
 
+app.put('/api/admin/products/bulk-validation', protectAdmin, async (req, res) => {
+    try {
+        const { productIds, validation_config } = req.body;
+
+        if (!Array.isArray(productIds) || productIds.length === 0) {
+            return res.status(400).json({ message: 'productIds harus berupa array dan tidak boleh kosong.' });
+        }
+
+        // Menggunakan query builder dari 'pg' untuk menangani array
+        const { rowCount } = await pool.query(
+            'UPDATE products SET validation_config = $1 WHERE id = ANY($2::int[])',
+            [validation_config, productIds]
+        );
+
+        res.json({ message: `Pengaturan validasi berhasil diperbarui untuk ${rowCount} produk.` });
+    } catch (error) {
+        console.error('Error updating bulk product validation:', error);
+        res.status(500).json({ message: 'Gagal memperbarui pengaturan validasi massal.' });
+    }
+});
+
 // === PUBLIC ENDPOINTS ===
 
 app.post('/api/test', (req, res) => {
