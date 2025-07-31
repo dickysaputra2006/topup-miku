@@ -336,8 +336,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // === EVENT LISTENERS ===
 
         validationSelector.addEventListener('change', () => {
-            validationRulesContainer.classList.toggle('hidden', !validationSelector.value);
-        });
+    if (validationSelector.value) {
+        validationRulesContainer.classList.remove('hidden');
+    } else {
+        validationRulesContainer.classList.add('hidden');
+    }
+});
 
         validationForm.addEventListener('submit', async (e) => {
             e.preventDefault();
