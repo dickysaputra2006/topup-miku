@@ -158,6 +158,81 @@ document.addEventListener('DOMContentLoaded', function() {
         submitOrderBtn.textContent = 'Beli Sekarang';
     }
 
+     async function setupLiveValidation() {
+    const targetIdInput = document.getElementById('target-game-id');
+    const serverIdInputContainer = document.getElementById('server-input-container');
+    const resultContainer = document.getElementById('validation-result');
+    const productListContainer = document.getElementById('product-list-container');
+    let selectedProductId = null; // Lacak produk yang dipilih
+
+    // Lacak perubahan produk yang dipilih oleh pengguna
+    productListContainer.addEventListener('click', (e) => {
+        const card = e.target.closest('.product-card-selectable');
+        if (card && card.dataset.productId) {
+            selectedProductId = card.dataset.productId;
+            // Panggil ulang validasi jika pengguna mengubah pilihan produk setelah mengisi ID
+            if (targetIdInput.value) {
+                handleValidation();
+            }
+        }
+    });
+    
+    // Fungsi inti untuk menjalankan validasi
+    const handleValidation = async () => {
+        // Hanya jalankan jika sebuah produk sudah dipilih
+        if (!selectedProductId) return;
+
+        const userId = targetIdInput.value;
+        const serverIdInput = document.getElementById('target-server-id');
+        const zoneId = serverIdInput ? serverIdInput.value : null;
+
+        // Jangan lakukan apa-apa jika User ID kosong
+        if (!userId) {
+            resultContainer.innerHTML = '';
+            return;
+        }
+
+        resultContainer.innerHTML = `<p style="color: #ccc;">Mengecek nickname...</p>`;
+
+        try {
+            // Panggil endpoint validasi BARU berdasarkan ID produk
+            const response = await fetch(`${PUBLIC_API_URL}/products/${selectedProductId}/validate`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, zoneId })
+            });
+
+            const result = await response.json();
+            
+            // Jika produk tidak butuh validasi, server akan mengembalikan pesan sukses
+            if (result.message && result.message.includes('tidak memerlukan validasi')) {
+                resultContainer.innerHTML = `<p style="color: var(--success-color);">✅ ${result.message}</p>`;
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(result.message);
+            }
+
+            resultContainer.innerHTML = `<p style="color: var(--success-color);">✅ Nickname: <strong>${result.data.username}</strong></p>`;
+        } catch (error) {
+            resultContainer.innerHTML = `<p style="color: var(--danger-color);">❌ ${error.message}</p>`;
+        }
+    };
+
+    // Tambahkan event listener ke input ID utama
+    targetIdInput.addEventListener('blur', handleValidation);
+    
+    // Gunakan MutationObserver untuk mendeteksi kapan input server ID ditambahkan ke DOM
+    const observer = new MutationObserver(() => {
+        const serverIdInput = document.getElementById('target-server-id');
+        if (serverIdInput) {
+            serverIdInput.addEventListener('blur', handleValidation);
+            observer.disconnect(); // Hentikan observasi setelah ditemukan
+        }
+    });
+    observer.observe(serverIdInputContainer, { childList: true, subtree: true });
+}
     // === Bagian 3: Menambahkan Semua Event Listeners ===
 
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
@@ -349,4 +424,5 @@ document.addEventListener('DOMContentLoaded', function() {
     // === Bagian 4: Menjalankan Fungsi Awal ===
     fetchGameData();
     updateAuthButtonOnProductPage();
+    setupLiveValidation();
 });

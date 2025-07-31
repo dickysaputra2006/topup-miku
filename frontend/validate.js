@@ -67,19 +67,18 @@ document.addEventListener('DOMContentLoaded', function() {
     submitButton.disabled = true;
     submitButton.textContent = 'Mengecek...';
     
-    try {
-        const response = await fetch(`${API_URL}/validate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                gameCode: game.gameCode,
-                userId: userId,
-                zoneId: zoneId
-            })
-        });
+     try {
+                // Panggil endpoint validasi LENGKAP yang baru
+                const response = await fetch(`${PUBLIC_API_URL}/full-validate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    gameCode: game.gameCode, userId, zoneId 
+                })
+            });
 
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.message);
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
         
         // --- PERUBAHAN TAMPILAN HASIL ---
         let successHtml = `<div class="card" style="border-left: 5px solid var(--success-color);">

@@ -4,6 +4,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const sections = document.querySelectorAll('.admin-section');
     const sidebar = document.getElementById('admin-sidebar');
     const menuToggleBtn = document.querySelectorAll('#menu-toggle-btn');
+    const validationEditor = document.getElementById('product-validation-editor');
+    const validationForm = document.getElementById('validation-config-form');
+    const validationSelector = document.getElementById('validation-selector');
+    const validationRulesContainer = document.getElementById('validation-rules-container');
+    const allowedRegionsInput = document.getElementById('allowed-regions-input');
+    const disallowedRegionsInput = document.getElementById('disallowed-regions-input');
+    let allValidatableGamesData = [];
+    let selectedProductIdForValidation = null;
 
     // Elemen untuk Produk & Game (Layout Baru)
     const gameSearchInput = document.getElementById('game-search-input');
@@ -115,51 +123,79 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderProductsForGame(gameId) {
-        if (!productsTableBody) return;
-        const filteredProducts = allProducts.filter(p => p.game_id == gameId);
-        productsTableBody.innerHTML = '';
-        const productsTable = document.getElementById('products-table');
-        const tableHeaderThead = productsTable.querySelector('thead');
-        if (!tableHeaderThead) return;
-        const tableHeaderRow = document.createElement('tr');
-        tableHeaderRow.innerHTML = `<th>Nama Produk</th><th>Harga Pokok</th><th>SKU</th>`;
-        const displayRoles = allRoles.filter(role => ADMIN_PRICE_ROLE_ORDER.includes(role.name))
-            .sort((a, b) => ADMIN_PRICE_ROLE_ORDER.indexOf(a.name) - ADMIN_PRICE_ROLE_ORDER.indexOf(b.name));
-        displayRoles.forEach(role => {
-            tableHeaderRow.innerHTML += `<th>Harga ${role.name}</th>`;
-        });
-        tableHeaderRow.innerHTML += `<th>Status</th>`;
-        tableHeaderThead.innerHTML = '';
-        tableHeaderThead.appendChild(tableHeaderRow);
-        productListTitle.textContent = `Produk untuk: ${allGames.find(g => g.id == gameId)?.name || 'Pilih Game'}`;
-        if (filteredProducts.length === 0) {
-            const colspan = 4 + displayRoles.length;
-            productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
-            return;
-        }
-        filteredProducts.forEach(product => {
-            const row = document.createElement('tr');
-            row.dataset.productId = product.id;
-            const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price);
-            let rowHtml = `<td>${product.name}</td><td>${formattedBasePrice}</td><td>${product.provider_sku}</td>`;
-            displayRoles.forEach(role => {
-                const rolePriceKey = `price_${role.name.toLowerCase()}`;
-                const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product[rolePriceKey] || 0);
-                rowHtml += `<td>${formattedRolePrice}</td>`;
-            });
-            const isChecked = product.status === 'Active' ? 'checked' : '';
-            rowHtml += `
-                <td>
-                    <label class="switch">
-                        <input type="checkbox" class="product-status-toggle" data-product-id="${product.id}" ${isChecked}>
-                        <span class="slider"></span>
-                    </label>
-                </td>
-            `;
-            row.innerHTML = rowHtml;
-            productsTableBody.appendChild(row);
-        });
+    if (!productsTableBody) return;
+    const filteredProducts = allProducts.filter(p => p.game_id == gameId);
+    productsTableBody.innerHTML = '';
+    const productsTable = document.getElementById('products-table');
+    const tableHeaderThead = productsTable.querySelector('thead');
+    if (!tableHeaderThead) return;
+    const tableHeaderRow = document.createElement('tr');
+
+    // Membuat header dasar
+    tableHeaderRow.innerHTML = `<th>Nama Produk</th><th>Harga Pokok</th><th>SKU</th>`;
+
+    // Menambahkan header harga untuk setiap role
+    const displayRoles = allRoles.filter(role => ADMIN_PRICE_ROLE_ORDER.includes(role.name))
+        .sort((a, b) => ADMIN_PRICE_ROLE_ORDER.indexOf(a.name) - ADMIN_PRICE_ROLE_ORDER.indexOf(b.name));
+    displayRoles.forEach(role => {
+        tableHeaderRow.innerHTML += `<th>Harga ${role.name}</th>`;
+    });
+
+    // Menambahkan header Status
+    tableHeaderRow.innerHTML += `<th>Status</th>`;
+
+    // --- PERUBAHAN 1: Menambahkan header baru untuk Aksi Validasi ---
+    tableHeaderRow.innerHTML += `<th>Aksi Validasi</th>`;
+    // --- AKHIR PERUBAHAN ---
+
+    tableHeaderThead.innerHTML = '';
+    tableHeaderThead.appendChild(tableHeaderRow);
+    productListTitle.textContent = `Produk untuk: ${allGames.find(g => g.id == gameId)?.name || 'Pilih Game'}`;
+    
+    if (filteredProducts.length === 0) {
+        // PERBAIKAN KECIL: Menyesuaikan colspan agar tabel tetap rapi
+        const colspan = 5 + displayRoles.length;
+        productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
+        return;
     }
+
+    filteredProducts.forEach(product => {
+        const row = document.createElement('tr');
+        row.dataset.productId = product.id;
+        const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price);
+        
+        let rowHtml = `<td>${product.name}</td><td>${formattedBasePrice}</td><td>${product.provider_sku}</td>`;
+        
+        displayRoles.forEach(role => {
+            const rolePriceKey = `price_${role.name.toLowerCase()}`;
+            const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product[rolePriceKey] || 0);
+            rowHtml += `<td>${formattedRolePrice}</td>`;
+        });
+        
+        const isChecked = product.status === 'Active' ? 'checked' : '';
+        
+        // Sel untuk toggle status
+        rowHtml += `
+            <td>
+                <label class="switch">
+                    <input type="checkbox" class="product-status-toggle" data-product-id="${product.id}" ${isChecked}>
+                    <span class="slider"></span>
+                </label>
+            </td>
+        `;
+
+        // --- PERUBAHAN 2: Menambahkan sel baru untuk tombol "Atur Validasi" ---
+        rowHtml += `
+            <td>
+                <button class="edit-btn edit-validation-btn" data-product-id="${product.id}">Atur</button>
+            </td>
+        `;
+        // --- AKHIR PERUBAHAN ---
+
+        row.innerHTML = rowHtml;
+        productsTableBody.appendChild(row);
+    });
+}
 
     async function fetchPendingDeposits() {
         if (!pendingDepositsTableBody) return;
@@ -269,7 +305,67 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    async function fetchAllValidatableGames() {
+    try {
+        const response = await fetch(`${PUBLIC_API_URL}/games/validatable`);
+        allValidatableGamesData = await response.json();
+        validationSelector.innerHTML = '<option value="">-- Tidak Perlu Validasi --</option>';
+        allValidatableGamesData.forEach(game => {
+            if (game.name) {
+                const option = document.createElement('option');
+                option.value = game.gameCode;
+                option.textContent = game.name;
+                validationSelector.appendChild(option);
+            }
+        });
+    } catch (error) { console.error("Gagal memuat data game untuk validasi:", error); }
+}
+
+    function showValidationEditor(product) {
+        selectedProductIdForValidation = product.id;
+        validationEditor.classList.remove('hidden');
+        const config = product.validation_config || {};
+        const rules = config.rules || {};
+        validationSelector.value = config.validator || "";
+        allowedRegionsInput.value = (rules.allowedRegions || []).join(',');
+        disallowedRegionsInput.value = (rules.disallowedRegions || []).join(',');
+        validationRulesContainer.classList.toggle('hidden', !validationSelector.value);
+    }
+
+
     // === EVENT LISTENERS ===
+
+        validationSelector.addEventListener('change', () => {
+            validationRulesContainer.classList.toggle('hidden', !validationSelector.value);
+        });
+
+        validationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const validator = validationSelector.value;
+            const allowed = allowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+            const disallowed = disallowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+            let config = null;
+            if (validator) {
+                config = { validator };
+                if (allowed.length > 0 || disallowed.length > 0) {
+                    config.rules = {};
+                    if (allowed.length > 0) config.rules.allowedRegions = allowed;
+                    if (disallowed.length > 0) config.rules.disallowedRegions = disallowed;
+                }
+            }
+            try {
+                const response = await fetch(`${ADMIN_API_URL}/products/${selectedProductIdForValidation}/validation`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ validation_config: config })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                alert('Pengaturan validasi berhasil disimpan!');
+                const productIndex = allProducts.findIndex(p => p.id == selectedProductIdForValidation);
+                if (productIndex > -1) allProducts[productIndex].validation_config = config;
+            } catch (error) { alert(`Error: ${error.message}`); }
+        });
 
     if (menuToggleBtn.length > 0 && sidebar) {
         menuToggleBtn.forEach(btn => btn.addEventListener('click', () => {
@@ -378,36 +474,51 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     if (productsTableBody) {
-        productsTableBody.addEventListener('change', async (e) => {
-            if (e.target.classList.contains('product-status-toggle')) {
-                const toggleSwitch = e.target;
-                const productId = toggleSwitch.dataset.productId;
-                const newStatus = toggleSwitch.checked ? 'Active' : 'Inactive';
-                toggleSwitch.disabled = true;
-                try {
-                    const response = await fetch(`${ADMIN_API_URL}/products/${productId}/status`, {
-                        method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status: newStatus })
-                    });
-                    const result = await response.json();
-                    if (!response.ok) {
-                        toggleSwitch.checked = !toggleSwitch.checked;
-                        throw new Error(result.message);
-                    }
-                    console.log(`Status produk ${productId} diubah menjadi ${newStatus}`);
-                    const productIndex = allProducts.findIndex(p => p.id == productId);
-                    if (productIndex > -1) {
-                        allProducts[productIndex].status = newStatus;
-                    }
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                } finally {
-                    toggleSwitch.disabled = false;
-                }
+    // LISTENER #1: Untuk menangani KLIK pada tombol "Atur"
+    productsTableBody.addEventListener('click', (e) => {
+        // Cek apakah yang diklik adalah tombol 'Atur Validasi'
+        if (e.target.classList.contains('edit-validation-btn')) {
+            const productId = e.target.dataset.productId;
+            const product = allProducts.find(p => p.id == productId);
+            if (product) {
+                // Panggil fungsi untuk menampilkan editor validasi
+                showValidationEditor(product);
             }
-        });
-    }
+        }
+    });
+
+    // LISTENER #2: Untuk menangani PERUBAHAN pada toggle status (kode asli Anda, tidak diubah)
+    productsTableBody.addEventListener('change', async (e) => {
+        // Cek apakah yang berubah adalah toggle status produk
+        if (e.target.classList.contains('product-status-toggle')) {
+            const toggleSwitch = e.target;
+            const productId = toggleSwitch.dataset.productId;
+            const newStatus = toggleSwitch.checked ? 'Active' : 'Inactive';
+            toggleSwitch.disabled = true;
+            try {
+                const response = await fetch(`${ADMIN_API_URL}/products/${productId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    toggleSwitch.checked = !toggleSwitch.checked;
+                    throw new Error(result.message);
+                }
+                console.log(`Status produk ${productId} diubah menjadi ${newStatus}`);
+                const productIndex = allProducts.findIndex(p => p.id == productId);
+                if (productIndex > -1) {
+                    allProducts[productIndex].status = newStatus;
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                toggleSwitch.disabled = false;
+            }
+        }
+    });
+}
 
     if (addBalanceBtn) addBalanceBtn.addEventListener('click', () => handleManualBalance('add'));
     if (reduceBalanceBtn) reduceBalanceBtn.addEventListener('click', () => handleManualBalance('reduce'));
@@ -501,6 +612,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === FUNGSI INISIALISASI ===
     async function initAdminPage() {
+        await fetchAllValidatableGames();
         await fetchAdminGames();
         await fetchAdminProducts();
         await fetchPendingDeposits();

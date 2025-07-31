@@ -597,6 +597,19 @@ app.put('/api/admin/games/:id/needs-server', protectAdmin, async (req, res) => {
     }
 });
 
+app.put('/api/admin/products/:id/validation', protectAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { validation_config } = req.body;
+        const { rowCount } = await pool.query('UPDATE products SET validation_config = $1 WHERE id = $2', [validation_config, id]);
+        if (rowCount === 0) return res.status(404).json({ message: 'Produk tidak ditemukan.' });
+        res.json({ message: 'Pengaturan validasi produk berhasil diperbarui.' });
+    } catch (error) {
+        console.error('Error updating product validation:', error);
+        res.status(500).json({ message: 'Gagal memperbarui pengaturan validasi.' });
+    }
+});
+
 // === PUBLIC ENDPOINTS ===
 
 app.post('/api/test', (req, res) => {
@@ -637,63 +650,39 @@ app.get('/api/games/validatable', async (req, res) => {
     }
 });
 
-app.post('/api/v1/validate', async (req, res) => {
-    const { gameCode, userId, zoneId } = req.body;
-
-    if (!gameCode || !userId) {
-        return res.status(400).json({ success: false, message: 'Parameter gameCode dan userId wajib diisi.' });
-    }
-
+// Endpoint baru untuk validasi di halaman produk
+app.post('/api/products/:productId/validate', async (req, res) => {
+    const { productId } = req.params;
+    const { userId, zoneId } = req.body;
+    if (!userId) return res.status(400).json({ success: false, message: 'User ID wajib diisi.' });
     try {
-        console.log(`[API v1] Menerima permintaan validasi untuk game: ${gameCode}`);
-        let result;
-
-        // --- LOGIKA KONDISIONAL BERDASARKAN GAMECODE ---
-
-        if (gameCode === 'mobile-legends-region') {
-            // Langkah 1: Validasi Nickname & Region ke PGS
-            const pgsResult = await validateGameId(gameCode, userId, zoneId);
-            if (!pgsResult.success) {
-                // Jika validasi dasar gagal, langsung kirim error
-                return res.status(400).json({ success: false, message: pgsResult.message });
-            }
-
-            // Langkah 2: Jika PGS berhasil, lanjutkan cek promo ke Mobapay
-            const mobapayResult = await checkAllMobapayPromosML(userId, zoneId);
-
-            // Gabungkan hasilnya
-            const finalData = { 
-                ...pgsResult.data, 
-                promo: mobapayResult.data // Tambahkan data promo
-            };
-            result = { success: true, data: finalData };
-
-        } else if (gameCode === 'magic-chess-go-go') {
-            // Panggil fungsi validasi khusus untuk Magic Chess
-            result = await cekPromoMcggMobapay(userId, zoneId);
-            // Sesuaikan format agar konsisten
-            if(result.success) {
-                result = { success: true, data: { username: result.nickname, promo: { doubleDiamond: { items: result.promoProducts } } } };
-            }
-
-        } else {
-            // Untuk semua game lain, jalankan validasi biasa
-            result = await validateGameId(gameCode, userId, zoneId);
-        }
-
-        // --- AKHIR LOGIKA KONDISIONAL ---
-
-        console.log(`[API v1] Hasil akhir sebelum dikirim:`, JSON.stringify(result, null, 2));
-
-        if (result.success) {
-            res.status(200).json(result);
-        } else {
-            res.status(400).json({ success: false, message: result.message || "ID/Zone tidak valid atau tidak ditemukan." });
-        }
-
+        const { rows } = await pool.query('SELECT validation_config FROM products WHERE id = $1', [productId]);
+        if (rows.length === 0) return res.status(404).json({ success: false, message: 'Produk tidak ditemukan.' });
+        const config = rows[0].validation_config;
+        if (!config || !config.validator) return res.json({ success: true, message: 'Produk ini tidak memerlukan validasi.' });
+        const result = await validateGameId(config.validator, userId, zoneId, config.rules || {});
+        if (result.success) res.json(result);
+        else res.status(400).json({ success: false, message: result.message });
     } catch (error) {
-        console.error('[API v1] Terjadi error tak terduga:', error);
-        res.status(500).json({ success: false, message: 'Terjadi kesalahan internal pada server.' });
+        res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+    }
+});
+
+// Endpoint baru untuk halaman validasi (yang menampilkan promo)
+app.post('/api/full-validate', async (req, res) => {
+    const { gameCode, userId, zoneId, rules } = req.body;
+    if (!gameCode || !userId) return res.status(400).json({ success: false, message: 'Parameter tidak lengkap.' });
+    try {
+        const pgsResult = await validateGameId(gameCode, userId, zoneId, rules || {});
+        if (!pgsResult.success) return res.status(400).json({ success: false, message: pgsResult.message });
+        let result = pgsResult;
+        if (gameCode.includes('mobile-legends')) {
+            const mobapayResult = await checkAllMobapayPromosML(userId, zoneId);
+            result.data.promo = mobapayResult.data;
+        }
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Terjadi kesalahan internal.' });
     }
 });
 
