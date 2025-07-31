@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // === Bagian 1: Deklarasi Variabel & Elemen ===
-    const AUTH_API_URL = 'https://topup-miku.onrender.com/api/auth';
-    const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api'; // Pastikan ini juga benar
+    const AUTH_API_URL = '/api/auth';
+    const PUBLIC_API_URL = '/api';
     const params = new URLSearchParams(window.location.search);
     const gameId = params.get('gameId');
     const token = localStorage.getItem('authToken');
@@ -299,8 +299,43 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
     });
-}
+    }
     
+    targetGameIdInput.addEventListener('blur', async () => {
+    const userId = targetGameIdInput.value;
+    const serverIdEl = document.getElementById('target-server-id');
+    const zoneId = serverIdEl ? serverIdEl.value : null;
+    
+    // Asumsi kita punya gameCode yang relevan
+    const gameCode = "mobile-legends"; // Ini harus dinamis nanti
+
+    if (!userId) return;
+
+    validationResultEl.innerHTML = `<i>Memvalidasi ID...</i>`;
+    submitOrderBtn.disabled = true; // Nonaktifkan tombol beli saat validasi
+
+    const response = await fetch(`${PUBLIC_API_URL}/validate-id`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode, userId, zoneId })
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+        validationResultEl.innerHTML = `<span style="color:var(--success-color);">✅ Nickname: ${result.data.username}</span>`;
+        submitOrderBtn.disabled = false; // Aktifkan tombol beli
+    } else {
+        validationResultEl.innerHTML = `<span style="color:var(--danger-color);">❌ ${result.message}</span>`;
+        if (result.reason === 'api_error') {
+            // Jika API error, beri tahu pengguna tapi tetap izinkan pembelian
+            validationResultEl.innerHTML += `<br><small>Anda tetap bisa melanjutkan, pastikan ID sudah benar.</small>`;
+            submitOrderBtn.disabled = false;
+        }
+        // Jika reason 'invalid_id', tombol akan tetap disabled
+    }
+});
+
     document.querySelectorAll('.toggle-password').forEach(icon => {
         icon.addEventListener('click', function() {
             const input = this.parentElement.querySelector('input');

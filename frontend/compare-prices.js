@@ -5,7 +5,7 @@ let allRolesData = [];
 let displayRoles = [];
 
 document.addEventListener('DOMContentLoaded', function () {
-    const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api';
+    const PUBLIC_API_URL = '/api';
 
     const compareGamesList = document.getElementById('compare-games-list');
     const compareProductListTitle = document.getElementById('compare-product-list-title');

@@ -19,7 +19,7 @@ document.addEventListener('click', function (event) {
     });
   
 
-    const API_URL = 'https://topup-miku.onrender.com/api/user';
+    const API_URL = '/api/user';
     const token = localStorage.getItem('authToken');
 
     if (!token) {

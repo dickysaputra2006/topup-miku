@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const API_URL = 'https://topup-miku.onrender.com/api/user/transaction/';
+    const API_URL = '/api/user/transaction/';
     const token = localStorage.getItem('authToken');
     const invoiceDetailsContainer = document.getElementById('invoice-details-container');
     const params = new URLSearchParams(window.location.search);

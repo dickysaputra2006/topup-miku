@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Endpoint API baru kita
-    const API_URL = 'https://topup-miku.onrender.com/api/v1'; 
+    const API_URL = '/api/v1'; 
     const gamesListContainer = document.getElementById('validate-games-list');
     const validatorTitle = document.getElementById('validator-title');
     const formContainer = document.getElementById('validator-form-container');
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchValidatableGames() {
         try {
             // Kita tetap mengambil daftar game dari endpoint lama
-            const response = await fetch('https://topup-miku.onrender.com/api/games/validatable');
+            const response = await fetch('/api/games/validatable');
             if (!response.ok) throw new Error('Gagal memuat daftar game.');
             allValidatableGames = await response.json();
             renderGamesList(allValidatableGames);

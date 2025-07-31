@@ -26,8 +26,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const marginFieldsContainer = document.getElementById('margin-fields-container');
 
     // === KONFIGURASI & STATE ===
-    const ADMIN_API_URL = 'https://topup-miku.onrender.com/api/admin';
-    const PUBLIC_API_URL = 'https://topup-miku.onrender.com/api';
+    const ADMIN_API_URL = '/api/admin';
+    const PUBLIC_API_URL = '/api';
     const token = localStorage.getItem('authToken');
     const ADMIN_PRICE_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD', 'Admin'];
     let allGames = [];

@@ -806,7 +806,7 @@ app.post('/api/order', protect, async (req, res) => {
             user_id: targetGameId,
             server_id: targetServerId || '',
             trx_id: trx_id_provider,
-            callback_url: 'https://topup-miku.onrender.com/api/foxy/callback' // URL callback Render Anda
+            callback_url: 'https://mikutopup.my.id/api/foxy/callback' // URL callback Render Anda
         };
 
         axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { // Menggunakan /v1/order
@@ -935,7 +935,7 @@ app.post('/h2h/order', protectH2H, async (req, res) => {
             user_id: targetGameId,
             server_id: targetServerId || '',
             trx_id: trx_id_provider,
-            callback_url: 'https://topup-miku.onrender.com/api/foxy/callback'
+            callback_url: 'https://mikutopup.my.id/api/foxy/callback'
         };
 
         axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, {

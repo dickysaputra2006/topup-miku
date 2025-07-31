@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     // === 1. DEKLARASI KONSTANTA & ELEMEN ===
-    const API_URL_AUTH = 'https://topup-miku.onrender.com/api/auth';
-    const API_URL = 'https://topup-miku.onrender.com/api';
+    const API_URL_AUTH = '/api/auth';
+    const API_URL = '/api';
     const token = localStorage.getItem('authToken');
 
     // Elemen Header & Dropdown
