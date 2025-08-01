@@ -45,6 +45,8 @@ document.addEventListener('click', function (event) {
     
     let apiKeyFetched = false;
     let mutasiLoaded = false;
+    let transaksiLoaded = false;
+    let depositFormSetup = false;
 
     async function fetchProfileData() {
         try {
@@ -75,6 +77,75 @@ document.addEventListener('click', function (event) {
         console.error('Gagal memuat ringkasan transaksi:', error);
     }
 }
+
+            // Fungsi dari transaksi.js
+        async function fetchTransactions() {
+            const tableBody = document.querySelector("#transactions-table tbody");
+            if (!tableBody) return;
+            tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center;">Memuat riwayat...</td></tr>`;
+            try {
+                const response = await fetch(`${API_URL}/transactions`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!response.ok) throw new Error('Gagal mengambil data transaksi.');
+                const transactions = await response.json();
+                renderTransactionsTable(transactions, tableBody);
+                transaksiLoaded = true;
+            } catch (error) {
+                tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">${error.message}</td></tr>`;
+            }
+        }
+
+        // Fungsi dari transaksi.js
+        function renderTransactionsTable(transactions, tableBody) {
+            if (!tableBody) return;
+            tableBody.innerHTML = '';
+            if (transactions.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Anda belum memiliki riwayat transaksi.</td></tr>';
+                return;
+            }
+            transactions.forEach(tx => {
+                const row = document.createElement('tr');
+                const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.price);
+                const statusClass = `status-${tx.status.toLowerCase()}`;
+                row.innerHTML = `
+                    <td><a href="invoice.html?id=${tx.invoice_id}" class="history-link">${tx.invoice_id}</a></td>
+                    <td>${new Date(tx.created_at).toLocaleString('id-ID')}</td>
+                    <td>${tx.product_name}</td>
+                    <td>${tx.target_game_id}</td>
+                    <td>${formattedPrice}</td>
+                    <td><span class="status-badge ${statusClass}">${tx.status}</span></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Fungsi dari deposit.js
+        function setupDepositForm() {
+            const depositForm = document.getElementById('deposit-form');
+            const paymentInstructionsSection = document.getElementById('payment-instructions');
+            const instructionText = document.getElementById('instruction-text');
+            if (!depositForm) return;
+
+            depositForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const amount = this.querySelector('input[name="amount"]').value;
+                paymentInstructionsSection.classList.remove('hidden');
+                instructionText.innerHTML = 'Memproses permintaan Anda...';
+                try {
+                    const response = await fetch('/api/deposit/request', { // Langsung ke endpoint
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ amount: parseInt(amount) })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+                    instructionText.innerHTML = result.deposit.paymentInstructions;
+                    depositForm.reset();
+                } catch (error) {
+                    instructionText.innerHTML = `<strong>Error:</strong> ${error.message}`;
+                }
+            });
+            depositFormSetup = true;
+        }
 
     function updateDashboardUI(data) {
         document.getElementById('profile-fullname').textContent = data.full_name;
@@ -173,6 +244,14 @@ function renderMutasiTable(history, tableBody) {
                 if (targetId === 'mutasi-saldo' && !mutasiLoaded) {
                     fetchBalanceHistory();
                 }
+
+                if (targetId === 'transaksi-tab' && !transaksiLoaded) {
+                    fetchTransactions();
+                }
+                if (targetId === 'deposit-tab' && !depositFormSetup) {
+                    setupDepositForm();
+                }
+
             });
         });
     }
