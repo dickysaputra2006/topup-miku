@@ -186,7 +186,7 @@
                 </div>
             </section>
 
-            </section> <section id="promo" class="admin-section hidden">
+            <section id="promo" class="admin-section hidden">
     <div class="card">
         <h3>Buat Kode Promo Baru</h3>
         <form id="add-promo-form" class="admin-form" style="background: none; padding: 0;">
@@ -211,6 +211,9 @@
                     <input type="number" id="promo-min-price" placeholder="Contoh: 15000">
                     <label for="promo-max-uses-user">Maks. Penggunaan per ID Game (Opsional)</label>
                     <input type="number" id="promo-max-uses-user" placeholder="Contoh: 2">
+                    
+                    <label for="promo-max-discount">Maks. Potongan Diskon (Rp) - untuk tipe Persen</label>
+                    <input type="number" id="promo-max-discount" placeholder="Contoh: 10000">
                     <label for="promo-allowed-games">Hanya untuk Game ID (Opsional, pisahkan koma)</label>
                     <input type="text" id="promo-allowed-games" placeholder="Contoh: 1, 5, 12">
                     <label for="promo-allowed-products">Hanya untuk Produk ID (Opsional, pisahkan koma)</label>
@@ -241,17 +244,24 @@
     </div>
             </section>
 
-            </section> <section id="flash-sale" class="admin-section hidden">
+            <section id="flash-sale" class="admin-section hidden">
     <div class="card">
         <h3>Tambah Produk ke Flash Sale</h3>
         <form id="add-flash-sale-form" class="admin-form" style="background: none; padding: 0;">
             <div class="admin-forms-container">
                 <div class="admin-form">
-                    <label for="fs-product-selector">Pilih Produk</label>
-                    <select id="fs-product-selector" required>
-                        <option value="">Memuat produk...</option>
+                    <label for="fs-game-search">1. Cari & Pilih Game</label>
+                    <input type="text" id="fs-game-search" placeholder="Ketik nama game...">
+                    <select id="fs-game-selector" required>
+                        <option value="">-- Pilih Game Terlebih Dahulu --</option>
                     </select>
-                    <label for="fs-discount-price">Harga Diskon (Rp)</label>
+                    
+                    <label for="fs-product-selector">2. Pilih Produk</label>
+                    <select id="fs-product-selector" required>
+                        <option value="">-- Pilih Game Terlebih Dahulu --</option>
+                    </select>
+                    
+                    <label for="fs-discount-price">3. Harga Diskon (Rp)</label>
                     <input type="number" id="fs-discount-price" placeholder="Contoh: 25000" required>
                 </div>
                 <div class="admin-form">
@@ -259,13 +269,17 @@
                     <input type="datetime-local" id="fs-start-at" required>
                     <label for="fs-end-at">Waktu Berakhir</label>
                     <input type="datetime-local" id="fs-end-at" required>
+                    <label for="fs-max-uses">Batas Penggunaan / Kuota (Kosongkan jika tanpa limit)</label>
+                    <input type="number" id="fs-max-uses" placeholder="Contoh: 100">
+                    <label for="fs-max-discount">Maksimal Potongan (Rp) - untuk promo %</label>
+                    <input type="number" id="fs-max-discount" placeholder="Contoh: 10000">
                 </div>
             </div>
             <button type="submit" style="margin-top: 1.5rem;">Tambah ke Flash Sale</button>
         </form>
     </div>
     <div class="card">
-        <h3>Daftar Produk Flash Sale</h3>
+        <h3>Daftar Produk Flash Sale Aktif</h3>
         <div class="table-container">
             <table id="flash-sales-table">
                 <thead>
@@ -273,6 +287,7 @@
                         <th>Game</th>
                         <th>Produk</th>
                         <th>Harga Diskon</th>
+                        <th>Kuota</th>
                         <th>Berakhir Pada</th>
                         <th>Aksi</th>
                     </tr>

@@ -683,14 +683,16 @@ app.put('/api/admin/products/bulk-validation', protectAdmin, async (req, res) =>
     }
 });
 app.post('/api/admin/promos', protectAdmin, async (req, res) => {
-    const { code, type, value, max_uses, expires_at } = req.body;
+    // Ambil semua data dari body, termasuk 'rules'
+    const { code, description, type, value, expires_at, rules } = req.body;
     try {
-        const sql = `INSERT INTO promo_codes (code, type, value, max_uses, expires_at) 
-                     VALUES ($1, $2, $3, $4, $5) RETURNING *`;
-        const { rows } = await pool.query(sql, [code.toUpperCase(), type, value, max_uses, expires_at]);
+        const sql = `INSERT INTO promo_codes (code, description, type, value, expires_at, rules) 
+                     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`;
+        const { rows } = await pool.query(sql, [code.toUpperCase(), description, type, value, expires_at, rules]);
         res.status(201).json(rows[0]);
     } catch (error) {
         if (error.code === '23505') return res.status(409).json({ message: 'Kode promo sudah ada.' });
+        console.error("Gagal membuat kode promo:", error);
         res.status(500).json({ message: 'Gagal membuat kode promo.' });
     }
 });
@@ -740,16 +742,17 @@ app.get('/api/admin/flash-sales', protectAdmin, async (req, res) => {
 });
 // Endpoint untuk menambah produk ke flash sale
 app.post('/api/admin/flash-sales', protectAdmin, async (req, res) => {
-    const { product_id, discount_price, start_at, end_at } = req.body;
+    const { product_id, discount_price, start_at, end_at, max_uses, max_discount_amount } = req.body;
+    const rules = max_discount_amount ? { max_discount_amount: parseFloat(max_discount_amount) } : null;
+
     try {
         const sql = `
-            INSERT INTO flash_sales (product_id, discount_price, start_at, end_at)
-            VALUES ($1, $2, $3, $4) RETURNING *;
+            INSERT INTO flash_sales (product_id, discount_price, start_at, end_at, max_uses, rules)
+            VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
         `;
-        const { rows } = await pool.query(sql, [product_id, discount_price, start_at, end_at]);
+        const { rows } = await pool.query(sql, [product_id, discount_price, start_at, end_at, max_uses, rules]);
         res.status(201).json(rows[0]);
     } catch (error) {
-        console.error("Error adding flash sale:", error);
         res.status(500).json({ message: 'Gagal menambah item flash sale.' });
     }
 });
@@ -877,26 +880,45 @@ app.post('/api/full-validate', async (req, res) => {
 app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
     try {
         const { gameId } = req.params;
-        let userRoleId = 1;
+        
+        // --- AWAL PERBAIKAN LOGIKA MARGIN ---
+        let userRoleId = 1; // Atur default ke role ID 1 (misalnya BRONZE) untuk publik
+
         if (req.user) {
+            // Jika pengguna login, ambil role_id mereka
             const { rows: userRows } = await pool.query('SELECT role_id FROM users WHERE id = $1', [req.user.id]);
-            if (userRows.length > 0) userRoleId = userRows[0].role_id;
+            if (userRows.length > 0) {
+                userRoleId = userRows[0].role_id;
+            }
         }
+
+        // Ambil margin berdasarkan role_id yang sudah ditentukan (baik dari pengguna login atau default)
         const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [userRoleId]);
-        if (roleRows.length === 0) throw new Error(`Role dengan ID ${userRoleId} tidak ditemukan.`);
-        const margin = roleRows[0].margin_percent;
+        
+        let margin = 0; // Fallback jika role tidak ditemukan
+        if (roleRows.length > 0) {
+            margin = roleRows[0].margin_percent;
+        } else {
+            console.warn(`Peringatan: Role dengan ID ${userRoleId} tidak ditemukan. Menggunakan margin 0%.`);
+        }
+        // --- AKHIR PERBAIKAN LOGIKA MARGIN ---
 
         const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id, target_id_label FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
         if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });
 
-        // === PERUBAHAN DI SINI: MENAMBAHKAN ORDER BY price ASC ===
         const { rows: products } = await pool.query("SELECT id, name, provider_sku, price as base_price FROM products WHERE game_id = $1 AND status = 'Active' ORDER BY price ASC", [gameId]);
-        // =========================================================
 
         const finalProducts = products.map(p => {
+            // Terapkan margin ke harga dasar
             const sellingPrice = p.base_price * (1 + (margin / 100));
-            return { id: p.id, name: p.name, provider_sku: p.provider_sku, price: Math.ceil(sellingPrice) };
+            return { 
+                id: p.id, 
+                name: p.name, 
+                provider_sku: p.provider_sku, 
+                price: Math.ceil(sellingPrice) // Pembulatan ke atas
+            };
         });
+        
         res.json({ game: games[0], products: finalProducts });
     } catch (error) {
         console.error("Gagal mengambil produk game (public):", error);
@@ -1045,27 +1067,20 @@ app.post('/api/promos/validate', protect, async (req, res) => {
 app.get('/api/public/flash-sales', async (req, res) => {
     try {
         const sql = `
-            SELECT 
-                fs.id as flash_sale_id,
-                fs.discount_price,
-                fs.end_at,
-                p.id as product_id,
-                p.name as product_name,
-                p.price as original_price,
-                g.name as game_name,
-                g.image_url as game_image_url
+            SELECT fs.id as flash_sale_id, fs.discount_price, p.id as product_id, p.name as product_name, 
+                   p.price as original_price, g.name as game_name, g.image_url as game_image_url
             FROM flash_sales fs
             JOIN products p ON fs.product_id = p.id
             JOIN games g ON p.game_id = g.id
             WHERE 
                 fs.is_active = true AND
-                NOW() BETWEEN fs.start_at AND fs.end_at
+                NOW() BETWEEN fs.start_at AND fs.end_at AND
+                (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses) -- Cek kuota penggunaan
             ORDER BY fs.end_at ASC;
         `;
         const { rows } = await pool.query(sql);
         res.json(rows);
     } catch (error) {
-        console.error("Error fetching flash sales:", error);
         res.status(500).json({ message: 'Gagal mengambil data flash sale.' });
     }
 });

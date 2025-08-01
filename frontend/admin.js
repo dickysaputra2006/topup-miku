@@ -402,14 +402,31 @@ function renderPromosTable(promos) {
     });
 }
 
-async function populateFlashSaleProductSelector() {
+// Mengisi dropdown game di form Flash Sale
+function populateFlashSaleGameSelector(games) {
+    if (!fsGameSelector) return;
+    const currentVal = fsGameSelector.value;
+    fsGameSelector.innerHTML = '<option value="">-- Pilih Game --</option>';
+    games.forEach(game => {
+        const option = document.createElement('option');
+        option.value = game.id;
+        option.textContent = game.name;
+        fsGameSelector.appendChild(option);
+    });
+    if (games.some(g => g.id == currentVal)) {
+        fsGameSelector.value = currentVal;
+    }
+}
+
+// Mengisi dropdown produk berdasarkan game yang dipilih
+function populateFlashSaleProductSelector(gameId) {
     if (!fsProductSelector) return;
-    // Kita gunakan data `allProducts` yang sudah ada
+    const productsOfGame = allProducts.filter(p => p.game_id == gameId);
     fsProductSelector.innerHTML = '<option value="">-- Pilih Produk --</option>';
-    allProducts.forEach(product => {
+    productsOfGame.forEach(product => {
         const option = document.createElement('option');
         option.value = product.id;
-        option.textContent = `[${product.game_name}] ${product.name}`;
+        option.textContent = `${product.name} (Harga Asli: Rp ${product.price.toLocaleString('id-ID')})`;
         fsProductSelector.appendChild(option);
     });
 }
@@ -430,10 +447,12 @@ function renderFlashSalesTable(flashSales) {
     flashSalesTableBody.innerHTML = '';
     flashSales.forEach(fs => {
         const row = document.createElement('tr');
+        const kuota = `${fs.uses_count} / ${fs.max_uses || '∞'}`;
         row.innerHTML = `
             <td>${fs.game_name}</td>
             <td>${fs.product_name}</td>
             <td>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(fs.discount_price)}</td>
+            <td>${kuota}</td>
             <td>${new Date(fs.end_at).toLocaleString('id-ID')}</td>
             <td><button class="failed-btn delete-fs-btn" data-fs-id="${fs.id}">Hapus</button></td>
         `;
@@ -442,6 +461,39 @@ function renderFlashSalesTable(flashSales) {
 }
 
     // === EVENT LISTENERS ===
+
+if (marginForm) {
+        marginForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Mencegah halaman refresh
+            const saveButton = marginForm.querySelector('button');
+            saveButton.disabled = true;
+            saveButton.textContent = 'Menyimpan...';
+
+            const marginInputs = marginFieldsContainer.querySelectorAll('input[type="number"]');
+            const marginsToUpdate = Array.from(marginInputs).map(input => ({
+                id: input.dataset.roleId,
+                margin: parseFloat(input.value)
+            }));
+
+            try {
+                const response = await fetch(`${ADMIN_API_URL}/roles`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(marginsToUpdate)
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                
+                alert('Margin berhasil diperbarui!');
+
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            } finally {
+                saveButton.disabled = false;
+                saveButton.textContent = 'Simpan Semua Margin';
+            }
+        });
+    }
 
         if (validationForm && validationSelector) {
 
@@ -563,7 +615,7 @@ function renderFlashSalesTable(flashSales) {
         }
     });
 }
-}
+            }
 
     if (addPromoForm) {
     addPromoForm.addEventListener('submit', async (e) => {
@@ -642,7 +694,7 @@ if (promosTableBody) {
                 fetchAndDisplayPromos();
             }
                 if (targetId === 'flash-sale') {
-                    populateFlashSaleProductSelector();
+                    populateFlashSaleGameSelector(allGames); 
                     fetchAndDisplayFlashSales();
                 }
                     
@@ -789,8 +841,16 @@ if (addFlashSaleForm) {
             product_id: document.getElementById('fs-product-selector').value,
             discount_price: document.getElementById('fs-discount-price').value,
             start_at: document.getElementById('fs-start-at').value,
-            end_at: document.getElementById('fs-end-at').value
+            end_at: document.getElementById('fs-end-at').value,
+            max_uses: document.getElementById('fs-max-uses').value || null,
+            max_discount_amount: document.getElementById('fs-max-discount').value || null
         };
+
+        if(!data.product_id) {
+            alert('Silakan pilih produk terlebih dahulu.');
+            return;
+        }
+
         try {
             const response = await fetch(`${ADMIN_API_URL}/flash-sales`, {
                 method: 'POST',
@@ -800,7 +860,8 @@ if (addFlashSaleForm) {
             if (!response.ok) throw new Error('Gagal menambahkan produk ke flash sale.');
             alert('Produk berhasil ditambahkan ke flash sale!');
             addFlashSaleForm.reset();
-            fetchAndDisplayFlashSales(); // Refresh tabel
+            fsProductSelector.innerHTML = '<option value="">-- Pilih Game Terlebih Dahulu --</option>'; // Reset dropdown produk
+            fetchAndDisplayFlashSales();
         } catch (error) {
             alert(`Error: ${error.message}`);
         }
@@ -817,11 +878,30 @@ if (flashSalesTableBody) {
                         method: 'DELETE',
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
-                    fetchAndDisplayFlashSales(); // Refresh tabel
+                    fetchAndDisplayFlashSales();
                 } catch (error) {
                     alert('Gagal menghapus item.');
                 }
             }
+        }
+    });
+}
+
+if (fsGameSearch) {
+    fsGameSearch.addEventListener('input', () => {
+        const searchTerm = fsGameSearch.value.toLowerCase();
+        const filteredGames = allGames.filter(g => g.name.toLowerCase().includes(searchTerm));
+        populateFlashSaleGameSelector(filteredGames);
+    });
+}
+
+if (fsGameSelector) {
+    fsGameSelector.addEventListener('change', () => {
+        const selectedGameId = fsGameSelector.value;
+        if (selectedGameId) {
+            populateFlashSaleProductSelector(selectedGameId);
+        } else {
+            fsProductSelector.innerHTML = '<option value="">-- Pilih Game Terlebih Dahulu --</option>';
         }
     });
 }
