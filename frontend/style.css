@@ -1535,3 +1535,28 @@ html, body {
 .footer-content { display: flex; flex-direction: column; align-items: center; }
 .footer-links { display: flex; gap: 1.5rem; margin-bottom: 1rem; }
 .footer-links a { color: var(--primary-color); text-decoration: none; }
+/* Perbaikan Style untuk Tab Deposit di Dashboard */
+#deposit-tab .card {
+    max-width: 500px; /* Batasi lebar card agar tidak terlalu besar */
+    margin: 0 auto;   /* Posisikan card di tengah */
+}
+
+#deposit-form {
+    display: flex;
+    flex-direction: column; /* Susun elemen form dari atas ke bawah */
+}
+
+#deposit-form label {
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    color: #a7a9be;
+}
+
+#deposit-form input {
+    margin-bottom: 0.5rem;
+}
+
+#deposit-form .form-description {
+    margin-bottom: 1.5rem;
+    text-align: left;
+}

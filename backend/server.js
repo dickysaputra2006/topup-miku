@@ -438,7 +438,6 @@ app.get('/api/admin/games', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil data game.' });
     }
 });
-
 app.get('/api/admin/products', protectAdmin, async (req, res) => {
     try {
          const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
@@ -471,7 +470,6 @@ app.get('/api/admin/products', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil data produk dengan harga role.' });
     }
 });
-
 app.post('/api/admin/games', protectAdmin, async (req, res) => {
     try {
         const { name, category, imageUrl } = req.body;
@@ -499,7 +497,6 @@ app.post('/api/admin/products', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Server error saat menambah produk.' });
     }
 });
-
 app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
     try {
         const { margin_percent } = req.body; // Menerima margin dari frontend
@@ -517,7 +514,6 @@ app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Gagal memicu sinkronisasi manual. Cek log server.' });
     }
 });
-
 app.get('/api/admin/transactions', protectAdmin, async (req, res) => {
     try {
         const sql = `
@@ -534,7 +530,6 @@ app.get('/api/admin/transactions', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil riwayat transaksi.' });
     }
 });
-
 app.put('/api/admin/products/:id/status', protectAdmin, async (req, res) => {
     try {
         const { id } = req.params; // Ambil ID produk dari URL
@@ -560,7 +555,6 @@ app.put('/api/admin/products/:id/status', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Gagal memperbarui status produk.' });
     }
 });
-
 app.put('/api/admin/games/:id/status', protectAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -586,7 +580,6 @@ app.put('/api/admin/games/:id/status', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Gagal memperbarui status game.' });
     }
 });
-
 app.put('/api/admin/games/:id/needs-server', protectAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -612,7 +605,6 @@ app.put('/api/admin/games/:id/needs-server', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Gagal memperbarui pengaturan game.' });
     }
 });
-
 app.put('/api/admin/products/:id/validation', protectAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -625,7 +617,6 @@ app.put('/api/admin/products/:id/validation', protectAdmin, async (req, res) => 
         res.status(500).json({ message: 'Gagal memperbarui pengaturan validasi.' });
     }
 });
-
 app.put('/api/admin/products/bulk-validation', protectAdmin, async (req, res) => {
     try {
         const { productIds, validation_config } = req.body;
@@ -644,6 +635,42 @@ app.put('/api/admin/products/bulk-validation', protectAdmin, async (req, res) =>
     } catch (error) {
         console.error('Error updating bulk product validation:', error);
         res.status(500).json({ message: 'Gagal memperbarui pengaturan validasi massal.' });
+    }
+});
+app.post('/api/admin/promos', protectAdmin, async (req, res) => {
+    const { code, type, value, max_uses, expires_at } = req.body;
+    try {
+        const sql = `INSERT INTO promo_codes (code, type, value, max_uses, expires_at) 
+                     VALUES ($1, $2, $3, $4, $5) RETURNING *`;
+        const { rows } = await pool.query(sql, [code.toUpperCase(), type, value, max_uses, expires_at]);
+        res.status(201).json(rows[0]);
+    } catch (error) {
+        if (error.code === '23505') return res.status(409).json({ message: 'Kode promo sudah ada.' });
+        res.status(500).json({ message: 'Gagal membuat kode promo.' });
+    }
+});
+
+// Endpoint untuk melihat semua kode promo
+app.get('/api/admin/promos', protectAdmin, async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM promo_codes ORDER BY created_at DESC');
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal mengambil data promo.' });
+    }
+});
+
+// Endpoint untuk menonaktifkan/mengaktifkan promo
+app.put('/api/admin/promos/:id/toggle', protectAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { is_active } = req.body;
+        const sql = 'UPDATE promo_codes SET is_active = $1 WHERE id = $2 RETURNING *';
+        const { rows } = await pool.query(sql, [is_active, id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'Kode promo tidak ditemukan.' });
+        res.json(rows[0]);
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal mengubah status promo.' });
     }
 });
 
@@ -840,6 +867,87 @@ app.get('/api/public/compare-prices', async (req, res) => {
     } catch (error) {
         console.error('Error fetching public compare prices:', error);
         res.status(500).json({ message: 'Server error saat mengambil data perbandingan harga.' });
+    }
+});
+
+app.post('/api/promos/validate', protect, async (req, res) => {
+    const { promo_code, product_id, target_game_id } = req.body;
+    const client_user_id = req.user.id; // ID pengguna dari sistem kita
+
+    if (!promo_code || !product_id || !target_game_id) {
+        return res.status(400).json({ valid: false, message: 'Informasi promo, produk, dan ID game dibutuhkan.' });
+    }
+
+    const client = await pool.connect();
+    try {
+        // 1. Ambil detail promo
+        const promoRes = await client.query('SELECT * FROM promo_codes WHERE code = $1 AND is_active = true', [promo_code.toUpperCase()]);
+        if (promoRes.rows.length === 0) {
+            return res.status(404).json({ valid: false, message: 'Kode promo tidak ditemukan atau tidak aktif.' });
+        }
+        const promo = promoRes.rows[0];
+        const rules = promo.rules || {};
+
+        // 2. Cek tanggal kedaluwarsa & batas penggunaan global
+        if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
+            return res.status(400).json({ valid: false, message: 'Kode promo sudah kedaluwarsa.' });
+        }
+        if (promo.max_uses && promo.uses_count >= promo.max_uses) {
+            return res.status(400).json({ valid: false, message: 'Kuota penggunaan promo ini sudah habis.' });
+        }
+
+        // 3. Cek batas penggunaan per ID Game
+        if (rules.max_uses_per_user) {
+            const usageRes = await client.query(
+                'SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND customer_game_id = $2',
+                [promo.id, target_game_id]
+            );
+            const userUsageCount = parseInt(usageRes.rows[0].count, 10);
+            if (userUsageCount >= rules.max_uses_per_user) {
+                return res.status(400).json({ valid: false, message: `Anda sudah mencapai batas maksimal penggunaan kode ini (${rules.max_uses_per_user}x).` });
+            }
+        }
+        
+        // 4. Ambil detail produk & game yang akan dibeli
+        const productRes = await client.query('SELECT p.*, g.id as game_id FROM products p JOIN games g ON p.game_id = g.id WHERE p.id = $1', [product_id]);
+        if (productRes.rows.length === 0) {
+            return res.status(404).json({ valid: false, message: 'Produk tidak ditemukan.' });
+        }
+        const product = productRes.rows[0];
+
+        // 5. Validasi semua aturan dari JSON
+        if (rules.min_price && product.price < rules.min_price) {
+            return res.status(400).json({ valid: false, message: `Promo ini hanya berlaku untuk pembelian minimal Rp ${rules.min_price}.` });
+        }
+        if (rules.allowed_game_ids && !rules.allowed_game_ids.includes(product.game_id)) {
+            return res.status(400).json({ valid: false, message: 'Promo ini tidak berlaku untuk game ini.' });
+        }
+        if (rules.allowed_product_ids && !rules.allowed_product_ids.includes(product.id)) {
+            return res.status(400).json({ valid: false, message: 'Promo ini tidak berlaku untuk produk ini.' });
+        }
+
+        // 6. Jika semua validasi lolos, hitung diskonnya
+        let discount = 0;
+        if (promo.type === 'percentage') {
+            discount = (product.price * promo.value) / 100;
+        } else if (promo.type === 'fixed') {
+            discount = promo.value;
+        }
+        const finalPrice = Math.max(0, product.price - discount);
+
+        res.json({
+            valid: true,
+            message: 'Kode promo berhasil digunakan!',
+            discount: parseFloat(discount),
+            original_price: parseFloat(product.price),
+            final_price: parseFloat(finalPrice)
+        });
+
+    } catch (error) {
+        console.error('Error saat validasi promo:', error);
+        res.status(500).json({ valid: false, message: 'Terjadi kesalahan di server.' });
+    } finally {
+        client.release();
     }
 });
 

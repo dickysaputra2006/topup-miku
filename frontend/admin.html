@@ -33,6 +33,7 @@
             <a href="#" class="admin-nav-link" data-target="deposit"><i class="fas fa-hand-holding-usd"></i> Persetujuan Deposit</a>
             <a href="#" class="admin-nav-link" data-target="saldo"><i class="fas fa-wallet"></i> Manajemen Saldo</a>
             <a href="#" class="admin-nav-link" data-target="margin"><i class="fas fa-percentage"></i> Manajemen Margin</a>
+            <a href="#" class="admin-nav-link" data-target="promo"><i class="fas fa-tags"></i> Manajemen Promo</a>
         </nav>
     </aside>
 
@@ -183,6 +184,62 @@
                     </form>
                 </div>
             </section>
+
+            </section> <section id="promo" class="admin-section hidden">
+    <div class="card">
+        <h3>Buat Kode Promo Baru</h3>
+        <form id="add-promo-form" class="admin-form" style="background: none; padding: 0;">
+            <div class="admin-forms-container">
+                <div class="admin-form">
+                    <label for="promo-code">Kode Promo (Contoh: MIKUBARU)</label>
+                    <input type="text" id="promo-code" required>
+                    <label for="promo-description">Deskripsi (Untuk catatan Anda)</label>
+                    <input type="text" id="promo-description" placeholder="Promo Peluncuran Website" required>
+                    <label for="promo-type">Jenis Diskon</label>
+                    <select id="promo-type">
+                        <option value="fixed">Potongan Harga Tetap (Rp)</option>
+                        <option value="percentage">Potongan Persentase (%)</option>
+                    </select>
+                    <label for="promo-value">Nilai Diskon</label>
+                    <input type="number" id="promo-value" placeholder="Contoh: 5000 atau 10" required>
+                    <label for="promo-expires">Tanggal Kedaluwarsa (Opsional)</label>
+                    <input type="datetime-local" id="promo-expires">
+                </div>
+                <div class="admin-form">
+                    <label for="promo-min-price">Pembelian Minimum (Opsional)</label>
+                    <input type="number" id="promo-min-price" placeholder="Contoh: 15000">
+                    <label for="promo-max-uses-user">Maks. Penggunaan per ID Game (Opsional)</label>
+                    <input type="number" id="promo-max-uses-user" placeholder="Contoh: 2">
+                    <label for="promo-allowed-games">Hanya untuk Game ID (Opsional, pisahkan koma)</label>
+                    <input type="text" id="promo-allowed-games" placeholder="Contoh: 1, 5, 12">
+                    <label for="promo-allowed-products">Hanya untuk Produk ID (Opsional, pisahkan koma)</label>
+                    <input type="text" id="promo-allowed-products" placeholder="Contoh: 101, 105">
+                </div>
+            </div>
+            <button type="submit" style="margin-top: 1.5rem;">Buat Kode Promo</button>
+        </form>
+    </div>
+    <div class="card">
+        <h3>Daftar Kode Promo</h3>
+        <div class="table-container">
+            <table id="promos-table">
+                <thead>
+                    <tr>
+                        <th>Kode</th>
+                        <th>Deskripsi</th>
+                        <th>Tipe</th>
+                        <th>Nilai</th>
+                        <th>Penggunaan</th>
+                        <th>Aktif</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+            </section>
+
         </main>
     </div>
 

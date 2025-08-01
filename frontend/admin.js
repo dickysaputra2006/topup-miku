@@ -35,6 +35,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const applyToAllBtn = document.getElementById('apply-validation-to-all-btn');
     const validatorSearchInput = document.getElementById('validator-search-input');
 
+    // Elemen untuk Manajemen Promo
+    const addPromoForm = document.getElementById('add-promo-form');
+    const promosTableBody = document.querySelector("#promos-table tbody");
+
     // === KONFIGURASI & STATE ===
     const ADMIN_API_URL = '/api/admin';
     const PUBLIC_API_URL = '/api';
@@ -353,6 +357,46 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 }
 
+async function fetchAndDisplayPromos() {
+    if (!promosTableBody) return;
+    try {
+        const response = await fetch(`${ADMIN_API_URL}/promos`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!response.ok) throw new Error('Gagal memuat data promo.');
+        const promos = await response.json();
+        renderPromosTable(promos);
+    } catch (error) {
+        console.error("Error memuat promo:", error);
+        if (promosTableBody) promosTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">${error.message}</td></tr>`;
+    }
+}
+
+function renderPromosTable(promos) {
+    if (!promosTableBody) return;
+    promosTableBody.innerHTML = '';
+    if (promos.length === 0) {
+        promosTableBody.innerHTML = `<tr><td colspan="6" style="text-align: center;">Belum ada kode promo yang dibuat.</td></tr>`;
+        return;
+    }
+    promos.forEach(promo => {
+        const row = document.createElement('tr');
+        const isChecked = promo.is_active ? 'checked' : '';
+        row.innerHTML = `
+            <td><strong>${promo.code}</strong></td>
+            <td>${promo.description}</td>
+            <td>${promo.type}</td>
+            <td>${promo.type === 'percentage' ? `${promo.value}%` : `Rp ${promo.value}`}</td>
+            <td>${promo.uses_count} / ${promo.max_uses || '∞'}</td>
+            <td>
+                <label class="switch">
+                    <input type="checkbox" class="promo-status-toggle" data-promo-id="${promo.id}" ${isChecked}>
+                    <span class="slider"></span>
+                </label>
+            </td>
+        `;
+        promosTableBody.appendChild(row);
+    });
+}
+
 
     // === EVENT LISTENERS ===
 
@@ -478,6 +522,61 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 }
 
+    if (addPromoForm) {
+    addPromoForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const rules = {};
+        if (document.getElementById('promo-min-price').value) rules.min_price = parseInt(document.getElementById('promo-min-price').value);
+        if (document.getElementById('promo-max-uses-user').value) rules.max_uses_per_user = parseInt(document.getElementById('promo-max-uses-user').value);
+        if (document.getElementById('promo-allowed-games').value) rules.allowed_game_ids = document.getElementById('promo-allowed-games').value.split(',').map(id => parseInt(id.trim()));
+        if (document.getElementById('promo-allowed-products').value) rules.allowed_product_ids = document.getElementById('promo-allowed-products').value.split(',').map(id => parseInt(id.trim()));
+
+        const data = {
+            code: document.getElementById('promo-code').value,
+            description: document.getElementById('promo-description').value,
+            type: document.getElementById('promo-type').value,
+            value: parseFloat(document.getElementById('promo-value').value),
+            expires_at: document.getElementById('promo-expires').value || null,
+            rules: rules
+        };
+
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/promos`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            alert('Kode promo berhasil dibuat!');
+            addPromoForm.reset();
+            fetchAndDisplayPromos(); // Refresh tabel
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        }
+    });
+}
+
+if (promosTableBody) {
+    promosTableBody.addEventListener('change', async (e) => {
+        if (e.target.classList.contains('promo-status-toggle')) {
+            const toggle = e.target;
+            const promoId = toggle.dataset.promoId;
+            const is_active = toggle.checked;
+            try {
+                await fetch(`${ADMIN_API_URL}/promos/${promoId}/toggle`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active })
+                });
+            } catch (error) {
+                alert('Gagal mengubah status promo.');
+                toggle.checked = !is_active; // Kembalikan posisi toggle jika gagal
+            }
+        }
+    });
+}
+
     if (menuToggleBtn.length > 0 && sidebar) {
         menuToggleBtn.forEach(btn => btn.addEventListener('click', () => {
             sidebar.classList.toggle('active');
@@ -495,6 +594,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 sections.forEach(section => {
                     section.classList.toggle('hidden', section.id !== targetId);
                 });
+
+                if (targetId === 'promo') {
+                    fetchAndDisplayPromos();
+                }
+
             });
         });
     }
@@ -729,6 +833,7 @@ document.addEventListener('DOMContentLoaded', function() {
         await fetchPendingDeposits();
         await populateAddProductFormDropdown();
         await fetchAndDisplayMargins();
+        await fetchAndDisplayPromos();
     }
     
     initAdminPage();
