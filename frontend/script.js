@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // === 1. DEKLARASI KONSTANTA & ELEMEN ===
     const API_URL_AUTH = '/api/auth';
     const API_URL = '/api';
+    const PUBLIC_API_URL = '/api';
     const token = localStorage.getItem('authToken');
 
     // Elemen Header & Dropdown
