@@ -59,6 +59,22 @@ document.addEventListener('click', function (event) {
         }
     }
 
+    async function fetchTransactionSummary() {
+    try {
+        const response = await fetch(`${API_URL}/transaction-summary`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) return; // Jangan lakukan apa-apa jika gagal
+        const summary = await response.json();
+
+        document.getElementById('count-berhasil').textContent = summary.berhasil;
+        document.getElementById('count-pending').textContent = summary.pending;
+        document.getElementById('count-gagal').textContent = summary.gagal;
+    } catch (error) {
+        console.error('Gagal memuat ringkasan transaksi:', error);
+    }
+}
+
     function updateDashboardUI(data) {
         document.getElementById('profile-fullname').textContent = data.full_name;
         document.getElementById('profile-username').textContent = data.username;
@@ -216,6 +232,7 @@ document.addEventListener('click', function (event) {
     }
     
     fetchProfileData();
+    fetchTransactionSummary();
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
         icon.addEventListener('click', function () {

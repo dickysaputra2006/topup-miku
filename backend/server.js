@@ -215,7 +215,6 @@ app.get('/api/user/apikey', protect, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil API key.' });
     }
 });
-
 app.get('/api/user/transactions', protect, async (req, res) => {
     try {
         const userId = req.user.id;
@@ -238,7 +237,6 @@ app.get('/api/user/transactions', protect, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil riwayat transaksi pengguna.' });
     }
 });
-
 app.get('/api/user/transaction/:invoiceId', protect, async (req, res) => {
     try {
         const { invoiceId } = req.params;
@@ -271,6 +269,24 @@ app.get('/api/user/transaction/:invoiceId', protect, async (req, res) => {
     } catch (error) {
         console.error("Gagal mengambil detail transaksi:", error);
         res.status(500).json({ message: 'Server error saat mengambil detail transaksi.' });
+    }
+});
+app.get('/api/user/transaction-summary', protect, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const sql = `
+            SELECT 
+                COALESCE(SUM(CASE WHEN status = 'Success' THEN 1 ELSE 0 END), 0) AS berhasil,
+                COALESCE(SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END), 0) AS pending,
+                COALESCE(SUM(CASE WHEN status = 'Failed' THEN 1 ELSE 0 END), 0) AS gagal
+            FROM transactions 
+            WHERE user_id = $1;
+        `;
+        const { rows } = await pool.query(sql, [userId]);
+        res.json(rows[0]);
+    } catch (error) {
+        console.error("Gagal mengambil ringkasan transaksi:", error);
+        res.status(500).json({ message: 'Server error saat mengambil ringkasan transaksi.' });
     }
 });
 
