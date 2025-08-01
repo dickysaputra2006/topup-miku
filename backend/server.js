@@ -958,22 +958,65 @@ app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const { productId, targetGameId, targetServerId } = req.body;
+        // 1. Ambil promoCode dari body permintaan
+        const { productId, targetGameId, targetServerId, promoCode } = req.body;
         const userId = req.user.id;
+
         if (!productId || !targetGameId) throw new Error('Produk dan ID Game wajib diisi.');
 
-        const { rows: products } = await client.query('SELECT p.price as base_price, p.name, g.needs_server_id, p.provider_sku FROM products p JOIN games g ON p.game_id = g.id WHERE p.id = $1 AND p.status = \'Active\' FOR UPDATE', [productId]);
+        // 2. Ambil detail produk & game (tidak ada perubahan)
+        const { rows: products } = await client.query('SELECT p.*, g.id as game_id, g.needs_server_id FROM products p JOIN games g ON p.game_id = g.id WHERE p.id = $1 AND p.status = \'Active\' FOR UPDATE', [productId]);
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
         const product = products[0];
 
         if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
 
+        // 3. Ambil detail pengguna (tidak ada perubahan)
         const { rows: users } = await client.query('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE', [userId]);
         const user = users[0];
 
         const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [user.role_id]);
         const margin = roleRows[0].margin_percent;
-        const finalPrice = Math.ceil(product.base_price * (1 + (margin / 100)));
+        
+        // 4. Hitung harga jual normal terlebih dahulu
+        const normalPrice = Math.ceil(product.price * (1 + (margin / 100)));
+
+        // --- LOGIKA HARGA BARU DENGAN PROMO ---
+        let finalPrice = normalPrice;
+        let promoIdToLog = null;
+        let appliedPromo = null;
+
+        if (promoCode) {
+            // Validasi ulang promo di backend untuk keamanan
+            const promoRes = await client.query('SELECT * FROM promo_codes WHERE code = $1 AND is_active = true', [promoCode.toUpperCase()]);
+            if (promoRes.rows.length === 0) throw new Error('Kode promo yang digunakan tidak valid atau sudah tidak aktif.');
+            
+            const promo = promoRes.rows[0];
+            const rules = promo.rules || {};
+            appliedPromo = promo; // Simpan data promo untuk digunakan nanti
+
+            // Validasi aturan promo (sama seperti di endpoint validasi)
+            if (promo.expires_at && new Date(promo.expires_at) < new Date()) throw new Error('Kode promo sudah kedaluwarsa.');
+            if (promo.max_uses && promo.uses_count >= promo.max_uses) throw new Error('Kuota penggunaan promo ini sudah habis.');
+            if (rules.max_uses_per_user) {
+                const usageRes = await client.query('SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND customer_game_id = $2', [promo.id, targetGameId]);
+                if (parseInt(usageRes.rows[0].count, 10) >= rules.max_uses_per_user) throw new Error('Anda sudah mencapai batas maksimal penggunaan kode ini.');
+            }
+            if (rules.min_price && normalPrice < rules.min_price) throw new Error(`Promo hanya berlaku untuk pembelian minimal Rp ${rules.min_price}.`);
+            if (rules.allowed_game_ids && !rules.allowed_game_ids.includes(product.game_id)) throw new Error('Promo ini tidak berlaku untuk game ini.');
+            if (rules.allowed_product_ids && !rules.allowed_product_ids.includes(product.id)) throw new Error('Promo ini tidak berlaku untuk produk ini.');
+
+            // Jika semua lolos, hitung diskon dari HARGA JUAL NORMAL
+            let discount = 0;
+            if (promo.type === 'percentage') {
+                discount = (normalPrice * promo.value) / 100;
+            } else if (promo.type === 'fixed') {
+                discount = promo.value;
+            }
+            finalPrice = Math.max(0, normalPrice - discount);
+            promoIdToLog = promo.id;
+        }
+        // --- AKHIR LOGIKA HARGA BARU ---
 
         if (user.balance < finalPrice) throw new Error('Saldo Anda tidak mencukupi.');
 
@@ -983,23 +1026,34 @@ app.post('/api/order', protect, async (req, res) => {
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const trx_id_provider = `WEB-${Date.now()}`;
 
-        // PostgreSQL: RETURNING id untuk mendapatkan ID dari insert
+        // Masukkan transaksi ke database
         const txSql = 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id';
-        await client.query(txSql, [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
+        const { rows: transactionRows } = await client.query(txSql, [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
+        const newTransactionId = transactionRows[0].id;
 
         const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
         const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
         await client.query(historySql, [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]);
 
+        // 5. Masukkan ke tabel `promo_usages` JIKA promo digunakan
+        if (promoIdToLog) {
+            await client.query(
+                'INSERT INTO promo_usages (promo_code_id, customer_game_id, transaction_id) VALUES ($1, $2, $3)',
+                [promoIdToLog, targetGameId, newTransactionId]
+            );
+            await client.query('UPDATE promo_codes SET uses_count = uses_count + 1 WHERE id = $1', [promoIdToLog]);
+        }
+        
+        // 6. Teruskan pesanan ke Foxy API (tidak ada perubahan)
         const foxyPayload = {
             product_code: product.provider_sku,
             user_id: targetGameId,
             server_id: targetServerId || '',
             trx_id: trx_id_provider,
-            callback_url: 'https://mikutopup.my.id/api/foxy/callback' // URL callback Render Anda
+            callback_url: 'https://mikutopup.my.id/api/foxy/callback'
         };
 
-        axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { // Menggunakan /v1/order
+        axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, {
             headers: {
                 'Authorization': FOXY_API_KEY,
                 'Content-Type': 'application/json'
@@ -1014,6 +1068,7 @@ app.post('/api/order', protect, async (req, res) => {
 
         await client.query('COMMIT');
         res.status(201).json({ message: 'Pesanan Anda sedang diproses oleh provider!', invoiceId: invoiceId });
+
     } catch (error) {
         await client.query('ROLLBACK');
         console.error("Order error:", error);

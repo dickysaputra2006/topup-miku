@@ -22,6 +22,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetGameIdInput = document.getElementById('target-game-id'); 
     const serverInputContainer = document.getElementById('server-input-container'); 
     const userAuthButton = document.getElementById('user-auth-button');
+    const promoCodeInput = document.getElementById('promo-code-input');
+    const applyPromoBtn = document.getElementById('apply-promo-btn');
+    const promoResultEl = document.getElementById('promo-result');
+    let appliedPromo = null; // Untuk menyimpan data promo yang valid
 
     // Elemen Header & Modal Login
     const modal = document.getElementById('auth-modal');
@@ -153,10 +157,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleProductSelection(selectedCard, productId, productPrice) {
         document.querySelectorAll('.product-card-selectable').forEach(card => card.classList.remove('selected'));
         selectedCard.classList.add('selected');
-        selectedProductId = productId;
-        totalPriceEl.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(productPrice);
-        submitOrderBtn.disabled = false;
-        submitOrderBtn.textContent = 'Beli Sekarang';
+             selectedProductId = productId;
+            appliedPromo = null; // Reset promo saat produk baru dipilih
+            promoCodeInput.value = '';
+            updatePrice(); // Panggil fungsi ini, bukan set textContent langsung
+            submitOrderBtn.disabled = false;
+            submitOrderBtn.textContent = 'Beli Sekarang';
     }
 
      async function setupLiveValidation() {
@@ -259,6 +265,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         observer.observe(serverIdInputContainer, { childList: true, subtree: true });
     }
+}
+
+    function updatePrice() {
+    if (!selectedProductId) return;
+    const card = document.querySelector(`.product-card-selectable[data-product-id='${selectedProductId}']`);
+    let originalPrice = parseFloat(card.dataset.price);
+    let finalPrice = originalPrice;
+
+    if (appliedPromo && appliedPromo.valid) {
+        finalPrice = appliedPromo.final_price;
+        promoResultEl.innerHTML = `<span class="success">${appliedPromo.message} Potongan: Rp ${appliedPromo.discount.toLocaleString('id-ID')}</span>`;
+    } else {
+        promoResultEl.innerHTML = '';
+    }
+
+    totalPriceEl.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(finalPrice);
 }
     // === Bagian 3: Menambahkan Semua Event Listeners ===
 
@@ -443,6 +465,45 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+}
+
+    if (applyPromoBtn) {
+    applyPromoBtn.addEventListener('click', async () => {
+        const code = promoCodeInput.value;
+        const targetId = targetGameIdInput.value;
+        if (!code || !selectedProductId || !targetId) {
+            alert('Pilih produk dan isi User ID terlebih dahulu!');
+            return;
+        }
+
+        applyPromoBtn.disabled = true;
+        applyPromoBtn.textContent = '...';
+
+        try {
+            const response = await fetch('/api/promos/validate', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    promo_code: code,
+                    product_id: selectedProductId,
+                    target_game_id: targetId
+                })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+
+            appliedPromo = result; // Simpan hasil promo yang valid
+            updatePrice(); // Perbarui harga
+
+        } catch (error) {
+            appliedPromo = null;
+            promoResultEl.innerHTML = `<span class="error">❌ ${error.message}</span>`;
+            updatePrice(); // Kembalikan ke harga asli
+        } finally {
+            applyPromoBtn.disabled = false;
+            applyPromoBtn.textContent = 'Terapkan';
+        }
+    });
 }
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
