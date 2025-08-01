@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dashboard - GameStore</title>
+    <title>Dashboard - MIKU Store</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -15,7 +15,7 @@
                 <button id="menu-toggle-btn" class="header-icon-btn">
                     <i class="fas fa-bars"></i>
                 </button>
-                 <a href="index.html" class="logo-link"><h1 class="logo">GameStore</h1></a>
+                 <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
             </div>
             <div class="header-right">
                 <a href="compare-prices.html" class="header-btn pricelist-btn">Harga Reseller</a>
@@ -59,12 +59,12 @@
                     </div>
                 </div>
                 <div class="card balance-summary">
-                    <h3>GameStore Credits</h3>
+                    <h3>MIKU Store  Credits</h3>
                     <div class="balance-details">
                         <p class="balance-amount" id="profile-balance">Memuat...</p>
                         <a href="deposit.html" class="topup-btn" style="text-decoration:none;">Deposit</a>
                     </div>
-                    <a href="mutasi.html" class="history-link">Penggunaan Credits &rarr;</a>
+                    <a href="mutasi-table" class="history-link">Penggunaan Credits &rarr;</a>
                 </div>
                 <div class="card transaction-overview">
                     <h3>Pesanan Saya</h3>
@@ -79,7 +79,7 @@
                             <span id="count-gagal">0</span><p>Gagal</p>
                         </div>
                     </div>
-                    <a href="transaksi.html" class="history-link">Lihat Semua Transaksi &rarr;</a>
+                    <a href="transaksi-tab" class="history-link">Lihat Semua Transaksi &rarr;</a>
                 </div>
             </section>
 
@@ -109,8 +109,10 @@
                         <form id="deposit-form">
                             <label for="amount">Masukan Jumlah Deposit</label>
                             <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" required>
-                            <p class="form-description">Minimum deposit adalah Rp 10.000.</p>
-                            <button type="submit">Buat Permintaan Deposit</button>
+                            <p class="form-description deposit-note">Minimum deposit adalah Rp 10.000.</p>
+                            <div class="center-btn">
+                            <button type="submit" class="btn-submit-deposit">Buat Permintaan Deposit</button>
+                            </div>
                         </form>
                     </div>
                     <div id="payment-instructions" class="card payment-instructions-section hidden">
