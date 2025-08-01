@@ -719,6 +719,51 @@ app.put('/api/admin/promos/:id/toggle', protectAdmin, async (req, res) => {
     }
 });
 
+// Endpoint untuk melihat semua item flash sale di admin panel
+app.get('/api/admin/flash-sales', protectAdmin, async (req, res) => {
+    try {
+        const sql = `
+            SELECT 
+                fs.*,
+                p.name as product_name,
+                g.name as game_name
+            FROM flash_sales fs
+            JOIN products p ON fs.product_id = p.id
+            JOIN games g ON p.game_id = g.id
+            ORDER BY fs.created_at DESC;
+        `;
+        const { rows } = await pool.query(sql);
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal mengambil data flash sale.' });
+    }
+});
+// Endpoint untuk menambah produk ke flash sale
+app.post('/api/admin/flash-sales', protectAdmin, async (req, res) => {
+    const { product_id, discount_price, start_at, end_at } = req.body;
+    try {
+        const sql = `
+            INSERT INTO flash_sales (product_id, discount_price, start_at, end_at)
+            VALUES ($1, $2, $3, $4) RETURNING *;
+        `;
+        const { rows } = await pool.query(sql, [product_id, discount_price, start_at, end_at]);
+        res.status(201).json(rows[0]);
+    } catch (error) {
+        console.error("Error adding flash sale:", error);
+        res.status(500).json({ message: 'Gagal menambah item flash sale.' });
+    }
+});
+// Endpoint untuk menghapus item dari flash sale
+app.delete('/api/admin/flash-sales/:id', protectAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query('DELETE FROM flash_sales WHERE id = $1', [id]);
+        res.status(200).json({ message: 'Item flash sale berhasil dihapus.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal menghapus item flash sale.' });
+    }
+});
+
 // === PUBLIC ENDPOINTS ===
 
 app.post('/api/test', (req, res) => {
@@ -993,6 +1038,35 @@ app.post('/api/promos/validate', protect, async (req, res) => {
         res.status(500).json({ valid: false, message: 'Terjadi kesalahan di server.' });
     } finally {
         client.release();
+    }
+});
+
+// Endpoint untuk mengambil produk flash sale yang aktif
+app.get('/api/public/flash-sales', async (req, res) => {
+    try {
+        const sql = `
+            SELECT 
+                fs.id as flash_sale_id,
+                fs.discount_price,
+                fs.end_at,
+                p.id as product_id,
+                p.name as product_name,
+                p.price as original_price,
+                g.name as game_name,
+                g.image_url as game_image_url
+            FROM flash_sales fs
+            JOIN products p ON fs.product_id = p.id
+            JOIN games g ON p.game_id = g.id
+            WHERE 
+                fs.is_active = true AND
+                NOW() BETWEEN fs.start_at AND fs.end_at
+            ORDER BY fs.end_at ASC;
+        `;
+        const { rows } = await pool.query(sql);
+        res.json(rows);
+    } catch (error) {
+        console.error("Error fetching flash sales:", error);
+        res.status(500).json({ message: 'Gagal mengambil data flash sale.' });
     }
 });
 

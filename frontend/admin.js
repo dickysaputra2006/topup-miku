@@ -39,6 +39,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const addPromoForm = document.getElementById('add-promo-form');
     const promosTableBody = document.querySelector("#promos-table tbody");
 
+    // Elemen untuk Manajemen Flash Sale
+    const addFlashSaleForm = document.getElementById('add-flash-sale-form');
+    const flashSalesTableBody = document.querySelector("#flash-sales-table tbody");
+    const fsProductSelector = document.getElementById('fs-product-selector');
+
     // === KONFIGURASI & STATE ===
     const ADMIN_API_URL = '/api/admin';
     const PUBLIC_API_URL = '/api';
@@ -397,6 +402,44 @@ function renderPromosTable(promos) {
     });
 }
 
+async function populateFlashSaleProductSelector() {
+    if (!fsProductSelector) return;
+    // Kita gunakan data `allProducts` yang sudah ada
+    fsProductSelector.innerHTML = '<option value="">-- Pilih Produk --</option>';
+    allProducts.forEach(product => {
+        const option = document.createElement('option');
+        option.value = product.id;
+        option.textContent = `[${product.game_name}] ${product.name}`;
+        fsProductSelector.appendChild(option);
+    });
+}
+
+async function fetchAndDisplayFlashSales() {
+    if (!flashSalesTableBody) return;
+    try {
+        const response = await fetch(`${ADMIN_API_URL}/flash-sales`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const flashSales = await response.json();
+        renderFlashSalesTable(flashSales);
+    } catch (error) {
+        console.error("Error memuat flash sale:", error);
+    }
+}
+
+function renderFlashSalesTable(flashSales) {
+    if (!flashSalesTableBody) return;
+    flashSalesTableBody.innerHTML = '';
+    flashSales.forEach(fs => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${fs.game_name}</td>
+            <td>${fs.product_name}</td>
+            <td>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(fs.discount_price)}</td>
+            <td>${new Date(fs.end_at).toLocaleString('id-ID')}</td>
+            <td><button class="failed-btn delete-fs-btn" data-fs-id="${fs.id}">Hapus</button></td>
+        `;
+        flashSalesTableBody.appendChild(row);
+    });
+}
 
     // === EVENT LISTENERS ===
 
@@ -595,10 +638,14 @@ if (promosTableBody) {
                     section.classList.toggle('hidden', section.id !== targetId);
                 });
 
-                if (targetId === 'promo') {
-                    fetchAndDisplayPromos();
+                 if (targetId === 'promo') {
+                fetchAndDisplayPromos();
+            }
+                if (targetId === 'flash-sale') {
+                    populateFlashSaleProductSelector();
+                    fetchAndDisplayFlashSales();
                 }
-
+                    
             });
         });
     }
@@ -735,6 +782,50 @@ if (promosTableBody) {
     });
 }
 
+if (addFlashSaleForm) {
+    addFlashSaleForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = {
+            product_id: document.getElementById('fs-product-selector').value,
+            discount_price: document.getElementById('fs-discount-price').value,
+            start_at: document.getElementById('fs-start-at').value,
+            end_at: document.getElementById('fs-end-at').value
+        };
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/flash-sales`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error('Gagal menambahkan produk ke flash sale.');
+            alert('Produk berhasil ditambahkan ke flash sale!');
+            addFlashSaleForm.reset();
+            fetchAndDisplayFlashSales(); // Refresh tabel
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        }
+    });
+}
+
+if (flashSalesTableBody) {
+    flashSalesTableBody.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('delete-fs-btn')) {
+            const fsId = e.target.dataset.fsId;
+            if (confirm('Anda yakin ingin menghapus item ini dari flash sale?')) {
+                try {
+                    await fetch(`${ADMIN_API_URL}/flash-sales/${fsId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    fetchAndDisplayFlashSales(); // Refresh tabel
+                } catch (error) {
+                    alert('Gagal menghapus item.');
+                }
+            }
+        }
+    });
+}
+
     if (addBalanceBtn) addBalanceBtn.addEventListener('click', () => handleManualBalance('add'));
     if (reduceBalanceBtn) reduceBalanceBtn.addEventListener('click', () => handleManualBalance('reduce'));
 
@@ -834,6 +925,7 @@ if (promosTableBody) {
         await populateAddProductFormDropdown();
         await fetchAndDisplayMargins();
         await fetchAndDisplayPromos();
+        await fetchAndDisplayFlashSales();
     }
     
     initAdminPage();
