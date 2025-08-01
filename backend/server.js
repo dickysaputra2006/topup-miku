@@ -1067,20 +1067,30 @@ app.post('/api/promos/validate', protect, async (req, res) => {
 app.get('/api/public/flash-sales', async (req, res) => {
     try {
         const sql = `
-            SELECT fs.id as flash_sale_id, fs.discount_price, p.id as product_id, p.name as product_name, 
-                   p.price as original_price, g.name as game_name, g.image_url as game_image_url
+            SELECT 
+                fs.id as flash_sale_id,
+                fs.discount_price,
+                p.id as product_id,
+                p.name as product_name,
+                -- Menghitung harga jual asli berdasarkan margin role BRONZE (ID=1)
+                CEIL(p.price * (1 + r.margin_percent / 100)) as original_price,
+                g.name as game_name,
+                g.image_url as game_image_url
             FROM flash_sales fs
             JOIN products p ON fs.product_id = p.id
             JOIN games g ON p.game_id = g.id
+            -- Bergabung dengan tabel roles untuk mendapatkan margin BRONZE
+            JOIN roles r ON r.id = 1 
             WHERE 
                 fs.is_active = true AND
                 NOW() BETWEEN fs.start_at AND fs.end_at AND
-                (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses) -- Cek kuota penggunaan
+                (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses)
             ORDER BY fs.end_at ASC;
         `;
         const { rows } = await pool.query(sql);
         res.json(rows);
     } catch (error) {
+        console.error("Error fetching flash sales:", error);
         res.status(500).json({ message: 'Gagal mengambil data flash sale.' });
     }
 });
@@ -1092,38 +1102,55 @@ app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        // 1. Ambil promoCode dari body permintaan
         const { productId, targetGameId, targetServerId, promoCode } = req.body;
         const userId = req.user.id;
 
         if (!productId || !targetGameId) throw new Error('Produk dan ID Game wajib diisi.');
 
-        // 2. Ambil detail produk & game (tidak ada perubahan)
         const { rows: products } = await client.query('SELECT p.*, g.id as game_id, g.needs_server_id FROM products p JOIN games g ON p.game_id = g.id WHERE p.id = $1 AND p.status = \'Active\' FOR UPDATE', [productId]);
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
         const product = products[0];
 
         if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
-
-        // 3. Ambil detail pengguna (tidak ada perubahan)
-        const { rows: users } = await client.query('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE', [userId]);
+        
+        const { rows: users } = await client.query('SELECT balance, role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE', [userId]);
         const user = users[0];
 
         const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [user.role_id]);
         const margin = roleRows[0].margin_percent;
-        
-        // 4. Hitung harga jual normal terlebih dahulu
         const normalPrice = Math.ceil(product.price * (1 + (margin / 100)));
 
-        // --- LOGIKA HARGA BARU DENGAN PROMO ---
         let finalPrice = normalPrice;
         let promoIdToLog = null;
-        let appliedPromo = null;
+        let flashSaleIdToLog = null;
+        
+        const fsRes = await client.query(
+            `SELECT * FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at AND (max_uses IS NULL OR uses_count < max_uses)`,
+            [productId]
+        );
 
-        if (promoCode) {
-            // Validasi ulang promo di backend untuk keamanan
+        // --- INI ADALAH LOGIKA UTAMANYA ---
+        if (fsRes.rows.length > 0) {
+            const flashSale = fsRes.rows[0];
+            flashSaleIdToLog = flashSale.id;
+            
+            // JIKA PENGGUNA BUKAN ADMIN ATAU OWNER, PAKSA GUNAKAN HARGA FLASH SALE
+            if (user.role_name !== 'Admin' && user.role_name !== 'Owner') {
+                finalPrice = flashSale.discount_price;
+                console.log(`User role (${user.role_name}) terdeteksi. Menerapkan harga Flash Sale: Rp ${finalPrice}`);
+
+                // Aturan Bisnis: Jika produk dalam flash sale, promo tidak bisa digunakan
+                if (promoCode) {
+                    throw new Error('Kode promo tidak dapat digunakan untuk produk yang sedang dalam flash sale.');
+                }
+            } else {
+                console.log(`User adalah ${user.role_name}. Harga Flash Sale diabaikan, menggunakan harga normal.`);
+            }
+        } 
+        else if (promoCode) {
+            // Logika kode promo hanya berjalan jika tidak ada Flash Sale
             const promoRes = await client.query('SELECT * FROM promo_codes WHERE code = $1 AND is_active = true', [promoCode.toUpperCase()]);
-            if (promoRes.rows.length === 0) throw new Error('Kode promo yang digunakan tidak valid atau sudah tidak aktif.');
+            if (promoRes.rows.length === 0) throw new Error('Kode promo tidak valid atau tidak aktif.');
             
             const promo = promoRes.rows[0];
             const rules = promo.rules || {};
@@ -1141,13 +1168,17 @@ app.post('/api/order', protect, async (req, res) => {
             if (rules.allowed_product_ids && !rules.allowed_product_ids.includes(product.id)) throw new Error('Promo ini tidak berlaku untuk produk ini.');
 
             // Jika semua lolos, hitung diskon dari HARGA JUAL NORMAL
+            
             let discount = 0;
             if (promo.type === 'percentage') {
                 discount = (normalPrice * promo.value) / 100;
+                if (rules.max_discount_amount && discount > rules.max_discount_amount) {
+                    discount = rules.max_discount_amount;
+                }
             } else if (promo.type === 'fixed') {
                 discount = promo.value;
             }
-            finalPrice = Math.max(0, normalPrice - discount);
+            finalPrice = Math.max(0, Math.ceil(normalPrice - discount));
             promoIdToLog = promo.id;
         }
         // --- AKHIR LOGIKA HARGA BARU ---

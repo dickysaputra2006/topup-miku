@@ -207,6 +207,51 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    async function displayFlashSales() {
+    const flashSaleTrack = document.querySelector('.flash-sale-track');
+    if (!flashSaleTrack) return;
+
+    try {
+        const response = await fetch(`${PUBLIC_API_URL}/public/flash-sales`);
+        const flashSales = await response.json();
+        
+        flashSaleTrack.innerHTML = ''; // Kosongkan placeholder
+        if (flashSales.length === 0) {
+            flashSaleTrack.closest('.content-section').classList.add('hidden'); // Sembunyikan section jika tidak ada FS
+            return;
+        }
+
+        flashSales.forEach(product => {
+            const card = document.createElement('div');
+            card.className = 'flash-sale-card';
+            card.innerHTML = `
+                <a href="product.html?gameId=${product.game_id}" style="text-decoration: none; color: inherit;">
+                    <img src="${product.game_image_url}" alt="${product.product_name}">
+                    <div class="flash-sale-info">
+                        <span class="fs-product-name">${product.product_name}</span>
+                        <span class="fs-price-discounted">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.discount_price)}</span>
+                        <span class="fs-price-original">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.original_price)}</span>
+                    </div>
+                </a>
+            `;
+            flashSaleTrack.appendChild(card);
+        });
+        
+        // Duplikasi kartu untuk efek scroll tak terbatas jika item cukup
+        if (flashSales.length > 2) {
+            flashSales.forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'flash-sale-card';
+                card.innerHTML = `...`; // Salin innerHTML dari atas
+                flashSaleTrack.appendChild(card);
+            });
+        }
+
+    } catch (error) {
+        console.error("Gagal memuat flash sale:", error);
+    }
+}
+
     if (notificationContainer) {
         notificationContainer.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -343,4 +388,5 @@ if (dropdownLoginBtn) {
     updateAuthButton();
     displayGames();
     checkUnreadNotifications();
+    displayFlashSales();
 });

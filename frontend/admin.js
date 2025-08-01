@@ -45,6 +45,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const fsProductSelector = document.getElementById('fs-product-selector');
     const fsGameSearch = document.getElementById('fs-game-search');
     const fsGameSelector = document.getElementById('fs-game-selector');
+    const fsPriceInfo = document.getElementById('fs-price-info');
+    const fsBronzePrice = document.getElementById('fs-bronze-price');
 
     // === KONFIGURASI & STATE ===
     const ADMIN_API_URL = '/api/admin';
@@ -428,7 +430,9 @@ function populateFlashSaleProductSelector(gameId) {
     productsOfGame.forEach(product => {
         const option = document.createElement('option');
         option.value = product.id;
-        option.textContent = `${product.name} (Harga Asli: Rp ${product.price.toLocaleString('id-ID')})`;
+        // Simpan harga bronze di data-attribute
+        option.dataset.bronzePrice = product.price_bronze; 
+        option.textContent = product.name;
         fsProductSelector.appendChild(option);
     });
 }
@@ -832,6 +836,19 @@ if (promosTableBody) {
             } finally {
                 toggleSwitch.disabled = false;
             }
+        }
+    });
+}
+
+if (fsProductSelector) {
+    fsProductSelector.addEventListener('change', () => {
+        const selectedOption = fsProductSelector.options[fsProductSelector.selectedIndex];
+        if (selectedOption && selectedOption.value) {
+            const bronzePrice = parseFloat(selectedOption.dataset.bronzePrice);
+            fsBronzePrice.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bronzePrice);
+            fsPriceInfo.classList.remove('hidden');
+        } else {
+            fsPriceInfo.classList.add('hidden');
         }
     });
 }
