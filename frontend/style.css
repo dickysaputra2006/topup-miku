@@ -1604,12 +1604,27 @@ margin-top: 5px;
 font-size: 0.85rem;
 }
 
-.promo-result .success {
-color: green;
+/* Style baru untuk pesan promo */
+.promo-result span {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-weight: bold;
 }
-
+.promo-result .success {
+    background-color: #1a3a32;
+    border: 1px solid var(--success-color);
+    color: var(--success-color);
+}
 .promo-result .error {
-color: red;
+    background-color: #3e2227;
+    border: 1px solid var(--danger-color);
+    color: var(--danger-color);
+}
+.promo-result i {
+    margin-right: 0.5rem;
 }
 
 /* Style tambahan untuk informasi potongan di modal */

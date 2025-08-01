@@ -272,12 +272,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const card = document.querySelector(`.product-card-selectable[data-product-id='${selectedProductId}']`);
     let originalPrice = parseFloat(card.dataset.price);
     let finalPrice = originalPrice;
+    currentDiscountAmount = 0; // Reset discount
 
     if (appliedPromo && appliedPromo.valid) {
         finalPrice = appliedPromo.final_price;
-        promoResultEl.innerHTML = `<span class="success">${appliedPromo.message} Potongan: Rp ${appliedPromo.discount.toLocaleString('id-ID')}</span>`;
+        currentDiscountAmount = appliedPromo.discount;
+        promoResultEl.innerHTML = `<span class="success"><i class="fas fa-check-circle"></i> Kode promo berhasil digunakan!</span>`;
     } else {
-        promoResultEl.innerHTML = '';
+       promoResultEl.innerHTML = '';
     }
 
     totalPriceEl.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(finalPrice);
@@ -515,9 +517,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         } catch (error) {
             appliedPromo = null;
-            promoResultEl.innerHTML = `<span class="error">❌ ${error.message}</span>`;
-            updatePrice(); // Kembalikan ke harga asli
-        } finally {
+            promoResultEl.innerHTML = `<span class="error"><i class="fas fa-times-circle"></i> ${error.message}</span>`;
+            updatePrice();
+        }  finally {
             applyPromoBtn.disabled = false;
             applyPromoBtn.textContent = 'Terapkan';
         }
