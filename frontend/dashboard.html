@@ -34,7 +34,7 @@
             <a href="deposit.html"><i class="fas fa-wallet"></i> Deposit</a>
             <a href="#" class="dashboard-nav-link" data-target="cek-pesanan"><i class="fas fa-receipt"></i> Cek Pesanan</a>
             <a href="transaksi.html"><i class="fas fa-history"></i> Transaksi</a>
-            <a href="mutasi.html"><i class="fas fa-chart-line"></i> Mutasi Harian</a>
+            <a href="#" class="dashboard-nav-link" data-target="mutasi-saldo"><i class="fas fa-chart-line"></i> Mutasi Saldo</a>
             <a href="#" class="dashboard-nav-link" data-target="integrasi"><i class="fas fa-cogs"></i> Integrasi</a>
             <a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Keluar/Log Out</a>
         </nav>
@@ -83,6 +83,25 @@
                 </div>
             </section>
 
+                </section> <section id="mutasi-saldo" class="dashboard-section hidden">
+    <div class="card">
+        <h3>Riwayat Mutasi Saldo</h3>
+        <div class="table-container">
+            <table id="mutasi-table">
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>Tipe</th>
+                        <th>Deskripsi</th>
+                        <th>Jumlah</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+            </table>
+        </div>
+    </div>
+                </section>
             
             <section id="cek-pesanan" class="dashboard-section hidden">
                 <div class="card">

@@ -44,6 +44,7 @@ document.addEventListener('click', function (event) {
     const apiKeyDisplay = document.getElementById('api-key-display');
     
     let apiKeyFetched = false;
+    let mutasiLoaded = false;
 
     async function fetchProfileData() {
         try {
@@ -106,6 +107,44 @@ document.addEventListener('click', function (event) {
         }
     }
 
+    async function fetchBalanceHistory() {
+    const tableBody = document.querySelector("#mutasi-table tbody");
+    if (!tableBody) return;
+    tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Memuat riwayat...</td></tr>`;
+    try {
+        const response = await fetch(`${API_URL}/balance-history`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!response.ok) throw new Error('Gagal mengambil data mutasi.');
+        const history = await response.json();
+        renderMutasiTable(history, tableBody);
+        mutasiLoaded = true;
+    } catch (error) {
+        tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">${error.message}</td></tr>`;
+    }
+}
+
+function renderMutasiTable(history, tableBody) {
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    if (history.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Belum ada riwayat mutasi.</td></tr>';
+        return;
+    }
+    history.forEach(item => {
+        const row = document.createElement('tr');
+        const amountClass = item.amount > 0 ? 'amount-in' : 'amount-out';
+        const amountSign = item.amount > 0 ? '+' : '';
+        row.innerHTML = `
+            <td>${new Date(item.created_at).toLocaleString('id-ID')}</td>
+            <td><span class="badge type-${item.type.toLowerCase()}">${item.type}</span></td>
+            <td>${item.description}</td>
+            <td class="${amountClass}">${amountSign} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(item.amount)}</td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+
+
     if (dashboardNavLinks.length > 0 && dashboardSections.length > 0) {
         dashboardNavLinks.forEach(link => {
             link.addEventListener('click', (e) => {
@@ -129,6 +168,10 @@ document.addEventListener('click', function (event) {
 
                 if (targetId === 'integrasi' && !apiKeyFetched) {
                     fetchApiKey();
+                }  
+
+                if (targetId === 'mutasi-saldo' && !mutasiLoaded) {
+                    fetchBalanceHistory();
                 }
             });
         });
