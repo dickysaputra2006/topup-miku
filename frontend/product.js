@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const applyPromoBtn = document.getElementById('apply-promo-btn');
     const promoResultEl = document.getElementById('promo-result');
     let appliedPromo = null; // Untuk menyimpan data promo yang valid
+    let currentDiscountAmount = 0; 
 
     // Elemen Header & Modal Login
     const modal = document.getElementById('auth-modal');
@@ -215,11 +216,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // Tampilan jika validasi sukses
-            let message = `<div class="validation-result-inline success">
-                            <i class="fas fa-check-circle"></i> 
-                            Nickname: <strong>${result.data.username}</strong>`;
+           let message = `<div class="validation-result-inline success">
+                        <p><i class="fas fa-check-circle"></i> Nickname: <strong>${result.data.username}</strong></p>`;
             if (result.data.region) {
-                message += ` (Region: ${result.data.region})`;
+                message += `<p style="margin-top: 0.25rem;">🌍 Region: <strong>${result.data.region}</strong></p>`;
             }
 
             if (!response.ok) {
@@ -366,7 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    if (submitOrderBtn) {
+ if (submitOrderBtn) {
     // Deklarasikan elemen modal di luar event listener
     const confirmModal = document.getElementById('order-confirmation-modal');
     const closeConfirmBtn = document.getElementById('close-confirm-modal-btn');
@@ -375,13 +375,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Event listener untuk tombol "Beli Sekarang" utama
     submitOrderBtn.addEventListener('click', () => {
-        // Cek dulu status validasi sebelum melanjutkan
-        // 'isValidationSuccess' didapatkan dari fungsi setupLiveValidation
         if (!isValidationSuccess) {
             alert('Validasi ID gagal atau region tidak sesuai. Harap periksa kembali User ID Anda atau pilih produk lain yang sesuai.');
-            return; // Hentikan proses jika validasi tidak sukses
+            return;
         }
-
         if (!token) {
             alert('Anda harus login untuk melakukan transaksi.');
             showModal();
@@ -417,6 +414,26 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('confirm-harga').textContent = productPrice;
         document.getElementById('confirm-total').textContent = totalPriceEl.textContent;
 
+        // --- LOGIKA BARU UNTUK MENAMPILKAN POTONGAN PROMO ---
+        const confirmationDetails = document.querySelector('.confirmation-details');
+        let promoElement = confirmationDetails.querySelector('.promo-discount-row');
+        // Hapus elemen promo lama jika ada, untuk pembaruan
+        if (promoElement) {
+            promoElement.remove();
+        }
+
+        // Tampilkan baris potongan harga HANYA JIKA ada promo yang valid
+        if (appliedPromo && appliedPromo.valid && appliedPromo.discount > 0) {
+            promoElement = document.createElement('p');
+            promoElement.className = 'promo-discount-row'; // Class untuk styling
+            promoElement.innerHTML = `<span>Potongan Promo (${appliedPromo.promo_code})</span> <strong>- ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(appliedPromo.discount)}</strong>`;
+            
+            // Sisipkan elemen promo sebelum elemen Total Pembayaran
+            const totalPaymentElement = confirmationDetails.querySelector('.total-payment');
+            confirmationDetails.insertBefore(promoElement, totalPaymentElement);
+        }
+        // --- AKHIR LOGIKA BARU ---
+
         // Tampilkan modal konfirmasi
         if (confirmModal) confirmModal.classList.remove('hidden');
     });
@@ -435,7 +452,6 @@ document.addEventListener('DOMContentLoaded', function() {
         confirmBtn.addEventListener('click', async () => {
             confirmBtn.disabled = true;
             confirmBtn.innerHTML = 'Memproses...';
-
             const targetGameId = document.getElementById('target-game-id').value;
             const targetServerIdEl = document.getElementById('target-server-id');
             const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
@@ -447,7 +463,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: JSON.stringify({
                         productId: selectedProductId,
                         targetGameId: targetGameId,
-                        targetServerId: targetServerId 
+                        targetServerId: targetServerId,
+                        // Kirim kode promo yang valid ke backend
+                        promoCode: (appliedPromo && appliedPromo.valid) ? promoCodeInput.value : null
                     })
                 });
                 const result = await response.json();

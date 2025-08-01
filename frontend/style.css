@@ -1466,14 +1466,19 @@ html, body {
 #validation-rules-container input {
     margin-bottom: 0; /* Hapus margin bawah dari input di dalam container ini */
 }
-/* Untuk hasil validasi di halaman produk */
+/* Perbaikan untuk hasil validasi di halaman produk */
 .validation-result-inline {
-    margin-top: 1rem;
+    margin-top: 0.5rem; /* Mengurangi jarak dari atas */
     padding: 0.8rem 1rem;
     border-radius: 5px;
     font-size: 0.9rem;
-    display: flex;
-    align-items: center;
+    display: flex; /* Menggunakan flexbox */
+    flex-direction: column; /* Menyusun konten dari atas ke bawah */
+    align-items: flex-start; /* Rata kiri */
+    grid-column: 1 / -1; /* Membuat div ini mengambil 2 kolom grid */
+}
+.validation-result-inline p {
+    margin: 0; /* Hapus margin default dari paragraf */
 }
 .validation-result-inline.success {
     background-color: #1a3a32;
@@ -1566,4 +1571,57 @@ html, body {
   background-color: #db2777; /* Lebih gelap dari primary */
 }
 
+/* Style untuk container input kode promo */
+.promo-container {
+display: flex;
+margin-bottom: 10px;
+}
+
+#promo-code-input {
+flex-grow: 1;
+padding: 8px;
+border: 1px solid #ccc;
+border-radius: 5px 0 0 5px;
+font-size: 0.9rem;
+}
+
+#apply-promo-btn {
+padding: 8px 15px;
+background-color: var(--primary-color);
+color: white;
+border: none;
+border-radius: 0 5px 5px 0;
+cursor: pointer;
+font-size: 0.9rem;
+}
+
+#apply-promo-btn:hover {
+background-color: var(--primary-color-dark);
+}
+
+.promo-result {
+margin-top: 5px;
+font-size: 0.85rem;
+}
+
+.promo-result .success {
+color: green;
+}
+
+.promo-result .error {
+color: red;
+}
+
+/* Style tambahan untuk informasi potongan di modal */
+.order-summary-promo {
+display: flex;
+justify-content: space-between;
+margin-bottom: 5px;
+font-size: 0.9rem;
+color: #888;
+}
+
+.order-summary-promo strong {
+color: green;
+}
 
