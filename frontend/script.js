@@ -26,6 +26,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const searchInput = document.getElementById('search-input');
     const searchResults = document.getElementById('search-results');
     
+    const notificationContainer = document.getElementById('notification-container');
+    const notificationBadge = document.getElementById('notification-badge');
+    const notificationPanel = document.getElementById('notification-panel');
+    const notificationList = document.getElementById('notification-list');
+
     let allGamesData = [];
 
     // === 2. DEFINISI SEMUA FUNGSI ===
@@ -149,6 +154,75 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+     async function checkUnreadNotifications() {
+        if (!token) return; // Hanya jalankan jika user login
+        try {
+            const response = await fetch(`${API_URL}/user/notifications/unread-count`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.count > 0) {
+                notificationBadge.textContent = data.count;
+                notificationBadge.classList.remove('hidden');
+            } else {
+                notificationBadge.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Gagal mengecek notifikasi:', error);
+        }
+    }
+
+    async function showNotifications() {
+        if (!token) return;
+        notificationList.innerHTML = '<p style="text-align: center; padding: 1rem;">Memuat...</p>';
+        try {
+            const response = await fetch(`${API_URL}/user/notifications`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const notifications = await response.json();
+            notificationList.innerHTML = ''; // Kosongkan
+            if (notifications.length === 0) {
+                notificationList.innerHTML = '<p style="text-align: center; padding: 1rem;">Tidak ada notifikasi.</p>';
+            } else {
+                notifications.forEach(notif => {
+                    const notifLink = document.createElement('a');
+                    notifLink.href = notif.link || '#';
+                    notifLink.className = 'notification-item';
+                    if (!notif.is_read) {
+                        notifLink.classList.add('unread');
+                    }
+                    notifLink.innerHTML = `<p style="margin:0; font-size: 0.9rem;">${notif.message}</p>
+                                           <small style="color: #a7a9be;">${new Date(notif.created_at).toLocaleString('id-ID')}</small>`;
+                    notificationList.appendChild(notifLink);
+                });
+            }
+            // Tandai sudah dibaca di backend
+            await fetch(`${API_URL}/user/notifications/mark-as-read`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            notificationBadge.classList.add('hidden'); // Sembunyikan badge
+        } catch (error) {
+            notificationList.innerHTML = '<p style="text-align: center; padding: 1rem; color: red;">Gagal memuat.</p>';
+        }
+    }
+
+    if (notificationContainer) {
+        notificationContainer.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isHidden = notificationPanel.classList.toggle('hidden');
+            if (!isHidden) { // Jika panel baru saja ditampilkan
+                showNotifications();
+            }
+        });
+    }
+    // Sembunyikan panel jika klik di luar
+    window.addEventListener('click', (e) => {
+        if (notificationPanel && !notificationPanel.classList.contains('hidden') && !notificationContainer.contains(e.target)) {
+            notificationPanel.classList.add('hidden');
+        }
+    });
+
     // === 3. EVENT LISTENERS & PANGGILAN AWAL ===
 
     if (hamburgerBtn) {
@@ -268,4 +342,5 @@ if (dropdownLoginBtn) {
     // === 4. PANGGILAN FUNGSI AWAL ===
     updateAuthButton();
     displayGames();
+    checkUnreadNotifications();
 });

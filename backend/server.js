@@ -139,6 +139,15 @@ const protectH2H = async (req, res, next) => {
     }
 };
 
+async function createNotification(userId, message, link = null) {
+    try {
+        const sql = 'INSERT INTO notifications (user_id, message, link) VALUES ($1, $2, $3)';
+        await pool.query(sql, [userId, message, link]);
+        console.log(`Notifikasi dibuat untuk user ${userId}: "${message}"`);
+    } catch (error) {
+        console.error(`Gagal membuat notifikasi untuk user ${userId}:`, error);
+    }
+}
 
 // === USER ENDPOINTS ===
 app.get('/api/user/profile', protect, async (req, res) => {
@@ -289,6 +298,41 @@ app.get('/api/user/transaction-summary', protect, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil ringkasan transaksi.' });
     }
 });
+// Endpoint untuk mengambil notifikasi pengguna
+app.get('/api/user/notifications', protect, async (req, res) => {
+    try {
+        const { rows } = await pool.query(
+            'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10', 
+            [req.user.id]
+        );
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal mengambil notifikasi.' });
+    }
+});
+
+// Endpoint untuk menghitung notifikasi yang belum dibaca
+app.get('/api/user/notifications/unread-count', protect, async (req, res) => {
+    try {
+        const { rows } = await pool.query(
+            'SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false', 
+            [req.user.id]
+        );
+        res.json({ count: parseInt(rows[0].count, 10) });
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal menghitung notifikasi.' });
+    }
+});
+
+// Endpoint untuk menandai semua notifikasi sebagai sudah dibaca
+app.post('/api/user/notifications/mark-as-read', protect, async (req, res) => {
+    try {
+        await pool.query('UPDATE notifications SET is_read = true WHERE user_id = $1', [req.user.id]);
+        res.status(200).json({ message: 'Semua notifikasi ditandai terbaca.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Gagal menandai notifikasi.' });
+    }
+});
 
 // === DEPOSIT ENDPOINTS ===
 app.post('/api/deposit/request', protect, async (req, res) => {
@@ -346,6 +390,7 @@ app.post('/api/admin/deposits/approve', protectAdmin, async (req, res) => {
         const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
         await client.query(historySql, [deposit.user_id, deposit.amount, 'Deposit', historyDesc, `DEPOSIT-${deposit.id}`]);
         await client.query('COMMIT');
+        await createNotification(deposit.user_id, `Deposit sebesar Rp ${deposit.amount.toLocaleString('id-ID')} telah disetujui dan masuk ke saldo.`);
         res.json({ message: `Deposit #${depositId} berhasil disetujui.` });
     } catch (error) {
         await client.query('ROLLBACK');
@@ -1099,12 +1144,14 @@ app.post('/api/foxy/callback', async (req, res) => {
 
         if (status.toUpperCase() === 'SUCCESS') {
             await client.query('UPDATE transactions SET status = \'Success\' WHERE id = $1', [tx.id]);
+                 await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} telah berhasil diproses.`, `/invoice.html?id=${tx.invoice_id}`);
         } else if (status.toUpperCase() === 'FAILED' || status.toUpperCase() === 'REFUNDED') {
             await client.query('UPDATE transactions SET status = \'Failed\' WHERE id = $1', [tx.id]);
             await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
 
             const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} karena: ${message || 'Transaksi gagal dari provider'}`;
             await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
+                 await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} gagal. Saldo telah dikembalikan.`, `/invoice.html?id=${tx.invoice_id}`);
         } else if (status.toUpperCase() === 'PENDING') {
             console.log(`Transaksi ${trx_id} masih pending dari callback.`);
         }

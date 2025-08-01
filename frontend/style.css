@@ -1639,4 +1639,59 @@ color: #888;
 .order-summary-promo strong {
 color: green;
 }
-
+/* Style untuk Notifikasi */
+#notification-container {
+    position: relative;
+    cursor: pointer;
+}
+.badge-count {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    background-color: var(--danger-color);
+    color: white;
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    border: 2px solid var(--bg-dark);
+}
+.notification-panel {
+    position: absolute;
+    top: 150%;
+    right: 0;
+    width: 320px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 200;
+    overflow: hidden;
+}
+.notification-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.notification-header h4 {
+    margin: 0;
+}
+.notification-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+.notification-item {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    display: block;
+    text-decoration: none;
+    color: var(--text-color);
+}
+.notification-item:last-child {
+    border-bottom: none;
+}
+.notification-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.notification-item.unread {
+    background-color: rgba(236, 72, 153, 0.1);
+}
