@@ -43,6 +43,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const addFlashSaleForm = document.getElementById('add-flash-sale-form');
     const flashSalesTableBody = document.querySelector("#flash-sales-table tbody");
     const fsProductSelector = document.getElementById('fs-product-selector');
+    const fsGameSearch = document.getElementById('fs-game-search');
+    const fsGameSelector = document.getElementById('fs-game-selector');
 
     // === KONFIGURASI & STATE ===
     const ADMIN_API_URL = '/api/admin';
