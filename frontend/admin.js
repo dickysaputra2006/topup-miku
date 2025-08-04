@@ -862,7 +862,8 @@ if (addFlashSaleForm) {
             start_at: document.getElementById('fs-start-at').value,
             end_at: document.getElementById('fs-end-at').value,
             max_uses: document.getElementById('fs-max-uses').value || null,
-            max_discount_amount: document.getElementById('fs-max-discount').value || null
+            // PERBAIKAN: Ubah ID di sini agar sesuai dengan HTML
+            max_discount_amount: document.getElementById('fs-max-discount').value || null 
         };
 
         if(!data.product_id) {
@@ -879,7 +880,7 @@ if (addFlashSaleForm) {
             if (!response.ok) throw new Error('Gagal menambahkan produk ke flash sale.');
             alert('Produk berhasil ditambahkan ke flash sale!');
             addFlashSaleForm.reset();
-            fsProductSelector.innerHTML = '<option value="">-- Pilih Game Terlebih Dahulu --</option>'; // Reset dropdown produk
+            fsProductSelector.innerHTML = '<option value="">-- Pilih Game Terlebih Dahulu --</option>';
             fetchAndDisplayFlashSales();
         } catch (error) {
             alert(`Error: ${error.message}`);
