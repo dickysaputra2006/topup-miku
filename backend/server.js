@@ -1096,8 +1096,69 @@ app.get('/api/public/flash-sales', async (req, res) => {
         res.status(500).json({ message: 'Gagal mengambil data flash sale.' });
     }
 });
+// ambil pl dari role bronze di web untuk bot tele
+app.get('/api/public/bot-products/:gameName', async (req, res) => {
+    try {
+        const { gameName } = req.params;
 
+        // 1. Dapatkan margin untuk role 'BRONZE' (INI YANG DIUBAH)
+        const { rows: roleRows } = await pool.query("SELECT margin_percent FROM roles WHERE name = 'BRONZE'");
+        if (roleRows.length === 0) {
+            throw new Error("Role 'BRONZE' tidak ditemukan untuk perhitungan harga.");
+        }
+        const publicMargin = roleRows[0].margin_percent;
 
+        // 2. Cari game berdasarkan nama
+        const { rows: gameRows } = await pool.query("SELECT id FROM games WHERE name ILIKE $1 AND status = 'Active'", [`%${gameName}%`]);
+        if (gameRows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Game tidak ditemukan.' });
+        }
+        const gameId = gameRows[0].id;
+
+        // 3. Ambil semua produk untuk game tersebut
+        const { rows: products } = await pool.query("SELECT name, price FROM products WHERE game_id = $1 AND status = 'Active' ORDER BY price ASC", [gameId]);
+
+        // 4. Hitung harga jual akhir untuk setiap produk (LOGIKA DISINI JUGA BERUBAH)
+        const finalProducts = products.map(p => {
+            // Langsung hitung harga jual berdasarkan margin BRONZE
+            const publicPrice = Math.ceil(p.price * (1 + publicMargin / 100));
+
+            return {
+                name: p.name,
+                price: publicPrice
+            };
+        });
+
+        res.json({ success: true, data: finalProducts });
+
+    } catch (error) {
+        console.error("Error di endpoint bot-products:", error);
+        res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
+    }
+});
+// --- ENDPOINT UNTUK MENGAMBIL DAFTAR GAME UNTUK BOT ---
+app.get('/api/public/bot-games', async (req, res) => {
+    try {
+        const { rows: games } = await pool.query(
+            "SELECT name, category FROM games WHERE status = 'Active' ORDER BY category, name"
+        );
+
+        // Kelompokkan game berdasarkan kategori
+        const groupedGames = games.reduce((acc, game) => {
+            const category = game.category || 'Lainnya';
+            if (!acc[category]) {
+                acc[category] = [];
+            }
+            acc[category].push(game.name);
+            return acc;
+        }, {});
+
+        res.json({ success: true, data: groupedGames });
+    } catch (error) {
+        console.error("Error di endpoint bot-games:", error);
+        res.status(500).json({ success: false, message: 'Gagal mengambil daftar game.' });
+    }
+});
 
 // === ORDER & H2H ENDPOINTS ===
 app.post('/api/order', protect, async (req, res) => {
