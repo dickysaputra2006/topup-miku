@@ -885,45 +885,42 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
     try {
         const { gameId } = req.params;
         
-        // --- AWAL PERBAIKAN LOGIKA MARGIN ---
-        let userRoleId = 1; // Atur default ke role ID 1 (misalnya BRONZE) untuk publik
-
+        let userRoleId = 1; // Default role BRONZE untuk publik
         if (req.user) {
-            // Jika pengguna login, ambil role_id mereka
             const { rows: userRows } = await pool.query('SELECT role_id FROM users WHERE id = $1', [req.user.id]);
             if (userRows.length > 0) {
                 userRoleId = userRows[0].role_id;
             }
         }
 
-        // Ambil margin berdasarkan role_id yang sudah ditentukan (baik dari pengguna login atau default)
         const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [userRoleId]);
-        
-        let margin = 0; // Fallback jika role tidak ditemukan
-        if (roleRows.length > 0) {
-            margin = roleRows[0].margin_percent;
-        } else {
-            console.warn(`Peringatan: Role dengan ID ${userRoleId} tidak ditemukan. Menggunakan margin 0%.`);
-        }
-        // --- AKHIR PERBAIKAN LOGIKA MARGIN ---
+        const margin = roleRows.length > 0 ? roleRows[0].margin_percent : 0;
 
         const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id, target_id_label FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
         if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });
 
-        const { rows: products } = await pool.query("SELECT id, name, provider_sku, price as base_price FROM products WHERE game_id = $1 AND status = 'Active' ORDER BY price ASC", [gameId]);
+        // --- QUERY SQL BARU YANG LEBIH PINTAR ---
+        const sqlProducts = `
+            SELECT 
+                p.id, 
+                p.name, 
+                p.provider_sku,
+                COALESCE(
+                    fs.discount_price, 
+                    CEIL(p.price * (1 + $2 / 100))
+                ) as price
+            FROM products p
+            LEFT JOIN flash_sales fs ON p.id = fs.product_id 
+                AND fs.is_active = true 
+                AND NOW() BETWEEN fs.start_at AND fs.end_at
+                AND (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses)
+            WHERE p.game_id = $1 AND p.status = 'Active'
+            ORDER BY p.price ASC
+        `;
 
-        const finalProducts = products.map(p => {
-            // Terapkan margin ke harga dasar
-            const sellingPrice = p.base_price * (1 + (margin / 100));
-            return { 
-                id: p.id, 
-                name: p.name, 
-                provider_sku: p.provider_sku, 
-                price: Math.ceil(sellingPrice) // Pembulatan ke atas
-            };
-        });
+        const { rows: products } = await pool.query(sqlProducts, [gameId, margin]);
         
-        res.json({ game: games[0], products: finalProducts });
+        res.json({ game: games[0], products: products });
     } catch (error) {
         console.error("Gagal mengambil produk game (public):", error);
         res.status(500).json({ message: 'Server error saat mengambil data produk.' });
