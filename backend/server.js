@@ -885,7 +885,7 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
     try {
         const { gameId } = req.params;
         
-        let userRoleId = 1; // Default role BRONZE untuk publik
+        let userRoleId = 1;
         if (req.user) {
             const { rows: userRows } = await pool.query('SELECT role_id FROM users WHERE id = $1', [req.user.id]);
             if (userRows.length > 0) {
@@ -899,7 +899,7 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
         const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id, target_id_label FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
         if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });
 
-        // --- QUERY SQL BARU YANG LEBIH PINTAR ---
+        // --- PERBAIKAN DI DALAM QUERY SQL ---
         const sqlProducts = `
             SELECT 
                 p.id, 
@@ -907,7 +907,7 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
                 p.provider_sku,
                 COALESCE(
                     fs.discount_price, 
-                    CEIL(p.price * (1 + $2 / 100))
+                    CEIL(p.price * (1 + $2::numeric / 100)) -- Diubah di sini
                 ) as price
             FROM products p
             LEFT JOIN flash_sales fs ON p.id = fs.product_id 
