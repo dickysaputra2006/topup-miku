@@ -1078,6 +1078,7 @@ app.get('/api/public/flash-sales', async (req, res) => {
                 p.name as product_name,
                 -- Menghitung harga jual asli berdasarkan margin role BRONZE (ID=1)
                 CEIL(p.price * (1 + r.margin_percent / 100)) as original_price,
+                g.id as game_id,
                 g.name as game_name,
                 g.image_url as game_image_url
             FROM flash_sales fs
