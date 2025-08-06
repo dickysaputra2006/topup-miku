@@ -37,6 +37,10 @@ const dbConfig = {
 };
 const pool = new Pool(dbConfig);
 
+pool.on('connect', (client) => {
+  client.query("SET TIME ZONE 'Asia/Jakarta'");
+});
+
 // === AUTH ENDPOINTS ===
 app.post('/api/auth/register', async (req, res) => {
     try {
