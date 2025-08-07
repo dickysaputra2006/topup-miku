@@ -16,6 +16,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
+const BOT_PRODUCT_BLACKLIST = ['FXGT', 'Via Login', 'Gifts'];
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
@@ -1136,15 +1137,20 @@ app.get('/api/public/bot-products/:gameName', async (req, res) => {
         res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
     }
 });
-// --- ENDPOINT UNTUK MENGAMBIL DAFTAR GAME UNTUK BOT ---
+// --- ENDPOINT BARU UNTUK MENGAMBIL DAFTAR GAME UNTUK BOT (DENGAN BLACKLIST) ---
 app.get('/api/public/bot-games', async (req, res) => {
     try {
         const { rows: games } = await pool.query(
             "SELECT name, category FROM games WHERE status = 'Active' ORDER BY category, name"
         );
 
-        // Kelompokkan game berdasarkan kategori
-        const groupedGames = games.reduce((acc, game) => {
+        // Filter game berdasarkan blacklist
+        const filteredGames = games.filter(game => 
+            !BOT_PRODUCT_BLACKLIST.some(keyword => game.name.toLowerCase().includes(keyword.toLowerCase()))
+        );
+
+        // Kelompokkan game yang sudah difilter berdasarkan kategori
+        const groupedGames = filteredGames.reduce((acc, game) => {
             const category = game.category || 'Lainnya';
             if (!acc[category]) {
                 acc[category] = [];

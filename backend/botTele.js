@@ -13,10 +13,12 @@ if (!token) {
 
 const bot = new TelegramBot(token, { polling: true });
 
-// --- FUNGSI UTAMA ---
+const ITEMS_PER_PAGE = 10; // Jumlah produk per halaman
 
-// Fungsi untuk mengirim menu utama (Start dan Menu)
+// --- FUNGSI-FUNGSI UTAMA ---
+
 const sendMainMenu = (chatId, firstName) => {
+    // ... (Fungsi ini tidak berubah)
     const menuMessage = `
 Halo, ${firstName}! 👋
 Silakan gunakan perintah di bawah ini:
@@ -30,43 +32,72 @@ Silakan gunakan perintah di bawah ini:
     bot.sendMessage(chatId, menuMessage, { parse_mode: 'Markdown' });
 };
 
-// Fungsi untuk menampilkan daftar harga produk (yang sebelumnya /produk)
-const sendPriceList = async (chatId, gameName) => {
+// --- FUNGSI BARU UNTUK MENGIRIM PRICELIST DENGAN PAGINASI ---
+const sendPaginatedPriceList = async (chatId, gameName, page = 1, messageId = null) => {
     try {
-        await bot.sendMessage(chatId, `⏳ Mencari produk untuk *${gameName}*...`, { parse_mode: 'Markdown' });
         const response = await axios.get(`${apiUrl}/api/public/bot-products/${encodeURIComponent(gameName)}`);
         
-        if (response.data && response.data.success) {
-            const products = response.data.data;
-            if (products.length === 0) {
-                return bot.sendMessage(chatId, `ℹ️ Tidak ada produk untuk *${gameName}*.`, { parse_mode: 'Markdown' });
-            }
+        if (!response.data.success) {
+            return bot.sendMessage(chatId, `❌ Gagal mengambil data: ${response.data.message}`);
+        }
+        
+        const products = response.data.data;
+        if (products.length === 0) {
+            return bot.sendMessage(chatId, `ℹ️ Tidak ada produk untuk *${gameName}*.`, { parse_mode: 'Markdown' });
+        }
 
-            let productMessage = `✅ *Daftar Harga untuk ${gameName}*\n\n`;
-            products.forEach(p => {
-                const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(p.price);
-                productMessage += `▪️ ${p.name}\n   └ *${formattedPrice}*\n`;
-            });
-            await bot.sendMessage(chatId, productMessage, { parse_mode: 'Markdown' });
+        const totalPages = Math.ceil(products.length / ITEMS_PER_PAGE);
+        const start = (page - 1) * ITEMS_PER_PAGE;
+        const end = start + ITEMS_PER_PAGE;
+        const paginatedProducts = products.slice(start, end);
+
+        let productMessage = `✅ *Daftar Harga untuk ${gameName}* (Hal ${page}/${totalPages})\n\n`;
+        paginatedProducts.forEach(p => {
+            const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(p.price);
+            productMessage += `▪️ ${p.name}\n   └ *${formattedPrice}*\n`;
+        });
+
+        // Membuat tombol navigasi
+        const keyboard = [];
+        const row = [];
+        if (page > 1) {
+            row.push({ text: '◀ Hal Sebelumnya', callback_data: `pricelist_${gameName}_${page - 1}` });
         }
-    } catch (error) {
-        if (error.response && error.response.status === 404) {
-            await bot.sendMessage(chatId, `❌ Game *${gameName}* tidak ditemukan.`, { parse_mode: 'Markdown' });
+        if (page < totalPages) {
+            row.push({ text: 'Hal Berikutnya ▶', callback_data: `pricelist_${gameName}_${page + 1}` });
+        }
+        if(row.length > 0) keyboard.push(row);
+        
+        const options = {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: keyboard
+            }
+        };
+
+        if (messageId) {
+            // Jika ada messageId, edit pesan yang sudah ada
+            await bot.editMessageText(productMessage, { ...options, chat_id: chatId, message_id: messageId });
         } else {
-            console.error(`Error saat sendPriceList untuk ${gameName}:`, error.message);
-            await bot.sendMessage(chatId, '❌ Terjadi kesalahan saat mengambil harga.');
+            // Jika tidak, kirim pesan baru
+            await bot.sendMessage(chatId, productMessage, options);
         }
+
+    } catch (error) {
+        console.error(`Error saat sendPaginatedPriceList untuk ${gameName}:`, error.message);
+        await bot.sendMessage(chatId, '❌ Terjadi kesalahan saat mengambil harga.');
     }
 };
 
-// --- LISTENER PERINTAH ---
+
+// --- LISTENER PERINTAH (SEBAGIAN BESAR TIDAK BERUBAH) ---
 
 bot.onText(/\/start|\/menu/, (msg) => {
     sendMainMenu(msg.chat.id, msg.from.first_name);
 });
 
 bot.onText(/\/ceksaldo/, async (msg) => {
-    // Kode /ceksaldo Anda yang sudah ada, tidak perlu diubah
+    // ... (Tidak ada perubahan di sini)
     const chatId = msg.chat.id;
     try {
         await bot.sendMessage(chatId, '⏳ Sedang mengecek saldo Anda...');
@@ -86,108 +117,73 @@ bot.onText(/\/ceksaldo/, async (msg) => {
     }
 });
 
-// Perintah /produk manual masih bisa digunakan
+// Perintah /produk sekarang memanggil fungsi paginasi
 bot.onText(/\/produk (.+)/, (msg, match) => {
-    sendPriceList(msg.chat.id, match[1]);
+    sendPaginatedPriceList(msg.chat.id, match[1]); // Panggil fungsi paginasi
 });
 
-
-// --- LOGIKA TOMBOL INTERAKTIF (INLINE KEYBOARD) ---
-
-// 1. Menampilkan Kategori Game saat perintah /pricelist
 bot.onText(/\/pricelist/, async (msg) => {
+    // ... (Tidak ada perubahan di sini)
     const chatId = msg.chat.id;
     try {
         const response = await axios.get(`${apiUrl}/api/public/bot-games`);
         const groupedGames = response.data.data;
         const categories = Object.keys(groupedGames);
-
-        const keyboard = categories.map(category => ([{
-            text: category,
-            callback_data: `category_${category}` // Data yang dikirim saat tombol ditekan
-        }]));
-
-        await bot.sendMessage(chatId, 'Silakan pilih kategori game:', {
-            reply_markup: {
-                inline_keyboard: keyboard
-            }
-        });
+        const keyboard = categories.map(category => ([{ text: category, callback_data: `category_${category}` }]));
+        await bot.sendMessage(chatId, 'Silakan pilih kategori game:', { reply_markup: { inline_keyboard: keyboard } });
     } catch (error) {
         console.error("Error mengambil kategori game:", error.message);
         await bot.sendMessage(chatId, "Gagal memuat kategori game.");
     }
 });
 
-// 2. Menangani saat tombol ditekan (callback_query)
+
+// --- HANDLER UNTUK CALLBACK QUERY (TOMBOL) ---
+
 bot.on('callback_query', async (callbackQuery) => {
     const msg = callbackQuery.message;
     const chatId = msg.chat.id;
-    const data = callbackQuery.data; // Data dari tombol, misal: "category_Mobile Game"
+    const data = callbackQuery.data;
 
-    // Jawab callback query agar tombol tidak loading terus
     bot.answerCallbackQuery(callbackQuery.id);
 
-    // Jika yang ditekan adalah tombol kategori
+    // Jika tombol pricelist (navigasi halaman) yang ditekan
+    if (data.startsWith('pricelist_')) {
+        const parts = data.split('_');
+        const gameName = parts.slice(1, -1).join('_'); // Ambil nama game (bisa mengandung '_')
+        const page = parseInt(parts[parts.length - 1], 10);
+        await sendPaginatedPriceList(chatId, gameName, page, msg.message_id); // Panggil dengan messageId untuk edit
+        return;
+    }
+
+    // ... (Logika callback query Anda yang lain, tidak berubah)
     if (data.startsWith('category_')) {
         const category = data.replace('category_', '');
-        
         try {
             const response = await axios.get(`${apiUrl}/api/public/bot-games`);
             const gamesInCategory = response.data.data[category];
-
-            const keyboard = gamesInCategory.map(gameName => ([{
-                text: gameName,
-                callback_data: `game_${gameName}`
-            }]));
-            
-            // Tambahkan tombol kembali
+            const keyboard = gamesInCategory.map(gameName => ([{ text: gameName, callback_data: `game_${gameName}` }]));
             keyboard.push([{ text: '« Kembali ke Kategori', callback_data: 'back_to_categories' }]);
-
-            // Edit pesan yang ada untuk menampilkan daftar game
             await bot.editMessageText(`Pilih game dari kategori *${category}*:`, {
-                chat_id: chatId,
-                message_id: msg.message_id,
-                parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: keyboard
-                }
+                chat_id: chatId, message_id: msg.message_id, parse_mode: 'Markdown',
+                reply_markup: { inline_keyboard: keyboard }
             });
         } catch (error) {
             console.error("Error mengambil game:", error.message);
             await bot.sendMessage(chatId, "Gagal memuat daftar game.");
         }
-    }
-    
-    // Jika yang ditekan adalah tombol game
-    else if (data.startsWith('game_')) {
+    } else if (data.startsWith('game_')) {
         const gameName = data.replace('game_', '');
-        // Hapus tombol-tombol dari pesan sebelumnya
-        await bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
-            chat_id: chatId,
-            message_id: msg.message_id
-        });
-        // Panggil fungsi untuk mengirim pricelist
-        await sendPriceList(chatId, gameName);
-    }
-    
-    // Jika yang ditekan adalah tombol kembali
-    else if (data === 'back_to_categories') {
-        // Logika ini sama dengan /pricelist, kita panggil ulang untuk menampilkan kategori
+        await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: msg.message_id });
+        await sendPaginatedPriceList(chatId, gameName); // Panggil fungsi paginasi
+    } else if (data === 'back_to_categories') {
         const response = await axios.get(`${apiUrl}/api/public/bot-games`);
         const groupedGames = response.data.data;
         const categories = Object.keys(groupedGames);
-
-        const keyboard = categories.map(category => ([{
-            text: category,
-            callback_data: `category_${category}`
-        }]));
-
+        const keyboard = categories.map(category => ([{ text: category, callback_data: `category_${category}` }]));
         await bot.editMessageText('Silakan pilih kategori game:', {
-            chat_id: chatId,
-            message_id: msg.message_id,
-            reply_markup: {
-                inline_keyboard: keyboard
-            }
+            chat_id: chatId, message_id: msg.message_id,
+            reply_markup: { inline_keyboard: keyboard }
         });
     }
 });
