@@ -13,12 +13,10 @@ if (!token) {
 
 const bot = new TelegramBot(token, { polling: true });
 
-const ITEMS_PER_PAGE = 10; // Jumlah produk per halaman
+const ITEMS_PER_PAGE = 10;
 
-// --- FUNGSI-FUNGSI UTAMA ---
-
+// --- FUNGSI UTAMA ---
 const sendMainMenu = (chatId, firstName) => {
-    // ... (Fungsi ini tidak berubah)
     const menuMessage = `
 Halo, ${firstName}! 👋
 Silakan gunakan perintah di bawah ini:
@@ -32,7 +30,6 @@ Silakan gunakan perintah di bawah ini:
     bot.sendMessage(chatId, menuMessage, { parse_mode: 'Markdown' });
 };
 
-// --- FUNGSI BARU UNTUK MENGIRIM PRICELIST DENGAN PAGINASI ---
 const sendPaginatedPriceList = async (chatId, gameName, page = 1, messageId = null) => {
     try {
         const response = await axios.get(`${apiUrl}/api/public/bot-products/${encodeURIComponent(gameName)}`);
@@ -57,7 +54,6 @@ const sendPaginatedPriceList = async (chatId, gameName, page = 1, messageId = nu
             productMessage += `▪️ ${p.name}\n   └ *${formattedPrice}*\n`;
         });
 
-        // Membuat tombol navigasi
         const keyboard = [];
         const row = [];
         if (page > 1) {
@@ -76,28 +72,27 @@ const sendPaginatedPriceList = async (chatId, gameName, page = 1, messageId = nu
         };
 
         if (messageId) {
-            // Jika ada messageId, edit pesan yang sudah ada
             await bot.editMessageText(productMessage, { ...options, chat_id: chatId, message_id: messageId });
         } else {
-            // Jika tidak, kirim pesan baru
             await bot.sendMessage(chatId, productMessage, options);
         }
 
     } catch (error) {
-        console.error(`Error saat sendPaginatedPriceList untuk ${gameName}:`, error.message);
-        await bot.sendMessage(chatId, '❌ Terjadi kesalahan saat mengambil harga.');
+        // --- PERBAIKAN: Tangkap error 'message is not modified' ---
+        if (error.response && error.response.body && error.response.body.description.includes('message is not modified')) {
+            // Abaikan error ini, karena artinya pengguna mengklik tombol halaman yang sama. Tidak perlu melakukan apa-apa.
+            console.log("Diabaikan: Pesan tidak diubah.");
+        } else {
+            console.error(`Error saat sendPaginatedPriceList untuk ${gameName}:`, error.message);
+            await bot.sendMessage(chatId, '❌ Terjadi kesalahan saat mengambil harga.');
+        }
     }
 };
 
-
-// --- LISTENER PERINTAH (SEBAGIAN BESAR TIDAK BERUBAH) ---
-
-bot.onText(/\/start|\/menu/, (msg) => {
-    sendMainMenu(msg.chat.id, msg.from.first_name);
-});
+// --- LISTENER PERINTAH ---
+bot.onText(/\/start|\/menu/, (msg) => sendMainMenu(msg.chat.id, msg.from.first_name));
 
 bot.onText(/\/ceksaldo/, async (msg) => {
-    // ... (Tidak ada perubahan di sini)
     const chatId = msg.chat.id;
     try {
         await bot.sendMessage(chatId, '⏳ Sedang mengecek saldo Anda...');
@@ -117,13 +112,9 @@ bot.onText(/\/ceksaldo/, async (msg) => {
     }
 });
 
-// Perintah /produk sekarang memanggil fungsi paginasi
-bot.onText(/\/produk (.+)/, (msg, match) => {
-    sendPaginatedPriceList(msg.chat.id, match[1]); // Panggil fungsi paginasi
-});
+bot.onText(/\/produk (.+)/, (msg, match) => sendPaginatedPriceList(msg.chat.id, match[1]));
 
 bot.onText(/\/pricelist/, async (msg) => {
-    // ... (Tidak ada perubahan di sini)
     const chatId = msg.chat.id;
     try {
         const response = await axios.get(`${apiUrl}/api/public/bot-games`);
@@ -137,9 +128,7 @@ bot.onText(/\/pricelist/, async (msg) => {
     }
 });
 
-
 // --- HANDLER UNTUK CALLBACK QUERY (TOMBOL) ---
-
 bot.on('callback_query', async (callbackQuery) => {
     const msg = callbackQuery.message;
     const chatId = msg.chat.id;
@@ -147,19 +136,14 @@ bot.on('callback_query', async (callbackQuery) => {
 
     bot.answerCallbackQuery(callbackQuery.id);
 
-    // Jika tombol pricelist (navigasi halaman) yang ditekan
-    if (data.startsWith('pricelist_')) {
-        const parts = data.split('_');
-        const gameName = parts.slice(1, -1).join('_'); // Ambil nama game (bisa mengandung '_')
-        const page = parseInt(parts[parts.length - 1], 10);
-        await sendPaginatedPriceList(chatId, gameName, page, msg.message_id); // Panggil dengan messageId untuk edit
-        return;
-    }
-
-    // ... (Logika callback query Anda yang lain, tidak berubah)
-    if (data.startsWith('category_')) {
-        const category = data.replace('category_', '');
-        try {
+    try { // --- PERBAIKAN: Bungkus semua logika callback dalam try...catch ---
+        if (data.startsWith('pricelist_')) {
+            const parts = data.split('_');
+            const gameName = parts.slice(1, -1).join('_');
+            const page = parseInt(parts[parts.length - 1], 10);
+            await sendPaginatedPriceList(chatId, gameName, page, msg.message_id);
+        } else if (data.startsWith('category_')) {
+            const category = data.replace('category_', '');
             const response = await axios.get(`${apiUrl}/api/public/bot-games`);
             const gamesInCategory = response.data.data[category];
             const keyboard = gamesInCategory.map(gameName => ([{ text: gameName, callback_data: `game_${gameName}` }]));
@@ -168,23 +152,27 @@ bot.on('callback_query', async (callbackQuery) => {
                 chat_id: chatId, message_id: msg.message_id, parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: keyboard }
             });
-        } catch (error) {
-            console.error("Error mengambil game:", error.message);
-            await bot.sendMessage(chatId, "Gagal memuat daftar game.");
+        } else if (data.startsWith('game_')) {
+            const gameName = data.replace('game_', '');
+            await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: msg.message_id });
+            await sendPaginatedPriceList(chatId, gameName);
+        } else if (data === 'back_to_categories') {
+            const response = await axios.get(`${apiUrl}/api/public/bot-games`);
+            const groupedGames = response.data.data;
+            const categories = Object.keys(groupedGames);
+            const keyboard = categories.map(category => ([{ text: category, callback_data: `category_${category}` }]));
+            await bot.editMessageText('Silakan pilih kategori game:', {
+                chat_id: chatId, message_id: msg.message_id,
+                reply_markup: { inline_keyboard: keyboard }
+            });
         }
-    } else if (data.startsWith('game_')) {
-        const gameName = data.replace('game_', '');
-        await bot.editMessageReplyMarkup({ inline_keyboard: [] }, { chat_id: chatId, message_id: msg.message_id });
-        await sendPaginatedPriceList(chatId, gameName); // Panggil fungsi paginasi
-    } else if (data === 'back_to_categories') {
-        const response = await axios.get(`${apiUrl}/api/public/bot-games`);
-        const groupedGames = response.data.data;
-        const categories = Object.keys(groupedGames);
-        const keyboard = categories.map(category => ([{ text: category, callback_data: `category_${category}` }]));
-        await bot.editMessageText('Silakan pilih kategori game:', {
-            chat_id: chatId, message_id: msg.message_id,
-            reply_markup: { inline_keyboard: keyboard }
-        });
+    } catch (error) {
+        // --- PERBAIKAN: Tangkap error 'message is not modified' di sini juga ---
+        if (error.response && error.response.body && error.response.body.description.includes('message is not modified')) {
+            console.log("Diabaikan: Pesan tidak diubah (dari callback).");
+        } else {
+            console.error("Error saat memproses callback_query:", error.message);
+        }
     }
 });
 
