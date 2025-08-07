@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', function () {
+    const logoutMessage = sessionStorage.getItem('logoutMessage');
+    if (logoutMessage) {
+        // Kita gunakan alert() sederhana di sini, atau Anda bisa buat toast juga
+        alert(logoutMessage);
+        sessionStorage.removeItem('logoutMessage'); // Hapus pesan agar tidak muncul lagi
+    }
     // === 1. DEKLARASI KONSTANTA & ELEMEN ===
     const API_URL_AUTH = '/api/auth';
     const API_URL = '/api';

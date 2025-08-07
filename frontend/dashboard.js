@@ -48,19 +48,55 @@ document.addEventListener('click', function (event) {
     let transaksiLoaded = false;
     let depositFormSetup = false;
 
+// --- FUNGSI BARU UNTUK NOTIFIKASI DAN LOGOUT OTOMATIS ---
+
+// Fungsi untuk menampilkan notifikasi melayang
+function showToast(message) {
+    const toast = document.getElementById('toast-notification');
+    if (!toast) return;
+
+    toast.textContent = message;
+    toast.classList.remove('hidden');
+    toast.classList.add('show');
+
+    // Sembunyikan notifikasi setelah 5 detik
+    setTimeout(() => {
+        toast.classList.remove('show');
+        // Tambahkan sedikit jeda sebelum menyembunyikan total agar transisi selesai
+        setTimeout(() => toast.classList.add('hidden'), 300);
+    }, 5000);
+}
+
+// Fungsi untuk melakukan logout
+function forceLogout(message) {
+    localStorage.removeItem('authToken'); // Hapus token yang tidak valid
+    // Simpan pesan di sessionStorage untuk ditampilkan di halaman utama
+    sessionStorage.setItem('logoutMessage', message);
+    window.location.href = 'index.html'; // Arahkan ke halaman utama
+}
+
     async function fetchProfileData() {
-        try {
-            const response = await fetch(`${API_URL}/profile`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!response.ok) throw new Error('Sesi habis, silakan login kembali.');
-            const data = await response.json();
-            updateDashboardUI(data);
-        } catch (error) {
-            localStorage.removeItem('authToken');
-            window.location.href = 'index.html';
+    try {
+        const response = await fetch(`${API_URL}/profile`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        // --- INI BAGIAN PENTINGNYA ---
+        if (response.status === 401) {
+            // Jika token tidak valid/kadaluarsa (unauthorized)
+            forceLogout('Sesi Anda telah berakhir, silakan login kembali.');
+            return; // Hentikan eksekusi
         }
+
+        if (!response.ok) throw new Error('Gagal memuat data profil.');
+
+        const data = await response.json();
+        updateDashboardUI(data);
+    } catch (error) {
+        // Jika error bukan karena token, tampilkan di console
+        console.error('Error fetching profile data:', error);
     }
+}
 
     async function fetchTransactionSummary() {
     try {

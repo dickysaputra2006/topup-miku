@@ -1695,3 +1695,27 @@ color: green;
 .notification-item.unread {
     background-color: rgba(236, 72, 153, 0.1);
 }
+
+/* === TOAST NOTIFICATION STYLING === */
+.toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: var(--danger-color);
+    color: white;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 1000;
+    font-weight: bold;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.toast.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+.toast.hidden {
+    display: none;
+}
