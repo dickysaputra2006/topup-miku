@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', function () {
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
     const dropdownLoginBtn = document.getElementById('dropdown-login-btn');
+    const forgotPasswordContainer = document.getElementById('forgot-password-container');
+    const forgotPasswordForm = document.getElementById('forgot-password-form');
+    const forgotPasswordLink = document.querySelector('.forgot-password');
 
     // Elemen Search
     const searchInput = document.getElementById('search-input');
@@ -330,6 +333,39 @@ if (dropdownLoginBtn) {
         });
     }
 
+    if (forgotPasswordForm) {
+    forgotPasswordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = forgotPasswordForm.querySelector('input[name="email"]').value;
+        const submitButton = forgotPasswordForm.querySelector('button');
+        submitButton.disabled = true;
+        submitButton.textContent = 'Mengirim...';
+
+        try {
+            // Menggunakan AUTH_API_URL atau API_URL_AUTH sesuai nama variabel di file Anda
+            const response = await fetch(`${API_URL_AUTH || AUTH_API_URL}/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+            const result = await response.json();
+
+            // Selalu tampilkan pesan sukses untuk keamanan
+            alert(result.message);
+
+            // Arahkan kembali ke form login
+            document.querySelector('.show-login-from-forgot').click();
+
+        } catch (error) {
+            alert('Terjadi kesalahan. Silakan coba lagi.');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Kirim Link Reset';
+            forgotPasswordForm.reset();
+        }
+    });
+}
+
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -353,6 +389,24 @@ if (dropdownLoginBtn) {
             }
         });
     }
+
+        // Tampilkan form lupa password saat link di-klik
+    if (forgotPasswordLink) {
+        forgotPasswordLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            loginContainer.classList.add('hidden');
+            forgotPasswordContainer.classList.remove('hidden');
+        });
+    }
+
+    // Sembunyikan form lupa password dan tampilkan form login
+    document.querySelectorAll('.show-login-from-forgot').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            forgotPasswordContainer.classList.add('hidden');
+            loginContainer.classList.remove('hidden');
+        });
+    });
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
         icon.addEventListener('click', function () {

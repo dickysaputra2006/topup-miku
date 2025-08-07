@@ -7,6 +7,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
+const { sendPasswordResetEmail } = require('./utils/mailer.js');
 const { syncProductsWithFoxy } = require('./utils/cronUtils.js');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
 const { checkAllMobapayPromosML } = require('./utils/validators/stalk-ml-promo.js');
@@ -153,6 +154,44 @@ async function createNotification(userId, message, link = null) {
         console.error(`Gagal membuat notifikasi untuk user ${userId}:`, error);
     }
 }
+
+app.post('/api/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ message: 'Alamat email wajib diisi.' });
+    }
+
+    const client = await pool.connect();
+    try {
+        // Cek apakah email terdaftar
+        const { rows: users } = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (users.length === 0) {
+            // Kirim respons sukses palsu untuk keamanan, agar orang tidak bisa menebak email terdaftar
+            return res.json({ message: 'Jika email Anda terdaftar, Anda akan menerima link reset password.' });
+        }
+
+        // Buat token reset yang aman
+        const token = crypto.randomBytes(32).toString('hex');
+        const expires = new Date(Date.now() + 3600000); // Token berlaku selama 1 jam
+
+        // Simpan token ke database
+        await client.query(
+            'INSERT INTO password_resets (email, token, expires_at) VALUES ($1, $2, $3)',
+            [email, token, expires]
+        );
+
+        // Kirim email menggunakan fungsi dari mailer.js
+        await sendPasswordResetEmail(email, token);
+
+        res.json({ message: 'Jika email Anda terdaftar, Anda akan menerima link reset password.' });
+
+    } catch (error) {
+        console.error('Error saat proses lupa password:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+    } finally {
+        client.release();
+    }
+});
 
 // === USER ENDPOINTS ===
 app.get('/api/user/profile', protect, async (req, res) => {
