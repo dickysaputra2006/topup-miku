@@ -82,6 +82,95 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+app.post('/api/auth/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ message: 'Alamat email wajib diisi.' });
+    }
+
+    const client = await pool.connect();
+    try {
+        // Cek apakah email terdaftar
+        const { rows: users } = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (users.length === 0) {
+            // Kirim respons sukses palsu untuk keamanan, agar orang tidak bisa menebak email terdaftar
+            return res.json({ message: 'Jika email Anda terdaftar, Anda akan menerima link reset password.' });
+        }
+
+        // Buat token reset yang aman
+        const token = crypto.randomBytes(32).toString('hex');
+        const expires = new Date(Date.now() + 3600000); // Token berlaku selama 1 jam
+
+        // Simpan token ke database
+        await client.query(
+            'INSERT INTO password_resets (email, token, expires_at) VALUES ($1, $2, $3)',
+            [email, token, expires]
+        );
+
+        // Kirim email menggunakan fungsi dari mailer.js
+        await sendPasswordResetEmail(email, token);
+
+        res.json({ message: 'Jika email Anda terdaftar, Anda akan menerima link reset password.' });
+
+    } catch (error) {
+        console.error('Error saat proses lupa password:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+    } finally {
+        client.release();
+    }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+        return res.status(400).json({ message: 'Token dan password baru wajib diisi.' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN'); // Mulai transaksi untuk keamanan data
+
+        // 1. Cari token di database dan pastikan belum kadaluarsa
+        const { rows: resets } = await client.query(
+            'SELECT * FROM password_resets WHERE token = $1 AND expires_at > NOW()',
+            [token]
+        );
+
+        if (resets.length === 0) {
+            // Hapus token yang mungkin sudah kadaluarsa untuk kebersihan
+            await client.query('DELETE FROM password_resets WHERE token = $1', [token]);
+            await client.query('COMMIT'); // Simpan perubahan penghapusan
+            return res.status(400).json({ message: 'Token tidak valid atau sudah kadaluarsa.' });
+        }
+
+        const userEmail = resets[0].email;
+
+        // 2. Hash password baru
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // 3. Update password di tabel users
+        await client.query(
+            'UPDATE users SET password = $1 WHERE email = $2',
+            [hashedPassword, userEmail]
+        );
+
+        // 4. Hapus semua token reset untuk email tersebut agar tidak bisa dipakai lagi
+        await client.query('DELETE FROM password_resets WHERE email = $1', [userEmail]);
+
+        await client.query('COMMIT'); // Selesaikan transaksi jika semua berhasil
+
+        res.json({ message: 'Password berhasil direset! Silakan login dengan password baru Anda.' });
+
+    } catch (error) {
+        await client.query('ROLLBACK'); // Batalkan semua perubahan jika ada error di tengah jalan
+        console.error('Error saat reset password:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+    } finally {
+        client.release();
+    }
+});
+
 // === MIDDLEWARE ===
 const protect = (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -155,43 +244,7 @@ async function createNotification(userId, message, link = null) {
     }
 }
 
-app.post('/api/auth/forgot-password', async (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-        return res.status(400).json({ message: 'Alamat email wajib diisi.' });
-    }
 
-    const client = await pool.connect();
-    try {
-        // Cek apakah email terdaftar
-        const { rows: users } = await client.query('SELECT * FROM users WHERE email = $1', [email]);
-        if (users.length === 0) {
-            // Kirim respons sukses palsu untuk keamanan, agar orang tidak bisa menebak email terdaftar
-            return res.json({ message: 'Jika email Anda terdaftar, Anda akan menerima link reset password.' });
-        }
-
-        // Buat token reset yang aman
-        const token = crypto.randomBytes(32).toString('hex');
-        const expires = new Date(Date.now() + 3600000); // Token berlaku selama 1 jam
-
-        // Simpan token ke database
-        await client.query(
-            'INSERT INTO password_resets (email, token, expires_at) VALUES ($1, $2, $3)',
-            [email, token, expires]
-        );
-
-        // Kirim email menggunakan fungsi dari mailer.js
-        await sendPasswordResetEmail(email, token);
-
-        res.json({ message: 'Jika email Anda terdaftar, Anda akan menerima link reset password.' });
-
-    } catch (error) {
-        console.error('Error saat proses lupa password:', error);
-        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
-    } finally {
-        client.release();
-    }
-});
 
 // === USER ENDPOINTS ===
 app.get('/api/user/profile', protect, async (req, res) => {
