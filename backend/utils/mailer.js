@@ -16,7 +16,7 @@ const sendPasswordResetEmail = async (userEmail, token) => {
     const payload = {
         sender: {
             name: 'MIKU Store',
-            email: 'noreply@mikutopup.my.id' // Anda bisa gunakan email apa saja di sini
+            email: 'resetpassword@mikutopup.my.id' 
         },
         to: [
             {

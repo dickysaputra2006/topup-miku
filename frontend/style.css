@@ -42,7 +42,7 @@ h4 {
 }
 .hero-placeholder {
     background-color: var(--bg-surface);
-    height: 300px;
+    height: 200px;
     display: flex;
     justify-content: center;
     align-items: center;

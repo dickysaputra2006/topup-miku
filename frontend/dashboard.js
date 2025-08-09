@@ -42,6 +42,8 @@ document.addEventListener('click', function (event) {
 
     const generateApiKeyBtn = document.getElementById('generate-api-key-btn');
     const apiKeyDisplay = document.getElementById('api-key-display');
+    const cekPesananForm = document.getElementById('cek-pesanan-form');
+    const hasilCekPesanan = document.getElementById('hasil-cek-pesanan');
     
     let apiKeyFetched = false;
     let mutasiLoaded = false;
@@ -389,6 +391,68 @@ function renderMutasiTable(history, tableBody) {
         });
     }
     
+    // --- LOGIKA BARU UNTUK FITUR CEK PESANAN ---
+    if (cekPesananForm) {
+        cekPesananForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const invoiceInput = document.getElementById('invoice-search-input');
+            const invoiceId = invoiceInput.value.trim();
+            const submitButton = cekPesananForm.querySelector('button');
+
+            if (!invoiceId) return;
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'Mencari...';
+            hasilCekPesanan.classList.add('hidden'); // Sembunyikan hasil lama
+
+            try {
+                // Kita gunakan endpoint yang sudah ada
+                const response = await fetch(`${API_URL}/transaction/${invoiceId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.status === 404) {
+                    throw new Error(`Transaksi dengan Invoice ID "${invoiceId}" tidak ditemukan.`);
+                }
+                if (!response.ok) {
+                    throw new Error('Gagal mengambil data transaksi.');
+                }
+
+                const tx = await response.json();
+                renderHasilPencarian(tx);
+
+            } catch (error) {
+                hasilCekPesanan.classList.remove('hidden');
+                hasilCekPesanan.innerHTML = `<p style="color: var(--danger-color); text-align: center;">${error.message}</p>`;
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Cari Transaksi';
+            }
+        });
+    }
+
+    function renderHasilPencarian(tx) {
+        const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(tx.price);
+        const formattedDate = new Date(tx.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' });
+        const statusClass = `status-${tx.status.toLowerCase()}`;
+
+        hasilCekPesanan.innerHTML = `
+            <h4>Detail Transaksi</h4>
+            <div class="profile-details">
+                <div>
+                    <p>No. Invoice: <strong>${tx.invoice_id}</strong></p>
+                    <p>Tanggal: <strong>${formattedDate}</strong></p>
+                    <p>Produk: <strong>${tx.product_name} (${tx.game_name})</strong></p>
+                    <p>ID Tujuan: <strong>${tx.target_game_id.replace('|', ' ')}</strong></p>
+                    <p>Total Bayar: <strong>${formattedPrice}</strong></p>
+                    <p>Status: <strong><span class="status-badge ${statusClass}">${tx.status}</span></strong></p>
+                </div>
+            </div>
+            <a href="invoice.html?id=${tx.invoice_id}" class="history-link" style="margin-top: 1rem; display: inline-block;">Lihat Halaman Invoice &rarr;</a>
+        `;
+        hasilCekPesanan.classList.remove('hidden');
+    }
+
     fetchProfileData();
     fetchTransactionSummary();
 

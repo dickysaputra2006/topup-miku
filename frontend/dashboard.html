@@ -147,8 +147,16 @@
             <section id="cek-pesanan" class="dashboard-section hidden">
                 <div class="card">
                     <h3>Cek Pesanan</h3>
-                    <p>Fitur untuk mencari transaksi berdasarkan invoice akan kita bangun di sini nanti.</p>
+                    <p class="form-description">Masukkan Nomor Invoice Anda untuk melihat detail transaksi.</p>
+                    <form id="cek-pesanan-form">
+                        <input type="text" id="invoice-search-input" placeholder="Contoh: TRX-1234567890" required>
+                        <div class="center-btn">
+                            <button type="submit" class="btn-submit-deposit">Cari Transaksi</button>
+                        </div>
+                    </form>
                 </div>
+                <div id="hasil-cek-pesanan" class="card hidden" style="margin-top: 2rem;">
+                    </div>
             </section>
             
             <section id="integrasi" class="dashboard-section hidden">
