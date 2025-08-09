@@ -864,6 +864,52 @@ app.delete('/api/admin/flash-sales/:id', protectAdmin, async (req, res) => {
     }
 });
 
+// Mengambil pengaturan margin khusus untuk sebuah game
+app.get('/api/admin/games/:gameId/margins', protectAdmin, async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const { rows } = await pool.query('SELECT * FROM game_margins WHERE game_id = $1', [gameId]);
+        if (rows.length > 0) {
+            res.json(rows[0]);
+        } else {
+            // Jika belum ada pengaturan, kirim data default
+            res.json({ use_custom_margin: false });
+        }
+    } catch (error) {
+        console.error('Error fetching game margins:', error);
+        res.status(500).json({ message: 'Gagal mengambil data margin game.' });
+    }
+});
+
+// Menyimpan atau memperbarui pengaturan margin khusus untuk sebuah game
+app.post('/api/admin/games/:gameId/margins', protectAdmin, async (req, res) => {
+    try {
+        const { gameId } = req.params;
+        const { use_custom_margin, bronze_margin, silver_margin, gold_margin, partner_margin } = req.body;
+
+        // Query UPSERT: Insert jika belum ada, Update jika sudah ada
+        const sql = `
+            INSERT INTO game_margins (game_id, use_custom_margin, bronze_margin, silver_margin, gold_margin, partner_margin)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (game_id)
+            DO UPDATE SET
+                use_custom_margin = EXCLUDED.use_custom_margin,
+                bronze_margin = EXCLUDED.bronze_margin,
+                silver_margin = EXCLUDED.silver_margin,
+                gold_margin = EXCLUDED.gold_margin,
+                partner_margin = EXCLUDED.partner_margin,
+                updated_at = NOW()
+        `;
+        
+        await pool.query(sql, [gameId, use_custom_margin, bronze_margin, silver_margin, gold_margin, partner_margin]);
+        res.json({ message: 'Pengaturan margin untuk game ini berhasil disimpan.' });
+
+    } catch (error) {
+        console.error('Error saving game margins:', error);
+        res.status(500).json({ message: 'Gagal menyimpan data margin game.' });
+    }
+});
+
 // === PUBLIC ENDPOINTS ===
 
 app.post('/api/test', (req, res) => {

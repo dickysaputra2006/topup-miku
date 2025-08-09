@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const marginFieldsContainer = document.getElementById('margin-fields-container');
     const applyToAllBtn = document.getElementById('apply-validation-to-all-btn');
     const validatorSearchInput = document.getElementById('validator-search-input');
+    const gameMarginForm = document.getElementById('game-margin-form');
 
     // Elemen untuk Manajemen Promo
     const addPromoForm = document.getElementById('add-promo-form');
@@ -466,6 +467,33 @@ function renderFlashSalesTable(flashSales) {
     });
 }
 
+async function fetchAndDisplayGameMargins(gameId) {
+    const marginContainer = document.getElementById('game-margin-container');
+    const customMarginToggle = document.getElementById('use-custom-margin-toggle');
+    const customMarginFields = document.getElementById('custom-margin-fields');
+
+    try {
+        const response = await fetch(`${ADMIN_API_URL}/games/${gameId}/margins`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Gagal memuat margin.');
+
+        const margins = await response.json();
+
+        customMarginToggle.checked = margins.use_custom_margin || false;
+        document.getElementById('margin-bronze').value = margins.bronze_margin || '';
+        document.getElementById('margin-silver').value = margins.silver_margin || '';
+        document.getElementById('margin-gold').value = margins.gold_margin || '';
+        document.getElementById('margin-partner').value = margins.partner_margin || '';
+
+        customMarginFields.classList.toggle('hidden', !customMarginToggle.checked);
+        marginContainer.classList.remove('hidden');
+    } catch (error) {
+        console.error(error);
+        marginContainer.classList.add('hidden');
+    }
+}
+
     // === EVENT LISTENERS ===
 
 if (marginForm) {
@@ -727,6 +755,7 @@ if (promosTableBody) {
             const selectedGame = allGames.find(g => g.id == selectedGameId);
             displayGameInfo(selectedGame);
             renderProductsForGame(selectedGameId);
+            fetchAndDisplayGameMargins(selectedGameId);
 
             // Tampilkan container produk dan SEMBUNYIKAN judulnya
             productListContainer.classList.remove('hidden');
@@ -735,11 +764,13 @@ if (promosTableBody) {
             }
 
         } else {
-            // Sembunyikan semua jika tidak ada game yang dipilih
             displayGameInfo(null);
             productListContainer.classList.add('hidden');
             
-            // TAMPILKAN kembali judulnya dan reset teksnya
+            // Sembunyikan juga form margin jika tidak ada game yang dipilih
+            const marginContainer = document.getElementById('game-margin-container');
+            if(marginContainer) marginContainer.classList.add('hidden');
+            
             if (productListTitle) {
                 productListTitle.classList.remove('hidden');
                 productListTitle.textContent = 'Pilih Game untuk Melihat Produk';
@@ -1014,6 +1045,40 @@ if (fsGameSelector) {
             }
         });
     }
+
+if (gameMarginForm) {
+    gameMarginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const selectedGameId = document.getElementById('game-selector-dropdown').value;
+        if (!selectedGameId) return alert('Pilih game terlebih dahulu.');
+
+        const data = {
+            use_custom_margin: document.getElementById('use-custom-margin-toggle').checked,
+            bronze_margin: document.getElementById('margin-bronze').value || null,
+            silver_margin: document.getElementById('margin-silver').value || null,
+            gold_margin: document.getElementById('margin-gold').value || null,
+            partner_margin: document.getElementById('margin-partner').value || null,
+        };
+
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/games/${selectedGameId}/margins`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            alert(result.message);
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        }
+    });
+
+    // Event listener untuk toggle-nya
+    document.getElementById('use-custom-margin-toggle').addEventListener('change', (e) => {
+        document.getElementById('custom-margin-fields').classList.toggle('hidden', !e.target.checked);
+    });
+}
 
 
     // === FUNGSI INISIALISASI ===

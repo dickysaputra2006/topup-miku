@@ -97,6 +97,36 @@
                         <div id="game-info-container" class="card hidden" style="margin-top: 2rem;">
                         </div>
 
+                        <div id="game-margin-container" class="card hidden" style="margin-top: 2rem;">
+    <h4><i class="fas fa-percent"></i> Manajemen Margin Khusus Game</h4>
+    <form id="game-margin-form" class="admin-form" style="padding: 0; background: none;">
+        <div class="game-info-toggle">
+            <strong>Gunakan Margin Khusus untuk Game Ini?</strong>
+            <label class="switch">
+                <input type="checkbox" id="use-custom-margin-toggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div id="custom-margin-fields" class="hidden" style="margin-top: 1rem;">
+            <p class="form-description">Isi margin dalam persen (%). Nilai ini akan menimpa margin global.</p>
+            <label for="margin-bronze">Margin Bronze</label>
+            <input type="number" id="margin-bronze" step="0.01" placeholder="Contoh: 5.50">
+            
+            <label for="margin-silver">Margin Silver</label>
+            <input type="number" id="margin-silver" step="0.01" placeholder="Contoh: 4.50">
+
+            <label for="margin-gold">Margin Gold</label>
+            <input type="number" id="margin-gold" step="0.01" placeholder="Contoh: 3.50">
+            
+            <label for="margin-partner">Margin Partner</label>
+            <input type="number" id="margin-partner" step="0.01" placeholder="Contoh: 4.00">
+        </div>
+
+        <button type="submit" style="margin-top: 1.5rem;">Simpan Margin Game</button>
+    </form>
+                        </div>
+
                         <div id="product-list-container" class="hidden" style="margin-top: 2rem;">
                             <h4 id="product-list-title">Produk</h4>
                             <div class="table-container">
