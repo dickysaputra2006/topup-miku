@@ -112,18 +112,30 @@ async function syncProductsWithFoxy() {
     try {
         await client.query('BEGIN');
         
-        const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, { headers: foxyApiHeaders });
+        // Konfigurasi Axios dengan User-Agent
+        const axiosConfig = {
+            headers: { 
+                'Authorization': FOXY_API_KEY,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                'Referer': 'https://www.foxygamestore.com/'
+            }
+        };
 
+        // 1. Ambil semua produk dari Foxy
+        const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, axiosConfig);
         const providerProducts = response.data.data;
         if (!Array.isArray(providerProducts)) {
             throw new Error('Format respons Foxy API tidak sesuai.');
         }
-        
         const providerSkus = new Set(providerProducts.map(p => p.product_code));
 
+        // 2. Ambil semua produk dan game yang ada di database kita
         const { rows: localProducts } = await client.query('SELECT id, provider_sku, price, status FROM products');
         const localProductMap = new Map(localProducts.map(p => [p.provider_sku, p]));
+        const { rows: localGames } = await client.query('SELECT id, name FROM games');
+        const localGameMap = new Map(localGames.map(g => [g.name.toLowerCase(), g.id]));
 
+        // 3. Looping produk dari Foxy untuk INSERT atau UPDATE
         for (const product of providerProducts) {
             const gameName = product.category_title;
             const categoryName = product.category_type;
@@ -134,24 +146,47 @@ async function syncProductsWithFoxy() {
 
             if (!gameName || !productName || !productCode || basePriceFoxy === undefined) continue;
 
-            if (localProduct) {
-                if (localProduct.price !== basePriceFoxy || localProduct.status !== 'Active') {
-                    await client.query('UPDATE products SET price = $1, status = $2 WHERE provider_sku = $3', [basePriceFoxy, 'Active', productCode]);
-                }
+            // Dapatkan atau buat gameId
+            let gameId = localGameMap.get(gameName.toLowerCase());
+            if (!gameId) {
+                const { rows: newGame } = await client.query('INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id', [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']);
+                gameId = newGame[0].id;
+                localGameMap.set(gameName.toLowerCase(), gameId); // Tambahkan ke map agar tidak buat ulang
+            }
+
+            // --- LOGIKA BARU UNTUK CATEGORY_ID ---
+            // Cek apakah kategori sudah ada untuk game ini
+            let { rows: categories } = await client.query('SELECT id FROM product_categories WHERE name = $1 AND game_id = $2', [categoryName, gameId]);
+            let categoryId;
+            if (categories.length === 0) {
+                // Jika tidak ada, buat kategori baru
+                const { rows: newCat } = await client.query('INSERT INTO product_categories (game_id, name) VALUES ($1, $2) RETURNING id', [gameId, categoryName]);
+                categoryId = newCat[0].id;
             } else {
-                let { rows: games } = await client.query('SELECT id FROM games WHERE name = $1', [gameName]);
-                if (games.length === 0) {
-                    const { rows: newGame } = await client.query('INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id', [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']);
-                    games = newGame;
-                }
-                const gameId = games[0].id;
-                await client.query('INSERT INTO products (game_id, name, provider_sku, price, status) VALUES ($1, $2, $3, $4, $5)', [gameId, productName, productCode, basePriceFoxy, 'Active']);
+                categoryId = categories[0].id;
+            }
+            // --- AKHIR LOGIKA BARU ---
+
+            if (localProduct) {
+                // PRODUK SUDAH ADA -> Lakukan UPDATE
+                await client.query(
+                    'UPDATE products SET price = $1, status = $2, name = $3, game_id = $4, category_id = $5 WHERE provider_sku = $6',
+                    [basePriceFoxy, 'Active', productName, gameId, categoryId, productCode]
+                );
+            } else {
+                // PRODUK BARU -> Lakukan INSERT
+                await client.query(
+                    'INSERT INTO products (game_id, category_id, name, provider_sku, price, status) VALUES ($1, $2, $3, $4, $5, $6)',
+                    [gameId, categoryId, productName, productCode, basePriceFoxy, 'Active']
+                );
             }
         }
 
+        // 4. Cek produk lokal yang tidak ada di Foxy lagi -> NONAKTIFKAN
         for (const localProduct of localProducts) {
             if (localProduct.status === 'Active' && !providerSkus.has(localProduct.provider_sku)) {
                 await client.query('UPDATE products SET status = $1 WHERE id = $2', ['Inactive', localProduct.id]);
+                console.log(`DEACTIVATED: Product with SKU ${localProduct.provider_sku}`);
             }
         }
         
