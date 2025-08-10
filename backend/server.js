@@ -1034,20 +1034,22 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
             }
         }
 
-        // --- LOGIKA BARU UNTUK MENGAMBIL MARGIN ---
-        let margin = 0;
-        // Cek dulu apakah ada margin khusus untuk game ini
+        // 1. Ambil margin global sebagai nilai default
+        const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [userRoleId]);
+        let margin = roleRows.length > 0 ? roleRows[0].margin_percent : 0;
+
+        // 2. Cek apakah ada margin khusus yang aktif untuk game ini
         const { rows: gameMarginRows } = await pool.query('SELECT * FROM game_margins WHERE game_id = $1 AND use_custom_margin = true', [gameId]);
+        
         if (gameMarginRows.length > 0) {
-            // Jika ada, gunakan margin spesifik berdasarkan role pengguna
+            // 3. Jika ada, timpa nilai margin default dengan margin khusus
             const gameMargin = gameMarginRows[0];
-            margin = gameMargin[`${userRoleName}_margin`] || 0;
-        } else {
-            // Jika tidak ada, gunakan margin global dari tabel roles
-            const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [userRoleId]);
-            margin = roleRows.length > 0 ? roleRows[0].margin_percent : 0;
+            const customMargin = gameMargin[`${userRoleName}_margin`];
+            // Pastikan margin khusus tidak kosong sebelum menimpa
+            if (customMargin !== null && customMargin !== undefined) {
+                margin = customMargin;
+            }
         }
-        // --- AKHIR LOGIKA BARU ---
 
         const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id, target_id_label FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
         if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });

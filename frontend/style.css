@@ -1722,3 +1722,10 @@ color: green;
 .toast.hidden {
     display: none;
 }
+/* === PERBAIKAN UNTUK TEKS TENGGELAM DI FORM MARGIN GAME === */
+#custom-margin-fields label {
+    margin-bottom: 0.5rem; /* Beri sedikit jarak antara label dan input */
+}
+#custom-margin-fields input {
+    margin-top: 0; /* Hapus margin negatif yang bermasalah */
+}
