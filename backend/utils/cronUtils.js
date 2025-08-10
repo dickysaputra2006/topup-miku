@@ -1,6 +1,7 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const { Pool } = require('pg');
 const axios = require('axios');
+const puppeteer = require('puppeteer');
 
 // --- KONFIGURASI DATABASE UNTUK CRON JOB ---
 const dbConfig = {
@@ -44,12 +45,12 @@ async function checkPendingTransactions() {
 
             try {
                 const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, {
-                headers: { 
-                    'Authorization': FOXY_API_KEY,
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-                    'Referer': 'https://www.foxygamestore.com/'
-                }
-            });
+                    headers: { 
+                        'Authorization': FOXY_API_KEY,
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                        'Referer': 'https://www.foxygamestore.com/'
+                    }
+                });
 
                 const foxyData = foxyResponse.data.data;
                 const foxyStatus = foxyData.status.toUpperCase();
@@ -77,7 +78,7 @@ async function checkPendingTransactions() {
                     };
                     console.log(`Sending webhook for invoice ${tx.invoice_id} to ${tx.h2h_callback_url}`);
                     axios.post(tx.h2h_callback_url, webhookPayload)
-                         .then(res => console.log(`Webhook for ${tx.invoice_id} sent successfully.`))
+                         .then(() => console.log(`Webhook for ${tx.invoice_id} sent successfully.`))
                          .catch(err => console.error(`Failed to send webhook for ${tx.invoice_id}:`, err.message));
                 }
 
@@ -107,46 +108,62 @@ async function checkPendingTransactions() {
     }
 }
 
-
 async function syncProductsWithFoxy() { 
     console.log('Running smart product sync job...');
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         
-        // 1. Ambil semua produk dari Foxy
-        const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
-            headers: { 
+        let providerProducts;
+        try {
+            // Coba ambil data langsung via Axios
+            const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
+                headers: { 
+                    'Authorization': FOXY_API_KEY,
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.foxygamestore.com/'
+                }
+            });
+            providerProducts = response.data.data;
+        } catch (err) {
+            // Kalau gagal (misal 403/Cloudflare) -> fallback ke Puppeteer
+            console.warn('Axios request failed, trying Puppeteer bypass...', err.message);
+            const browser = await puppeteer.launch({
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox']
+            });
+            const page = await browser.newPage();
+            await page.setExtraHTTPHeaders({
                 'Authorization': FOXY_API_KEY,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
                 'Referer': 'https://www.foxygamestore.com/'
-            }
-        });
-        const providerProducts = response.data.data;
+            });
+            await page.goto(`${FOXY_BASE_URL}/v1/products`, { waitUntil: 'networkidle2' });
+            const bodyText = await page.evaluate(() => document.body.innerText);
+            await browser.close();
+
+            providerProducts = JSON.parse(bodyText).data;
+        }
+
         if (!Array.isArray(providerProducts)) {
             throw new Error('Format respons Foxy API tidak sesuai.');
         }
-        // Buat set untuk SKU dari provider agar pencarian cepat
-        const providerSkus = new Set(providerProducts.map(p => p.product_code));
 
-        // 2. Ambil semua produk yang ada di database kita
+        const providerSkus = new Set(providerProducts.map(p => p.product_code));
         const { rows: localProducts } = await client.query('SELECT id, provider_sku, price, status FROM products');
         const localProductMap = new Map(localProducts.map(p => [p.provider_sku, p]));
 
-        // 3. Looping produk dari Foxy untuk INSERT atau UPDATE
         for (const product of providerProducts) {
             const gameName = product.category_title;
-            const categoryName = product.category_type; // 'Mobile Game', 'PC Game', etc.
+            const categoryName = product.category_type;
             const productName = product.product_name;
             const productCode = product.product_code;
             const basePriceFoxy = product.product_price;
             const localProduct = localProductMap.get(productCode);
 
-            // Cek data dasar
             if (!gameName || !productName || !productCode || basePriceFoxy === undefined) continue;
 
             if (localProduct) {
-                // PRODUK SUDAH ADA -> Lakukan UPDATE jika perlu
                 if (localProduct.price !== basePriceFoxy || localProduct.status !== 'Active') {
                     await client.query(
                         'UPDATE products SET price = $1, status = $2 WHERE provider_sku = $3',
@@ -155,10 +172,12 @@ async function syncProductsWithFoxy() {
                     console.log(`UPDATED: ${productName} - Price/Status changed.`);
                 }
             } else {
-                // PRODUK BARU -> Lakukan INSERT
                 let { rows: games } = await client.query('SELECT id FROM games WHERE name = $1', [gameName]);
                 if (games.length === 0) {
-                    const { rows: newGame } = await client.query('INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id', [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']);
+                    const { rows: newGame } = await client.query(
+                        'INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id',
+                        [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']
+                    );
                     games = newGame;
                 }
                 const gameId = games[0].id;
@@ -171,7 +190,6 @@ async function syncProductsWithFoxy() {
             }
         }
 
-        // 4. Cek produk lokal yang tidak ada di Foxy lagi -> NONAKTIFKAN
         for (const localProduct of localProducts) {
             if (localProduct.status === 'Active' && !providerSkus.has(localProduct.provider_sku)) {
                 await client.query('UPDATE products SET status = $1 WHERE id = $2', ['Inactive', localProduct.id]);
@@ -183,7 +201,7 @@ async function syncProductsWithFoxy() {
         console.log('Smart product sync job finished successfully.');
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Smart product sync job failed:', error.response ? error.response.data : error.message);
+        console.error('Smart product sync job failed:', error.message);
         throw error;
     } finally {
         client.release();
