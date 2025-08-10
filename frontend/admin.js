@@ -463,10 +463,10 @@ async function fetchAndDisplayGameMargins(gameId) {
 
         customMarginToggle.checked = margins.use_custom_margin || false;
         document.getElementById('margin-bronze').value = margins.bronze_margin || '';
+        document.getElementById('margin-partner').value = margins.partner_margin || '';
         document.getElementById('margin-silver').value = margins.silver_margin || '';
         document.getElementById('margin-gold').value = margins.gold_margin || '';
-        document.getElementById('margin-partner').value = margins.partner_margin || '';
-
+        
         customMarginFields.classList.toggle('hidden', !customMarginToggle.checked);
         marginContainer.classList.remove('hidden');
     } catch (error) {
@@ -1036,9 +1036,9 @@ if (gameMarginForm) {
         const data = {
             use_custom_margin: document.getElementById('use-custom-margin-toggle').checked,
             bronze_margin: document.getElementById('margin-bronze').value || null,
-            silver_margin: document.getElementById('margin-silver').value || null,
-            gold_margin: document.getElementById('margin-gold').value || null,
             partner_margin: document.getElementById('margin-partner').value || null,
+            silver_margin: document.getElementById('margin-silver').value || null,
+            gold_margin: document.getElementById('margin-gold').value || null,    
         };
 
         try {

@@ -108,63 +108,77 @@ async function checkPendingTransactions() {
 
 
 async function syncProductsWithFoxy() { 
-    console.log('Running syncProductsWithFoxy job...');
+    console.log('Running smart product sync job...');
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         
+        // 1. Ambil semua produk dari Foxy
         const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
             headers: { 'Authorization': FOXY_API_KEY }
         });
-
         const providerProducts = response.data.data;
-
         if (!Array.isArray(providerProducts)) {
-            throw new Error('Format respons Foxy API tidak sesuai: "data" bukan array.');
+            throw new Error('Format respons Foxy API tidak sesuai.');
         }
+        // Buat set untuk SKU dari provider agar pencarian cepat
+        const providerSkus = new Set(providerProducts.map(p => p.product_code));
 
+        // 2. Ambil semua produk yang ada di database kita
+        const { rows: localProducts } = await client.query('SELECT id, provider_sku, price, status FROM products');
+        const localProductMap = new Map(localProducts.map(p => [p.provider_sku, p]));
+
+        // 3. Looping produk dari Foxy untuk INSERT atau UPDATE
         for (const product of providerProducts) {
             const gameName = product.category_title;
-            const categoryName = product.category_type;
+            const categoryName = product.category_type; // 'Mobile Game', 'PC Game', etc.
             const productName = product.product_name;
             const productCode = product.product_code;
             const basePriceFoxy = product.product_price;
+            const localProduct = localProductMap.get(productCode);
 
-            if (!gameName || !categoryName || !productName || !productCode || basePriceFoxy === undefined || basePriceFoxy === null) {
-                continue;
-            }
-            
-            let { rows: games } = await client.query('SELECT id FROM games WHERE name = $1', [gameName]);
-            if (games.length === 0) {
-                const { rows: newGameResult } = await client.query('INSERT INTO games (name, category, image_url, needs_server_id, status) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-                    [gameName, categoryName, 'https://via.placeholder.com/200', false, 'Active']);
-                games = [{ id: newGameResult[0].id }];
-            }
-            const gameId = games[0].id;
+            // Cek data dasar
+            if (!gameName || !productName || !productCode || basePriceFoxy === undefined) continue;
 
-            let { rows: categories } = await client.query('SELECT id FROM product_categories WHERE name = $1 AND game_id = $2', [categoryName, gameId]);
-            let categoryId;
-            if (categories.length === 0) {
-                const { rows: newCat } = await client.query('INSERT INTO product_categories (game_id, name) VALUES ($1, $2) RETURNING id', [gameId, categoryName]);
-                categoryId = newCat[0].id;
+            if (localProduct) {
+                // PRODUK SUDAH ADA -> Lakukan UPDATE jika perlu
+                if (localProduct.price !== basePriceFoxy || localProduct.status !== 'Active') {
+                    await client.query(
+                        'UPDATE products SET price = $1, status = $2 WHERE provider_sku = $3',
+                        [basePriceFoxy, 'Active', productCode]
+                    );
+                    console.log(`UPDATED: ${productName} - Price/Status changed.`);
+                }
             } else {
-                categoryId = categories[0].id;
-            }
+                // PRODUK BARU -> Lakukan INSERT
+                let { rows: games } = await client.query('SELECT id FROM games WHERE name = $1', [gameName]);
+                if (games.length === 0) {
+                    const { rows: newGame } = await client.query('INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id', [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']);
+                    games = newGame;
+                }
+                const gameId = games[0].id;
 
-            const sql = `INSERT INTO products (game_id, category_id, name, provider_sku, price, status) 
-                         VALUES ($1, $2, $3, $4, $5, 'Active') 
-                         ON CONFLICT (provider_sku) DO UPDATE 
-                         SET name = EXCLUDED.name, 
-                             price = EXCLUDED.price, 
-                             game_id = EXCLUDED.game_id, 
-                             category_id = EXCLUDED.category_id`;
-            await client.query(sql, [gameId, categoryId, productName, productCode, basePriceFoxy]);
+                await client.query(
+                    'INSERT INTO products (game_id, name, provider_sku, price, status) VALUES ($1, $2, $3, $4, $5)',
+                    [gameId, productName, productCode, basePriceFoxy, 'Active']
+                );
+                console.log(`INSERTED: ${productName} - New product added.`);
+            }
         }
+
+        // 4. Cek produk lokal yang tidak ada di Foxy lagi -> NONAKTIFKAN
+        for (const localProduct of localProducts) {
+            if (localProduct.status === 'Active' && !providerSkus.has(localProduct.provider_sku)) {
+                await client.query('UPDATE products SET status = $1 WHERE id = $2', ['Inactive', localProduct.id]);
+                console.log(`DEACTIVATED: Product with SKU ${localProduct.provider_sku} is no longer available from provider.`);
+            }
+        }
+        
         await client.query('COMMIT');
-        console.log(`syncProductsWithFoxy job finished.`);
+        console.log('Smart product sync job finished successfully.');
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('syncProductsWithFoxy job failed:', error.response ? error.response.data : error.message);
+        console.error('Smart product sync job failed:', error.response ? error.response.data : error.message);
         throw error;
     } finally {
         client.release();
