@@ -1,4 +1,5 @@
 require('dotenv').config();
+const rateLimit = require('express-rate-limit');
 const express = require('express');
 const fs = require('fs').promises;
 const { Pool } = require('pg');
@@ -42,6 +43,33 @@ const pool = new Pool(dbConfig);
 pool.on('connect', (client) => {
   client.query("SET TIME ZONE 'Asia/Jakarta'");
 });
+
+// Aturan ketat untuk endpoint login & lupa password
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 menit
+    max: 10, // Batasi setiap IP hanya 10 request per 15 menit
+    message: 'Terlalu banyak percobaan login dari IP ini, silakan coba lagi setelah 15 menit.',
+    standardHeaders: true, 
+    legacyHeaders: false, 
+});
+
+// Aturan umum untuk endpoint API lainnya yang butuh login
+const apiLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000, // 5 menit
+    max: 300, // Batasi setiap IP 100 request per 5 menit
+    message: 'Terlalu banyak permintaan ke API dari IP ini, silakan coba lagi nanti.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Terapkan limiter ke endpoint yang relevan
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/forgot-password', authLimiter);
+
+app.use('/api/user', apiLimiter);
+app.use('/api/order', apiLimiter);
+app.use('/h2h', apiLimiter); 
+
 
 // === AUTH ENDPOINTS ===
 app.post('/api/auth/register', async (req, res) => {
@@ -1370,44 +1398,75 @@ app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const { productId, targetGameId, targetServerId } = req.body; // Hapus promoCode untuk sementara
+        const { productId, targetGameId, targetServerId, promoCode } = req.body;
         const userId = req.user.id;
 
         if (!productId || !targetGameId) throw new Error('Produk dan ID Game wajib diisi.');
-        
-        const { rows: products } = await client.query('SELECT p.*, g.id as game_id, g.needs_server_id FROM products p JOIN games g ON p.game_id = g.id WHERE p.id = $1 AND p.status = \'Active\' FOR UPDATE', [productId]);
+
+        // Ambil detail produk LENGKAP (termasuk join ke game_margins)
+        const productQuery = `
+            SELECT p.*, g.id as game_id, g.needs_server_id,
+                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
+            FROM products p 
+            JOIN games g ON p.game_id = g.id
+            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
+            WHERE p.id = $1 AND p.status = 'Active' FOR UPDATE
+        `;
+        const { rows: products } = await client.query(productQuery, [productId]);
+
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
         const product = products[0];
 
-        if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi.');
+        // --- FITUR BARU: PENGECEKAN HARGA REAL-TIME (SUDAH BENAR) ---
+        console.log('Melakukan pengecekan harga real-time ke Foxy...');
+        const foxyConfig = {
+            headers: { 
+                'Authorization': FOXY_API_KEY,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                'Referer': 'https://www.foxygamestore.com/'
+            }
+        };
+        const foxyProductResponse = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
+        const providerProducts = foxyProductResponse.data.data;
+        const currentFoxyProduct = providerProducts.find(p => p.product_code === product.provider_sku);
+
+        if (currentFoxyProduct && currentFoxyProduct.product_price > product.price) {
+            console.warn(`Perubahan harga terdeteksi untuk SKU ${product.provider_sku}. DB: ${product.price}, Foxy: ${currentFoxyProduct.product_price}. Menjalankan sinkronisasi...`);
+            syncProductsWithFoxy().catch(err => console.error("Gagal memicu sinkronisasi otomatis:", err));
+            throw new Error('Terjadi perubahan harga pada produk ini. Silakan coba pesan kembali.');
+        }
+        // --- AKHIR FITUR BARU ---
+
+        if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
         
         const { rows: users } = await client.query('SELECT balance, role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE', [userId]);
         const user = users[0];
         const userRoleName = user.role_name.toLowerCase();
 
-        // --- LOGIKA HARGA FINAL YANG SUDAH DISEMPURNAKAN ---
+        // --- LOGIKA HARGA FINAL TIGA LAPIS (YANG DISEMPURNAKAN) ---
         let finalPrice;
         const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
         
         if (product.use_manual_prices && manualPrice) {
             finalPrice = manualPrice;
         } else {
-            const { rows: gameMarginRows } = await client.query('SELECT * FROM game_margins WHERE game_id = $1 AND use_custom_margin = true', [product.game_id]);
             const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [user.role_id]);
-            let margin = roleRows[0].margin_percent;
+            let margin = roleRows[0].margin_percent; // Default: margin global
             
-            if (gameMarginRows.length > 0) {
-                const customMargin = gameMarginRows[0][`${userRoleName}_margin`];
-                if (customMargin !== null && customMargin !== undefined) margin = customMargin;
+            if (product.use_custom_margin) {
+                const customMargin = product[`${userRoleName}_margin`];
+                if (customMargin !== null && customMargin !== undefined) {
+                    margin = customMargin;
+                }
             }
             finalPrice = Math.ceil(product.price * (1 + (margin / 100)));
         }
-        
+        // --- AKHIR LOGIKA HARGA FINAL ---
+
         if (user.balance < finalPrice) throw new Error('Saldo Anda tidak mencukupi.');
         
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, userId]);
         
-        // ... sisa kode order (INSERT transaction, call Foxy, dll) tetap sama
         const invoiceId = `TRX-${Date.now()}${userId}`;
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const trx_id_provider = `WEB-${Date.now()}`;
@@ -1415,7 +1474,8 @@ app.post('/api/order', protect, async (req, res) => {
         const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
         await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]);
         
-        axios.post(`${FOXY_BASE_URL}/v1/order`, { product_code: product.provider_sku, user_id: targetGameId, server_id: targetServerId || '', trx_id: trx_id_provider, callback_url: 'https://mikutopup.my.id/api/foxy/callback' }, { headers: { 'Authorization': FOXY_API_KEY, 'Content-Type': 'application/json' } }).catch(err => console.error("Foxy API Error:", err.response ? err.response.data : err.message));
+        axios.post(`${FOXY_BASE_URL}/v1/order`, { product_code: product.provider_sku, user_id: targetGameId, server_id: targetServerId || '', trx_id: trx_id_provider, callback_url: 'https://mikutopup.my.id/api/foxy/callback' }, { headers: { 'Authorization': FOXY_API_KEY, 'Content-Type': 'application/json' } })
+            .catch(err => console.error("Foxy API Error:", err.response ? err.response.data : err.message));
 
         await client.query('COMMIT');
         res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
@@ -1479,7 +1539,6 @@ app.post('/h2h/order', protectH2H, async (req, res) => {
     try {
         await client.query('BEGIN');
         
-        // Terima productId, targetGameId, DAN targetServerId dari body
         const { productId, targetGameId, targetServerId } = req.body;
         const h2hUser = req.user; // User didapat dari middleware protectH2H
 
@@ -1487,47 +1546,82 @@ app.post('/h2h/order', protectH2H, async (req, res) => {
             throw new Error('productId dan targetGameId wajib diisi.');
         }
 
-        // 1. Ambil detail produk & cek apakah butuh server ID
-        const { rows: products } = await client.query(
-            `SELECT p.price as base_price, p.name, p.provider_sku, g.needs_server_id 
-             FROM products p JOIN games g ON p.game_id = g.id 
-             WHERE p.id = $1 AND p.status = 'Active' FOR UPDATE`, 
-            [productId]
-        );
+        // 1. Ambil detail produk LENGKAP (termasuk join ke game_margins)
+        const productQuery = `
+            SELECT p.*, g.id as game_id, g.needs_server_id,
+                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
+            FROM products p 
+            JOIN games g ON p.game_id = g.id
+            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
+            WHERE p.id = $1 AND p.status = 'Active' FOR UPDATE
+        `;
+        const { rows: products } = await client.query(productQuery, [productId]);
+
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
         const product = products[0];
 
-        // Validasi Server ID jika game membutuhkannya
         if (product.needs_server_id && !targetServerId) {
             throw new Error('Server ID wajib diisi untuk game ini.');
         }
 
-        // 2. Ambil detail user H2H untuk cek saldo & hitung harga
+        // --- FITUR BARU: PENGECEKAN HARGA REAL-TIME ---
+        console.log(`[H2H] Melakukan pengecekan harga real-time untuk SKU ${product.provider_sku}`);
+        const foxyConfig = {
+            headers: { 
+                'Authorization': FOXY_API_KEY,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                'Referer': 'https://www.foxygamestore.com/'
+            }
+        };
+        const foxyProductResponse = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
+        const providerProducts = foxyProductResponse.data.data;
+        const currentFoxyProduct = providerProducts.find(p => p.product_code === product.provider_sku);
+
+        if (currentFoxyProduct && currentFoxyProduct.product_price > product.price) {
+            console.warn(`[H2H] Perubahan harga terdeteksi untuk SKU ${product.provider_sku}. DB: ${product.price}, Foxy: ${currentFoxyProduct.product_price}.`);
+            syncProductsWithFoxy().catch(err => console.error("[H2H] Gagal memicu sinkronisasi otomatis:", err));
+            throw new Error('Terjadi perubahan harga pada produk. Silakan coba lagi dalam beberapa saat.');
+        }
+        // --- AKHIR FITUR BARU ---
+
         const { rows: users } = await client.query('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE', [h2hUser.id]);
         const userForTx = users[0];
+        const userRoleName = h2hUser.role_name.toLowerCase();
 
-        const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [userForTx.role_id]);
-        const margin = roleRows[0].margin_percent;
-        const finalPrice = Math.ceil(product.base_price * (1 + (margin / 100)));
+        // --- LOGIKA HARGA FINAL TIGA LAPIS ---
+        let finalPrice;
+        const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
+        
+        if (product.use_manual_prices && manualPrice) {
+            finalPrice = manualPrice;
+        } else {
+            const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [userForTx.role_id]);
+            let margin = roleRows[0].margin_percent; // Default: margin global
+            
+            if (product.use_custom_margin) {
+                const customMargin = product[`${userRoleName}_margin`];
+                if (customMargin !== null && customMargin !== undefined) {
+                    margin = customMargin;
+                }
+            }
+            finalPrice = Math.ceil(product.price * (1 + (margin / 100)));
+        }
+        // --- AKHIR LOGIKA HARGA FINAL ---
 
         if (userForTx.balance < finalPrice) throw new Error('Saldo H2H Anda tidak mencukupi.');
         
-        // 3. Potong saldo & catat transaksi sebagai 'Pending'
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, h2hUser.id]);
 
         const invoiceId = `H2H-${Date.now()}${h2hUser.id}`;
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
-        const trx_id_provider = `H2H-PROVIDER-${Date.now()}`; // ID unik untuk provider
+        const trx_id_provider = `H2H-PROVIDER-${Date.now()}`;
 
-        // Status awal adalah 'Pending', bukan 'Success'
         const txSql = 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)';
         await client.query(txSql, [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
 
         const historyDesc = `Pembelian H2H: ${product.name} (${invoiceId})`;
-        const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
-        await client.query(historySql, [h2hUser.id, -finalPrice, 'Purchase', historyDesc, invoiceId]);
+        await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [h2hUser.id, -finalPrice, 'Purchase', historyDesc, invoiceId]);
 
-        // 4. Teruskan pesanan ke Foxy API (Sama seperti order biasa)
         const foxyPayload = {
             product_code: product.provider_sku,
             user_id: targetGameId,
@@ -1536,19 +1630,11 @@ app.post('/h2h/order', protectH2H, async (req, res) => {
             callback_url: 'https://mikutopup.my.id/api/foxy/callback'
         };
 
-        axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, {
-            headers: {
-                'Authorization': FOXY_API_KEY,
-                'Content-Type': 'application/json'
-            }
-        }).catch(err => {
-            // Log error jika gagal mengirim ke Foxy, tapi jangan batalkan transaksi di sisi Anda
-            console.error("Foxy API Error on H2H order:", err.response ? err.response.data : err.message);
-        });
+        axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { headers: foxyConfig.headers })
+            .catch(err => console.error("Foxy API Error on H2H order:", err.response ? err.response.data : err.message));
 
         await client.query('COMMIT');
         
-        // 5. Beri respons bahwa pesanan sedang diproses
         res.status(201).json({ 
             success: true,
             message: 'Pesanan H2H Anda sedang diproses!', 
@@ -1572,32 +1658,47 @@ app.post('/h2h/order', protectH2H, async (req, res) => {
 
 app.get('/h2h/products', protectH2H, async (req, res) => {
     try {
-        // req.user didapatkan dari middleware protectH2H yang memvalidasi API Key
         const h2hPartner = req.user;
+        const partnerRoleName = h2hPartner.role_name.toLowerCase();
 
-        // 1. Ambil data role spesifik milik partner H2H ini
-        const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [h2hPartner.role_id]);
-        if (roleRows.length === 0) {
-            throw new Error('Role untuk partner H2H tidak ditemukan.');
-        }
-        const partnerMargin = roleRows[0].margin_percent;
+        const { rows: globalRoleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [h2hPartner.role_id]);
+        const globalMargin = globalRoleRows[0].margin_percent;
 
-        // 2. Ambil semua produk yang aktif
-        const { rows: allActiveProducts } = await pool.query(
-            `SELECT p.id, p.name as product_name, p.provider_sku, p.price as base_price, g.name as game_name 
-             FROM products p JOIN games g ON p.game_id = g.id WHERE p.status = 'Active' AND g.status = 'Active'
-             ORDER BY g.name, p.price`
-        );
+        const productQuery = `
+            SELECT p.id, p.name as product_name, p.provider_sku, p.price as base_price, g.name as game_name,
+                   p.use_manual_prices, p.manual_prices,
+                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
+            FROM products p
+            JOIN games g ON p.game_id = g.id
+            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
+            WHERE p.status = 'Active' AND g.status = 'Active'
+            ORDER BY g.name, p.price
+        `;
+        const { rows: allActiveProducts } = await pool.query(productQuery);
         
-        // 3. Hitung harga jual untuk partner H2H dan format respons
         const partnerProductList = allActiveProducts.map(product => {
-            const partnerCost = Math.ceil(product.base_price * (1 + (partnerMargin / 100)));
+            let finalPrice;
+            const manualPrice = product.manual_prices ? product.manual_prices[partnerRoleName] : null;
+
+            if (product.use_manual_prices && manualPrice) {
+                finalPrice = manualPrice;
+            } else {
+                let margin = globalMargin;
+                if (product.use_custom_margin) {
+                    const customMargin = product[`${partnerRoleName}_margin`];
+                    if (customMargin !== null && customMargin !== undefined) {
+                        margin = customMargin;
+                    }
+                }
+                finalPrice = Math.ceil(product.base_price * (1 + (margin / 100)));
+            }
+
             return {
                 productId: product.id,
                 game_name: product.game_name,
                 product_name: product.product_name,
                 sku: product.provider_sku,
-                price: partnerCost // Ini adalah "harga modal" untuk partner H2H
+                price: finalPrice
             };
         });
         
