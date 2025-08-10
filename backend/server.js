@@ -1024,35 +1024,44 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
     try {
         const { gameId } = req.params;
         
-        let userRoleId = 1;
+        let userRoleId = 1; // Default role BRONZE
+        let userRoleName = 'bronze'; // Default nama role
         if (req.user) {
-            const { rows: userRows } = await pool.query('SELECT role_id FROM users WHERE id = $1', [req.user.id]);
+            const { rows: userRows } = await pool.query('SELECT role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1', [req.user.id]);
             if (userRows.length > 0) {
                 userRoleId = userRows[0].role_id;
+                userRoleName = userRows[0].role_name.toLowerCase();
             }
         }
 
-        const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [userRoleId]);
-        const margin = roleRows.length > 0 ? roleRows[0].margin_percent : 0;
+        // --- LOGIKA BARU UNTUK MENGAMBIL MARGIN ---
+        let margin = 0;
+        // Cek dulu apakah ada margin khusus untuk game ini
+        const { rows: gameMarginRows } = await pool.query('SELECT * FROM game_margins WHERE game_id = $1 AND use_custom_margin = true', [gameId]);
+        if (gameMarginRows.length > 0) {
+            // Jika ada, gunakan margin spesifik berdasarkan role pengguna
+            const gameMargin = gameMarginRows[0];
+            margin = gameMargin[`${userRoleName}_margin`] || 0;
+        } else {
+            // Jika tidak ada, gunakan margin global dari tabel roles
+            const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [userRoleId]);
+            margin = roleRows.length > 0 ? roleRows[0].margin_percent : 0;
+        }
+        // --- AKHIR LOGIKA BARU ---
 
         const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id, target_id_label FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
         if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });
 
-        // --- PERBAIKAN DI DALAM QUERY SQL ---
+        // Query SQL ini tidak perlu diubah, karena margin sudah dihitung di atas
         const sqlProducts = `
             SELECT 
-                p.id, 
-                p.name, 
-                p.provider_sku,
+                p.id, p.name, p.provider_sku,
                 COALESCE(
                     fs.discount_price, 
-                    CEIL(p.price * (1 + $2::numeric / 100)) -- Diubah di sini
+                    CEIL(p.price * (1 + $2::numeric / 100))
                 ) as price
             FROM products p
-            LEFT JOIN flash_sales fs ON p.id = fs.product_id 
-                AND fs.is_active = true 
-                AND NOW() BETWEEN fs.start_at AND fs.end_at
-                AND (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses)
+            LEFT JOIN flash_sales fs ON p.id = fs.product_id AND fs.is_active = true AND NOW() BETWEEN fs.start_at AND fs.end_at AND (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses)
             WHERE p.game_id = $1 AND p.status = 'Active'
             ORDER BY p.price ASC
         `;
@@ -1081,23 +1090,20 @@ app.get('/api/games/:gameId/servers', async (req, res) => {
 
 app.get('/api/public/compare-prices', async (req, res) => {
     try {
-        const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
-                             FROM products p JOIN games g ON p.game_id = g.id 
-                             WHERE p.status = 'Active' 
-                             ORDER BY g.name ASC, p.price ASC, p.name ASC`; // Urutan produk
-        const { rows: products } = await pool.query(sqlProducts);
+        const { rows: products } = await pool.query(`
+            SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, g.name as game_name 
+            FROM products p JOIN games g ON p.game_id = g.id 
+            WHERE p.status = 'Active' ORDER BY g.name ASC, p.price ASC
+        `);
+        const { rows: roles } = await pool.query(`SELECT id, name, margin_percent FROM roles ORDER BY id ASC`);
+        const { rows: games } = await pool.query("SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC");
+        const { rows: gameMargins } = await pool.query("SELECT * FROM game_margins WHERE use_custom_margin = true");
 
-        const sqlRoles = `SELECT id, name, margin_percent FROM roles ORDER BY id ASC`;
-        const { rows: roles } = await pool.query(sqlRoles);
-
-        // Ambil daftar game juga
-        const sqlGames = "SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC";
-        const { rows: games } = await pool.query(sqlGames);
-
-        const roleMargins = {};
-        roles.forEach(role => {
-            roleMargins[role.id] = parseFloat(role.margin_percent);
-        });
+        // Ubah gameMargins menjadi format yang mudah diakses: { game_id: { bronze_margin: 10, ... } }
+        const customMarginsByGame = gameMargins.reduce((acc, margin) => {
+            acc[margin.game_id] = margin;
+            return acc;
+        }, {});
 
         const productsWithRolePrices = products.map(product => {
             const productWithPrices = { 
@@ -1107,15 +1113,24 @@ app.get('/api/public/compare-prices', async (req, res) => {
                 provider_sku: product.provider_sku,
                 base_price: product.price 
             }; 
+            
+            const customMargin = customMarginsByGame[product.game_id];
+
             roles.forEach(role => {
-                const margin = roleMargins[role.id] || 0;
-                const sellingPrice = product.price * (1 + (margin / 100));
+                let finalMargin = role.margin_percent; // Ambil margin global sebagai default
+                if (customMargin) {
+                    // Jika ada margin khusus untuk game ini, timpa nilai default
+                    const roleNameLower = role.name.toLowerCase();
+                    finalMargin = customMargin[`${roleNameLower}_margin`] || role.margin_percent;
+                }
+
+                const sellingPrice = product.price * (1 + (finalMargin / 100));
                 productWithPrices[`price_${role.name.toLowerCase()}`] = Math.ceil(sellingPrice);
             });
             return productWithPrices;
         });
 
-        res.json({ products: productsWithRolePrices, roles: roles, games: games }); // Mengirim products, roles, dan games
+        res.json({ products: productsWithRolePrices, roles: roles, games: games });
     } catch (error) {
         console.error('Error fetching public compare prices:', error);
         res.status(500).json({ message: 'Server error saat mengambil data perbandingan harga.' });
