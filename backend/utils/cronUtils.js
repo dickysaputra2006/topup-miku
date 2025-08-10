@@ -115,7 +115,10 @@ async function syncProductsWithFoxy() {
         
         // 1. Ambil semua produk dari Foxy
         const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
-            headers: { 'Authorization': FOXY_API_KEY }
+            headers: { 
+                'Authorization': FOXY_API_KEY,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+            }
         });
         const providerProducts = response.data.data;
         if (!Array.isArray(providerProducts)) {
