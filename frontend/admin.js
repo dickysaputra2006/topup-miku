@@ -35,6 +35,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const applyToAllBtn = document.getElementById('apply-validation-to-all-btn');
     const validatorSearchInput = document.getElementById('validator-search-input');
     const gameMarginForm = document.getElementById('game-margin-form');
+    let selectedProductIdForPrice = null;
+    const manualPriceForm = document.getElementById('manual-price-form');
 
     // Elemen untuk Manajemen Promo
     const addPromoForm = document.getElementById('add-promo-form');
@@ -140,47 +142,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function renderProductsForGame(gameId) {
     if (!productsTableBody) return;
+    // Sembunyikan editor lain saat game diganti
+    if (validationEditor) validationEditor.classList.add('hidden');
+    const manualPriceEditor = document.getElementById('manual-price-editor');
+    if (manualPriceEditor) manualPriceEditor.classList.add('hidden');
+
     const filteredProducts = allProducts.filter(p => p.game_id == gameId);
     productsTableBody.innerHTML = '';
     const productsTable = document.getElementById('products-table');
-    const tableHeaderThead = productsTable.querySelector('thead');
+    const tableHeaderThead = productsTable.querySelector('thead tr');
     if (!tableHeaderThead) return;
-    const tableHeaderRow = document.createElement('tr');
 
-    // Membuat header dasar
-    tableHeaderRow.innerHTML = `<th>Nama Produk</th><th>Harga Pokok</th><th>SKU</th>`;
-
-    // Menambahkan header harga untuk setiap role
+    // Membuat header dasar + kolom baru
+    let headerHtml = `<th>Nama Produk</th><th>Harga Pokok</th><th>SKU</th>`;
     const displayRoles = allRoles.filter(role => ADMIN_PRICE_ROLE_ORDER.includes(role.name))
         .sort((a, b) => ADMIN_PRICE_ROLE_ORDER.indexOf(a.name) - ADMIN_PRICE_ROLE_ORDER.indexOf(b.name));
     displayRoles.forEach(role => {
-        tableHeaderRow.innerHTML += `<th>Harga ${role.name}</th>`;
+        headerHtml += `<th>Harga ${role.name}</th>`;
     });
-
-    // Menambahkan header Status
-    tableHeaderRow.innerHTML += `<th>Status</th>`;
-
-    // --- PERUBAHAN 1: Menambahkan header baru untuk Aksi Validasi ---
-    tableHeaderRow.innerHTML += `<th>Aksi Validasi</th>`;
-    // --- AKHIR PERUBAHAN ---
-
-    tableHeaderThead.innerHTML = '';
-    tableHeaderThead.appendChild(tableHeaderRow);
+    headerHtml += `<th>Status</th><th>Aksi Validasi</th><th>Harga Manual</th>`; // <-- KOLOM BARU
+    tableHeaderThead.innerHTML = headerHtml;
+    
     productListTitle.textContent = `Produk untuk: ${allGames.find(g => g.id == gameId)?.name || 'Pilih Game'}`;
     
     if (filteredProducts.length === 0) {
-        // PERBAIKAN KECIL: Menyesuaikan colspan agar tabel tetap rapi
-        const colspan = 5 + displayRoles.length;
-        productsTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
+        productsTableBody.innerHTML = `<tr><td colspan="${7 + displayRoles.length}" style="text-align: center;">...</td></tr>`;
         return;
     }
 
     filteredProducts.forEach(product => {
         const row = document.createElement('tr');
         row.dataset.productId = product.id;
-        const formattedBasePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price);
-        
-        let rowHtml = `<td>${product.name}</td><td>${formattedBasePrice}</td><td>${product.provider_sku}</td>`;
+        row.dataset.productName = product.name; // Simpan nama produk
+        row.style.cursor = 'pointer'; // Tambah cursor pointer
+
+        let rowHtml = `<td>${product.name}</td><td>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price)}</td><td>${product.provider_sku}</td>`;
         
         displayRoles.forEach(role => {
             const rolePriceKey = `price_${role.name.toLowerCase()}`;
@@ -189,25 +185,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         const isChecked = product.status === 'Active' ? 'checked' : '';
+        rowHtml += `<td><label class="switch"><input type="checkbox" class="product-status-toggle" data-product-id="${product.id}" ${isChecked}><span class="slider"></span></label></td>`;
+        rowHtml += `<td><button class="edit-btn edit-validation-btn" data-product-id="${product.id}">Atur</button></td>`;
+        rowHtml += `<td><button class="edit-btn manual-price-btn" data-product-id="${product.id}" data-product-name="${product.name}">Atur Harga</button></td>`; // <-- TOMBOL BARU
         
-        // Sel untuk toggle status
-        rowHtml += `
-            <td>
-                <label class="switch">
-                    <input type="checkbox" class="product-status-toggle" data-product-id="${product.id}" ${isChecked}>
-                    <span class="slider"></span>
-                </label>
-            </td>
-        `;
-
-        // --- PERUBAHAN 2: Menambahkan sel baru untuk tombol "Atur Validasi" ---
-        rowHtml += `
-            <td>
-                <button class="edit-btn edit-validation-btn" data-product-id="${product.id}">Atur</button>
-            </td>
-        `;
-        // --- AKHIR PERUBAHAN ---
-
         row.innerHTML = rowHtml;
         productsTableBody.appendChild(row);
     });
@@ -1080,6 +1061,96 @@ if (gameMarginForm) {
     });
 }
 
+async function fetchAndDisplayManualPrices(productId, productName) {
+    selectedProductIdForPrice = productId;
+    const editor = document.getElementById('manual-price-editor');
+    const nameDisplay = document.getElementById('manual-price-product-name');
+    const toggle = document.getElementById('use-manual-prices-toggle');
+    const fieldsContainer = document.getElementById('manual-price-fields');
+    const inputsContainer = document.getElementById('manual-price-inputs-container');
+
+    nameDisplay.textContent = productName;
+    inputsContainer.innerHTML = '<p>Memuat role...</p>';
+    editor.classList.remove('hidden');
+
+    try {
+        const response = await fetch(`${ADMIN_API_URL}/products/${productId}/manual-prices`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Gagal memuat data harga manual.');
+        const data = await response.json();
+
+        toggle.checked = data.use_manual_prices;
+        fieldsContainer.classList.toggle('hidden', !data.use_manual_prices);
+
+        // Generate input fields based on roles
+        inputsContainer.innerHTML = '';
+        const displayRoles = allRoles.filter(role => ADMIN_PRICE_ROLE_ORDER.includes(role.name))
+            .sort((a, b) => ADMIN_PRICE_ROLE_ORDER.indexOf(a.name) - ADMIN_PRICE_ROLE_ORDER.indexOf(b.name));
+
+        displayRoles.forEach(role => {
+            const roleNameLower = role.name.toLowerCase();
+            const price = data.manual_prices[roleNameLower] || '';
+            const inputGroup = `
+                <label for="manual-price-${roleNameLower}">Harga Jual ${role.name}</label>
+                <input type="number" id="manual-price-${roleNameLower}" data-role-name="${roleNameLower}" value="${price}" placeholder="Harga untuk ${role.name}">
+            `;
+            inputsContainer.insertAdjacentHTML('beforeend', inputGroup);
+        });
+    } catch (error) {
+        console.error(error);
+        editor.classList.add('hidden');
+    }
+}
+
+// Event listener untuk tombol 'Atur Harga' di tabel
+if (productsTableBody) {
+    productsTableBody.addEventListener('click', (e) => {
+        if (e.target.classList.contains('manual-price-btn')) {
+            const productId = e.target.dataset.productId;
+            const productName = e.target.dataset.productName;
+            fetchAndDisplayManualPrices(productId, productName);
+        }
+    });
+}
+
+// Event listener untuk form harga manual
+if (manualPriceForm) {
+    manualPriceForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!selectedProductIdForPrice) return alert('Produk belum dipilih.');
+
+        const manual_prices = {};
+        document.querySelectorAll('#manual-price-inputs-container input').forEach(input => {
+            if (input.value) {
+                manual_prices[input.dataset.roleName] = parseFloat(input.value);
+            }
+        });
+
+        const data = {
+            use_manual_prices: document.getElementById('use-manual-prices-toggle').checked,
+            manual_prices: manual_prices
+        };
+
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/products/${selectedProductIdForPrice}/manual-prices`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            alert(result.message);
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        }
+    });
+
+    // Event listener untuk toggle-nya
+    document.getElementById('use-manual-prices-toggle').addEventListener('change', (e) => {
+        document.getElementById('manual-price-fields').classList.toggle('hidden', !e.target.checked);
+    });
+}
 
     // === FUNGSI INISIALISASI ===
     async function initAdminPage() {

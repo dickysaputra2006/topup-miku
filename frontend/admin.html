@@ -160,8 +160,33 @@
                                     <input type="text" id="disallowed-regions-input" placeholder="Region DILARANG (Contoh: ID,MY)">
                                 </div>
                                 <button type="submit" style="margin-top: 1rem;">Simpan Pengaturan Validasi</button>
-                            </form>
+                            </form>                        
                         </div>
+
+                        <div id="manual-price-editor" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 2rem;">
+    <h4><i class="fas fa-hand-holding-usd"></i> Pengaturan Harga Jual Manual</h4>
+    <p>Atur harga jual final untuk produk <strong id="manual-price-product-name">-</strong>. Harga ini akan menimpa semua perhitungan margin.</p>
+    <form id="manual-price-form" class="admin-form" style="padding: 0; background: none;">
+        <div class="game-info-toggle">
+            <strong>Gunakan Harga Manual untuk Produk Ini?</strong>
+            <label class="switch">
+                <input type="checkbox" id="use-manual-prices-toggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <div id="manual-price-fields" class="hidden" style="margin-top: 1rem;">
+            <p class="form-description">Isi harga jual akhir (Rp). Kosongkan jika ingin menggunakan perhitungan margin untuk role tersebut.</p>
+            
+            <div id="manual-price-inputs-container">
+                <p>Memuat role...</p>
+            </div>
+        </div>
+
+        <button type="submit" style="margin-top: 1.5rem;">Simpan Harga Manual</button>
+    </form>
+                        </div>
+
                     </div>
                 </div>
             </section>
