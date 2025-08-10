@@ -17,9 +17,6 @@ const pool = new Pool(dbConfig);
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
 
-// ========================================================================
-// === FUNGSI: CEK STATUS TRANSAKSI PENDING ===
-// ========================================================================
 async function checkPendingTransactions() {
     console.log('Running checkPendingTransactions job...');
     const client = await pool.connect();
@@ -47,11 +44,12 @@ async function checkPendingTransactions() {
 
             try {
                 const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, {
-                    headers: { 
-                        'Authorization': FOXY_API_KEY,
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-                    }
-                });
+                headers: { 
+                    'Authorization': FOXY_API_KEY,
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.foxygamestore.com/'
+                }
+            });
 
                 const foxyData = foxyResponse.data.data;
                 const foxyStatus = foxyData.status.toUpperCase();
@@ -120,7 +118,8 @@ async function syncProductsWithFoxy() {
         const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
             headers: { 
                 'Authorization': FOXY_API_KEY,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                'Referer': 'https://www.foxygamestore.com/'
             }
         });
         const providerProducts = response.data.data;
