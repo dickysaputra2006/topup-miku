@@ -1,7 +1,6 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const { Pool } = require('pg');
 const axios = require('axios');
-const puppeteer = require('puppeteer');
 
 // --- KONFIGURASI DATABASE UNTUK CRON JOB ---
 const dbConfig = {
@@ -18,6 +17,17 @@ const pool = new Pool(dbConfig);
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
 
+// Konfigurasi headers default untuk semua panggilan ke Foxy
+const foxyApiHeaders = { 
+    'Authorization': FOXY_API_KEY,
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+    'Referer': 'https://www.foxygamestore.com/'
+};
+
+
+// ========================================================================
+// === FUNGSI: CEK STATUS TRANSAKSI PENDING ===
+// ========================================================================
 async function checkPendingTransactions() {
     console.log('Running checkPendingTransactions job...');
     const client = await pool.connect();
@@ -25,13 +35,7 @@ async function checkPendingTransactions() {
         await client.query('BEGIN');
 
         const { rows: pendingTx } = await client.query(
-            `SELECT 
-                t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts, 
-                p.name as product_name, u.h2h_callback_url
-             FROM transactions t
-             JOIN products p ON t.product_id = p.id
-             JOIN users u ON t.user_id = u.id
-             WHERE t.status = 'Pending' FOR UPDATE`
+            `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts, p.name as product_name, u.h2h_callback_url FROM transactions t JOIN products p ON t.product_id = p.id JOIN users u ON t.user_id = u.id WHERE t.status = 'Pending' FOR UPDATE`
         );
 
         if (pendingTx.length === 0) {
@@ -44,13 +48,7 @@ async function checkPendingTransactions() {
             if (!tx.provider_trx_id) continue;
 
             try {
-                const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, {
-                    headers: { 
-                        'Authorization': FOXY_API_KEY,
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                        'Referer': 'https://www.foxygamestore.com/'
-                    }
-                });
+                const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, { headers: foxyApiHeaders });
 
                 const foxyData = foxyResponse.data.data;
                 const foxyStatus = foxyData.status.toUpperCase();
@@ -76,9 +74,7 @@ async function checkPendingTransactions() {
                         serial_number: serialNumber,
                         timestamp: new Date().toISOString()
                     };
-                    console.log(`Sending webhook for invoice ${tx.invoice_id} to ${tx.h2h_callback_url}`);
                     axios.post(tx.h2h_callback_url, webhookPayload)
-                         .then(res => console.log(`Webhook for ${tx.invoice_id} sent successfully.`))
                          .catch(err => console.error(`Failed to send webhook for ${tx.invoice_id}:`, err.message));
                 }
 
@@ -86,10 +82,8 @@ async function checkPendingTransactions() {
                 if (foxyError.response && foxyError.response.status === 404) {
                     const MAX_ATTEMPTS = 5;
                     if (tx.check_attempts < MAX_ATTEMPTS) {
-                        console.warn(`Transaction ${tx.provider_trx_id} not found on Foxy. Attempt ${tx.check_attempts + 1}. Retrying on next run.`);
                         await client.query('UPDATE transactions SET check_attempts = check_attempts + 1 WHERE id = $1', [tx.id]);
                     } else {
-                        console.error(`Transaction ${tx.provider_trx_id} not found after ${MAX_ATTEMPTS} attempts. Marking as Failed.`);
                         await client.query('UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2', ['Failed', tx.id]);
                         await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
                     }
@@ -108,50 +102,25 @@ async function checkPendingTransactions() {
     }
 }
 
+
+// ========================================================================
+// === FUNGSI: SINKRONISASI PRODUK ===
+// ========================================================================
 async function syncProductsWithFoxy() { 
     console.log('Running smart product sync job...');
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
+        
+        const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, { headers: foxyApiHeaders });
 
-        let providerProducts = [];
-        try {
-            const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
-                headers: { 
-                    'Authorization': FOXY_API_KEY,
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                    'Referer': 'https://www.foxygamestore.com/'
-                }
-            });
-            providerProducts = response.data.data;
-        } catch (axiosError) {
-            console.warn("Axios request failed, trying Puppeteer bypass...", axiosError.message);
-            
-            const browser = await puppeteer.launch({ headless: true });
-            const page = await browser.newPage();
-            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-            await page.setExtraHTTPHeaders({ 'Authorization': FOXY_API_KEY });
-            
-            providerProducts = await page.evaluate(async (url) => {
-                const res = await fetch(url, {
-                    headers: {
-                        'Authorization': document.querySelector('meta[name="Authorization"]')?.content || '',
-                        'User-Agent': navigator.userAgent,
-                        'Referer': 'https://www.foxygamestore.com/'
-                    }
-                });
-                return await res.json();
-            }, `${FOXY_BASE_URL}/v1/products`);
-
-            await browser.close();
-
-            if (!Array.isArray(providerProducts.data)) {
-                throw new Error('Format respons Foxy API tidak sesuai dari Puppeteer.');
-            }
-            providerProducts = providerProducts.data;
+        const providerProducts = response.data.data;
+        if (!Array.isArray(providerProducts)) {
+            throw new Error('Format respons Foxy API tidak sesuai.');
         }
-
+        
         const providerSkus = new Set(providerProducts.map(p => p.product_code));
+
         const { rows: localProducts } = await client.query('SELECT id, provider_sku, price, status FROM products');
         const localProductMap = new Map(localProducts.map(p => [p.provider_sku, p]));
 
@@ -167,11 +136,7 @@ async function syncProductsWithFoxy() {
 
             if (localProduct) {
                 if (localProduct.price !== basePriceFoxy || localProduct.status !== 'Active') {
-                    await client.query(
-                        'UPDATE products SET price = $1, status = $2 WHERE provider_sku = $3',
-                        [basePriceFoxy, 'Active', productCode]
-                    );
-                    console.log(`UPDATED: ${productName} - Price/Status changed.`);
+                    await client.query('UPDATE products SET price = $1, status = $2 WHERE provider_sku = $3', [basePriceFoxy, 'Active', productCode]);
                 }
             } else {
                 let { rows: games } = await client.query('SELECT id FROM games WHERE name = $1', [gameName]);
@@ -180,19 +145,13 @@ async function syncProductsWithFoxy() {
                     games = newGame;
                 }
                 const gameId = games[0].id;
-
-                await client.query(
-                    'INSERT INTO products (game_id, name, provider_sku, price, status) VALUES ($1, $2, $3, $4, $5)',
-                    [gameId, productName, productCode, basePriceFoxy, 'Active']
-                );
-                console.log(`INSERTED: ${productName} - New product added.`);
+                await client.query('INSERT INTO products (game_id, name, provider_sku, price, status) VALUES ($1, $2, $3, $4, $5)', [gameId, productName, productCode, basePriceFoxy, 'Active']);
             }
         }
 
         for (const localProduct of localProducts) {
             if (localProduct.status === 'Active' && !providerSkus.has(localProduct.provider_sku)) {
                 await client.query('UPDATE products SET status = $1 WHERE id = $2', ['Inactive', localProduct.id]);
-                console.log(`DEACTIVATED: Product with SKU ${localProduct.provider_sku} is no longer available from provider.`);
             }
         }
         
@@ -200,13 +159,16 @@ async function syncProductsWithFoxy() {
         console.log('Smart product sync job finished successfully.');
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Smart product sync job failed:', error.message);
+        console.error('Smart product sync job failed:', error.response ? error.response.data : error.message);
         throw error;
     } finally {
         client.release();
     }
 }
 
+// ========================================================================
+// === FUNGSI UTAMA UNTUK MENJALANKAN SEMUA CRON JOB ===
+// ========================================================================
 async function runAllCronJobs() {
     console.log('Starting all cron jobs...');
     try {
