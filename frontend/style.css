@@ -1729,3 +1729,12 @@ color: green;
 #custom-margin-fields input {
     margin-top: 0; /* Hapus margin negatif yang bermasalah */
 }
+/* === PERBAIKAN UNTUK TEKS TENGGELAM DI SEMUA FORM ADMIN === */
+#custom-margin-fields label,
+#manual-price-fields label {
+    margin-bottom: 0.5rem;
+}
+#custom-margin-fields input,
+#manual-price-fields input {
+    margin-top: 0;
+}

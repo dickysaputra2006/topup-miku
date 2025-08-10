@@ -1068,6 +1068,7 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
         const { gameId } = req.params;
         let userRoleId = 1;
         let userRoleName = 'bronze';
+
         if (req.user) {
             const { rows: userRows } = await pool.query('SELECT role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1', [req.user.id]);
             if (userRows.length > 0) {
@@ -1076,35 +1077,37 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
             }
         }
 
-        const { rows: roleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [userRoleId]);
-        let globalMargin = roleRows.length > 0 ? roleRows[0].margin_percent : 0;
-
-        const { rows: gameMarginRows } = await pool.query('SELECT * FROM game_margins WHERE game_id = $1 AND use_custom_margin = true', [gameId]);
-        
         const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id, target_id_label FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
         if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });
-
-        // --- QUERY SQL DENGAN LOGIKA HARGA FINAL ---
-        const sqlProducts = `
-            SELECT 
-                p.id, p.name, p.provider_sku, p.price as base_price, p.use_manual_prices, p.manual_prices
+        
+        const { rows: products } = await pool.query(`
+            SELECT p.id, p.name, p.provider_sku, p.price as base_price, 
+                   p.use_manual_prices, p.manual_prices,
+                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
             FROM products p
+            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
             WHERE p.game_id = $1 AND p.status = 'Active'
             ORDER BY p.price ASC
-        `;
-        const { rows: products } = await pool.query(sqlProducts, [gameId]);
+        `, [gameId]);
+        
+        const { rows: globalMargins } = await pool.query('SELECT name, margin_percent FROM roles');
+        const globalMarginsMap = globalMargins.reduce((acc, role) => {
+            acc[role.name.toLowerCase()] = role.margin_percent;
+            return acc;
+        }, {});
 
-        // Hitung harga final di sini
         const finalProducts = products.map(p => {
             let finalPrice;
             const manualPrice = p.manual_prices ? p.manual_prices[userRoleName] : null;
-
+            
+            // PRIORITAS 1: HARGA MANUAL
             if (p.use_manual_prices && manualPrice) {
                 finalPrice = manualPrice;
             } else {
-                let margin = globalMargin;
-                if (gameMarginRows.length > 0) {
-                    const customMargin = gameMarginRows[0][`${userRoleName}_margin`];
+                let margin = globalMarginsMap[userRoleName] || 0; // Default: margin global
+                // PRIORITAS 2: MARGIN PER GAME
+                if (p.use_custom_margin) {
+                    const customMargin = p[`${userRoleName}_margin`];
                     if (customMargin !== null && customMargin !== undefined) {
                         margin = customMargin;
                     }
@@ -1137,30 +1140,23 @@ app.get('/api/games/:gameId/servers', async (req, res) => {
 app.get('/api/public/compare-prices', async (req, res) => {
     try {
         const { rows: products } = await pool.query(`
-            SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, g.name as game_name, p.use_manual_prices, p.manual_prices
-            FROM products p JOIN games g ON p.game_id = g.id 
+            SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, g.name as game_name, 
+                   p.use_manual_prices, p.manual_prices,
+                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
+            FROM products p 
+            JOIN games g ON p.game_id = g.id
+            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
             WHERE p.status = 'Active' ORDER BY g.name ASC, p.price ASC
         `);
-        const { rows: roles } = await pool.query(`SELECT id, name, margin_percent FROM roles ORDER BY id ASC`);
+        const { rows: roles } = await pool.query(`SELECT name, margin_percent FROM roles ORDER BY id ASC`);
         const { rows: games } = await pool.query("SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC");
-        const { rows: gameMargins } = await pool.query("SELECT * FROM game_margins WHERE use_custom_margin = true");
-
-        const customMarginsByGame = gameMargins.reduce((acc, margin) => {
-            acc[margin.game_id] = margin;
-            return acc;
-        }, {});
 
         const productsWithRolePrices = products.map(product => {
             const productWithPrices = { 
-                id: product.id,
-                game_name: product.game_name,
-                product_name: product.name,
-                provider_sku: product.provider_sku,
-                base_price: product.price 
+                id: product.id, game_name: product.game_name, product_name: product.name, 
+                provider_sku: product.provider_sku, base_price: product.price 
             }; 
             
-            const customMargin = customMarginsByGame[product.game_id];
-
             roles.forEach(role => {
                 const roleNameLower = role.name.toLowerCase();
                 let finalPrice;
@@ -1170,8 +1166,8 @@ app.get('/api/public/compare-prices', async (req, res) => {
                     finalPrice = manualPrice;
                 } else {
                     let finalMargin = role.margin_percent;
-                    if (customMargin) {
-                        finalMargin = customMargin[`${roleNameLower}_margin`] || role.margin_percent;
+                    if (product.use_custom_margin) {
+                        finalMargin = product[`${roleNameLower}_margin`] || role.margin_percent;
                     }
                     finalPrice = Math.ceil(product.price * (1 + (finalMargin / 100)));
                 }
@@ -1374,72 +1370,52 @@ app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const { productId, targetGameId, targetServerId, promoCode } = req.body;
+        const { productId, targetGameId, targetServerId } = req.body; // Hapus promoCode untuk sementara
         const userId = req.user.id;
 
         if (!productId || !targetGameId) throw new Error('Produk dan ID Game wajib diisi.');
-
+        
         const { rows: products } = await client.query('SELECT p.*, g.id as game_id, g.needs_server_id FROM products p JOIN games g ON p.game_id = g.id WHERE p.id = $1 AND p.status = \'Active\' FOR UPDATE', [productId]);
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
         const product = products[0];
 
-        if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
+        if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi.');
         
         const { rows: users } = await client.query('SELECT balance, role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE', [userId]);
         const user = users[0];
         const userRoleName = user.role_name.toLowerCase();
 
-        // --- LOGIKA PERHITUNGAN HARGA FINAL BARU ---
+        // --- LOGIKA HARGA FINAL YANG SUDAH DISEMPURNAKAN ---
         let finalPrice;
         const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
-
+        
         if (product.use_manual_prices && manualPrice) {
             finalPrice = manualPrice;
         } else {
+            const { rows: gameMarginRows } = await client.query('SELECT * FROM game_margins WHERE game_id = $1 AND use_custom_margin = true', [product.game_id]);
             const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [user.role_id]);
             let margin = roleRows[0].margin_percent;
-            const { rows: gameMarginRows } = await client.query('SELECT * FROM game_margins WHERE game_id = $1 AND use_custom_margin = true', [product.game_id]);
+            
             if (gameMarginRows.length > 0) {
                 const customMargin = gameMarginRows[0][`${userRoleName}_margin`];
                 if (customMargin !== null && customMargin !== undefined) margin = customMargin;
             }
             finalPrice = Math.ceil(product.price * (1 + (margin / 100)));
         }
-        // --- AKHIR LOGIKA HARGA FINAL ---
-
-        let promoIdToLog = null;
-        if (promoCode) {
-           // Logika promo tetap di sini jika diperlukan...
-        }
         
         if (user.balance < finalPrice) throw new Error('Saldo Anda tidak mencukupi.');
         
-        // ... sisa dari kode order Anda (UPDATE users, INSERT transactions, dll) tidak berubah ...
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, userId]);
-
+        
+        // ... sisa kode order (INSERT transaction, call Foxy, dll) tetap sama
         const invoiceId = `TRX-${Date.now()}${userId}`;
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const trx_id_provider = `WEB-${Date.now()}`;
-
-        const txSql = 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id';
-        const { rows: transactionRows } = await client.query(txSql, [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
-        const newTransactionId = transactionRows[0].id;
-
+        await client.query('INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
         const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
-        const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
-        await client.query(historySql, [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]);
+        await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]);
         
-        const foxyPayload = {
-            product_code: product.provider_sku,
-            user_id: targetGameId,
-            server_id: targetServerId || '',
-            trx_id: trx_id_provider,
-            callback_url: 'https://mikutopup.my.id/api/foxy/callback'
-        };
-
-        axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, {
-            headers: { 'Authorization': FOXY_API_KEY, 'Content-Type': 'application/json' }
-        }).catch(err => console.error("Foxy API Error:", err.response ? err.response.data : err.message));
+        axios.post(`${FOXY_BASE_URL}/v1/order`, { product_code: product.provider_sku, user_id: targetGameId, server_id: targetServerId || '', trx_id: trx_id_provider, callback_url: 'https://mikutopup.my.id/api/foxy/callback' }, { headers: { 'Authorization': FOXY_API_KEY, 'Content-Type': 'application/json' } }).catch(err => console.error("Foxy API Error:", err.response ? err.response.data : err.message));
 
         await client.query('COMMIT');
         res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
