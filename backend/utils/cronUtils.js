@@ -47,7 +47,7 @@ async function checkPendingTransactions() {
                 const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, {
                     headers: { 
                         'Authorization': FOXY_API_KEY,
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                         'Referer': 'https://www.foxygamestore.com/'
                     }
                 });
@@ -78,7 +78,7 @@ async function checkPendingTransactions() {
                     };
                     console.log(`Sending webhook for invoice ${tx.invoice_id} to ${tx.h2h_callback_url}`);
                     axios.post(tx.h2h_callback_url, webhookPayload)
-                         .then(() => console.log(`Webhook for ${tx.invoice_id} sent successfully.`))
+                         .then(res => console.log(`Webhook for ${tx.invoice_id} sent successfully.`))
                          .catch(err => console.error(`Failed to send webhook for ${tx.invoice_id}:`, err.message));
                 }
 
@@ -113,40 +113,42 @@ async function syncProductsWithFoxy() {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        
-        let providerProducts;
+
+        let providerProducts = [];
         try {
-            // Coba ambil data langsung via Axios
             const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, {
                 headers: { 
                     'Authorization': FOXY_API_KEY,
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
                     'Referer': 'https://www.foxygamestore.com/'
                 }
             });
             providerProducts = response.data.data;
-        } catch (err) {
-            // Kalau gagal (misal 403/Cloudflare) -> fallback ke Puppeteer
-            console.warn('Axios request failed, trying Puppeteer bypass...', err.message);
-            const browser = await puppeteer.launch({
-                headless: true,
-                args: ['--no-sandbox', '--disable-setuid-sandbox']
-            });
+        } catch (axiosError) {
+            console.warn("Axios request failed, trying Puppeteer bypass...", axiosError.message);
+            
+            const browser = await puppeteer.launch({ headless: true });
             const page = await browser.newPage();
-            await page.setExtraHTTPHeaders({
-                'Authorization': FOXY_API_KEY,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-                'Referer': 'https://www.foxygamestore.com/'
-            });
-            await page.goto(`${FOXY_BASE_URL}/v1/products`, { waitUntil: 'networkidle2' });
-            const bodyText = await page.evaluate(() => document.body.innerText);
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+            await page.setExtraHTTPHeaders({ 'Authorization': FOXY_API_KEY });
+            
+            providerProducts = await page.evaluate(async (url) => {
+                const res = await fetch(url, {
+                    headers: {
+                        'Authorization': document.querySelector('meta[name="Authorization"]')?.content || '',
+                        'User-Agent': navigator.userAgent,
+                        'Referer': 'https://www.foxygamestore.com/'
+                    }
+                });
+                return await res.json();
+            }, `${FOXY_BASE_URL}/v1/products`);
+
             await browser.close();
 
-            providerProducts = JSON.parse(bodyText).data;
-        }
-
-        if (!Array.isArray(providerProducts)) {
-            throw new Error('Format respons Foxy API tidak sesuai.');
+            if (!Array.isArray(providerProducts.data)) {
+                throw new Error('Format respons Foxy API tidak sesuai dari Puppeteer.');
+            }
+            providerProducts = providerProducts.data;
         }
 
         const providerSkus = new Set(providerProducts.map(p => p.product_code));
@@ -174,10 +176,7 @@ async function syncProductsWithFoxy() {
             } else {
                 let { rows: games } = await client.query('SELECT id FROM games WHERE name = $1', [gameName]);
                 if (games.length === 0) {
-                    const { rows: newGame } = await client.query(
-                        'INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id',
-                        [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']
-                    );
+                    const { rows: newGame } = await client.query('INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id', [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']);
                     games = newGame;
                 }
                 const gameId = games[0].id;
