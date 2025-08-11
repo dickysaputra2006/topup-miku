@@ -1,24 +1,35 @@
-// 1. Impor fungsi utama dari cronUtils
+// Membutuhkan dotenv untuk membaca CRON_SECRET
+require('dotenv').config(); 
 const { runAllCronJobs } = require('./utils/cronUtils.js'); 
+const axios = require('axios'); // Kita butuh axios untuk memanggil API
 
-// 2. Impor fungsi notifikasi dari bot (dengan path yang benar)
-const { sendAdminNotification } = require('./botTele.js'); 
+const CRON_SECRET = process.env.CRON_SECRET;
+const NOTIFY_URL = 'http://localhost:3000/api/internal/notify-admin';
 
-// 3. Jalankan fungsi dan tangani hasilnya
+// Fungsi baru untuk mengirim notifikasi via API
+async function notifyAdmin(message) {
+    try {
+        await axios.post(NOTIFY_URL, {
+            message: message,
+            secret: CRON_SECRET
+        });
+    } catch (error) {
+        console.error('Gagal mengirim notifikasi via API:', error.message);
+    }
+}
+
+// Jalankan fungsi utama
 runAllCronJobs()
     .then(() => {
         console.log('Main Cron job finished successfully.');
-        // Jika berhasil, kirim notifikasi sukses
-        sendAdminNotification('✅ Semua cron job (Cek Transaksi & Sinkronisasi Produk) berhasil dijalankan tanpa error.');
-        // Keluar dengan kode sukses
-        process.exit(0); 
+        // Kirim notifikasi sukses via API
+        notifyAdmin('✅ Cron job (Cek Transaksi & Sinkronisasi Produk) berhasil dijalankan.');
+        process.exit(0);
     })
     .catch(error => {
         console.error('Main Cron job failed:', error);
-        // Buat pesan error yang detail
-        const errorMessage = `🚨 **Cron Job GAGAL!** 🚨\n\nSebuah tugas otomatis di server gagal dijalankan.\n\n**Detail Error:**\n\`\`\`\n${error.message}\n\`\`\``;
-        // Jika gagal, kirim notifikasi error
-        sendAdminNotification(errorMessage);
-        // Keluar dengan kode error
-        process.exit(1); 
+        const errorMessage = `🚨 **Cron Job GAGAL!** 🚨\n\n**Error:**\n\`\`\`\n${error.message}\n\`\`\``;
+        // Kirim notifikasi error via API
+        notifyAdmin(errorMessage);
+        process.exit(1);
     });

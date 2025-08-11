@@ -20,6 +20,7 @@ app.set('trust proxy', 1); // untuk mendapatkan IP asli di belakang proxy
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const BOT_PRODUCT_BLACKLIST = ['FXGT', 'Via Login', 'Gifts'];
+const { sendAdminNotification } = require('./botTele.js');
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
@@ -200,6 +201,22 @@ app.post('/api/auth/reset-password', async (req, res) => {
     }
 });
 
+// Endpoint internal KHUSUS untuk cron job mengirim notifikasi
+app.post('/api/internal/notify-admin', (req, res) => {
+    const { message, secret } = req.body;
+    // Kunci rahasia untuk memastikan hanya cron job yang bisa mengakses
+    if (secret !== process.env.CRON_SECRET) {
+        return res.status(403).json({ message: 'Akses ditolak.' });
+    }
+    if (!message) {
+        return res.status(400).json({ message: 'Pesan tidak boleh kosong.' });
+    }
+
+    // Panggil fungsi notifikasi dari bot yang sedang berjalan
+    sendAdminNotification(message);
+    
+    res.status(200).json({ success: true, message: 'Notifikasi sedang dikirim.' });
+});
 // === MIDDLEWARE ===
 const protect = (req, res, next) => {
     const authHeader = req.headers.authorization;
