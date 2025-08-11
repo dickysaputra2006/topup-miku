@@ -16,6 +16,7 @@ const { cekPromoMcggMobapay } = require('./utils/validators/stalk-mcgg.js');
 const path = require('path');
 
 const app = express();
+app.set('trust proxy', 1); // untuk mendapatkan IP asli di belakang proxy
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const BOT_PRODUCT_BLACKLIST = ['FXGT', 'Via Login', 'Gifts'];
@@ -259,6 +260,42 @@ const protectH2H = async (req, res, next) => {
     } catch (error) {
         console.error('H2H Auth Error:', error);
         res.status(500).json({ success: false, message: 'Server error saat validasi API Key.' });
+    }
+};
+
+const protectH2HIp = async (req, res, next) => {
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey) {
+        // Biarkan middleware protectH2H yang menangani jika tidak ada API Key
+        return next();
+    }
+
+    try {
+        // 1. Dapatkan IP asli dari permintaan
+        const requestIp = req.ip;
+
+        // 2. Cari pengguna berdasarkan API Key untuk mendapatkan daftar IP-nya
+        const { rows } = await pool.query('SELECT whitelisted_ips FROM users WHERE api_key = $1', [apiKey]);
+
+        if (rows.length > 0) {
+            const user = rows[0];
+            const allowedIps = user.whitelisted_ips;
+
+            // 3. Lakukan pengecekan
+            // Jika daftar IP ada dan tidak kosong, maka lakukan validasi
+            if (Array.isArray(allowedIps) && allowedIps.length > 0) {
+                if (!allowedIps.includes(requestIp)) {
+                    // Jika IP tidak ada di daftar, tolak akses
+                    console.warn(`[IP Whitelist] Akses DITOLAK untuk IP: ${requestIp} (API Key: ...${apiKey.slice(-4)})`);
+                    return res.status(403).json({ success: false, message: 'Alamat IP Anda tidak diizinkan.' });
+                }
+            }
+        }
+        // Jika IP diizinkan atau pengguna tidak mengatur whitelist, lanjutkan
+        next();
+    } catch (error) {
+        console.error('Error di middleware IP Whitelist:', error);
+        res.status(500).json({ success: false, message: 'Server error saat validasi IP.' });
     }
 };
 
@@ -1565,7 +1602,7 @@ app.post('/api/foxy/callback', async (req, res) => {
     }
 });
 
-app.post('/h2h/order', protectH2H, async (req, res) => {
+app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -1687,7 +1724,7 @@ app.post('/h2h/order', protectH2H, async (req, res) => {
     }
 });
 
-app.get('/h2h/products', protectH2H, async (req, res) => {
+app.get('/h2h/products', protectH2HIp, protectH2H, async (req, res) => {
     try {
         const h2hPartner = req.user;
         const partnerRoleName = h2hPartner.role_name.toLowerCase();

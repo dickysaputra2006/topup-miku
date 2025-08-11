@@ -307,7 +307,7 @@ function forceLogout(message) {
         if (!response.ok) throw new Error('Gagal memuat IP.');
         const ips = await response.json();
 
-        ipInput.value = ips.join(', ');
+        // ipInput.value = ips.join(', ');
         ipListContainer.innerHTML = '';
         if (ips.length > 0) {
             ips.forEach(ip => {
