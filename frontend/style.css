@@ -1798,19 +1798,30 @@ color: green;
     width: auto; /* Lebar tombol menyesuaikan teks */
     white-space: nowrap; /* Mencegah teks tombol turun baris */
 }
-/* === STYLE BARU UNTUK FORM SEJAJAR DI DASHBOARD === */
+/* === STYLE UNTUK FORM SEJAJAR DI DASHBOARD (DIPERBAIKI) === */
 .form-row-container {
     display: flex;
     gap: 1rem;
     align-items: center;
 }
+
 .form-row-container input {
     flex-grow: 1; /* Membuat input mengambil sisa ruang */
-    margin-bottom: 0 !important; /* Menghapus margin bawah default dari input */
+    margin-bottom: 0 !important;
+    
+    /* ▼▼▼ PENYESUAIAN UKURAN ▼▼▼ */
+    padding: 0.8rem 1rem; /* Perbesar padding vertikal & horizontal */
+    font-size: 1rem;      /* Perbesar ukuran font di dalam input */
+    height: auto;         /* Biarkan tinggi menyesuaikan padding */
 }
+
 .form-row-container button {
     width: auto; /* Lebar tombol menyesuaikan teks */
-    white-space: nowrap; /* Mencegah teks tombol turun baris */
+    white-space: nowrap;
+    
+    /* ▼▼▼ PENYESUAIAN UKURAN TOMBOL AGAR SERASI ▼▼▼ */
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
 }
 /* Style untuk input field di dashboard agar seragam */
 .dashboard-input {

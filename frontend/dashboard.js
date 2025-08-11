@@ -469,17 +469,58 @@ function forceLogout(message) {
     }
     
     if (whitelistIpForm) {
-        whitelistIpForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const input = document.getElementById('whitelist-ip-input');
-            // Ubah string menjadi array, bersihkan spasi, dan buang entri kosong
-            const ips = input.value.split(',').map(ip => ip.trim()).filter(ip => ip);
+    whitelistIpForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = document.getElementById('whitelist-ip-input');
+        
+        // Ambil daftar IP yang sudah ada dari tampilan tag
+        const existingIpTags = document.querySelectorAll('#current-ips-list .ip-tag span');
+        const existingIps = Array.from(existingIpTags).map(tag => tag.textContent);
+
+        // Ambil IP baru dari input, bersihkan, dan gabungkan dengan yang lama (hindari duplikat)
+        const newIpsFromInput = input.value.split(',').map(ip => ip.trim()).filter(ip => ip);
+        const combinedIps = [...new Set([...existingIps, ...newIpsFromInput])];
+
+        try {
+            const response = await fetch(`${API_URL}/whitelisted-ips`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ips: combinedIps })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            
+            alert(result.message);
+            fetchAndDisplayWhitelistedIPs(); // Muat ulang daftar IP
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        }
+    });
+}
+
+    if (currentIpsList) {
+    currentIpsList.addEventListener('click', async (e) => {
+        // Pastikan yang diklik adalah tombol hapus
+        if (e.target.matches('.ip-tag-delete, .ip-tag-delete *')) {
+            const button = e.target.closest('.ip-tag-delete');
+            const ipToDelete = button.dataset.ip;
+            
+            if (!confirm(`Anda yakin ingin menghapus IP "${ipToDelete}" dari whitelist?`)) {
+                return;
+            }
+
+            // Ambil semua IP yang ada SAAT INI dari tampilan tag
+            const currentIpTags = document.querySelectorAll('#current-ips-list .ip-tag span');
+            const currentIps = Array.from(currentIpTags).map(tag => tag.textContent);
+            
+            // Buat array baru TANPA IP yang ingin dihapus
+            const newIps = currentIps.filter(ip => ip !== ipToDelete);
 
             try {
                 const response = await fetch(`${API_URL}/whitelisted-ips`, {
                     method: 'PUT',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ips: ips })
+                    body: JSON.stringify({ ips: newIps }) // Kirim array yang sudah diperbarui
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
@@ -489,38 +530,9 @@ function forceLogout(message) {
             } catch (error) {
                 alert(`Error: ${error.message}`);
             }
-        });
-    }
-
-    if (currentIpsList) {
-        currentIpsList.addEventListener('click', async (e) => {
-            if (e.target.classList.contains('ip-tag-delete')) {
-                const ipToDelete = e.target.dataset.ip;
-                if (!confirm(`Anda yakin ingin menghapus IP "${ipToDelete}" dari whitelist?`)) {
-                    return;
-                }
-
-                const input = document.getElementById('whitelist-ip-input');
-                const currentIps = input.value.split(',').map(ip => ip.trim()).filter(ip => ip);
-                const newIps = currentIps.filter(ip => ip !== ipToDelete);
-
-                try {
-                    const response = await fetch(`${API_URL}/whitelisted-ips`, {
-                        method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ips: newIps })
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.message);
-
-                    alert(result.message);
-                    fetchAndDisplayWhitelistedIPs(); // Muat ulang daftar IP
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                }
-            }
-        });
-    }
+        }
+    });
+}
 
     if (cekPesananForm) {
         cekPesananForm.addEventListener('submit', async (e) => {
