@@ -44,13 +44,14 @@ document.addEventListener('click', function (event) {
     const apiKeyDisplay = document.getElementById('api-key-display');
     const cekPesananForm = document.getElementById('cek-pesanan-form');
     const hasilCekPesanan = document.getElementById('hasil-cek-pesanan');
+    const whitelistIpForm = document.getElementById('whitelist-ip-form');
     
     let apiKeyFetched = false;
     let mutasiLoaded = false;
     let transaksiLoaded = false;
     let depositFormSetup = false;
 
-// --- FUNGSI BARU UNTUK NOTIFIKASI DAN LOGOUT OTOMATIS ---
+
 
 // Fungsi untuk menampilkan notifikasi melayang
 function showToast(message) {
@@ -229,28 +230,57 @@ function forceLogout(message) {
     } catch (error) {
         tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">${error.message}</td></tr>`;
     }
-}
-
-function renderMutasiTable(history, tableBody) {
-    if (!tableBody) return;
-    tableBody.innerHTML = '';
-    if (history.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Belum ada riwayat mutasi.</td></tr>';
-        return;
     }
-    history.forEach(item => {
-        const row = document.createElement('tr');
-        const amountClass = item.amount > 0 ? 'amount-in' : 'amount-out';
-        const amountSign = item.amount > 0 ? '+' : '';
-        row.innerHTML = `
-            <td>${new Date(item.created_at).toLocaleString('id-ID')}</td>
-            <td><span class="badge type-${item.type.toLowerCase()}">${item.type}</span></td>
-            <td>${item.description}</td>
-            <td class="${amountClass}">${amountSign} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(item.amount)}</td>
-        `;
-        tableBody.appendChild(row);
-    });
-}
+
+    function renderMutasiTable(history, tableBody) {
+        if (!tableBody) return;
+        tableBody.innerHTML = '';
+        if (history.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Belum ada riwayat mutasi.</td></tr>';
+            return;
+        }
+        history.forEach(item => {
+            const row = document.createElement('tr');
+            const amountClass = item.amount > 0 ? 'amount-in' : 'amount-out';
+            const amountSign = item.amount > 0 ? '+' : '';
+            row.innerHTML = `
+                <td>${new Date(item.created_at).toLocaleString('id-ID')}</td>
+                <td><span class="badge type-${item.type.toLowerCase()}">${item.type}</span></td>
+                <td>${item.description}</td>
+                <td class="${amountClass}">${amountSign} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(item.amount)}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    async function fetchAndDisplayWhitelistedIPs() {
+        const ipListContainer = document.getElementById('current-ips-list');
+        const ipInput = document.getElementById('whitelist-ip-input');
+        if (!ipListContainer || !ipInput) return;
+
+        try {
+            const response = await fetch(`${API_URL}/whitelisted-ips`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) throw new Error('Gagal memuat IP.');
+            const ips = await response.json();
+
+            // Tampilkan di input field dan di daftar
+            ipInput.value = ips.join(', ');
+            ipListContainer.innerHTML = '';
+            if (ips.length > 0) {
+                ips.forEach(ip => {
+                    const ipTag = document.createElement('span');
+                    ipTag.className = 'status-badge'; // Memakai style yang sudah ada
+                    ipTag.textContent = ip;
+                    ipListContainer.appendChild(ipTag);
+                });
+            } else {
+                ipListContainer.innerHTML = '<p style="color: #aaa;">Belum ada IP yang didaftarkan.</p>';
+            }
+        } catch (error) {
+            console.error(error);
+            ipListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
+        }
+    }
 
 
 
@@ -277,6 +307,7 @@ function renderMutasiTable(history, tableBody) {
 
                 if (targetId === 'integrasi' && !apiKeyFetched) {
                     fetchApiKey();
+                    fetchAndDisplayWhitelistedIPs();
                 }  
 
                 if (targetId === 'mutasi-saldo' && !mutasiLoaded) {
@@ -391,7 +422,30 @@ function renderMutasiTable(history, tableBody) {
         });
     }
     
-    // --- LOGIKA BARU UNTUK FITUR CEK PESANAN ---
+    if (whitelistIpForm) {
+        whitelistIpForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('whitelist-ip-input');
+            // Ubah string menjadi array, bersihkan spasi, dan buang entri kosong
+            const ips = input.value.split(',').map(ip => ip.trim()).filter(ip => ip);
+
+            try {
+                const response = await fetch(`${API_URL}/whitelisted-ips`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ips: ips })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+
+                alert(result.message);
+                fetchAndDisplayWhitelistedIPs(); // Muat ulang daftar IP
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        });
+    }
+
     if (cekPesananForm) {
         cekPesananForm.addEventListener('submit', async (e) => {
             e.preventDefault();

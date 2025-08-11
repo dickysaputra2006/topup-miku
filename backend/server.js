@@ -459,6 +459,37 @@ app.post('/api/user/notifications/mark-as-read', protect, async (req, res) => {
     }
 });
 
+// Endpoint untuk menambahkan IP yang di-whitelist
+app.get('/api/user/whitelisted-ips', protect, async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT whitelisted_ips FROM users WHERE id = $1', [req.user.id]);
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+        }
+        // Kirim array IP, atau array kosong jika belum ada
+        res.json(rows[0].whitelisted_ips || []);
+    } catch (error) {
+        console.error('Error fetching whitelisted IPs:', error);
+        res.status(500).json({ message: 'Gagal mengambil data IP.' });
+    }
+});
+
+// Memperbarui daftar IP yang di-whitelist oleh pengguna
+app.put('/api/user/whitelisted-ips', protect, async (req, res) => {
+    try {
+        const { ips } = req.body;
+        // Validasi sederhana: pastikan data yang dikirim adalah array
+        if (!Array.isArray(ips)) {
+            return res.status(400).json({ message: 'Format data tidak valid, harus berupa array.' });
+        }
+        await pool.query('UPDATE users SET whitelisted_ips = $1 WHERE id = $2', [ips, req.user.id]);
+        res.json({ message: 'Daftar IP berhasil diperbarui.' });
+    } catch (error) {
+        console.error('Error updating whitelisted IPs:', error);
+        res.status(500).json({ message: 'Gagal memperbarui daftar IP.' });
+    }
+});
+
 // === DEPOSIT ENDPOINTS ===
 app.post('/api/deposit/request', protect, async (req, res) => {
     const client = await pool.connect(); // Menggunakan client dari pool untuk transaksi

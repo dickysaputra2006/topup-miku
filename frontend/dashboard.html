@@ -172,6 +172,22 @@
                         <strong>Peringatan:</strong> Jaga kerahasiaan API Key Anda. Key yang baru akan menggantikan yang lama secara permanen.
                     </p>
                 </div>
+
+                <div class="card" style="margin-top: 2rem;">
+                    <h3>Whitelist IP Address</h3>
+                    <p class="form-description">Tambahkan alamat IP server Anda untuk mengamankan akses API H2H. Pisahkan beberapa IP dengan koma.</p>
+                    <form id="whitelist-ip-form">
+                        <input type="text" id="whitelist-ip-input" placeholder="Contoh: 192.168.1.1, 10.0.0.1">
+                        <button type="submit" class="topup-btn" style="width: 100%; margin-top: 1rem;">Simpan Alamat IP</button>
+                    </form>
+                    <div id="current-ips-container" style="margin-top: 1.5rem;">
+                        <p><strong>IP yang Terdaftar Saat Ini:</strong></p>
+                        <div id="current-ips-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            <p>Memuat...</p>
+                        </div>
+                    </div>
+                </div>
+
             </section>
         </main>
     </div>
