@@ -30,6 +30,20 @@ Silakan gunakan perintah di bawah ini:
     bot.sendMessage(chatId, menuMessage, { parse_mode: 'Markdown' });
 };
 
+const sendAdminNotification = async (message) => {
+    const adminId = process.env.ADMIN_TELEGRAM_ID;
+    if (!adminId) {
+        console.error("ADMIN_TELEGRAM_ID tidak diatur. Tidak bisa mengirim notifikasi.");
+        return;
+    }
+    try {
+        await bot.sendMessage(adminId, `🚨 **Peringatan Sistem** 🚨\n\n${message}`, { parse_mode: 'Markdown' });
+    } catch (error) {
+        console.error(`Gagal mengirim notifikasi ke admin: ${error.message}`);
+    }
+};
+
+
 const sendPaginatedPriceList = async (chatId, gameName, page = 1, messageId = null) => {
     try {
         const response = await axios.get(`${apiUrl}/api/public/bot-products/${encodeURIComponent(gameName)}`);
@@ -177,3 +191,4 @@ bot.on('callback_query', async (callbackQuery) => {
 });
 
 console.log('Bot Telegram MIKU Store berjalan...');
+module.exports = { sendAdminNotification };

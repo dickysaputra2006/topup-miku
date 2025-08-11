@@ -1,4 +1,5 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+const { sendAdminNotification } = require('./botTele.js');
 const { Pool } = require('pg');
 const axios = require('axios');
 
@@ -210,8 +211,13 @@ async function runAllCronJobs() {
         await checkPendingTransactions();
         await syncProductsWithFoxy();
         console.log('All cron jobs completed successfully.');
+
+        await sendAdminNotification('✅ Semua cron job (Cek Transaksi & Sinkronisasi Produk) berhasil dijalankan tanpa error.');
+
     } catch (error) {
+        const errorMessage = `Sebuah cron job gagal dijalankan.\n\n**Error:**\n\`\`\`\n${error.message}\n\`\`\``;
         console.error('One or more cron jobs failed:', error);
+        await sendAdminNotification(errorMessage);
         throw error;
     }
 }
