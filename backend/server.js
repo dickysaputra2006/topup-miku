@@ -280,6 +280,12 @@ const protectH2H = async (req, res, next) => {
 };
 
 const protectH2HIp = async (req, res, next) => {
+    const requestIp = req.ip;
+    
+    if (requestIp === '::1' || requestIp === '127.0.0.1') {
+        return next();
+    }
+
     const apiKey = req.headers['x-api-key'];
     if (!apiKey) {
         return next();
