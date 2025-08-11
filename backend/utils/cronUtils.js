@@ -1,9 +1,8 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
-const { sendAdminNotification } = require('./botTele.js');
 const { Pool } = require('pg');
 const axios = require('axios');
 
-// --- KONFIGURASI DATABASE UNTUK CRON JOB ---
+// --- KONFIGURASI DATABASE ---
 const dbConfig = {
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
@@ -14,17 +13,15 @@ const dbConfig = {
 };
 const pool = new Pool(dbConfig);
 
-// --- KONFIGURASI FOXY API UNTUK CRON JOB ---
+// --- KONFIGURASI FOXY API ---
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
 
-// Konfigurasi headers default untuk semua panggilan ke Foxy
 const foxyApiHeaders = { 
     'Authorization': FOXY_API_KEY,
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
     'Referer': 'https://www.foxygamestore.com/'
 };
-
 
 // ========================================================================
 // === FUNGSI: CEK STATUS TRANSAKSI PENDING ===
@@ -211,14 +208,10 @@ async function runAllCronJobs() {
         await checkPendingTransactions();
         await syncProductsWithFoxy();
         console.log('All cron jobs completed successfully.');
-
-        await sendAdminNotification('✅ Semua cron job (Cek Transaksi & Sinkronisasi Produk) berhasil dijalankan tanpa error.');
-
     } catch (error) {
-        const errorMessage = `Sebuah cron job gagal dijalankan.\n\n**Error:**\n\`\`\`\n${error.message}\n\`\`\``;
         console.error('One or more cron jobs failed:', error);
-        await sendAdminNotification(errorMessage);
-        throw error;
+        // Lemparkan error agar bisa ditangkap oleh pemanggil
+        throw error; 
     }
 }
 
