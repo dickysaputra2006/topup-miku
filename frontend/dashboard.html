@@ -160,35 +160,46 @@
             </section>
             
             <section id="integrasi" class="dashboard-section hidden">
-                <div class="card">
-                    <h3>Integrasi API (H2H)</h3>
-                    <p>Gunakan API Key di bawah ini untuk menghubungkan sistem atau bot Anda ke layanan kami.</p>
-                    <div class="api-key-container">
-                        <p>API Key Anda:</p>
-                        <code id="api-key-display">Belum ada. Klik tombol untuk membuat.</code>
+            <div class="card">
+                <h3>Key & Dokumentasi</h3>
+                <p class="form-description" style="text-align: left;">Gunakan API Key di bawah ini untuk menghubungkan sistem atau bot Anda ke layanan kami.</p>
+                
+                <div class="api-key-wrapper">
+                    <code id="api-key-display">Memuat...</code>
+                    <div class="api-key-actions">
+                        <button id="toggle-apikey-btn" class="api-key-action-btn" title="Lihat/Sembunyikan Key">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button id="copy-apikey-btn" class="api-key-action-btn" title="Salin Key">
+                            <i class="fas fa-copy"></i>
+                        </button>
                     </div>
-                    <button id="generate-api-key-btn" class="topup-btn" style="max-width: 300px; margin-top: 1rem;">Buat / Buat Ulang API Key</button>
-                    <p class="form-description" style="color: #ffc107; margin-top: 1rem;">
-                        <strong>Peringatan:</strong> Jaga kerahasiaan API Key Anda. Key yang baru akan menggantikan yang lama secara permanen.
-                    </p>
                 </div>
+                <p class="form-description" style="text-align: left; color: #ffc107; margin-top: 1rem;">
+                    <strong>Peringatan:</strong> Jaga kerahasiaan API Key Anda.
+                </p>
+                <div class="center-btn" style="justify-content: flex-start; margin-top: 1rem;">
+                    <button id="generate-api-key-btn" class="topup-btn">Buat / Buat Ulang API Key</button>
+                    <a href="#" class="edit-btn" style="text-decoration: none;">Dokumentasi</a>
+                </div>
+            </div>
 
-                <div class="card" style="margin-top: 2rem;">
-                    <h3>Whitelist IP Address</h3>
-                    <p class="form-description">Tambahkan alamat IP server Anda untuk mengamankan akses API H2H. Pisahkan beberapa IP dengan koma.</p>
-                    <form id="whitelist-ip-form">
-                        <input type="text" id="whitelist-ip-input" placeholder="Contoh: 192.168.1.1, 10.0.0.1">
-                        <button type="submit" class="topup-btn" style="width: 100%; margin-top: 1rem;">Simpan Alamat IP</button>
-                    </form>
-                    <div id="current-ips-container" style="margin-top: 1.5rem;">
-                        <p><strong>IP yang Terdaftar Saat Ini:</strong></p>
-                        <div id="current-ips-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
-                            <p>Memuat...</p>
+            <div class="card">
+                <h3>Whitelist IP Address</h3>
+                <p class="form-description" style="text-align: left;">Tambahkan alamat IP server Anda untuk mengamankan akses API H2H. Pisahkan beberapa IP dengan koma.</p>
+                <form id="whitelist-ip-form">
+                    <input type="text" id="whitelist-ip-input" placeholder="Contoh: 192.168.1.1, 10.0.0.1">
+                    <div id="current-ips-container" style="margin-top: 1rem;">
+                        <p><strong>IP yang Terdaftar:</strong></p>
+                        <div id="current-ips-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem; min-height: 24px;">
+                            <p style="color: #aaa;">Memuat...</p>
                         </div>
                     </div>
-                </div>
-
+                    <button type="submit" class="topup-btn" style="width: 100%; margin-top: 1.5rem;">Simpan Alamat IP</button>
+                </form>
+            </div>
             </section>
+        
         </main>
     </div>
     

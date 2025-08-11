@@ -1738,3 +1738,44 @@ color: green;
 #manual-price-fields input {
     margin-top: 0;
 }
+/* === STYLE BARU UNTUK HALAMAN INTEGRASI === */
+.api-key-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+}
+
+#api-key-display {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1rem;
+    color: #a7a9be;
+    word-break: break-all;
+}
+
+.api-key-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.api-key-action-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    color: #a7a9be;
+    cursor: pointer;
+    border-radius: 5px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.api-key-action-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}

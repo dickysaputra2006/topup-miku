@@ -202,19 +202,62 @@ function forceLogout(message) {
     }
 
     async function fetchApiKey() {
-        if (!apiKeyDisplay) return;
-        apiKeyDisplay.textContent = 'Memuat...';
-        try {
-            const response = await fetch(`${API_URL}/apikey`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!response.ok) throw new Error('Gagal mengambil API Key.');
-            const data = await response.json();
-            
-            apiKeyDisplay.textContent = data.apiKey ? data.apiKey : 'Belum ada. Klik tombol untuk membuat.';
-            apiKeyFetched = true;
-        } catch (error) {
-            console.error(error);
-            apiKeyDisplay.textContent = 'Gagal memuat API Key.';
+    if (!apiKeyDisplay) return;
+    
+    // Deklarasi elemen baru
+    const toggleBtn = document.getElementById('toggle-apikey-btn');
+    const copyBtn = document.getElementById('copy-apikey-btn');
+    let fullApiKey = '';
+    let isKeyVisible = false;
+
+    apiKeyDisplay.textContent = 'Memuat...';
+
+    // Fungsi untuk update tampilan key (bintang-bintang atau teks asli)
+    function updateKeyVisibility() {
+        if (isKeyVisible) {
+            apiKeyDisplay.textContent = fullApiKey;
+            toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+        } else {
+            apiKeyDisplay.textContent = '•'.repeat(fullApiKey.length > 0 ? 32 : 0);
+            toggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
         }
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/apikey`, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!response.ok) throw new Error('Gagal mengambil API Key.');
+        const data = await response.json();
+        
+        fullApiKey = data.apiKey || 'Belum ada. Klik tombol untuk membuat.';
+        apiKeyFetched = true;
+        updateKeyVisibility(); // Tampilkan key dalam bentuk tersembunyi
+
+    } catch (error) {
+        console.error(error);
+        apiKeyDisplay.textContent = 'Gagal memuat API Key.';
+    }
+
+    // Event listener untuk tombol hide/view
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            isKeyVisible = !isKeyVisible;
+            updateKeyVisibility();
+        });
+    }
+
+    // Event listener untuk tombol copy
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            if (fullApiKey && !fullApiKey.startsWith('Belum ada')) {
+                navigator.clipboard.writeText(fullApiKey).then(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-check"></i>';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                    }, 2000);
+                });
+            }
+        });
+    }
     }
 
     async function fetchBalanceHistory() {
