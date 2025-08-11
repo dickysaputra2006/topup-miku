@@ -1,4 +1,4 @@
-require('dotenv').config();
+
 const rateLimit = require('express-rate-limit');
 const express = require('express');
 const fs = require('fs').promises;
