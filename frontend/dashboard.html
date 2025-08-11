@@ -109,7 +109,7 @@
                         <form id="deposit-form">
                             <label for="amount">Masukan Jumlah Deposit</label>
                             <div class="form-row-container">
-                                <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" required>
+                                <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" required class="dashboard-input">
                                 <button type="submit" class="btn-submit-deposit">Buat Permintaan</button>
                             </div>
                             <p class="form-description deposit-note">Minimum deposit adalah Rp 10.000.</p>
@@ -149,7 +149,7 @@
                     <h3>Cek Pesanan</h3>
                     <p class="form-description">Masukkan Nomor Invoice Anda untuk melihat detail transaksi.</p>
                     <form id="cek-pesanan-form" class="form-row-container">
-                        <input type="text" id="invoice-search-input" placeholder="Contoh: TRX-1234567890" required>
+                       <input type="text" id="invoice-search-input" placeholder="Contoh: TRX-1234567890" required class="dashboard-input">
                         <button type="submit" class="btn-submit-deposit">Cari Transaksi</button>
                     </form>
                     </div>
@@ -187,7 +187,7 @@
                 <p class="form-description" style="text-align: left;">Tambahkan alamat IP server Anda untuk mengamankan akses API H2H. Pisahkan beberapa IP dengan koma.</p>
                 
                 <form id="whitelist-ip-form" class="ip-form-container">
-                    <input type="text" id="whitelist-ip-input" placeholder="Contoh: 192.168.1.1, 10.0.0.1">
+                    <input type="text" id="whitelist-ip-input" placeholder="Contoh: 192.168.1.1, 10.0.0.1" class="dashboard-input">
                     <button type="submit" class="topup-btn">Simpan IP</button>
                 </form>
                 <div id="current-ips-container" style="margin-top: 1.5rem;">

@@ -1812,3 +1812,47 @@ color: green;
     width: auto; /* Lebar tombol menyesuaikan teks */
     white-space: nowrap; /* Mencegah teks tombol turun baris */
 }
+/* Style untuk input field di dashboard agar seragam */
+.dashboard-input {
+    background-color: var(--bg-dark) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-color) !important;
+    font-size: 1rem !important;
+}
+.dashboard-input::placeholder {
+    color: #8b96a8;
+}
+
+/* Style untuk container tag IP */
+#current-ips-list {
+    min-height: 38px;
+    padding-top: 0.5rem;
+}
+
+/* Style untuk setiap tag IP */
+.ip-tag {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--primary-color);
+    color: var(--primary-color);
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+/* Style untuk tombol hapus (x) di dalam tag IP */
+.ip-tag-delete {
+    background: none;
+    border: none;
+    color: #ff7aa3;
+    margin-left: 0.5rem;
+    cursor: pointer;
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1;
+}
+.ip-tag-delete:hover {
+    color: #ffffff;
+}
