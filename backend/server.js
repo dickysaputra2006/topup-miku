@@ -266,32 +266,30 @@ const protectH2H = async (req, res, next) => {
 const protectH2HIp = async (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     if (!apiKey) {
-        // Biarkan middleware protectH2H yang menangani jika tidak ada API Key
         return next();
     }
 
     try {
-        // 1. Dapatkan IP asli dari permintaan
+        // --- LOGIKA BARU UNTUK MENDAPATKAN IP ASLI ---
+        // req.ip sudah cukup pintar jika 'trust proxy' diaktifkan.
+        // Kita tambahkan console.log untuk debugging.
         const requestIp = req.ip;
+        console.log(`[IP Whitelist] Mengecek permintaan dari IP: ${requestIp}`);
+        // --- AKHIR LOGIKA BARU ---
 
-        // 2. Cari pengguna berdasarkan API Key untuk mendapatkan daftar IP-nya
         const { rows } = await pool.query('SELECT whitelisted_ips FROM users WHERE api_key = $1', [apiKey]);
 
         if (rows.length > 0) {
             const user = rows[0];
             const allowedIps = user.whitelisted_ips;
 
-            // 3. Lakukan pengecekan
-            // Jika daftar IP ada dan tidak kosong, maka lakukan validasi
             if (Array.isArray(allowedIps) && allowedIps.length > 0) {
                 if (!allowedIps.includes(requestIp)) {
-                    // Jika IP tidak ada di daftar, tolak akses
                     console.warn(`[IP Whitelist] Akses DITOLAK untuk IP: ${requestIp} (API Key: ...${apiKey.slice(-4)})`);
                     return res.status(403).json({ success: false, message: 'Alamat IP Anda tidak diizinkan.' });
                 }
             }
         }
-        // Jika IP diizinkan atau pengguna tidak mengatur whitelist, lanjutkan
         next();
     } catch (error) {
         console.error('Error di middleware IP Whitelist:', error);
