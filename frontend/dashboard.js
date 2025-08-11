@@ -492,6 +492,7 @@ function forceLogout(message) {
             
             alert(result.message);
             fetchAndDisplayWhitelistedIPs(); // Muat ulang daftar IP
+            input.value = '';
         } catch (error) {
             alert(`Error: ${error.message}`);
         }

@@ -1784,20 +1784,6 @@ color: green;
   display: flex;
   gap: 1rem; /* Properti ini akan memberi jarak 1rem antar item di dalamnya */
 }
-/* Merapikan form Whitelist IP di halaman Integrasi */
-.ip-form-container {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-}
-.ip-form-container input {
-    flex-grow: 1; /* Membuat input mengambil sisa ruang */
-    margin-bottom: 0; /* Menghapus margin bawah default dari input */
-}
-.ip-form-container button {
-    width: auto; /* Lebar tombol menyesuaikan teks */
-    white-space: nowrap; /* Mencegah teks tombol turun baris */
-}
 /* === STYLE UNTUK FORM SEJAJAR DI DASHBOARD (DIPERBAIKI) === */
 .form-row-container {
     display: flex;
