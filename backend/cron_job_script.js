@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, './.env') });
 const { runAllCronJobs } = require('./utils/cronUtils.js');
 const axios = require('axios');
 
@@ -19,7 +19,7 @@ async function sendTelegramNotification(message) {
 runAllCronJobs()
     .then(() => {
         console.log('Main Cron job finished successfully.');
-        sendTelegramNotification('✅ Semua cron job berhasil dijalankan.');
+        sendTelegramNotification('✅ Cron job berhasil dijalankan.');
         process.exit(0);
     })
     .catch(error => {

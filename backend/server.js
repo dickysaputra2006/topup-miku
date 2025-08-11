@@ -200,22 +200,6 @@ app.post('/api/auth/reset-password', async (req, res) => {
     }
 });
 
-// Endpoint internal KHUSUS untuk cron job mengirim notifikasi
-app.post('/api/internal/notify-admin', (req, res) => {
-    const { message, secret } = req.body;
-    // Kunci rahasia untuk memastikan hanya cron job yang bisa mengakses
-    if (secret !== process.env.CRON_SECRET) {
-        return res.status(403).json({ message: 'Akses ditolak.' });
-    }
-    if (!message) {
-        return res.status(400).json({ message: 'Pesan tidak boleh kosong.' });
-    }
-
-    // Panggil fungsi notifikasi dari bot yang sedang berjalan
-    sendAdminNotification(message);
-    
-    res.status(200).json({ success: true, message: 'Notifikasi sedang dikirim.' });
-});
 // === MIDDLEWARE ===
 const protect = (req, res, next) => {
     const authHeader = req.headers.authorization;
