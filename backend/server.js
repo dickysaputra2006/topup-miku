@@ -20,7 +20,6 @@ app.set('trust proxy', 1); // untuk mendapatkan IP asli di belakang proxy
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const BOT_PRODUCT_BLACKLIST = ['FXGT', 'Via Login', 'Gifts'];
-const { sendAdminNotification } = require('./botTele.js');
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
