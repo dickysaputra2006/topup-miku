@@ -1853,3 +1853,52 @@ color: green;
 .ip-tag-delete:hover {
     color: #ffffff;
 }
+/* === PERBAIKAN RESPONSIVE DASHBOARD (B1) === */
+
+@media (max-width: 768px) {
+    /* Perkecil padding di semua kartu dashboard */
+    .dashboard-content .card {
+        padding: 1rem;
+    }
+
+    /* Perkecil ukuran judul h3 di dalam dashboard */
+    .dashboard-content h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Perkecil ukuran font saldo utama */
+    .balance-amount {
+        font-size: 2rem;
+    }
+
+    /* Buat form sejajar (input & tombol) menjadi vertikal di HP */
+    .form-row-container {
+        flex-direction: column;
+        align-items: stretch; /* Membuat input dan tombol selebar kontainer */
+        gap: 0.8rem;
+    }
+
+    .form-row-container button {
+        width: 100%;
+    }
+
+    /* Membuat tabel bisa di-scroll horizontal di dalam kotaknya */
+    .table-container {
+        overflow-x: auto;
+        /* Tambahkan border untuk memberi petunjuk bahwa area ini bisa di-scroll */
+        border: 1px solid var(--border-color);
+        border-radius: 5px;
+    }
+
+    /* Perkecil ukuran teks dan padding di dalam tabel */
+    table th, table td {
+        padding: 0.6rem 0.8rem;
+        font-size: 0.85rem;
+    }
+
+    /* Perbaikan spesifik untuk tombol hapus IP agar tidak terlalu besar */
+    .ip-tag-delete {
+        font-size: 0.9rem;
+    }
+}
