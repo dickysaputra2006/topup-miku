@@ -108,11 +108,11 @@
                         <h3>Deposit Saldo</h3>
                         <form id="deposit-form">
                             <label for="amount">Masukan Jumlah Deposit</label>
-                            <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" required>
-                            <p class="form-description deposit-note">Minimum deposit adalah Rp 10.000.</p>
-                            <div class="center-btn">
-                            <button type="submit" class="btn-submit-deposit">Buat Permintaan Deposit</button>
+                            <div class="form-row-container">
+                                <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" required>
+                                <button type="submit" class="btn-submit-deposit">Buat Permintaan</button>
                             </div>
+                            <p class="form-description deposit-note">Minimum deposit adalah Rp 10.000.</p>
                         </form>
                     </div>
                     <div id="payment-instructions" class="card payment-instructions-section hidden">
@@ -148,13 +148,11 @@
                 <div class="card">
                     <h3>Cek Pesanan</h3>
                     <p class="form-description">Masukkan Nomor Invoice Anda untuk melihat detail transaksi.</p>
-                    <form id="cek-pesanan-form">
+                    <form id="cek-pesanan-form" class="form-row-container">
                         <input type="text" id="invoice-search-input" placeholder="Contoh: TRX-1234567890" required>
-                        <div class="center-btn">
-                            <button type="submit" class="btn-submit-deposit">Cari Transaksi</button>
-                        </div>
+                        <button type="submit" class="btn-submit-deposit">Cari Transaksi</button>
                     </form>
-                </div>
+                    </div>
                 <div id="hasil-cek-pesanan" class="card hidden" style="margin-top: 2rem;">
                     </div>
             </section>
@@ -187,16 +185,17 @@
             <div class="card">
                 <h3>Whitelist IP Address</h3>
                 <p class="form-description" style="text-align: left;">Tambahkan alamat IP server Anda untuk mengamankan akses API H2H. Pisahkan beberapa IP dengan koma.</p>
-                <form id="whitelist-ip-form">
+                
+                <form id="whitelist-ip-form" class="ip-form-container">
                     <input type="text" id="whitelist-ip-input" placeholder="Contoh: 192.168.1.1, 10.0.0.1">
-                    <div id="current-ips-container" style="margin-top: 1rem;">
-                        <p><strong>IP yang Terdaftar:</strong></p>
-                        <div id="current-ips-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem; min-height: 24px;">
-                            <p style="color: #aaa;">Memuat...</p>
-                        </div>
-                    </div>
-                    <button type="submit" class="topup-btn" style="width: 100%; margin-top: 1.5rem;">Simpan Alamat IP</button>
+                    <button type="submit" class="topup-btn">Simpan IP</button>
                 </form>
+                <div id="current-ips-container" style="margin-top: 1.5rem;">
+                    <p><strong>IP yang Terdaftar:</strong></p>
+                    <div id="current-ips-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem; min-height: 24px;">
+                        <p style="color: #aaa;">Memuat...</p>
+                    </div>
+                </div>
             </div>
             </section>
         
