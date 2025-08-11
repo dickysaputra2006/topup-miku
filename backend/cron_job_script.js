@@ -2,7 +2,7 @@
 const { runAllCronJobs } = require('./utils/cronUtils.js'); 
 
 // 2. Impor fungsi notifikasi dari bot (dengan path yang benar)
-const { sendAdminNotification } = require('./utils/botTele.js'); 
+const { sendAdminNotification } = require('./botTele.js'); 
 
 // 3. Jalankan fungsi dan tangani hasilnya
 runAllCronJobs()
