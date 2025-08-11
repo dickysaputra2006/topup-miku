@@ -1,7 +1,8 @@
+const path = require('path');
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
-const path = require('path');
+
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 const adminApiKey = process.env.ADMIN_API_KEY;
