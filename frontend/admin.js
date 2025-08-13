@@ -642,13 +642,14 @@ if (marginForm) {
         if (document.getElementById('promo-allowed-products').value) rules.allowed_product_ids = document.getElementById('promo-allowed-products').value.split(',').map(id => parseInt(id.trim()));
 
         const data = {
-            code: document.getElementById('promo-code').value,
-            description: document.getElementById('promo-description').value,
-            type: document.getElementById('promo-type').value,
-            value: parseFloat(document.getElementById('promo-value').value),
-            expires_at: document.getElementById('promo-expires').value || null,
-            rules: rules
-        };
+                code: document.getElementById('promo-code').value,
+                description: document.getElementById('promo-description').value,
+                type: document.getElementById('promo-type').value,
+                value: parseFloat(document.getElementById('promo-value').value),
+                max_uses: parseInt(document.getElementById('promo-max-uses').value) || null,
+                expires_at: document.getElementById('promo-expires').value || null,
+                rules: rules
+            };
 
         try {
             const response = await fetch(`${ADMIN_API_URL}/promos`, {

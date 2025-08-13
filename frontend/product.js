@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
         serverInputContainer.innerHTML = ''; 
 
         if (data.game.needs_server_id) {
+            orderForm.classList.remove('single-input');
             // Panggil API untuk cek apakah ada daftar server tetap
             const serverListResponse = await fetch(`${PUBLIC_API_URL}/games/${gameId}/servers`);
             const serverList = await serverListResponse.json();
@@ -121,10 +122,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         ${optionsHtml}
                     </select>
                 `;
-            } else {
+           } else {
                 // Jika tidak ada, buat input teks biasa
                 serverInputContainer.innerHTML = `<input type="text" id="target-server-id" placeholder="Masukkan Server ID" required>`;
             }
+        } else {
+            // TAMBAHAN: Tambahkan kelas .single-input jika game TIDAK butuh server
+            orderForm.classList.add('single-input');
         }
        
 
@@ -487,17 +491,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 }
 
-    if (applyPromoBtn) {
+if (applyPromoBtn) {
     applyPromoBtn.addEventListener('click', async () => {
-        const code = promoCodeInput.value;
+        // Mengambil kode promo dan membersihkan spasi di awal/akhir
+        const code = promoCodeInput.value.trim();
+
+        // PENCEGAHAN: Hentikan fungsi jika input kode promo kosong untuk menghindari error
+        if (!code) {
+            promoResultEl.innerHTML = `<span class="error"><i class="fas fa-times-circle"></i> Harap masukkan kode promo.</span>`;
+            return; 
+        }
+
         const targetId = targetGameIdInput.value;
-        if (!code || !selectedProductId || !targetId) {
+        if (!selectedProductId || !targetId) {
             alert('Pilih produk dan isi User ID terlebih dahulu!');
             return;
         }
-
-        applyPromoBtn.disabled = true;
-        applyPromoBtn.textContent = '...';
 
         try {
             const response = await fetch('/api/promos/validate', {
@@ -512,16 +521,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);
 
-            appliedPromo = result; // Simpan hasil promo yang valid
-            updatePrice(); // Perbarui harga
+            appliedPromo = result;
+            updatePrice(); 
 
         } catch (error) {
-            appliedPromo = null;
+            appliedPromo = null; // Reset promo jika gagal
             promoResultEl.innerHTML = `<span class="error"><i class="fas fa-times-circle"></i> ${error.message}</span>`;
-            updatePrice();
-        }  finally {
-            applyPromoBtn.disabled = false;
-            applyPromoBtn.textContent = 'Terapkan';
+            updatePrice(); // Perbarui harga kembali ke normal (tanpa diskon)
         }
     });
 }

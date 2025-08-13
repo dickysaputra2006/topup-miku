@@ -138,7 +138,7 @@ body {
 footer {
     text-align: center;
     padding: 2rem 0;
-    margin-top: 2rem;
+    margin-top: auto;
     background-color: var(--bg-surface);
     border-top: 1px solid var(--border-color);
 }
@@ -1984,4 +1984,45 @@ color: green;
     .dashboard-container, .pricelist-container {
         overflow-x: hidden;
     }
+}
+@media (max-width: 768px) {
+
+  /* 1. PERBAIKAN: Membuat tabel di dashboard bisa di-scroll */
+  #transactions-table, #mutasi-table {
+    white-space: nowrap;
+  }
+
+  /* 2. PERBAIKAN: Memperlebar kotak deposit di dashboard */
+  #deposit-tab > .card {
+    width: 100%;
+    max-width: none; /* Hapus batasan lebar agar memenuhi layar HP */
+  }
+
+}
+
+.order-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Membuat dua kolom sama besar */
+  gap: 1rem;
+}
+
+#order-form input, 
+#server-input-container {
+  grid-column: auto; /* Biarkan mengisi satu kolom */
+}
+
+#validation-result {
+  grid-column: 1 / -1; /* Ambil semua kolom (dari kolom 1 sampai terakhir) */
+}
+
+.order-form-grid.single-input #target-game-id {
+  grid-column: 1 / -1; /* Buat input User ID mengambil lebar penuh */
+}
+
+@media (max-width: 768px) {
+  .order-form-grid {
+    grid-template-columns: 1fr; /* Ubah menjadi satu kolom saja */
+  }
+  
+  /* Di mobile, semua input otomatis akan mengambil lebar penuh, jadi tidak perlu aturan tambahan. */
 }

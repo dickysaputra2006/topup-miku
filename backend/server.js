@@ -880,12 +880,11 @@ app.put('/api/admin/products/bulk-validation', protectAdmin, async (req, res) =>
     }
 });
 app.post('/api/admin/promos', protectAdmin, async (req, res) => {
-    // Ambil semua data dari body, termasuk 'rules'
-    const { code, description, type, value, expires_at, rules } = req.body;
+    const { code, description, type, value, expires_at, rules, max_uses } = req.body;
     try {
-        const sql = `INSERT INTO promo_codes (code, description, type, value, expires_at, rules) 
-                     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`;
-        const { rows } = await pool.query(sql, [code.toUpperCase(), description, type, value, expires_at, rules]);
+        const sql = `INSERT INTO promo_codes (code, description, type, value, expires_at, rules, max_uses) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`;
+        const { rows } = await pool.query(sql, [code.toUpperCase(), description, type, value, expires_at, rules, max_uses]);
         res.status(201).json(rows[0]);
     } catch (error) {
         if (error.code === '23505') return res.status(409).json({ message: 'Kode promo sudah ada.' });
@@ -1351,6 +1350,7 @@ app.post('/api/promos/validate', protect, async (req, res) => {
         res.json({
             valid: true,
             message: 'Kode promo berhasil digunakan!',
+            promo_code: promo.code,
             discount: parseFloat(discount),
             original_price: parseFloat(product.price),
             final_price: parseFloat(finalPrice)
@@ -1477,13 +1477,12 @@ app.post('/api/order', protect, async (req, res) => {
 
         // Ambil detail produk LENGKAP (termasuk join ke game_margins)
         const productQuery = `
-            SELECT p.*, g.id as game_id, g.needs_server_id,
-                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
-            FROM products p 
-            JOIN games g ON p.game_id = g.id
-            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
-            WHERE p.id = $1 AND p.status = 'Active' FOR UPDATE
-        `;
+                SELECT p.*, g.id as game_id, g.needs_server_id,
+                    gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
+                FROM (SELECT * FROM products WHERE id = $1 AND status = 'Active' FOR UPDATE) AS p
+                JOIN games g ON p.game_id = g.id
+                LEFT JOIN game_margins gm ON p.game_id = gm.game_id
+            `;
         const { rows: products } = await client.query(productQuery, [productId]);
 
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
