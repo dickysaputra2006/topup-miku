@@ -1979,12 +1979,7 @@ color: green;
         overflow-x: hidden;
     }
 }
-@media (max-width: 768px) {
-    /* Menambahkan ini akan secara paksa mencegah halaman bergeser ke samping */
-    .dashboard-container, .pricelist-container {
-        overflow-x: hidden;
-    }
-}
+
 @media (max-width: 768px) {
 
   /* 1. PERBAIKAN: Membuat tabel di dashboard bisa di-scroll */
@@ -1993,10 +1988,10 @@ color: green;
   }
 
   /* 2. PERBAIKAN: Memperlebar kotak deposit di dashboard */
-  #deposit-tab > .card {
-    width: 100%;
-    max-width: none; /* Hapus batasan lebar agar memenuhi layar HP */
-  }
+ main.dashboard-content #deposit-tab .card {
+  width: 100%;
+  max-width: none;
+}
 
 }
 

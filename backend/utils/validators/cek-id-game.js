@@ -1,5 +1,5 @@
 const axios = require('axios');
-
+require('dotenv').config();
 // Fungsi untuk menerapkan aturan pada hasil validasi
 function applyValidationRules(validationData, rules) {
     if (!rules || Object.keys(rules).length === 0) {

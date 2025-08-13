@@ -1,4 +1,7 @@
+require('dotenv').config();
+
 const { runAllCronJobs } = require('./utils/cronUtils.js'); 
+
 
 runAllCronJobs()
     .then(() => {
