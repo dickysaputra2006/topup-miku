@@ -929,11 +929,11 @@ input:checked + .slider:before {
 
 /* === FINAL HEADER & SEARCH STYLING === */
 
-/* 1. Mencegah Layar Geser di HP */
+/* 1. Mencegah Layar Geser di HP 
 html, body {
     max-width: 100%;
     overflow-x: hidden; 
-}
+}*/
 
 /* 2. Struktur & Elemen Header Utama */
 .header-container {
