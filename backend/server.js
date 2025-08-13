@@ -938,7 +938,7 @@ app.get('/api/admin/flash-sales', protectAdmin, async (req, res) => {
 });
 // Endpoint untuk menambah produk ke flash sale
 app.post('/api/admin/flash-sales', protectAdmin, async (req, res) => {
-    const { product_id, discount_price, start_at, end_at, max_uses, max_discount_amount } = req.body;
+    const { product_id, discount_price, start_at, end_at, max_uses, max_discount_amount } = req.bfody;
     const rules = max_discount_amount ? { max_discount_amount: parseFloat(max_discount_amount) } : null;
 
     try {
@@ -1368,27 +1368,25 @@ app.post('/api/promos/validate', protect, async (req, res) => {
 app.get('/api/public/flash-sales', async (req, res) => {
     try {
         const sql = `
-            SELECT 
-                fs.id as flash_sale_id,
-                fs.discount_price,
-                p.id as product_id,
-                p.name as product_name,
-                -- Menghitung harga jual asli berdasarkan margin role BRONZE (ID=1)
-                CEIL(p.price * (1 + r.margin_percent / 100)) as original_price,
-                g.id as game_id,
-                g.name as game_name,
-                g.image_url as game_image_url
-            FROM flash_sales fs
-            JOIN products p ON fs.product_id = p.id
-            JOIN games g ON p.game_id = g.id
-            -- Bergabung dengan tabel roles untuk mendapatkan margin BRONZE
-            JOIN roles r ON r.id = 1 
-            WHERE 
-                fs.is_active = true AND
-                NOW() BETWEEN fs.start_at AND fs.end_at AND
-                (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses)
-            ORDER BY fs.end_at ASC;
-        `;
+                SELECT 
+                    fs.id as flash_sale_id,
+                    fs.discount_price,
+                    p.id as product_id,
+                    p.name as product_name,
+                    CEIL(p.price * (1 + COALESCE(r.margin_percent, 0) / 100)) as original_price,
+                    g.id as game_id,
+                    g.name as game_name,
+                    g.image_url as game_image_url
+                FROM flash_sales fs
+                JOIN products p ON fs.product_id = p.id
+                JOIN games g ON p.game_id = g.id
+                LEFT JOIN roles r ON r.id = 1 
+                WHERE 
+                    fs.is_active = true AND
+                    NOW() BETWEEN fs.start_at AND fs.end_at AND
+                    (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses)
+                ORDER BY fs.end_at ASC;
+            `;
         const { rows } = await pool.query(sql);
         res.json(rows);
     } catch (error) {

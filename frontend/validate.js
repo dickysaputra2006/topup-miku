@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function fetchValidatableGames() {
         try {
-            const response = await fetch(`${PUBLIC_API_URL}/public/games/validatable`);
+            const response = await fetch(`${PUBLIC_API_URL}/games/validatable`);
             if (!response.ok) throw new Error('Gagal memuat daftar game.');
             allValidatableGames = await response.json();
             

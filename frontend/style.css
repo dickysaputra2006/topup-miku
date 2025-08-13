@@ -2021,3 +2021,20 @@ color: green;
   
   /* Di mobile, semua input otomatis akan mengambil lebar penuh, jadi tidak perlu aturan tambahan. */
 }
+/* PERBAIKAN: Scroll tabel di Dashboard Mobile */
+@media (max-width: 768px) {
+
+  /* 1. Pastikan wadah tabel bisa di-scroll */
+  #transaksi-tab .table-container,
+  #mutasi-saldo .table-container {
+    overflow-x: auto;
+    border: 1px solid var(--border-color); /* Memberi petunjuk visual */
+    border-radius: 5px;
+  }
+
+  /* 2. Pastikan isi tabel tidak terpotong ke bawah */
+  #transactions-table,
+  #mutasi-table {
+    white-space: nowrap;
+  }
+}
