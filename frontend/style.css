@@ -931,7 +931,8 @@ input:checked + .slider:before {
 
 /* 1. Mencegah Layar Geser di HP */
 html, body {
-    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden; 
 }
 
 /* 2. Struktur & Elemen Header Utama */
