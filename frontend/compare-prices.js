@@ -7,7 +7,7 @@ let displayRoles = [];
 document.addEventListener('DOMContentLoaded', function () {
     const PUBLIC_API_URL = '/api';
 
-    const compareGamesList = document.getElementById('compare-games-list');
+    const gameSelectorDropdown = document.getElementById('game-selector-dropdown');
     const compareProductListTitle = document.getElementById('compare-product-list-title');
     const compareTableBody = document.querySelector("#compare-prices-table tbody");
     const compareTableHeader = document.querySelector("#compare-prices-table thead tr");
@@ -21,84 +21,62 @@ document.addEventListener('DOMContentLoaded', function () {
     const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD'];
 
     async function fetchAllCompareData() {
-        if (!compareTableBody || !compareTableHeader || !compareGamesList) return;
+    // Diubah untuk memeriksa dropdown, bukan sidebar list
+    if (!compareTableBody || !compareTableHeader || !gameSelectorDropdown) return;
 
-        try {
-            const response = await fetch(`${PUBLIC_API_URL}/public/compare-prices`);
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Gagal memuat data perbandingan harga dari server.');
-            }
-            const data = await response.json();
-
-            allProductsData = data.products;
-            allGamesData = data.games;
-            allRolesData = data.roles;
-
-            displayRoles = allRolesData.filter(role =>
-                PUBLIC_ROLE_ORDER.includes(role.name)
-            ).sort((a, b) => {
-                return PUBLIC_ROLE_ORDER.indexOf(a.name) - PUBLIC_ROLE_ORDER.indexOf(b.name);
-            });
-
-            renderGamesSidebar(allGamesData, displayRoles);
-
-            if (allGamesData.length > 0) {
-                const firstGame = allGamesData[0];
-                compareProductListTitle.textContent = `Perbandingan Harga untuk: ${firstGame.name}`;
-
-                const firstGameLink = compareGamesList.querySelector(`[data-game-id="${firstGame.id}"]`);
-                if (firstGameLink) firstGameLink.classList.add('active');
-
-                renderProductsTable(
-                    allProductsData.filter(p => p.game_name === firstGame.name),
-                    displayRoles
-                );
-            } else {
-                compareProductListTitle.textContent = "Tidak ada game tersedia.";
-                renderProductsTable([], displayRoles);
-            }
-
-        } catch (error) {
-            console.error('Error fetching compare prices:', error);
-            compareGamesList.innerHTML = `<p style="text-align: center; color: red;">Error: ${error.message}</p>`;
-            compareTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red;">Error: ${error.message}</td></tr>`;
+    try {
+        const response = await fetch(`${PUBLIC_API_URL}/public/compare-prices`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Gagal memuat data perbandingan harga dari server.');
         }
-    }
+        const data = await response.json();
 
-    function renderGamesSidebar(gamesToRender, rolesToDisplay) {
-        compareGamesList.innerHTML = '';
+        allProductsData = data.products;
+        allGamesData = data.games;
+        allRolesData = data.roles;
+
+        displayRoles = allRolesData.filter(role =>
+            PUBLIC_ROLE_ORDER.includes(role.name)
+        ).sort((a, b) => {
+            return PUBLIC_ROLE_ORDER.indexOf(a.name) - PUBLIC_ROLE_ORDER.indexOf(b.name);
+        });
+
+        // 1. Memanggil fungsi baru untuk mengisi dropdown
+        renderGamesDropdown(allGamesData, displayRoles);
+        
+        // 2. Mengatur tampilan awal untuk meminta pengguna memilih game
+        compareProductListTitle.textContent = "Silakan Pilih Game untuk Melihat Harga";
+        renderProductsTable([], displayRoles); // Menampilkan tabel kosong
+
+    } catch (error) {
+        console.error('Error fetching compare prices:', error);
+        // Menampilkan pesan error di judul dan tabel
+        compareProductListTitle.textContent = `Error: ${error.message}`;
+        compareTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red;">Error: ${error.message}</td></tr>`;
+    }
+}
+
+        function renderGamesDropdown(gamesToRender, rolesToDisplay) {
+        gameSelectorDropdown.innerHTML = ''; // Kosongkan pilihan lama
+        
+        // Tambahkan opsi default
+        const defaultOption = document.createElement('option');
+        defaultOption.value = "";
+        defaultOption.textContent = "-- Pilih Game Disini --";
+        gameSelectorDropdown.appendChild(defaultOption);
+
         if (gamesToRender.length === 0) {
-            compareGamesList.innerHTML = '<p style="text-align: center; color: #aaa;">Tidak ada game ditemukan.</p>';
+            defaultOption.textContent = "Game tidak ditemukan";
             return;
         }
 
         gamesToRender.forEach(game => {
-            const gameLink = document.createElement('a');
-            gameLink.href = "#";
-            gameLink.classList.add('dashboard-nav-link');
-            gameLink.dataset.gameId = game.id;
-            gameLink.textContent = game.name;
-            gameLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                document.querySelectorAll('#compare-games-list .dashboard-nav-link').forEach(link => link.classList.remove('active'));
-                gameLink.classList.add('active');
-                compareProductListTitle.textContent = `Perbandingan Harga untuk: ${game.name}`;
-
-                renderProductsTable(
-                    allProductsData.filter(p => p.game_name === game.name),
-                    rolesToDisplay
-                );
-            });
-
-            compareGamesList.appendChild(gameLink);
+            const option = document.createElement('option');
+            option.value = game.id; // Gunakan ID sebagai value
+            option.textContent = game.name;
+            gameSelectorDropdown.appendChild(option);
         });
-
-        // Pilih game pertama secara default jika ada
-        const firstLink = compareGamesList.querySelector('.dashboard-nav-link');
-        if (firstLink) {
-            firstLink.classList.add('active');
-        }
     }
 
     function renderProductsTable(products, roles) {
@@ -134,13 +112,31 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+     if (gameSelectorDropdown) {
+        gameSelectorDropdown.addEventListener('change', (e) => {
+            const selectedGameId = e.target.value;
+
+            if (selectedGameId) {
+                const selectedGame = allGamesData.find(game => game.id == selectedGameId);
+                if (selectedGame) {
+                    compareProductListTitle.textContent = `Perbandingan Harga untuk: ${selectedGame.name}`;
+                    const filteredProducts = allProductsData.filter(p => p.game_name === selectedGame.name);
+                    renderProductsTable(filteredProducts, displayRoles);
+                }
+            } else {
+                compareProductListTitle.textContent = "Silakan Pilih Game untuk Melihat Harga";
+                renderProductsTable([], displayRoles);
+            }
+        });
+    }
+
     if (gameSearchInput) {
         gameSearchInput.addEventListener('input', () => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGamesData.filter(game =>
                 game.name.toLowerCase().includes(searchTerm)
             );
-            renderGamesSidebar(filteredGames, displayRoles);
+            renderGamesDropdown(filteredGames, displayRoles);
         });
     }
 

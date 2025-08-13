@@ -34,6 +34,21 @@ h4 {
     margin-top: 0;
     margin-bottom: 1rem;
 }
+html {
+    height: 100%;
+}
+
+body {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ini akan membuat konten utama mengisi ruang yang tersedia */
+.dashboard-container, .order-page-wrapper, .pricelist-container {
+    flex-grow: 1;
+}
+
 
 
 /* === HOMEPAGE & GENERAL SECTIONS === */
@@ -1901,5 +1916,72 @@ color: green;
     /* Perbaikan spesifik untuk tombol hapus IP agar tidak terlalu besar */
     .ip-tag-delete {
         font-size: 0.9rem;
+    }
+}
+/* === STYLE UNTUK FORM PROMO BARU === */
+.promo-form-container {
+    display: flex;
+    gap: 0.5rem; /* Jarak antara input dan tombol */
+}
+
+.promo-form-container input {
+    flex-grow: 1; /* Input mengambil sisa ruang */
+    padding: 0.8rem 1rem;
+    margin: 0; /* Hapus margin default */
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-color);
+}
+
+.promo-form-container button {
+    border: none;
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 0.8rem 1.5rem;
+    white-space: nowrap; /* Mencegah teks tombol turun baris */
+}
+
+/* Mengatur pesan hasil promo agar memiliki jarak atas */
+#promo-result {
+    margin-top: 1rem;
+    min-height: 20px;
+}
+/* === STYLE UNTUK DROPDOWN GAME DI PRICELIST === */
+#game-selector-dropdown {
+    width: 100%;
+    padding: 0.8rem;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 1rem;
+    
+    /* Menambahkan panah dropdown kustom */
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23F3F4F6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+}
+
+#game-selector-dropdown:hover {
+    border-color: var(--primary-color);
+}
+
+/* Pastikan Pricelist tidak bisa di-scroll horizontal di mobile */
+@media (max-width: 768px) {
+    .pricelist-container {
+        overflow-x: hidden;
+    }
+}
+@media (max-width: 768px) {
+    /* Menambahkan ini akan secara paksa mencegah halaman bergeser ke samping */
+    .dashboard-container, .pricelist-container {
+        overflow-x: hidden;
     }
 }

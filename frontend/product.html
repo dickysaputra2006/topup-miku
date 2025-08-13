@@ -47,19 +47,24 @@
             
 
             <div class="card">
-                <h3><span>3</span> Bayar & Proses</h3>
+                <h3><span>3</span> Punya Kode Promo?</h3>
+                <form id="promo-form" class="promo-form-container">
+                    <input type="text" id="promo-code-input" placeholder="Masukkan Kode di Sini">
+                    <button type="submit" id="apply-promo-btn">Terapkan</button>
+                </form>
+                <div id="promo-result" class="promo-result"></div>
+            </div>
+
+            <div class="card">
+                <h3><span>4</span> Bayar & Proses</h3>
                 <div id="payment-info">
-                <div class="promo-container">
-                        <input type="text" id="promo-code-input" placeholder="Masukkan Kode Promo">
-                        <button type="button" id="apply-promo-btn">Terapkan</button>
-                    </div>
-                    <div id="promo-result" class="promo-result"></div>
-                    <hr>
                     <p><span>Metode Pembayaran</span> <strong>Saldo Akun</strong></p>
+                    <hr>
                     <p class="total-payment"><span>Total Bayar</span> <strong id="total-price">-</strong></p>
                 </div>
                 <button id="submit-order-btn" class="order-button" disabled>Pilih Nominal Dahulu</button>
             </div>
+
         </div>
     </main>
 
