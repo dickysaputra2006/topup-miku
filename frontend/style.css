@@ -806,6 +806,56 @@ input:checked + .slider:before {
     transform: translateX(22px);
 }
 
+@media (max-width: 768px) {
+    .product-grid {
+       
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+
+@media (max-width: 480px) {
+    .product-grid {
+      
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .product-card {
+        
+        height: 140px; 
+        padding: 0.5rem;
+    }
+
+    .product-card img {
+        height: 70px; 
+    }
+
+    
+    h2 {
+        font-size: 1.2rem;
+    }
+
+.logo {
+        font-size: 1.5rem; 
+    }
+
+  
+    header nav a, .header-btn {
+        padding: 0.4rem 0.8rem; 
+        font-size: 0.8rem; 
+    }
+
+ 
+    .hero-placeholder {
+        height: 150px; 
+        font-size: 1rem;
+    }
+
+  
+    .product-card-small {
+        font-size: 0.9rem; 
+    }
+}
 
  /* === CSS UNTUK FLASH SALE BERJALAN === */
 .flash-sale-container {
@@ -866,11 +916,7 @@ input:checked + .slider:before {
 
 /* 1. Mencegah Layar Geser di HP */
 html, body {
-    height: 100%;
-}
-body {
-    display: flex;
-    flex-direction: column;
+    width: 100%;
 }
 
 /* 2. Struktur & Elemen Header Utama */
@@ -973,6 +1019,105 @@ body {
     object-fit: cover;
 }
 
+@media (max-width: 768px) {
+    /* 1. Layout Dasar HP */
+    .container {
+        width: 100%;
+        padding: 0 1rem;
+        box-sizing: border-box;
+    }
+
+    /* 2. Header di index.html */
+    .header-container {
+        flex-wrap: wrap;
+        position: relative;
+        height: auto;
+        min-height: 60px;
+        padding-top: 0.5rem;
+    }
+    .header-center {
+        order: 3;
+        width: 100%;
+        display: flex;
+        padding: 0.5rem 0.5rem 0.5rem;
+    }
+    #hamburger-btn {
+        display: block;
+        padding-left: 0;
+        margin-right: 0.5rem;
+    }
+    .header-right .pricelist-btn, .header-right .validate-btn { display: none; }
+    .header-right { gap: 0.5rem; }
+
+    /* 3. Dropdown Menu di index.html */
+    .dropdown-menu {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        width: 70%;
+        max-width: 300px;
+        height: 100vh;
+        background-color: var(--bg-dark);
+        padding: 1.5rem;
+        transition: left 0.3s ease-in-out;
+        border: none;
+        border-right: 1px solid var(--border-color);
+        box-shadow: 5px 0 15px rgba(0,0,0,0.2);
+        z-index: 200;
+    }
+    .dropdown-menu.active { left: 0; }
+    .dropdown-menu a {
+        color: var(--text-color);
+        text-decoration: none;
+        display: block;
+        padding: 1rem 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 1.1rem;
+    }
+
+    /* 4. Layout Admin & Dashboard di HP */
+    .dashboard-container, .admin-page-container {
+        flex-direction: column;
+    }
+    #menu-toggle-btn {
+        display: block;
+        background: none; border: none;
+        color: var(--text-color);
+        font-size: 1.5rem; cursor: pointer;
+    }
+      .sidebar, .admin-sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        height: 100vh;
+        z-index: 300;
+        transition: left 0.3s ease-in-out;
+        max-width: 300px;
+        width: 75%;
+        /* Pastikan sidebar tidak 'sticky' di HP */
+        position: fixed;
+    }
+    .sidebar.active, .admin-sidebar.active {
+        left: 0;
+    }
+    body.menu-open::after {
+        content: '';
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background-color: rgba(0,0,0,0.5);
+        z-index: 299;
+    }
+
+    /* 5. Flash Sale Mepet */
+    .flash-sale-container {
+        margin-left: -1rem;
+        margin-right: -1rem;
+    }
+    .flash-sale-track {
+        padding-left: 1rem;
+    }
+}
+
 
 @media (min-width: 769px) {
     #hamburger-btn { display: none; }
@@ -995,6 +1140,69 @@ body {
 }
 
 
+@media (max-width: 768px) {
+    .store-link-btn {
+        display: none !important;
+    }
+}
+.store-link-btn-mobile {
+    display: none; 
+    margin-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+@media (max-width: 768px) {
+    
+    .sidebar .store-link-btn-mobile {
+        display: flex !important;
+    }
+
+    
+    .header-right .store-link-btn {
+        display: none !important;
+    }
+}
+@media (max-width: 768px) {
+    .pricelist-container {
+        flex-direction: column; /* Susun dari atas ke bawah */
+    }
+
+    .game-selector {
+    position: static; 
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+    padding: 1rem;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px; 
+}
+
+    #compare-games-list {
+        display: flex; /* Buat item game berjajar ke samping */
+        overflow-x: auto; /* Aktifkan scroll horizontal */
+        padding-bottom: 1rem; /* Beri jarak bawah untuk scrollbar */
+        /* Properti untuk menyembunyikan scrollbar visual */
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+    }
+    /* Menyembunyikan scrollbar visual untuk Chrome, Safari, Opera */
+    #compare-games-list::-webkit-scrollbar {
+        display: none;
+    }
+
+    #compare-games-list .dashboard-nav-link {
+        flex-shrink: 0; /* Mencegah tombol 'penyok' */
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-color);
+        margin-right: 0.5rem;
+    }
+
+    #compare-games-list .dashboard-nav-link.active {
+        background-color: var(--primary-color);
+        border-color: var(--primary-color);
+    }
+}
 #logout-button {
     color: var(--text-color);
     text-decoration: none;
