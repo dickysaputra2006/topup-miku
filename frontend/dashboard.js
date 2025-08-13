@@ -579,17 +579,19 @@ function forceLogout(message) {
         const formattedDate = new Date(tx.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' });
         const statusClass = `status-${tx.status.toLowerCase()}`;
 
-        hasilCekPesanan.innerHTML = `
-            <h4>Detail Transaksi</h4>
-            <div class="profile-details">
-                <div>
-                    <p>No. Invoice: <strong>${tx.invoice_id}</strong></p>
-                    <p>Tanggal: <strong>${formattedDate}</strong></p>
-                    <p>Produk: <strong>${tx.product_name} (${tx.game_name})</strong></p>
-                    <p>ID Tujuan: <strong>${tx.target_game_id.replace('|', ' ')}</strong></p>
-                    <p>Total Bayar: <strong>${formattedPrice}</strong></p>
-                    <p>Status: <strong><span class="status-badge ${statusClass}">${tx.status}</span></strong></p>
-                </div>
+       hasilCekPesanan.innerHTML = `
+        <h4>Detail Transaksi</h4>
+            <div class="table-container">
+                <table style="white-space: nowrap;">
+                    <tbody>
+                        <tr><td>No. Invoice</td><td><strong>${tx.invoice_id}</strong></td></tr>
+                        <tr><td>Tanggal</td><td><strong>${formattedDate}</strong></td></tr>
+                        <tr><td>Produk</td><td><strong>${tx.product_name} (${tx.game_name})</strong></td></tr>
+                        <tr><td>ID Tujuan</td><td><strong>${tx.target_game_id.replace('|', ' ')}</strong></td></tr>
+                        <tr><td>Total Bayar</td><td><strong>${formattedPrice}</strong></td></tr>
+                        <tr><td>Status</td><td><strong><span class="status-badge ${statusClass}">${tx.status}</span></strong></td></tr>
+                    </tbody>
+                </table>
             </div>
             <a href="invoice.html?id=${tx.invoice_id}" class="history-link" style="margin-top: 1rem; display: inline-block;">Lihat Halaman Invoice &rarr;</a>
         `;

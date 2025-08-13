@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const card = document.createElement('div');
             card.className = 'flash-sale-card';
             card.innerHTML = `
-                <a href="product.html?gameId=${product.game_id}" style="text-decoration: none; color: inherit;">
+                <a href="product.html?gameId=${product.game_id}&fsProductId=${product.product_id}&fsPrice=${product.discount_price}" style="text-decoration: none; color: inherit;">
                     <img src="${product.game_image_url}" alt="${product.product_name}">
                     <div class="flash-sale-info">
                         <span class="fs-product-name">${product.product_name}</span>

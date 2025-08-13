@@ -2034,3 +2034,38 @@ color: green;
     white-space: nowrap;
   }
 }
+/* PERBAIKAN FINAL: Scroll tabel di Dashboard Mobile */
+@media (max-width: 768px) {
+
+  /* Aturan ini akan berlaku untuk SEMUA table-container 
+    di dalam konten dashboard (Transaksi, Mutasi, dan Hasil Cek Pesanan)
+  */
+  .dashboard-content .table-container {
+    overflow-x: auto;
+    border: 1px solid var(--border-color); /* Memberi petunjuk visual */
+    border-radius: 5px;
+  }
+
+  /* Memastikan semua tabel di dalam container tersebut tidak memecah baris,
+    sehingga scrollbar bisa muncul.
+  */
+  .dashboard-content .table-container table {
+    white-space: nowrap;
+  }
+}
+@media (max-width: 768px) {
+  
+  /* Aturan ini menargetkan SEMUA div dengan class .table-container
+     ketika lebar layar 768px ke bawah. */
+  .table-container {
+    overflow-x: auto; /* MEMBUAT SCROLLBAR HORIZONTAL MUNCUL */
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+  }
+
+  /* Aturan ini memastikan konten di dalam tabel tidak turun baris,
+     sehingga tabel akan melebar dan memicu scrollbar di atas. */
+  .table-container table {
+    white-space: nowrap;
+  }
+}

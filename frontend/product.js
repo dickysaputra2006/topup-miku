@@ -27,6 +27,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const promoResultEl = document.getElementById('promo-result');
     let appliedPromo = null; // Untuk menyimpan data promo yang valid
     let currentDiscountAmount = 0; 
+    const fsProductId = params.get('fsProductId');
+    const fsPrice = params.get('fsPrice');
 
     // Elemen Header & Modal Login
     const modal = document.getElementById('auth-modal');
@@ -87,6 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 }
 
+
     async function fetchGameData() {
     try {
         const headers = {};
@@ -133,6 +136,8 @@ document.addEventListener('DOMContentLoaded', function() {
        
 
         renderProducts(data.products);
+        applyFlashSaleSelection();
+        
     } catch (error) {
         console.error('Error fetching game data:', error);
         productListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
@@ -287,6 +292,28 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     totalPriceEl.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(finalPrice);
+}
+
+function applyFlashSaleSelection() {
+    if (fsProductId && fsPrice) {
+        const fsCard = productListContainer.querySelector(`[data-product-id="${fsProductId}"]`);
+        if (fsCard) {
+            // Hapus seleksi dari kartu lain dan pilih kartu flash sale
+            document.querySelectorAll('.product-card-selectable').forEach(card => card.classList.remove('selected'));
+            fsCard.classList.add('selected');
+
+            // Atur ID produk yang terpilih secara global
+            selectedProductId = fsProductId;
+
+            // PENTING: Timpa harga asli kartu dengan harga flash sale
+            fsCard.dataset.price = fsPrice;
+
+            // Perbarui tampilan harga dan aktifkan tombol beli
+            updatePrice();
+            submitOrderBtn.disabled = false;
+            submitOrderBtn.textContent = 'Beli Sekarang';
+        }
+    }
 }
     // === Bagian 3: Menambahkan Semua Event Listeners ===
 
