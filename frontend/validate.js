@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
             submitButton.textContent = 'Mengecek...';
             
             try {
-                const response = await fetch(`${PUBLIC_API_URL}/public/full-validate`, {
+                const response = await fetch(`${PUBLIC_API_URL}/full-validate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ gameCode: game.gameCode, userId, zoneId })

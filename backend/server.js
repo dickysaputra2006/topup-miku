@@ -938,20 +938,25 @@ app.get('/api/admin/flash-sales', protectAdmin, async (req, res) => {
 });
 // Endpoint untuk menambah produk ke flash sale
 app.post('/api/admin/flash-sales', protectAdmin, async (req, res) => {
-    const { product_id, discount_price, start_at, end_at, max_uses, max_discount_amount } = req.bfody;
+    const { product_id, discount_price, start_at, end_at, max_uses, max_discount_amount } = req.body;
     const rules = max_discount_amount ? { max_discount_amount: parseFloat(max_discount_amount) } : null;
 
     try {
-            const sql = `
-                INSERT INTO flash_sales (product_id, discount_price, start_at, end_at, max_uses, rules, is_active)
-                VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING *; 
-            `;
-            const { rows } = await pool.query(sql, [product_id, discount_price, start_at, end_at, max_uses, rules]);
-            res.status(201).json(rows[0]);
-        } catch (error) {
-                res.status(500).json({ message: 'Gagal menambah item flash sale.' });
-            }
-        });
+        // PERBAIKAN: Menambahkan kolom 'is_active' dan memberinya nilai 'true'
+        const sql = `
+            INSERT INTO flash_sales (product_id, discount_price, start_at, end_at, max_uses, rules, is_active)
+            VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING *;
+        `;
+        
+        const { rows } = await pool.query(sql, [product_id, discount_price, start_at, end_at, max_uses, rules]);
+        res.status(201).json(rows[0]);
+
+    } catch (error) {
+        // Menambahkan log error agar lebih mudah dilacak jika ada masalah lain
+        console.error("Error saat menambah flash sale:", error); 
+        res.status(500).json({ message: 'Gagal menambah item flash sale.' });
+    }
+});
 // Endpoint untuk menghapus item dari flash sale
 app.delete('/api/admin/flash-sales/:id', protectAdmin, async (req, res) => {
     try {

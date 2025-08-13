@@ -1183,27 +1183,21 @@ html, body {
     }
 
     .game-selector {
-    position: static; 
-    width: 100%;
-    max-width: 100%;
-    min-height: auto;
-    padding: 1rem;
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px; 
-}
+        position: static; 
+        width: 100%;
+        max-width: 100%;
+        min-height: auto;
+        padding: 1rem;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-color);
+        border-radius: 8px; 
+    }
 
     #compare-games-list {
         display: flex; /* Buat item game berjajar ke samping */
         overflow-x: auto; /* Aktifkan scroll horizontal */
-        padding-bottom: 1rem; /* Beri jarak bawah untuk scrollbar */
-        /* Properti untuk menyembunyikan scrollbar visual */
-        -ms-overflow-style: none;  /* IE and Edge */
-        scrollbar-width: none;  /* Firefox */
-    }
-    /* Menyembunyikan scrollbar visual untuk Chrome, Safari, Opera */
-    #compare-games-list::-webkit-scrollbar {
-        display: none;
+        padding-bottom: 1rem; /* Jarak bawah untuk scrollbar */
+        white-space: nowrap; /* Item tidak pindah ke bawah */
     }
 
     #compare-games-list .dashboard-nav-link {
@@ -1218,6 +1212,7 @@ html, body {
         border-color: var(--primary-color);
     }
 }
+/* === CSS UNTUK LOGOUT BUTTON DAN SEARCH INPUT === */
 #logout-button {
     color: var(--text-color);
     text-decoration: none;
@@ -1973,10 +1968,10 @@ color: green;
     border-color: var(--primary-color);
 }
 
-/* Pastikan Pricelist tidak bisa di-scroll horizontal di mobile */
+
 @media (max-width: 768px) {
     .pricelist-container {
-        overflow-x: hidden;
+        overflow-x: auto;
     }
 }
 
