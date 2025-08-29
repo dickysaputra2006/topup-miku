@@ -1184,6 +1184,8 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
         const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id, target_id_label FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
         if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });
         
+        // server.js - PERBAIKAN SEKITAR BARIS 1272
+
         const { rows: products } = await pool.query(`
             SELECT p.id, p.name, p.provider_sku, p.price as base_price, 
                    p.use_manual_prices, p.manual_prices,
@@ -1194,6 +1196,16 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
             ORDER BY p.price ASC
         `, [gameId]);
         
+        // --- AWAL PERBAIKAN ---
+        // 1. Ambil semua item flash sale yang sedang aktif
+        const { rows: activeFlashSales } = await pool.query(`
+            SELECT product_id, discount_price FROM flash_sales
+            WHERE is_active = true AND NOW() BETWEEN start_at AND end_at
+        `);
+        // 2. Buat Peta (Map) untuk pencarian cepat berdasarkan ID produk
+        const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, fs.discount_price]));
+        // --- AKHIR PERBAIKAN ---
+        
         const { rows: globalMargins } = await pool.query('SELECT name, margin_percent FROM roles');
         const globalMarginsMap = globalMargins.reduce((acc, role) => {
             acc[role.name.toLowerCase()] = role.margin_percent;
@@ -1202,23 +1214,46 @@ app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
 
         const finalProducts = products.map(p => {
             let finalPrice;
-            const manualPrice = p.manual_prices ? p.manual_prices[userRoleName] : null;
-            
-            // PRIORITAS 1: HARGA MANUAL
-            if (p.use_manual_prices && manualPrice) {
-                finalPrice = manualPrice;
+            let originalPrice = null;
+            let isFlashSale = false;
+
+            // --- PERUBAHAN LOGIKA UTAMA ---
+            // PRIORITAS 0: FLASH SALE
+            if (flashSaleMap.has(p.id)) {
+                isFlashSale = true;
+                finalPrice = flashSaleMap.get(p.id); // Harga langsung dari flash sale
+                
+                // Hitung harga asli sebelum diskon untuk ditampilkan (dicoret)
+                const margin = globalMarginsMap[userRoleName] || 0; 
+                originalPrice = Math.ceil(p.base_price * (1 + margin / 100));
+
             } else {
-                let margin = globalMarginsMap[userRoleName] || 0; // Default: margin global
-                // PRIORITAS 2: MARGIN PER GAME
-                if (p.use_custom_margin) {
-                    const customMargin = p[`${userRoleName}_margin`];
-                    if (customMargin !== null && customMargin !== undefined) {
-                        margin = customMargin;
+                const manualPrice = p.manual_prices ? p.manual_prices[userRoleName] : null;
+                // PRIORITAS 1: HARGA MANUAL
+                if (p.use_manual_prices && manualPrice) {
+                    finalPrice = manualPrice;
+                } else {
+                    let margin = globalMarginsMap[userRoleName] || 0; // Default: margin global
+                    // PRIORITAS 2: MARGIN PER GAME
+                    if (p.use_custom_margin) {
+                        const customMargin = p[`${userRoleName}_margin`];
+                        if (customMargin !== null && customMargin !== undefined) {
+                            margin = customMargin;
+                        }
                     }
+                    finalPrice = Math.ceil(p.base_price * (1 + margin / 100));
                 }
-                finalPrice = Math.ceil(p.base_price * (1 + margin / 100));
             }
-            return { id: p.id, name: p.name, provider_sku: p.provider_sku, price: finalPrice };
+            
+            return { 
+                id: p.id, 
+                name: p.name, 
+                provider_sku: p.provider_sku, 
+                price: finalPrice,
+                // Kirim data tambahan ini ke frontend
+                isFlashSale: isFlashSale,
+                originalPrice: originalPrice 
+            };
         });
 
         res.json({ game: games[0], products: finalProducts });
@@ -1738,6 +1773,16 @@ app.get('/h2h/products', protectH2HIp, protectH2H, async (req, res) => {
         const { rows: globalRoleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [h2hPartner.role_id]);
         const globalMargin = globalRoleRows[0].margin_percent;
 
+        // --- AWAL PERBAIKAN ---
+        // 1. Ambil semua item flash sale yang sedang aktif
+        const { rows: activeFlashSales } = await pool.query(`
+            SELECT product_id, discount_price FROM flash_sales
+            WHERE is_active = true AND NOW() BETWEEN start_at AND end_at
+        `);
+        // 2. Buat Peta (Map) untuk pencarian cepat
+        const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, fs.discount_price]));
+        // --- AKHIR PERBAIKAN ---
+
         const productQuery = `
             SELECT p.id, p.name as product_name, p.provider_sku, p.price as base_price, g.name as game_name,
                    p.use_manual_prices, p.manual_prices,
@@ -1752,19 +1797,42 @@ app.get('/h2h/products', protectH2HIp, protectH2H, async (req, res) => {
         
         const partnerProductList = allActiveProducts.map(product => {
             let finalPrice;
-            const manualPrice = product.manual_prices ? product.manual_prices[partnerRoleName] : null;
+            let originalPrice = null;
+            let isFlashSale = false;
 
-            if (product.use_manual_prices && manualPrice) {
-                finalPrice = manualPrice;
-            } else {
+            // --- PERUBAHAN LOGIKA UTAMA ---
+            // PRIORITAS 0: FLASH SALE
+            if (flashSaleMap.has(product.id)) {
+                isFlashSale = true;
+                finalPrice = flashSaleMap.get(product.id);
+
+                // Hitung harga asli partner sebelum diskon untuk referensi
                 let margin = globalMargin;
-                if (product.use_custom_margin) {
+                 if (product.use_custom_margin) {
                     const customMargin = product[`${partnerRoleName}_margin`];
                     if (customMargin !== null && customMargin !== undefined) {
                         margin = customMargin;
                     }
                 }
-                finalPrice = Math.ceil(product.base_price * (1 + (margin / 100)));
+                originalPrice = Math.ceil(product.base_price * (1 + (margin / 100)));
+
+            } else {
+                const manualPrice = product.manual_prices ? product.manual_prices[partnerRoleName] : null;
+
+                // PRIORITAS 1: HARGA MANUAL
+                if (product.use_manual_prices && manualPrice) {
+                    finalPrice = manualPrice;
+                } else {
+                    // PRIORITAS 2 & 3: MARGIN
+                    let margin = globalMargin;
+                    if (product.use_custom_margin) {
+                        const customMargin = product[`${partnerRoleName}_margin`];
+                        if (customMargin !== null && customMargin !== undefined) {
+                            margin = customMargin;
+                        }
+                    }
+                    finalPrice = Math.ceil(product.base_price * (1 + (margin / 100)));
+                }
             }
 
             return {
@@ -1772,7 +1840,9 @@ app.get('/h2h/products', protectH2HIp, protectH2H, async (req, res) => {
                 game_name: product.game_name,
                 product_name: product.product_name,
                 sku: product.provider_sku,
-                price: finalPrice
+                price: finalPrice,
+                isFlashSale: isFlashSale, // Info tambahan untuk partner
+                originalPrice: originalPrice // Info tambahan untuk partner
             };
         });
         

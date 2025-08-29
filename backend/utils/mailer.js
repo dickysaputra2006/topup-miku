@@ -16,7 +16,7 @@ const sendPasswordResetEmail = async (userEmail, token) => {
     const payload = {
         sender: {
             name: 'MIKU Store',
-            email: 'resetpassword@mikutopup.my.id' 
+            email: 'noreply@mikutopup.my.id' 
         },
         to: [
             {
@@ -29,6 +29,7 @@ const sendPasswordResetEmail = async (userEmail, token) => {
             <p>Silakan klik link di bawah ini untuk menyelesaikan prosesnya:</p>
             <a href="${resetUrl}" style="background-color: #EC4899; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password Anda</a>
             <p>Jika Anda tidak merasa meminta ini, silakan abaikan email ini dan password Anda akan tetap aman.</p>
+            <p>Note : Ini adalah email otomatis, mohon jangan membalas ke email ini.</p>
         `
     };
 
