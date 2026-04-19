@@ -25,6 +25,47 @@ const BOT_PRODUCT_BLACKLIST = ['FXGT', 'Via Login', 'Gifts'];
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
 
+// === CACHE FOXY PRODUCTS ===
+const FOXY_CACHE_TTL = 5 * 60 * 1000; // 5 menit
+let foxyProductsCache = null;
+let lastFoxyProductsFetch = 0;
+
+async function getFoxyProducts() {
+    const now = Date.now();
+    if (foxyProductsCache && (now - lastFoxyProductsFetch < FOXY_CACHE_TTL)) {
+        return foxyProductsCache;
+    }
+
+    try {
+        const foxyConfig = {
+            headers: {
+                'Authorization': FOXY_API_KEY,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                'Referer': 'https://www.foxygamestore.com/'
+            }
+        };
+        const foxyProductResponse = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
+        const providerProducts = foxyProductResponse.data.data;
+
+        // Simpan sebagai Map untuk O(1) lookup berdasarkan product_code
+        const map = new Map();
+        if (Array.isArray(providerProducts)) {
+            for (const p of providerProducts) {
+                map.set(p.product_code, p);
+            }
+        }
+
+        foxyProductsCache = map;
+        lastFoxyProductsFetch = now;
+        return foxyProductsCache;
+    } catch (error) {
+        console.error('Error fetching Foxy products for cache:', error.message);
+        // Jika gagal dan cache lama masih ada, kembalikan cache lama untuk fallback
+        if (foxyProductsCache) return foxyProductsCache;
+        return new Map(); // Return empty map if no cache and fetch failed
+    }
+}
+
 // Middleware (HARUS DI ATAS SEMUA RUTE)
 app.use(cors());
 app.use(express.json());
@@ -1528,16 +1569,8 @@ app.post('/api/order', protect, async (req, res) => {
 
         // --- FITUR BARU: PENGECEKAN HARGA REAL-TIME (SUDAH BENAR) ---
         console.log('Melakukan pengecekan harga real-time ke Foxy...');
-        const foxyConfig = {
-            headers: { 
-                'Authorization': FOXY_API_KEY,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-                'Referer': 'https://www.foxygamestore.com/'
-            }
-        };
-        const foxyProductResponse = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
-        const providerProducts = foxyProductResponse.data.data;
-        const currentFoxyProduct = providerProducts.find(p => p.product_code === product.provider_sku);
+        const foxyProductsMap = await getFoxyProducts();
+        const currentFoxyProduct = foxyProductsMap.get(product.provider_sku);
 
         if (currentFoxyProduct && currentFoxyProduct.product_price > product.price) {
             console.warn(`Perubahan harga terdeteksi untuk SKU ${product.provider_sku}. DB: ${product.price}, Foxy: ${currentFoxyProduct.product_price}. Menjalankan sinkronisasi...`);
@@ -1675,16 +1708,8 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
 
         // --- FITUR BARU: PENGECEKAN HARGA REAL-TIME ---
         console.log(`[H2H] Melakukan pengecekan harga real-time untuk SKU ${product.provider_sku}`);
-        const foxyConfig = {
-            headers: { 
-                'Authorization': FOXY_API_KEY,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-                'Referer': 'https://www.foxygamestore.com/'
-            }
-        };
-        const foxyProductResponse = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
-        const providerProducts = foxyProductResponse.data.data;
-        const currentFoxyProduct = providerProducts.find(p => p.product_code === product.provider_sku);
+        const foxyProductsMap = await getFoxyProducts();
+        const currentFoxyProduct = foxyProductsMap.get(product.provider_sku);
 
         if (currentFoxyProduct && currentFoxyProduct.product_price > product.price) {
             console.warn(`[H2H] Perubahan harga terdeteksi untuk SKU ${product.provider_sku}. DB: ${product.price}, Foxy: ${currentFoxyProduct.product_price}.`);
