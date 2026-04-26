@@ -1178,41 +1178,6 @@ html, body {
         display: none !important;
     }
 }
-@media (max-width: 768px) {
-    .pricelist-container {
-        flex-direction: column; /* Susun dari atas ke bawah */
-    }
-
-    .game-selector {
-        position: static; 
-        width: 100%;
-        max-width: 100%;
-        min-height: auto;
-        padding: 1rem;
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-color);
-        border-radius: 8px; 
-    }
-
-    #compare-games-list {
-        display: flex; /* Buat item game berjajar ke samping */
-        overflow-x: auto; /* Aktifkan scroll horizontal */
-        padding-bottom: 1rem; /* Jarak bawah untuk scrollbar */
-        white-space: nowrap; /* Item tidak pindah ke bawah */
-    }
-
-    #compare-games-list .dashboard-nav-link {
-        flex-shrink: 0; /* Mencegah tombol 'penyok' */
-        background-color: var(--bg-surface);
-        border: 1px solid var(--border-color);
-        margin-right: 0.5rem;
-    }
-
-    #compare-games-list .dashboard-nav-link.active {
-        background-color: var(--primary-color);
-        border-color: var(--primary-color);
-    }
-}
 /* === CSS UNTUK LOGOUT BUTTON DAN SEARCH INPUT === */
 #logout-button {
     color: var(--text-color);
@@ -2189,10 +2154,38 @@ color: green;
     }
 }
 
-/* Fix for sidebar in mobile view for compare prices page */
+/* Consolidated mobile fix for content sidebar (Compare Prices & Validate ID) */
 @media (max-width: 768px) {
+    .pricelist-container {
+        flex-direction: column;
+    }
+
     .pricelist-container .game-selector {
+        /* Reset drawer-related properties from .sidebar */
+        position: static;
+        left: 0;
+        height: auto;
+        min-height: auto;
+        max-height: none;
+        width: 100%;
+        max-width: 100%;
+        z-index: auto;
+        transition: none;
+        transform: none;
+
+        /* Styling as a clean card section */
         margin-bottom: 1.5rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        padding: 1.5rem;
+        background-color: var(--bg-surface);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-sizing: border-box;
+    }
+
+    /* Ensure search input inside the card is well-spaced */
+    .pricelist-container .game-selector .pricelist-search-wrapper {
+        padding: 0;
+        margin-bottom: 1rem;
     }
 }
