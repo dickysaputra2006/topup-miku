@@ -25,6 +25,30 @@ const BOT_PRODUCT_BLACKLIST = ['FXGT', 'Via Login', 'Gifts'];
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
 
+let foxyProductCache = null;
+let foxyCacheTimestamp = null;
+const FOXY_CACHE_TTL = 5 * 60 * 1000; // 5 menit
+
+async function getFoxyProducts() {
+    const now = Date.now();
+    if (foxyProductCache && foxyCacheTimestamp && (now - foxyCacheTimestamp < FOXY_CACHE_TTL)) {
+        return foxyProductCache;
+    }
+
+    const foxyConfig = {
+        headers: {
+            'Authorization': FOXY_API_KEY,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+            'Referer': 'https://www.foxygamestore.com/'
+        }
+    };
+
+    const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
+    foxyProductCache = response.data.data;
+    foxyCacheTimestamp = now;
+    return foxyProductCache;
+}
+
 // Middleware (HARUS DI ATAS SEMUA RUTE)
 app.use(cors());
 app.use(express.json());
@@ -1528,15 +1552,7 @@ app.post('/api/order', protect, async (req, res) => {
 
         // --- FITUR BARU: PENGECEKAN HARGA REAL-TIME (SUDAH BENAR) ---
         console.log('Melakukan pengecekan harga real-time ke Foxy...');
-        const foxyConfig = {
-            headers: { 
-                'Authorization': FOXY_API_KEY,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-                'Referer': 'https://www.foxygamestore.com/'
-            }
-        };
-        const foxyProductResponse = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
-        const providerProducts = foxyProductResponse.data.data;
+        const providerProducts = await getFoxyProducts();
         const currentFoxyProduct = providerProducts.find(p => p.product_code === product.provider_sku);
 
         if (currentFoxyProduct && currentFoxyProduct.product_price > product.price) {
@@ -1675,15 +1691,7 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
 
         // --- FITUR BARU: PENGECEKAN HARGA REAL-TIME ---
         console.log(`[H2H] Melakukan pengecekan harga real-time untuk SKU ${product.provider_sku}`);
-        const foxyConfig = {
-            headers: { 
-                'Authorization': FOXY_API_KEY,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-                'Referer': 'https://www.foxygamestore.com/'
-            }
-        };
-        const foxyProductResponse = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
-        const providerProducts = foxyProductResponse.data.data;
+        const providerProducts = await getFoxyProducts();
         const currentFoxyProduct = providerProducts.find(p => p.product_code === product.provider_sku);
 
         if (currentFoxyProduct && currentFoxyProduct.product_price > product.price) {
@@ -1739,7 +1747,15 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             callback_url: 'https://mikutopup.my.id/api/foxy/callback'
         };
 
-        axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { headers: foxyConfig.headers })
+        const foxyConfigHeaders = {
+            headers: {
+                'Authorization': FOXY_API_KEY,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                'Referer': 'https://www.foxygamestore.com/'
+            }
+        };
+
+        axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, foxyConfigHeaders)
             .catch(err => console.error("Foxy API Error on H2H order:", err.response ? err.response.data : err.message));
 
         await client.query('COMMIT');
