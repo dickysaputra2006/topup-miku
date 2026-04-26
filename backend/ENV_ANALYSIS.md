@@ -46,9 +46,6 @@ General configuration settings for the backend application.
 - **`PORT`**
   - **Used in**: `backend/server.js`, `backend/tests/auth.test.js`
   - **Purpose**: The port on which the Express server listens for incoming HTTP requests.
-- **`NODE_ENV`**
-  - **Used in**: `backend/utils/logger.js`
-  - **Purpose**: Indicates the environment in which the application is running (e.g., `development`, `production`).
 
 ## Critical Variables for the App to Run
 The following variables are essential for the basic operation and startup of the application. Without them, the application may fail to start, connect to the database, or authenticate users properly:
