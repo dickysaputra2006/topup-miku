@@ -578,7 +578,7 @@ app.post('/api/deposit/request', protect, async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK'); // Rollback transaksi jika ada error
         console.error('Error creating deposit request:', error);
-        res.status(500).json({ message: error.message || 'Terjadi kesalahan pada server saat membuat permintaan deposit.' });
+        res.status(500).json({ message: 'Terjadi kesalahan pada server saat membuat permintaan deposit.' });
     } finally {
         client.release(); // Pastikan koneksi dikembalikan ke pool
     }
@@ -616,7 +616,7 @@ app.post('/api/admin/deposits/approve', protectAdmin, async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error approving deposit:', error);
-        res.status(500).json({ message: error.message || 'Gagal menyetujui deposit.' });
+        res.status(500).json({ message: 'Gagal menyetujui deposit.' });
     } finally {
         client.release();
     }
@@ -638,7 +638,7 @@ app.post('/api/admin/balance/add', protectAdmin, async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error adding balance manually:', error);
-        res.status(500).json({ message: error.message || 'Gagal menambah saldo.' });
+        res.status(500).json({ message: 'Gagal menambah saldo.' });
     } finally {
         client.release();
     }
@@ -661,7 +661,7 @@ app.post('/api/admin/balance/reduce', protectAdmin, async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error reducing balance manually:', error);
-        res.status(500).json({ message: error.message || 'Gagal mengurangi saldo.' });
+        res.status(500).json({ message: 'Gagal mengurangi saldo.' });
     } finally {
         client.release();
     }
@@ -1613,7 +1613,7 @@ app.post('/api/order', protect, async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error("Order error:", error);
-        res.status(400).json({ message: error.message || 'Gagal memproses transaksi.' });
+        res.status(400).json({ message: 'Gagal memproses transaksi.' });
     } finally {
         client.release();
     }
@@ -1780,7 +1780,7 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error("H2H Order error:", error);
-        res.status(400).json({ success: false, message: error.message || 'Gagal memproses transaksi H2H.' });
+        res.status(400).json({ success: false, message: 'Gagal memproses transaksi H2H.' });
     } finally {
         client.release();
     }
