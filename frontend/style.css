@@ -2069,3 +2069,130 @@ color: green;
     white-space: nowrap;
   }
 }
+/* === MODERN PRICE COMPARISON UI STYLING === */
+.compare-card {
+    padding: 2rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+}
+
+.compare-header {
+    margin-bottom: 2rem;
+}
+
+.compare-header h3 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+.compare-header .form-description {
+    text-align: left;
+    font-size: 1rem;
+    color: #9ca3af;
+    margin-bottom: 0;
+}
+
+.modern-table-wrapper {
+    background-color: var(--bg-dark);
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    overflow: hidden; /* Contains the scrollable container's child elements */
+}
+
+/* Enhancing horizontal scroll behavior specifically for this table */
+.modern-table-wrapper .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on mobile iOS */
+    border: none;
+    border-radius: 0;
+}
+
+/* Custom scrollbar for modern table */
+.modern-table-wrapper .table-container::-webkit-scrollbar {
+    height: 8px;
+}
+.modern-table-wrapper .table-container::-webkit-scrollbar-track {
+    background: var(--bg-dark);
+    border-radius: 0 0 10px 10px;
+}
+.modern-table-wrapper .table-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+.modern-table-wrapper .table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+.modern-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 0;
+}
+
+.modern-table th,
+.modern-table td {
+    padding: 1.2rem 1.5rem;
+    border: none; /* Remove harsh borders */
+    border-bottom: 1px solid var(--border-color);
+}
+
+.modern-table th {
+    background-color: var(--bg-surface);
+    color: var(--text-color);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.modern-table th:first-child { border-top-left-radius: 10px; }
+.modern-table th:last-child { border-top-right-radius: 10px; }
+
+.modern-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.modern-table tbody tr:hover {
+    background-color: rgba(236, 72, 153, 0.05); /* Slight primary color tint on hover */
+}
+
+.modern-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Column specific alignment */
+.modern-table th:nth-child(n+4),
+.modern-table td:nth-child(n+4) {
+    text-align: right;
+    font-family: 'Courier New', Courier, monospace; /* Use tabular numbers implicitly */
+    font-variant-numeric: tabular-nums; /* Ensure numbers line up perfectly */
+}
+
+/* Better responsive handling */
+@media (max-width: 768px) {
+    .compare-card {
+        padding: 1rem;
+    }
+
+    .compare-header h3 {
+        font-size: 1.25rem;
+    }
+
+    .modern-table th,
+    .modern-table td {
+        padding: 1rem;
+        font-size: 0.9rem;
+    }
+}
+
+/* Fix for sidebar in mobile view for compare prices page */
+@media (max-width: 768px) {
+    .pricelist-container .game-selector {
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+}
