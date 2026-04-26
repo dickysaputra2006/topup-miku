@@ -1952,7 +1952,8 @@ app.get('/h2h/profile', protectH2H, async (req, res) => {
     });
 });
 
-module.exports = { app, pool, checkPendingTransactions }; 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Server berjalan di port ${PORT}`);
 });
+
+module.exports = { app, pool, checkPendingTransactions, server };
