@@ -681,8 +681,13 @@ app.put('/api/admin/roles', protectAdmin, async (req, res) => {
         await client.query('BEGIN');
         const margins = req.body;
         if (!Array.isArray(margins)) throw new Error('Format data tidak valid.');
-        for (const item of margins) {
-            await client.query('UPDATE roles SET margin_percent = $1 WHERE id = $2', [item.margin, item.id]);
+        if (margins.length > 0) {
+            await client.query(`
+                UPDATE roles AS r
+                SET margin_percent = d.margin::numeric
+                FROM jsonb_to_recordset($1::jsonb) AS d(id int, margin numeric)
+                WHERE r.id = d.id
+            `, [JSON.stringify(margins)]);
         }
         await client.query('COMMIT');
         res.json({ message: 'Margin berhasil diperbarui.' });
