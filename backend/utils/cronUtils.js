@@ -127,20 +127,29 @@ async function syncProductsWithFoxy() {
         }
         const providerSkus = new Set(providerProducts.map(p => p.product_code));
 
-        // 2. Ambil semua produk dan game yang ada di database kita
+        // 2. Ambil semua produk, game, dan kategori yang ada di database kita
         const { rows: localProducts } = await client.query('SELECT id, provider_sku, price, status FROM products');
-        const localProductMap = new Map(localProducts.map(p => [p.provider_sku, p]));
         const { rows: localGames } = await client.query('SELECT id, name FROM games');
         const localGameMap = new Map(localGames.map(g => [g.name.toLowerCase(), g.id]));
+        const { rows: localCategories } = await client.query('SELECT id, game_id, name FROM product_categories');
+        const localCategoryMap = new Map(localCategories.map(c => [`${c.game_id}:${c.name.toLowerCase()}`, c.id]));
 
-        // 3. Looping produk dari Foxy untuk INSERT atau UPDATE
+        const productBatch = {
+            gameIds: [],
+            categoryIds: [],
+            names: [],
+            skus: [],
+            prices: [],
+            statuses: []
+        };
+
+        // 3. Looping produk dari Foxy untuk mengumpulkan data batch
         for (const product of providerProducts) {
             const gameName = product.category_title;
             const categoryName = product.category_type;
             const productName = product.product_name;
             const productCode = product.product_code;
             const basePriceFoxy = product.product_price;
-            const localProduct = localProductMap.get(productCode);
 
             if (!gameName || !productName || !productCode || basePriceFoxy === undefined) continue;
 
@@ -149,43 +158,56 @@ async function syncProductsWithFoxy() {
             if (!gameId) {
                 const { rows: newGame } = await client.query('INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id', [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']);
                 gameId = newGame[0].id;
-                localGameMap.set(gameName.toLowerCase(), gameId); // Tambahkan ke map agar tidak buat ulang
+                localGameMap.set(gameName.toLowerCase(), gameId);
             }
 
-            // --- LOGIKA BARU UNTUK CATEGORY_ID ---
-            // Cek apakah kategori sudah ada untuk game ini
-            let { rows: categories } = await client.query('SELECT id FROM product_categories WHERE name = $1 AND game_id = $2', [categoryName, gameId]);
-            let categoryId;
-            if (categories.length === 0) {
-                // Jika tidak ada, buat kategori baru
+            // Dapatkan atau buat categoryId
+            const categoryKey = `${gameId}:${categoryName.toLowerCase()}`;
+            let categoryId = localCategoryMap.get(categoryKey);
+            if (!categoryId) {
                 const { rows: newCat } = await client.query('INSERT INTO product_categories (game_id, name) VALUES ($1, $2) RETURNING id', [gameId, categoryName]);
                 categoryId = newCat[0].id;
-            } else {
-                categoryId = categories[0].id;
+                localCategoryMap.set(categoryKey, categoryId);
             }
-            // --- AKHIR LOGIKA BARU ---
 
-            if (localProduct) {
-                // PRODUK SUDAH ADA -> Lakukan UPDATE
-                await client.query(
-                    'UPDATE products SET price = $1, status = $2, name = $3, game_id = $4, category_id = $5 WHERE provider_sku = $6',
-                    [basePriceFoxy, 'Active', productName, gameId, categoryId, productCode]
-                );
-            } else {
-                // PRODUK BARU -> Lakukan INSERT
-                await client.query(
-                    'INSERT INTO products (game_id, category_id, name, provider_sku, price, status) VALUES ($1, $2, $3, $4, $5, $6)',
-                    [gameId, categoryId, productName, productCode, basePriceFoxy, 'Active']
-                );
-            }
+            productBatch.gameIds.push(gameId);
+            productBatch.categoryIds.push(categoryId);
+            productBatch.names.push(productName);
+            productBatch.skus.push(productCode);
+            productBatch.prices.push(basePriceFoxy);
+            productBatch.statuses.push('Active');
         }
 
-        // 4. Cek produk lokal yang tidak ada di Foxy lagi -> NONAKTIFKAN
-        for (const localProduct of localProducts) {
-            if (localProduct.status === 'Active' && !providerSkus.has(localProduct.provider_sku)) {
-                await client.query('UPDATE products SET status = $1 WHERE id = $2', ['Inactive', localProduct.id]);
-                console.log(`DEACTIVATED: Product with SKU ${localProduct.provider_sku}`);
-            }
+        // Jalankan UPSERT batch untuk produk
+        if (productBatch.skus.length > 0) {
+            await client.query(`
+                INSERT INTO products (game_id, category_id, name, provider_sku, price, status)
+                SELECT * FROM unnest($1::int[], $2::int[], $3::varchar[], $4::varchar[], $5::decimal[], $6::varchar[])
+                ON CONFLICT (provider_sku) DO UPDATE SET
+                    game_id = EXCLUDED.game_id,
+                    category_id = EXCLUDED.category_id,
+                    name = EXCLUDED.name,
+                    price = EXCLUDED.price,
+                    status = EXCLUDED.status,
+                    updated_at = NOW()
+            `, [
+                productBatch.gameIds,
+                productBatch.categoryIds,
+                productBatch.names,
+                productBatch.skus,
+                productBatch.prices,
+                productBatch.statuses
+            ]);
+        }
+
+        // 4. Nonaktifkan produk lokal yang tidak ada di Foxy lagi secara batch
+        const deactivateIds = localProducts
+            .filter(lp => lp.status === 'Active' && !providerSkus.has(lp.provider_sku))
+            .map(lp => lp.id);
+
+        if (deactivateIds.length > 0) {
+            await client.query('UPDATE products SET status = $1, updated_at = NOW() WHERE id = ANY($2::int[])', ['Inactive', deactivateIds]);
+            console.log(`DEACTIVATED: ${deactivateIds.length} products`);
         }
         
         await client.query('COMMIT');
