@@ -315,7 +315,7 @@ function forceLogout(message) {
                 ipTag.className = 'ip-tag';
                 ipTag.innerHTML = `
                     <span>${ip}</span>
-                    <button class="ip-tag-delete" data-ip="${ip}" title="Hapus IP">&times;</button>
+                    <button class="ip-tag-delete" data-ip="${ip}" title="Hapus IP" aria-label="Hapus IP">&times;</button>
                 `;
                 ipListContainer.appendChild(ipTag);
             });
