@@ -1,3 +1,16 @@
+// Utility function: Debounce
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     const logoutMessage = sessionStorage.getItem('logoutMessage');
     if (logoutMessage) {
@@ -419,8 +432,9 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
-        searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
+        const debouncedSearch = debounce((value) => handleSearch(value), 300);
+        searchInput.addEventListener('input', (e) => debouncedSearch(e.target.value));
+        searchInput.addEventListener('focus', (e) => handleSearch(e.target.value));
     }
 
     if (headerRight) {

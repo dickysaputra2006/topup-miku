@@ -1,4 +1,17 @@
 // compare-prices.js - VERSI FINAL DENGAN PERBAIKAN
+// Utility function: Debounce
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 let allProductsData = [];
 let allGamesData = [];
 let allRolesData = [];
@@ -131,12 +144,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
-            const searchTerm = gameSearchInput.value.toLowerCase();
+        const debouncedSearch = debounce((searchTerm) => {
             const filteredGames = allGamesData.filter(game =>
                 game.name.toLowerCase().includes(searchTerm)
             );
             renderGamesDropdown(filteredGames, displayRoles);
+        }, 300);
+
+        gameSearchInput.addEventListener('input', (e) => {
+            debouncedSearch(e.target.value.toLowerCase());
         });
     }
 
