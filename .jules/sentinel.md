@@ -1,0 +1,4 @@
+## 2025-05-24 - [CRITICAL] Fix Predictable Transaction ID and Missing Rate Limits
+ **Vulnerability:** The system generated `provider_trx_id` for external callbacks using `Date.now()`, which is predictable and vulnerable to forgery. Additionally, critical authentication endpoints (`/api/auth/register`, `/api/auth/reset-password`) lacked rate limiting.
+ **Learning:** Relying solely on `Date.now()` for critical external transaction identifiers allows attackers to guess IDs and forge callbacks. Missing rate limits on registration and reset-password expose the system to resource exhaustion and brute-force attacks.
+ **Prevention:** Use cryptographically secure randomness (e.g., `crypto.randomBytes`) for sensitive identifiers. Apply robust rate-limiting consistently across all sensitive API routes.
