@@ -1,0 +1,3 @@
+## 2025-04-26 - Added aria-labels to Icon-Only Buttons
+**Learning:** Found that multiple components (hamburger menus, close modal buttons, view/copy API key buttons, delete IP buttons) lacked text or ARIA labels across the application, significantly hindering accessibility for screen reader users. Adding appropriate `aria-label`s to these icon-only buttons (`&times;`, `<i class="fas fa-*"></i>`) ensures that keyboard navigation and screen readers correctly convey the button's action.
+**Action:** Next time, always ensure icon-only interactable elements possess explicit `aria-label` or `aria-labelledby` attributes that describe their primary function, specifically when creating new UX components.
