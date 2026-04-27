@@ -1,3 +1,16 @@
+// Utility function: Debounce
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // === DEKLARASI ELEMEN ===
     const navLinks = document.querySelectorAll('.admin-nav-link');
@@ -605,31 +618,34 @@ if (marginForm) {
     }
 
     if (validatorSearchInput) {
-    validatorSearchInput.addEventListener('input', () => {
-        const searchTerm = validatorSearchInput.value.toLowerCase();
-        const currentSelectedValue = validationSelector.value; // Simpan nilai yang sedang dipilih
+        const debouncedValidatorSearch = debounce((searchTerm) => {
+            const currentSelectedValue = validationSelector.value; // Simpan nilai yang sedang dipilih
 
-        // Kosongkan dropdown dulu
-        validationSelector.innerHTML = '<option value="">-- Tidak Perlu Validasi --</option>';
+            // Kosongkan dropdown dulu
+            validationSelector.innerHTML = '<option value="">-- Tidak Perlu Validasi --</option>';
 
-        // Filter dan isi ulang dropdown berdasarkan pencarian
-        const filteredGames = allValidatableGamesData.filter(game => 
-            game.name && game.name.toLowerCase().includes(searchTerm)
-        );
+            // Filter dan isi ulang dropdown berdasarkan pencarian
+            const filteredGames = allValidatableGamesData.filter(game =>
+                game.name && game.name.toLowerCase().includes(searchTerm)
+            );
 
-        filteredGames.forEach(game => {
-            const option = document.createElement('option');
-            option.value = game.gameCode;
-            option.textContent = game.name;
-            validationSelector.appendChild(option);
+            filteredGames.forEach(game => {
+                const option = document.createElement('option');
+                option.value = game.gameCode;
+                option.textContent = game.name;
+                validationSelector.appendChild(option);
+            });
+
+            // Kembalikan pilihan sebelumnya jika masih ada di daftar hasil filter
+            if (filteredGames.some(g => g.gameCode === currentSelectedValue)) {
+                validationSelector.value = currentSelectedValue;
+            }
+        }, 300);
+
+        validatorSearchInput.addEventListener('input', (e) => {
+            debouncedValidatorSearch(e.target.value.toLowerCase());
         });
-
-        // Kembalikan pilihan sebelumnya jika masih ada di daftar hasil filter
-        if (filteredGames.some(g => g.gameCode === currentSelectedValue)) {
-            validationSelector.value = currentSelectedValue;
-        }
-    });
-}
+    }
             }
 
     if (addPromoForm) {
@@ -719,10 +735,13 @@ if (promosTableBody) {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
-            const searchTerm = gameSearchInput.value.toLowerCase();
+        const debouncedGameSearch = debounce((searchTerm) => {
             const filteredGames = allGames.filter(game => game.name.toLowerCase().includes(searchTerm));
             populateGameSelectorDropdown(filteredGames);
+        }, 300);
+
+        gameSearchInput.addEventListener('input', (e) => {
+            debouncedGameSearch(e.target.value.toLowerCase());
         });
     }
 
@@ -921,10 +940,13 @@ if (flashSalesTableBody) {
 }
 
 if (fsGameSearch) {
-    fsGameSearch.addEventListener('input', () => {
-        const searchTerm = fsGameSearch.value.toLowerCase();
+    const debouncedFsGameSearch = debounce((searchTerm) => {
         const filteredGames = allGames.filter(g => g.name.toLowerCase().includes(searchTerm));
         populateFlashSaleGameSelector(filteredGames);
+    }, 300);
+
+    fsGameSearch.addEventListener('input', (e) => {
+        debouncedFsGameSearch(e.target.value.toLowerCase());
     });
 }
 
