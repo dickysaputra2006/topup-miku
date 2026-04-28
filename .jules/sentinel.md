@@ -1,0 +1,4 @@
+## 2025-02-20 - Predictable Transaction IDs Enable Callback Forgery
+**Vulnerability:** The webhook callback (`/api/foxy/callback`) identified transactions purely using the `trx_id_provider` from the body. Since this identifier was generated predictably using `Date.now()` (e.g., `WEB-1692298...`), an attacker could easily guess valid pending IDs and send forged callback requests to falsely mark unpaid orders as `SUCCESS`.
+**Learning:** Using predictable identifiers for webhook state changes without independent signature verification (like HMAC) allows unauthenticated clients to manipulate backend state. Webhooks often lack proper authentication due to integration with external services.
+**Prevention:** Always append a cryptographically secure random value (`crypto.randomBytes(8).toString('hex')`) to callback identifiers if signature-based validation is not supported by the provider, making the IDs practically unguessable.
