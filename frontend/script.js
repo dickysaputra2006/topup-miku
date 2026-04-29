@@ -7,6 +7,19 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     // === 1. DEKLARASI KONSTANTA & ELEMEN ===
     const API_URL_AUTH = '/api/auth';
+
+    // Utility: Debounce function to prevent main-thread blocking
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
     const API_URL = '/api';
     const PUBLIC_API_URL = '/api';
     const token = localStorage.getItem('authToken');
@@ -419,7 +432,8 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
+        const debouncedSearch = debounce(() => handleSearch(searchInput.value), 300);
+        searchInput.addEventListener('input', debouncedSearch);
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 
