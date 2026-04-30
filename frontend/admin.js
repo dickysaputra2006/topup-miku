@@ -1,4 +1,15 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Debounce utility to prevent synchronous main-thread blocking on input
+    function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    }
+
     // === DEKLARASI ELEMEN ===
     const navLinks = document.querySelectorAll('.admin-nav-link');
     const sections = document.querySelectorAll('.admin-section');
@@ -605,7 +616,7 @@ if (marginForm) {
     }
 
     if (validatorSearchInput) {
-    validatorSearchInput.addEventListener('input', () => {
+    validatorSearchInput.addEventListener('input', debounce(() => {
         const searchTerm = validatorSearchInput.value.toLowerCase();
         const currentSelectedValue = validationSelector.value; // Simpan nilai yang sedang dipilih
 
@@ -628,7 +639,7 @@ if (marginForm) {
         if (filteredGames.some(g => g.gameCode === currentSelectedValue)) {
             validationSelector.value = currentSelectedValue;
         }
-    });
+    }, 300));
 }
             }
 
@@ -719,11 +730,11 @@ if (promosTableBody) {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        gameSearchInput.addEventListener('input', debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGames.filter(game => game.name.toLowerCase().includes(searchTerm));
             populateGameSelectorDropdown(filteredGames);
-        });
+        }, 300));
     }
 
    if (gameSelectorDropdown) {
@@ -921,11 +932,11 @@ if (flashSalesTableBody) {
 }
 
 if (fsGameSearch) {
-    fsGameSearch.addEventListener('input', () => {
+    fsGameSearch.addEventListener('input', debounce(() => {
         const searchTerm = fsGameSearch.value.toLowerCase();
         const filteredGames = allGames.filter(g => g.name.toLowerCase().includes(searchTerm));
         populateFlashSaleGameSelector(filteredGames);
-    });
+    }, 300));
 }
 
 if (fsGameSelector) {
