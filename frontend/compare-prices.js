@@ -130,14 +130,25 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Debounce utility to prevent synchronous main-thread blocking on input
+    function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    }
+
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        gameSearchInput.addEventListener('input', debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGamesData.filter(game =>
                 game.name.toLowerCase().includes(searchTerm)
             );
             renderGamesDropdown(filteredGames, displayRoles);
-        });
+        }, 300));
     }
 
     

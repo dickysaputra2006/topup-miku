@@ -418,9 +418,21 @@ if (dropdownLoginBtn) {
         });
     });
 
+    // Debounce utility to prevent synchronous main-thread blocking on input
+    function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    }
+
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
-        searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
+        const debouncedSearch = debounce(() => handleSearch(searchInput.value), 300);
+        searchInput.addEventListener('input', debouncedSearch);
+        searchInput.addEventListener('focus', debouncedSearch);
     }
 
     if (headerRight) {
