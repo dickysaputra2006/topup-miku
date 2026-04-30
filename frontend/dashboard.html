@@ -12,7 +12,7 @@
     <header>
         <div class="header-container container">
             <div class="header-left">
-                <button id="menu-toggle-btn" class="header-icon-btn">
+                <button id="menu-toggle-btn" class="header-icon-btn" aria-label="Toggle menu">
                     <i class="fas fa-bars"></i>
                 </button>
                  <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
@@ -26,7 +26,7 @@
 
     <div class="dashboard-container container">
     <aside class="sidebar">
-        <button id="menu-toggle-btn" class="header-icon-btn">
+        <button id="menu-toggle-btn" class="header-icon-btn" aria-label="Toggle sidebar menu">
             <i class="fas fa-bars"></i>
         </button>
         <nav class="sidebar-nav">
@@ -165,10 +165,10 @@
                 <div class="api-key-wrapper">
                     <code id="api-key-display">Memuat...</code>
                     <div class="api-key-actions">
-                        <button id="toggle-apikey-btn" class="api-key-action-btn" title="Lihat/Sembunyikan Key">
+                        <button id="toggle-apikey-btn" class="api-key-action-btn" title="Lihat/Sembunyikan Key" aria-label="Lihat atau sembunyikan API Key">
                             <i class="fas fa-eye"></i>
                         </button>
-                        <button id="copy-apikey-btn" class="api-key-action-btn" title="Salin Key">
+                        <button id="copy-apikey-btn" class="api-key-action-btn" title="Salin Key" aria-label="Salin API Key">
                             <i class="fas fa-copy"></i>
                         </button>
                     </div>
@@ -204,7 +204,7 @@
     
     <div id="edit-profile-modal" class="modal-overlay hidden">
         <div class="modal-content">
-            <button id="close-edit-modal-btn" class="close-modal">&times;</button>
+            <button id="close-edit-modal-btn" class="close-modal" aria-label="Tutup modal edit profil">&times;</button>
             <div class="modal-tabs">
                 <button class="tab-link active" data-tab="edit-data-tab">Ubah Profil</button>
                 <button class="tab-link" data-tab="edit-password-tab">Ubah Password</button>
