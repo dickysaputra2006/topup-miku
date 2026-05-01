@@ -20,6 +20,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD'];
 
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     async function fetchAllCompareData() {
     // Diubah untuk memeriksa dropdown, bukan sidebar list
     if (!compareTableBody || !compareTableHeader || !gameSelectorDropdown) return;
@@ -131,13 +139,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        const debouncedGameSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGamesData.filter(game =>
                 game.name.toLowerCase().includes(searchTerm)
             );
             renderGamesDropdown(filteredGames, displayRoles);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedGameSearch);
     }
 
     

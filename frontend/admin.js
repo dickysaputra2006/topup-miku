@@ -67,6 +67,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // === FUNGSI-FUNGSI ===
 
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     async function fetchAdminGames() {
         try {
             const response = await fetch(`${ADMIN_API_URL}/games`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -605,31 +613,32 @@ if (marginForm) {
     }
 
     if (validatorSearchInput) {
-    validatorSearchInput.addEventListener('input', () => {
-        const searchTerm = validatorSearchInput.value.toLowerCase();
-        const currentSelectedValue = validationSelector.value; // Simpan nilai yang sedang dipilih
+        const debouncedValidatorSearch = debounce(() => {
+            const searchTerm = validatorSearchInput.value.toLowerCase();
+            const currentSelectedValue = validationSelector.value; // Simpan nilai yang sedang dipilih
 
-        // Kosongkan dropdown dulu
-        validationSelector.innerHTML = '<option value="">-- Tidak Perlu Validasi --</option>';
+            // Kosongkan dropdown dulu
+            validationSelector.innerHTML = '<option value="">-- Tidak Perlu Validasi --</option>';
 
-        // Filter dan isi ulang dropdown berdasarkan pencarian
-        const filteredGames = allValidatableGamesData.filter(game => 
-            game.name && game.name.toLowerCase().includes(searchTerm)
-        );
+            // Filter dan isi ulang dropdown berdasarkan pencarian
+            const filteredGames = allValidatableGamesData.filter(game =>
+                game.name && game.name.toLowerCase().includes(searchTerm)
+            );
 
-        filteredGames.forEach(game => {
-            const option = document.createElement('option');
-            option.value = game.gameCode;
-            option.textContent = game.name;
-            validationSelector.appendChild(option);
-        });
+            filteredGames.forEach(game => {
+                const option = document.createElement('option');
+                option.value = game.gameCode;
+                option.textContent = game.name;
+                validationSelector.appendChild(option);
+            });
 
-        // Kembalikan pilihan sebelumnya jika masih ada di daftar hasil filter
-        if (filteredGames.some(g => g.gameCode === currentSelectedValue)) {
-            validationSelector.value = currentSelectedValue;
-        }
-    });
-}
+            // Kembalikan pilihan sebelumnya jika masih ada di daftar hasil filter
+            if (filteredGames.some(g => g.gameCode === currentSelectedValue)) {
+                validationSelector.value = currentSelectedValue;
+            }
+        }, 300);
+        validatorSearchInput.addEventListener('input', debouncedValidatorSearch);
+    }
             }
 
     if (addPromoForm) {
@@ -719,11 +728,12 @@ if (promosTableBody) {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        const debouncedGameSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGames.filter(game => game.name.toLowerCase().includes(searchTerm));
             populateGameSelectorDropdown(filteredGames);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedGameSearch);
     }
 
    if (gameSelectorDropdown) {
@@ -921,11 +931,12 @@ if (flashSalesTableBody) {
 }
 
 if (fsGameSearch) {
-    fsGameSearch.addEventListener('input', () => {
+    const debouncedFsGameSearch = debounce(() => {
         const searchTerm = fsGameSearch.value.toLowerCase();
         const filteredGames = allGames.filter(g => g.name.toLowerCase().includes(searchTerm));
         populateFlashSaleGameSelector(filteredGames);
-    });
+    }, 300);
+    fsGameSearch.addEventListener('input', debouncedFsGameSearch);
 }
 
 if (fsGameSelector) {
