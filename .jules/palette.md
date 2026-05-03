@@ -1,0 +1,3 @@
+## 2025-05-03 - Added ARIA labels to Icon-only Buttons
+ **Learning:** This app extensively uses `<i class="fas ...">` within `<button>` or standalone (for passwords) as icon-only interactive elements. Adding `aria-label` provides a massive accessibility win for screen readers but modifying `role="button"` and `tabindex="0"` on non-button elements requires extra JS handling (for Space/Enter) to be fully accessible, making it risky for a pure HTML micro-UX change.
+ **Action:** In vanilla JS/HTML projects without a robust UI component library, prioritize adding `aria-label` to native `<button>` tags and be cautious when upgrading generic `<i>` tags without verifying keyboard event listeners exist.
