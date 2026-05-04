@@ -1,0 +1,3 @@
+## 2025-02-23 - Main-thread blocking due to synchronous DOM updates on keystrokes
+**Learning:** Filtering large arrays and updating the DOM synchronously on every single keystroke causes severe main-thread blocking and layout thrashing, resulting in a poor and laggy user experience, especially on slower devices.
+**Action:** Always implement a `debounce` utility function for search inputs that filter arrays or trigger DOM updates. By delaying execution until the user stops typing (e.g., 300ms), we significantly reduce unnecessary re-renders and CPU load.

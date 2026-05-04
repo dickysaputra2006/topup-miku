@@ -5,6 +5,14 @@ document.addEventListener('DOMContentLoaded', function () {
         alert(logoutMessage);
         sessionStorage.removeItem('logoutMessage'); // Hapus pesan agar tidak muncul lagi
     }
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     // === 1. DEKLARASI KONSTANTA & ELEMEN ===
     const API_URL_AUTH = '/api/auth';
     const API_URL = '/api';
@@ -419,8 +427,9 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
-        searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
+        const debouncedSearch = debounce((value) => handleSearch(value), 300);
+        searchInput.addEventListener('input', (e) => debouncedSearch(e.target.value));
+        searchInput.addEventListener('focus', (e) => debouncedSearch(e.target.value));
     }
 
     if (headerRight) {
