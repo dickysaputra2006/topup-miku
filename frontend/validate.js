@@ -1,4 +1,12 @@
 document.addEventListener('DOMContentLoaded', function() {
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     const PUBLIC_API_URL = '/api';
     const gameSearchInput = document.getElementById('game-validate-search-input');
     const validatorTitle = document.getElementById('validator-title');
@@ -128,10 +136,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Pencarian sekarang memfilter dropdown
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
-            const searchTerm = gameSearchInput.value.toLowerCase();
+        const debouncedGameSearch = debounce((searchTerm) => {
             const filteredGames = allValidatableGames.filter(game => game.name && game.name.toLowerCase().includes(searchTerm));
             renderGamesDropdown(filteredGames);
+        }, 300);
+
+        gameSearchInput.addEventListener('input', () => {
+            debouncedGameSearch(gameSearchInput.value.toLowerCase());
         });
     }
 
