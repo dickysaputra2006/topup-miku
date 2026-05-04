@@ -1597,9 +1597,10 @@ app.post('/api/order', protect, async (req, res) => {
         
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, userId]);
         
-        const invoiceId = `TRX-${Date.now()}${userId}`;
+        // Use crypto.randomBytes(8).toString('hex') to prevent predictable transaction IDs
+        const invoiceId = `TRX-${Date.now()}${userId}-${crypto.randomBytes(8).toString('hex')}`;
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
-        const trx_id_provider = `WEB-${Date.now()}`;
+        const trx_id_provider = `WEB-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
         await client.query('INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
         const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
         await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]);
@@ -1734,9 +1735,10 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, h2hUser.id]);
 
-        const invoiceId = `H2H-${Date.now()}${h2hUser.id}`;
+        // Use crypto.randomBytes(8).toString('hex') to prevent predictable transaction IDs
+        const invoiceId = `H2H-${Date.now()}${h2hUser.id}-${crypto.randomBytes(8).toString('hex')}`;
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
-        const trx_id_provider = `H2H-PROVIDER-${Date.now()}`;
+        const trx_id_provider = `H2H-PROVIDER-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
 
         const txSql = 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)';
         await client.query(txSql, [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
