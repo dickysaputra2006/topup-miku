@@ -37,75 +37,107 @@ function safeErrorDetail(error) {
 // ========================================================================
 async function checkPendingTransactions() {
     console.log('Running checkPendingTransactions job...');
-    const client = await pool.connect();
+    let pendingTx;
     try {
-        await client.query('BEGIN');
-
-        const { rows: pendingTx } = await client.query(
-            `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts, p.name as product_name, u.h2h_callback_url FROM transactions t JOIN products p ON t.product_id = p.id JOIN users u ON t.user_id = u.id WHERE t.status = 'Pending' FOR UPDATE`
+        const res = await pool.query(
+            `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts, p.name as product_name, u.h2h_callback_url FROM transactions t JOIN products p ON t.product_id = p.id JOIN users u ON t.user_id = u.id WHERE t.status = 'Pending'`
         );
+        pendingTx = res.rows;
+    } catch (err) {
+        console.error('Database error during checkPendingTransactions job (initial fetch):', safeErrorDetail(err));
+        return;
+    }
 
-        if (pendingTx.length === 0) {
-            console.log('No pending transactions found.');
-            await client.query('COMMIT');
-            return; 
+    if (pendingTx.length === 0) {
+        console.log('No pending transactions found.');
+        return;
+    }
+
+    for (const tx of pendingTx) {
+        if (!tx.provider_trx_id) continue;
+
+        let foxyStatus = null;
+        let serialNumber = 'Tidak ada SN';
+        let isNotFound = false;
+
+        try {
+            const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, { headers: foxyApiHeaders });
+            const foxyData = foxyResponse.data.data;
+            foxyStatus = foxyData.status.toUpperCase();
+            serialNumber = foxyData.sn || 'Tidak ada SN';
+        } catch (foxyError) {
+            if (foxyError.response && foxyError.response.status === 404) {
+                isNotFound = true;
+            } else {
+                console.error(`Error checking Foxy status for ${tx.provider_trx_id}:`, safeErrorDetail(foxyError));
+                continue;
+            }
         }
 
-        for (const tx of pendingTx) {
-            if (!tx.provider_trx_id) continue;
+        const client = await pool.connect();
+        let finalStatus = null;
+        // committedStatus is assigned only after COMMIT succeeds.
+        // H2H webhook must never fire if the DB write was rolled back.
+        let committedStatus = null;
+        try {
+            await client.query('BEGIN');
+            
+            const checkRes = await client.query('SELECT status, check_attempts FROM transactions WHERE id = $1 FOR UPDATE', [tx.id]);
+            if (checkRes.rows.length === 0) {
+                await client.query('ROLLBACK');
+                continue;
+            }
+            const currentDbTx = checkRes.rows[0];
+            
+            if (currentDbTx.status !== 'Pending') {
+                await client.query('ROLLBACK');
+                continue;
+            }
 
-            try {
-                const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, { headers: foxyApiHeaders });
-
-                const foxyData = foxyResponse.data.data;
-                const foxyStatus = foxyData.status.toUpperCase();
-                const serialNumber = foxyData.sn || 'Tidak ada SN';
-                
-                let finalStatus = null;
-
-                if (foxyStatus === 'SUCCESS') {
-                    finalStatus = 'Success';
-                    await client.query('UPDATE transactions SET status = $1, provider_sn = $2, updated_at = NOW() WHERE id = $3', [finalStatus, serialNumber, tx.id]);
-                } else if (foxyStatus === 'FAILED' || foxyStatus === 'REFUNDED') {
+            if (isNotFound) {
+                const MAX_ATTEMPTS = 5;
+                if (currentDbTx.check_attempts < MAX_ATTEMPTS) {
+                    await client.query('UPDATE transactions SET check_attempts = check_attempts + 1 WHERE id = $1', [tx.id]);
+                } else {
                     finalStatus = 'Failed';
                     await client.query('UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2', [finalStatus, tx.id]);
                     await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
+                    const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} karena: Transaksi kadaluarsa di provider (Cron)`;
+                    await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
                 }
-
-                if (finalStatus && tx.h2h_callback_url) {
-                    const webhookPayload = {
-                        invoice_id: tx.invoice_id,
-                        status: finalStatus,
-                        product_name: tx.product_name,
-                        price: tx.price,
-                        serial_number: serialNumber,
-                        timestamp: new Date().toISOString()
-                    };
-                    axios.post(tx.h2h_callback_url, webhookPayload)
-                         .catch(err => console.error(`Failed to send webhook for ${tx.invoice_id}:`, err.message));
-                }
-
-            } catch (foxyError) {
-                if (foxyError.response && foxyError.response.status === 404) {
-                    const MAX_ATTEMPTS = 5;
-                    if (tx.check_attempts < MAX_ATTEMPTS) {
-                        await client.query('UPDATE transactions SET check_attempts = check_attempts + 1 WHERE id = $1', [tx.id]);
-                    } else {
-                        await client.query('UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2', ['Failed', tx.id]);
-                        await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
-                    }
-                } else {
-                console.error(`Error checking Foxy status for ${tx.provider_trx_id}:`, safeErrorDetail(foxyError));
-                }
+            } else if (foxyStatus === 'SUCCESS') {
+                finalStatus = 'Success';
+                await client.query('UPDATE transactions SET status = $1, provider_sn = $2, updated_at = NOW() WHERE id = $3', [finalStatus, serialNumber, tx.id]);
+            } else if (foxyStatus === 'FAILED' || foxyStatus === 'REFUNDED') {
+                finalStatus = 'Failed';
+                await client.query('UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2', [finalStatus, tx.id]);
+                await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
+                const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} karena: Gagal/Refund dari provider (Cron)`;
+                await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
             }
+
+            await client.query('COMMIT');
+            // Only mark as committed once COMMIT succeeds; catch block cannot reach here.
+            committedStatus = finalStatus;
+        } catch (dbError) {
+            await client.query('ROLLBACK');
+            console.error(`Database error during tx ${tx.invoice_id} resolution:`, safeErrorDetail(dbError));
+        } finally {
+            client.release();
         }
-        await client.query('COMMIT');
-    } catch (dbError) {
-        await client.query('ROLLBACK');
-        console.error('Database error during checkPendingTransactions job:', safeErrorDetail(dbError));
-        throw dbError;
-    } finally {
-        client.release();
+
+        if (committedStatus && tx.h2h_callback_url) {
+            const webhookPayload = {
+                invoice_id: tx.invoice_id,
+                status: finalStatus,
+                product_name: tx.product_name,
+                price: tx.price,
+                serial_number: serialNumber,
+                timestamp: new Date().toISOString()
+            };
+            axios.post(tx.h2h_callback_url, webhookPayload)
+                 .catch(err => console.error(`Failed to send webhook for ${tx.invoice_id}:`, err.message));
+        }
     }
 }
 

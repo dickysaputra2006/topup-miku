@@ -192,4 +192,40 @@ describe('Security: Error Exposure Tests', () => {
         const has429 = responses.some(r => r.status === 429);
         assert.ok(has429, 'Rate limiter should kick in and return 429');
     });
+
+    test('should save provider_sn on successful callback', async () => {
+        const callbackUrl = `http://127.0.0.1:${server.address().port}/api/foxy/callback`;
+        
+        let updateQueryExecuted = false;
+        
+        mock.method(pool, 'query', async () => ({ rows: [] }));
+        
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (sql.includes('SELECT * FROM transactions')) {
+                    return { rows: [{ id: 1, invoice_id: 'TRX-123', user_id: 1, status: 'Pending', price: 1000 }] };
+                }
+                if (sql.includes("UPDATE transactions SET status = 'Success', provider_sn = $1")) {
+                    if (params && params[0] === 'VOUCHER123') {
+                        updateQueryExecuted = true;
+                    }
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(callbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trx_id: '123', status: 'SUCCESS', sn: 'VOUCHER123' })
+        });
+
+        assert.strictEqual(res.status, 200);
+        assert.ok(updateQueryExecuted, 'UPDATE query with provider_sn should be executed');
+        
+        pool.connect.mock.restore();
+        pool.query.mock.restore();
+    });
 });

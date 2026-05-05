@@ -1553,6 +1553,10 @@ app.get('/api/public/compare-prices', async (req, res) => {
         `);
         const { rows: roles } = await pool.query(`SELECT name, margin_percent FROM roles ORDER BY id ASC`);
         const { rows: games } = await pool.query("SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC");
+        const { rows: activeFlashSales } = await pool.query(
+            `SELECT product_id, discount_price FROM flash_sales WHERE is_active = true AND NOW() BETWEEN start_at AND end_at`
+        );
+        const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, Number(fs.discount_price)]));
 
         const productsWithRolePrices = products.map(product => {
             const productWithPrices = { 
@@ -1574,6 +1578,13 @@ app.get('/api/public/compare-prices', async (req, res) => {
                     }
                     finalPrice = Math.ceil(product.price * (1 + (finalMargin / 100)));
                 }
+                // Apply flash sale if active and lower than computed price
+                if (flashSaleMap.has(product.id)) {
+                    const flashPrice = flashSaleMap.get(product.id);
+                    if (flashPrice > 0 && flashPrice < finalPrice) {
+                        finalPrice = flashPrice;
+                    }
+                }
                 productWithPrices[`price_${roleNameLower}`] = finalPrice;
             });
             return productWithPrices;
@@ -1588,7 +1599,7 @@ app.get('/api/public/compare-prices', async (req, res) => {
 
 app.post('/api/promos/validate', protect, async (req, res) => {
     const { promo_code, product_id, target_game_id } = req.body;
-    const client_user_id = req.user.id; // ID pengguna dari sistem kita
+    const client_user_id = req.user.id;
 
     if (!promo_code || !product_id || !target_game_id) {
         return res.status(400).json({ valid: false, message: 'Informasi promo, produk, dan ID game dibutuhkan.' });
@@ -1596,7 +1607,6 @@ app.post('/api/promos/validate', protect, async (req, res) => {
 
     const client = await pool.connect();
     try {
-        // 1. Ambil detail promo
         const promoRes = await client.query('SELECT * FROM promo_codes WHERE code = $1 AND is_active = true', [promo_code.toUpperCase()]);
         if (promoRes.rows.length === 0) {
             return res.status(404).json({ valid: false, message: 'Kode promo tidak ditemukan atau tidak aktif.' });
@@ -1604,7 +1614,6 @@ app.post('/api/promos/validate', protect, async (req, res) => {
         const promo = promoRes.rows[0];
         const rules = promo.rules || {};
 
-        // 2. Cek tanggal kedaluwarsa & batas penggunaan global
         if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
             return res.status(400).json({ valid: false, message: 'Kode promo sudah kedaluwarsa.' });
         }
@@ -1612,7 +1621,6 @@ app.post('/api/promos/validate', protect, async (req, res) => {
             return res.status(400).json({ valid: false, message: 'Kuota penggunaan promo ini sudah habis.' });
         }
 
-        // 3. Cek batas penggunaan per ID Game
         if (rules.max_uses_per_user) {
             const usageRes = await client.query(
                 'SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND customer_game_id = $2',
@@ -1624,14 +1632,12 @@ app.post('/api/promos/validate', protect, async (req, res) => {
             }
         }
         
-        // 4. Ambil detail produk & game yang akan dibeli
         const productRes = await client.query('SELECT p.*, g.id as game_id FROM products p JOIN games g ON p.game_id = g.id WHERE p.id = $1', [product_id]);
         if (productRes.rows.length === 0) {
             return res.status(404).json({ valid: false, message: 'Produk tidak ditemukan.' });
         }
         const product = productRes.rows[0];
 
-        // 5. Validasi semua aturan dari JSON
         if (rules.min_price && product.price < rules.min_price) {
             return res.status(400).json({ valid: false, message: `Promo ini hanya berlaku untuk pembelian minimal Rp ${rules.min_price}.` });
         }
@@ -1642,7 +1648,6 @@ app.post('/api/promos/validate', protect, async (req, res) => {
             return res.status(400).json({ valid: false, message: 'Promo ini tidak berlaku untuk produk ini.' });
         }
 
-        // 6. Jika semua validasi lolos, hitung diskonnya
         let discount = 0;
         if (promo.type === 'percentage') {
             discount = (product.price * promo.value) / 100;
@@ -1667,6 +1672,7 @@ app.post('/api/promos/validate', protect, async (req, res) => {
         client.release();
     }
 });
+
 
 // Endpoint untuk mengambil produk flash sale yang aktif
 app.get('/api/public/flash-sales', async (req, res) => {
@@ -1832,6 +1838,22 @@ app.post('/api/order', protect, async (req, res) => {
         }
         // --- AKHIR LOGIKA HARGA FINAL ---
 
+        // --- FLASH SALE OVERRIDE ---
+        // Cek apakah produk memiliki flash sale aktif. Logika ini identik
+        // dengan yang digunakan di /api/games/:gameId/products untuk memastikan
+        // harga yang ditampilkan sama dengan harga yang dikenakan.
+        const { rows: flashSaleRows } = await client.query(
+            `SELECT discount_price FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at LIMIT 1`,
+            [productId]
+        );
+        if (flashSaleRows.length > 0) {
+            const flashPrice = Number(flashSaleRows[0].discount_price);
+            if (flashPrice > 0 && flashPrice < finalPrice) {
+                finalPrice = flashPrice;
+            }
+        }
+        // --- AKHIR FLASH SALE OVERRIDE ---
+
         if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const duplicate = await findRecentPendingDuplicate(client, userId, productId, finalTargetForDB);
@@ -1854,7 +1876,12 @@ app.post('/api/order', protect, async (req, res) => {
             throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
         }
 
-        await client.query('COMMIT');
+        try {
+            await client.query('COMMIT');
+        } catch (commitError) {
+            console.error(`[CRITICAL] DB COMMIT FAILED AFTER PROVIDER SUCCESS! Invoice: ${invoiceId}, ProviderTrxId: ${trx_id_provider}, UserId: ${userId}`);
+            throw commitError;
+        }
         res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
 
     } catch (error) {
@@ -1895,7 +1922,12 @@ app.post('/api/foxy/callback', async (req, res) => {
         const tx = transactions[0];
 
         if (normalizedStatus === 'SUCCESS') {
-            await client.query('UPDATE transactions SET status = \'Success\', updated_at = NOW() WHERE id = $1', [tx.id]);
+            const providerSn = req.body.sn || req.body.serial_number || req.body.provider_sn;
+            if (providerSn) {
+                await client.query('UPDATE transactions SET status = \'Success\', provider_sn = $1, updated_at = NOW() WHERE id = $2', [providerSn, tx.id]);
+            } else {
+                await client.query('UPDATE transactions SET status = \'Success\', updated_at = NOW() WHERE id = $1', [tx.id]);
+            }
                  await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} telah berhasil diproses.`, `/invoice.html?id=${tx.invoice_id}`);
         } else if (normalizedStatus === 'FAILED' || normalizedStatus === 'REFUNDED') {
             await client.query('UPDATE transactions SET status = \'Failed\', updated_at = NOW() WHERE id = $1', [tx.id]);
@@ -1989,6 +2021,22 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         }
         // --- AKHIR LOGIKA HARGA FINAL ---
 
+        // --- FLASH SALE OVERRIDE ---
+        // Cek apakah produk memiliki flash sale aktif. Logika ini identik
+        // dengan yang digunakan di /h2h/products untuk memastikan
+        // harga yang ditampilkan sama dengan harga yang dikenakan.
+        const { rows: h2hFlashSaleRows } = await client.query(
+            `SELECT discount_price FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at LIMIT 1`,
+            [productId]
+        );
+        if (h2hFlashSaleRows.length > 0) {
+            const flashPrice = Number(h2hFlashSaleRows[0].discount_price);
+            if (flashPrice > 0 && flashPrice < finalPrice) {
+                finalPrice = flashPrice;
+            }
+        }
+        // --- AKHIR FLASH SALE OVERRIDE ---
+
         if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const duplicate = await findRecentPendingDuplicate(client, h2hUser.id, productId, finalTargetForDB);
@@ -2030,7 +2078,12 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
         }
 
-        await client.query('COMMIT');
+        try {
+            await client.query('COMMIT');
+        } catch (commitError) {
+            console.error(`[CRITICAL] DB COMMIT FAILED AFTER PROVIDER SUCCESS! Invoice: ${invoiceId}, ProviderTrxId: ${trx_id_provider}, UserId: ${h2hUser.id}`);
+            throw commitError;
+        }
         
         res.status(201).json({ 
             success: true,
@@ -2146,68 +2199,7 @@ app.get('/h2h/products', protectH2HIp, protectH2H, async (req, res) => {
     }
 });
 
-async function checkPendingTransactions() {
-    console.log('Running checkPendingTransactions job...');
-    const client = await pool.connect(); // Dapatkan koneksi dari pool
-    try {
-        await client.query('BEGIN'); // Mulai transaksi database
-
-        // 1. Ambil semua transaksi dengan status 'Pending' yang belum diupdate oleh callback
-        const { rows: pendingTx } = await client.query(
-            `SELECT id, invoice_id, user_id, product_id, price, provider_trx_id FROM transactions WHERE status = 'Pending' FOR UPDATE`
-        ); // Gunakan FOR UPDATE untuk mengunci baris
-
-        if (pendingTx.length === 0) {
-            console.log('No pending transactions found.');
-            await client.query('COMMIT');
-            return;
-        }
-
-        console.log(`Found ${pendingTx.length} pending transactions. Checking status with Foxy API...`);
-
-        for (const tx of pendingTx) {
-            try {
-                // Panggil Foxy API untuk mendapatkan status transaksi
-                // Sesuai dengan modul api foxy Anda, endpoint status adalah /v1/status/{trxId}
-                const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, {
-                    headers: { 'Authorization': FOXY_API_KEY }
-                });
-
-                const foxyStatus = foxyResponse.data.data.status; // Asumsi status ada di response.data.data.status
-                const foxyMessage = foxyResponse.data.message || 'No specific message from provider.';
-
-                console.log(`Transaction ${tx.invoice_id} (Provider ID: ${tx.provider_trx_id}) - Foxy Status: ${foxyStatus}`);
-
-                if (foxyStatus === 'SUCCESS') {
-                    await client.query('UPDATE transactions SET status = \'Success\', updated_at = NOW() WHERE id = $1', [tx.id]);
-                    console.log(`Transaction ${tx.invoice_id} updated to SUCCESS.`);
-                } else if (foxyStatus === 'FAILED' || foxyStatus === 'REFUNDED' || foxyStatus === 'PARTIAL SUCCES' || foxyStatus === 'PARTIAL REFFUND') {
-                    await client.query('UPDATE transactions SET status = \'Failed\', updated_at = NOW() WHERE id = $1', [tx.id]);
-                    // Kembalikan saldo pengguna
-                    await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
-                    // Catat di riwayat saldo
-                    const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} (Gagal/Refund dari provider): ${foxyMessage}`;
-                    await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
-                        [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
-                    console.log(`Transaction ${tx.invoice_id} updated to FAILED/REFUNDED and balance refunded.`);
-                }
-                // Jika statusnya masih 'PENDING' dari Foxy, biarkan saja di database Anda.
-
-            } catch (foxyError) {
-                console.error(`Error checking Foxy status for ${tx.invoice_id}:`, foxyError.response ? foxyError.response.data : foxyError.message);
-                // Tangani error API Foxy, misal log saja, jangan update status di DB jika tidak yakin.
-            }
-        }
-
-        await client.query('COMMIT'); // Commit transaksi setelah semua selesai
-
-    } catch (dbError) {
-        await client.query('ROLLBACK'); // Rollback jika ada error database saat mengambil/memproses
-        console.error('Error in checkPendingTransactions job:', dbError);
-    } finally {
-        client.release(); // Selalu kembalikan koneksi ke pool
-    }
-}
+/* Deprecated checkPendingTransactions removed in Phase 3B */
 
 app.put('/h2h/profile/callback', protectH2H, async (req, res) => {
     try {
@@ -2255,4 +2247,4 @@ if (require.main === module) {
     server = startServer();
 }
 
-module.exports = { app, pool, checkPendingTransactions, startServer, server, validateEnvironment };
+module.exports = { app, pool, startServer, server, validateEnvironment };
