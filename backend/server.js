@@ -1895,7 +1895,12 @@ app.post('/api/foxy/callback', async (req, res) => {
         const tx = transactions[0];
 
         if (normalizedStatus === 'SUCCESS') {
-            await client.query('UPDATE transactions SET status = \'Success\', updated_at = NOW() WHERE id = $1', [tx.id]);
+            const providerSn = req.body.sn || req.body.serial_number || req.body.provider_sn;
+            if (providerSn) {
+                await client.query('UPDATE transactions SET status = \'Success\', provider_sn = $1, updated_at = NOW() WHERE id = $2', [providerSn, tx.id]);
+            } else {
+                await client.query('UPDATE transactions SET status = \'Success\', updated_at = NOW() WHERE id = $1', [tx.id]);
+            }
                  await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} telah berhasil diproses.`, `/invoice.html?id=${tx.invoice_id}`);
         } else if (normalizedStatus === 'FAILED' || normalizedStatus === 'REFUNDED') {
             await client.query('UPDATE transactions SET status = \'Failed\', updated_at = NOW() WHERE id = $1', [tx.id]);
