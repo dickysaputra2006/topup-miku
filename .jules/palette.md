@@ -1,0 +1,3 @@
+## 2024-05-05 - Interactive Icons Missing Accessibility Attributes
+**Learning:** In the vanilla HTML frontend, icon-only interactive elements (like FontAwesome icons used for password toggling, hamburger menus, and close modal buttons) frequently lacked `aria-label`, `role="button"`, and `tabindex="0"`. This pattern made them completely invisible to screen readers and inaccessible via keyboard navigation.
+**Action:** When working on HTML templates in this repository, always ensure that any `<i>` or `<button>` element that acts as an interactive icon has an `aria-label` describing its action, and if it is not a native `<button>`, ensure it has `role="button"` and `tabindex="0"` for keyboard focus.
