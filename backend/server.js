@@ -8,6 +8,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
+const net = require('net');
 const { sendPasswordResetEmail } = require('./utils/mailer.js');
 const { syncProductsWithFoxy } = require('./utils/cronUtils.js');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
@@ -19,7 +20,147 @@ const app = express();
 app.set('trust proxy', 1); // untuk mendapatkan IP asli di belakang proxy
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
+const REQUIRED_ENV = ['JWT_SECRET'];
+const RECOMMENDED_RUNTIME_ENV = ['DB_USER', 'DB_HOST', 'DB_NAME', 'DB_PASSWORD', 'DB_PORT', 'FOXY_API_KEY'];
+// Optional local/dev integrations: CORS_ORIGINS, APP_BASE_URL, BREVO_API_KEY, PGS_KEY, PGS_API_KEY.
 const BOT_PRODUCT_BLACKLIST = ['FXGT', 'Via Login', 'Gifts'];
+const MAX_BODY_SIZE = '100kb';
+const DUPLICATE_ORDER_WINDOW_SECONDS = 15;
+const DEFAULT_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'https://mikutopup.my.id'
+];
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean);
+
+function validateEnvironment({ strict = false } = {}) {
+    const missingRequired = REQUIRED_ENV.filter(name => !process.env[name]);
+    const missingRecommended = RECOMMENDED_RUNTIME_ENV.filter(name => !process.env[name]);
+
+    if (missingRequired.length > 0) {
+        const message = `Missing required environment variables: ${missingRequired.join(', ')}`;
+        if (strict) throw new Error(message);
+        console.warn(`[env] ${message}`);
+    }
+
+    if (missingRecommended.length > 0) {
+        console.warn(`[env] Missing runtime environment variables: ${missingRecommended.join(', ')}`);
+    }
+}
+
+function safeErrorDetail(error) {
+    if (!error) return { message: 'Unknown error' };
+    const detail = {};
+    if (error.code) detail.code = error.code;
+    if (error.response && error.response.status) detail.status = error.response.status;
+    if (error.message) detail.message = String(error.message).replace(/(api[_-]?key|authorization|password|token|secret)=?[^\s,]*/gi, '$1=[REDACTED]');
+    return detail;
+}
+
+function logSafeError(label, error) {
+    console.error(label, safeErrorDetail(error));
+}
+
+function normalizeString(value, maxLength = 255) {
+    if (typeof value !== 'string') return '';
+    return value.trim().slice(0, maxLength);
+}
+
+function isValidEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 255;
+}
+
+function isValidPassword(password) {
+    return typeof password === 'string' && password.length >= 8 && password.length <= 128;
+}
+
+function hashResetToken(token) {
+    return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function isValidApiKey(apiKey) {
+    return typeof apiKey === 'string' && /^[a-f0-9]{48}$/i.test(apiKey);
+}
+
+function isValidIpOrCidr(value) {
+    if (typeof value !== 'string') return false;
+    const trimmed = value.trim();
+    const [ip, prefix] = trimmed.split('/');
+    if (!net.isIP(ip)) return false;
+    if (prefix === undefined) return true;
+    if (!/^\d{1,3}$/.test(prefix)) return false;
+    const prefixNumber = Number(prefix);
+    return net.isIP(ip) === 4 ? prefixNumber >= 0 && prefixNumber <= 32 : prefixNumber >= 0 && prefixNumber <= 128;
+}
+
+function isPrivateHostname(hostname) {
+    const lower = hostname.toLowerCase();
+    if (lower === 'localhost' || lower.endsWith('.local')) return true;
+    if (net.isIP(lower) === 4) {
+        const parts = lower.split('.').map(Number);
+        return parts[0] === 10 ||
+            parts[0] === 127 ||
+            (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+            (parts[0] === 192 && parts[1] === 168) ||
+            (parts[0] === 169 && parts[1] === 254);
+    }
+    if (net.isIP(lower) === 6) {
+        return lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80');
+    }
+    return false;
+}
+
+function isValidHttpsCallbackUrl(value) {
+    try {
+        const parsed = new URL(value);
+        return parsed.protocol === 'https:' && !parsed.username && !parsed.password && !isPrivateHostname(parsed.hostname);
+    } catch (error) {
+        return false;
+    }
+}
+
+function isValidPriceAmount(value) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) && numberValue > 0 && numberValue <= 100000000;
+}
+
+function getSafeOrderErrorMessage(error, fallback) {
+    const message = error && error.message ? error.message : '';
+    const allowedMessages = [
+        'Produk dan ID Game wajib diisi.',
+        'productId dan targetGameId wajib diisi.',
+        'Produk tidak valid atau tidak aktif.',
+        'Terjadi perubahan harga',
+        'Server ID wajib diisi',
+        'Saldo Anda tidak mencukupi.',
+        'Saldo H2H Anda tidak mencukupi.',
+        'Harga produk tidak valid.',
+        'Pesanan serupa masih pending',
+        'Gagal mengirim pesanan ke provider.'
+    ];
+    return allowedMessages.some(allowed => message.startsWith(allowed)) ? message : fallback;
+}
+
+async function findRecentPendingDuplicate(client, userId, productId, targetGameId) {
+    const { rows } = await client.query(
+        `SELECT invoice_id
+         FROM transactions
+         WHERE user_id = $1
+           AND product_id = $2
+           AND target_game_id = $3
+           AND status = 'Pending'
+           AND created_at > NOW() - ($4::int * INTERVAL '1 second')
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [userId, productId, targetGameId, DUPLICATE_ORDER_WINDOW_SECONDS]
+    );
+    return rows[0] || null;
+}
 
 // === KONFIGURASI FOXY API ===
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
@@ -50,10 +191,28 @@ async function getFoxyProducts() {
 }
 
 // Middleware (HARUS DI ATAS SEMUA RUTE)
-app.use(cors());
-app.use(express.json());
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:;");
+    next();
+});
+app.use(cors({
+    origin(origin, callback) {
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+        return callback(new Error('Origin tidak diizinkan oleh CORS.'));
+    }
+}));
+app.use(express.json({ limit: MAX_BODY_SIZE }));
 const frontendPath = path.join(__dirname, '../frontend');
 app.use(express.static(frontendPath));
+
+app.get('/healthz', (req, res) => {
+    res.json({ ok: true, service: 'topup-miku' });
+});
 
 const dbConfig = {
     user: process.env.DB_USER,
@@ -78,6 +237,30 @@ const authLimiter = rateLimit({
     legacyHeaders: false, 
 });
 
+const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    message: 'Terlalu banyak percobaan registrasi dari IP ini, silakan coba lagi nanti.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const checkoutLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 30,
+    message: 'Terlalu banyak percobaan checkout, silakan coba lagi nanti.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const h2hLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    message: { success: false, message: 'Terlalu banyak permintaan H2H, silakan coba lagi nanti.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // Aturan umum untuk endpoint API lainnya yang butuh login
 const apiLimiter = rateLimit({
     windowMs: 5 * 60 * 1000, // 5 menit
@@ -89,18 +272,32 @@ const apiLimiter = rateLimit({
 
 // Terapkan limiter ke endpoint yang relevan
 app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', registerLimiter);
 app.use('/api/auth/forgot-password', authLimiter);
+app.use('/api/auth/reset-password', authLimiter);
 
 app.use('/api/user', apiLimiter);
+app.use('/api/order', checkoutLimiter);
 app.use('/api/order', apiLimiter);
+app.use('/h2h', h2hLimiter);
 app.use('/h2h', apiLimiter); 
+app.use('/api/full-validate', apiLimiter);
+app.use('/api/products', apiLimiter);
 
 
 // === AUTH ENDPOINTS ===
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const { fullName, username, email, nomorWa, password } = req.body;
+        const fullName = normalizeString(req.body.fullName, 255);
+        const username = normalizeString(req.body.username, 80);
+        const email = normalizeString(req.body.email, 255).toLowerCase();
+        const nomorWa = normalizeString(req.body.nomorWa, 30);
+        const { password } = req.body;
         if (!fullName || !username || !email || !nomorWa || !password) return res.status(400).json({ message: 'Semua kolom wajib diisi!' });
+        if (!/^[a-zA-Z0-9_.-]{3,80}$/.test(username)) return res.status(400).json({ message: 'Username hanya boleh berisi huruf, angka, titik, strip, dan underscore.' });
+        if (!isValidEmail(email)) return res.status(400).json({ message: 'Format email tidak valid.' });
+        if (!/^\+?[0-9]{8,20}$/.test(nomorWa)) return res.status(400).json({ message: 'Nomor WhatsApp tidak valid.' });
+        if (!isValidPassword(password)) return res.status(400).json({ message: 'Password minimal 8 karakter dan maksimal 128 karakter.' });
         const hashedPassword = await bcrypt.hash(password, 10);
         const { rows: bronzeRole } = await pool.query("SELECT id FROM roles WHERE name = 'BRONZE'");
         let defaultRoleId = 1;
@@ -112,14 +309,15 @@ app.post('/api/auth/register', async (req, res) => {
         res.status(201).json({ message: 'Registrasi berhasil! Silakan login.' });
     } catch (error) {
         if (error.code === '23505') return res.status(409).json({ message: 'Username atau Email sudah digunakan.' });
-        console.error('Error during registration:', error);
+        logSafeError('Error during registration:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
 });
 
 app.post('/api/auth/login', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const username = normalizeString(req.body.username, 255);
+        const { password } = req.body;
         if (!username || !password) return res.status(400).json({ message: 'Input tidak boleh kosong.' });
         const sql = 'SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = $1 OR u.email = $2';
         const { rows } = await pool.query(sql, [username, username]);
@@ -130,15 +328,18 @@ app.post('/api/auth/login', async (req, res) => {
         const token = jwt.sign({ id: user.id, username: user.username, role: user.role_name }, JWT_SECRET, { expiresIn: '1d' });
         res.status(200).json({ message: 'Login berhasil!', token });
     } catch (error) {
-        console.error('Error during login:', error);
+        logSafeError('Error during login:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
 });
 
 app.post('/api/auth/forgot-password', async (req, res) => {
-    const { email } = req.body;
+    const email = normalizeString(req.body.email, 255).toLowerCase();
     if (!email) {
         return res.status(400).json({ message: 'Alamat email wajib diisi.' });
+    }
+    if (!isValidEmail(email)) {
+        return res.status(400).json({ message: 'Format email tidak valid.' });
     }
 
     const client = await pool.connect();
@@ -152,12 +353,13 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 
         // Buat token reset yang aman
         const token = crypto.randomBytes(32).toString('hex');
+        const tokenHash = hashResetToken(token);
         const expires = new Date(Date.now() + 3600000); // Token berlaku selama 1 jam
 
         // Simpan token ke database
         await client.query(
             'INSERT INTO password_resets (email, token, expires_at) VALUES ($1, $2, $3)',
-            [email, token, expires]
+            [email, tokenHash, expires]
         );
 
         // Kirim email menggunakan fungsi dari mailer.js
@@ -166,7 +368,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
         res.json({ message: 'Jika email Anda terdaftar, Anda akan menerima link reset password.' });
 
     } catch (error) {
-        console.error('Error saat proses lupa password:', error);
+        logSafeError('Error saat proses lupa password:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     } finally {
         client.release();
@@ -179,20 +381,27 @@ app.post('/api/auth/reset-password', async (req, res) => {
     if (!token || !newPassword) {
         return res.status(400).json({ message: 'Token dan password baru wajib diisi.' });
     }
+    if (typeof token !== 'string' || !/^[a-f0-9]{64}$/i.test(token)) {
+        return res.status(400).json({ message: 'Token tidak valid atau sudah kadaluarsa.' });
+    }
+    if (!isValidPassword(newPassword)) {
+        return res.status(400).json({ message: 'Password minimal 8 karakter dan maksimal 128 karakter.' });
+    }
 
     const client = await pool.connect();
     try {
         await client.query('BEGIN'); // Mulai transaksi untuk keamanan data
+        const tokenHash = hashResetToken(token);
 
         // 1. Cari token di database dan pastikan belum kadaluarsa
         const { rows: resets } = await client.query(
-            'SELECT * FROM password_resets WHERE token = $1 AND expires_at > NOW()',
-            [token]
+            'SELECT * FROM password_resets WHERE token IN ($1, $2) AND expires_at > NOW()',
+            [tokenHash, token]
         );
 
         if (resets.length === 0) {
             // Hapus token yang mungkin sudah kadaluarsa untuk kebersihan
-            await client.query('DELETE FROM password_resets WHERE token = $1', [token]);
+            await client.query('DELETE FROM password_resets WHERE token IN ($1, $2)', [tokenHash, token]);
             await client.query('COMMIT'); // Simpan perubahan penghapusan
             return res.status(400).json({ message: 'Token tidak valid atau sudah kadaluarsa.' });
         }
@@ -217,7 +426,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 
     } catch (error) {
         await client.query('ROLLBACK'); // Batalkan semua perubahan jika ada error di tengah jalan
-        console.error('Error saat reset password:', error);
+        logSafeError('Error saat reset password:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     } finally {
         client.release();
@@ -238,9 +447,20 @@ const protect = (req, res, next) => {
 };
 
 const protectAdmin = (req, res, next) => {
-    protect(req, res, () => {
+    protect(req, res, async () => {
         if (req.user && req.user.role === 'Admin') {
+            try {
+                const sql = 'SELECT r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1';
+                const { rows } = await pool.query(sql, [req.user.id]);
+                if (rows.length > 0 && rows[0].role_name === 'Admin') {
             next();
+                } else {
+                    res.status(403).json({ message: 'Akses ditolak: Hanya untuk Admin.' });
+                }
+            } catch (error) {
+                logSafeError('Error di protectAdmin:', error);
+                res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+            }
         } else {
             res.status(403).json({ message: 'Akses ditolak: Hanya untuk Admin.' });
         }
@@ -263,14 +483,17 @@ const softProtect = (req, res, next) => {
 };
 
 const protectH2H = async (req, res, next) => {
-    const apiKey = req.headers['x-api-key'];
+    const apiKey = normalizeString(req.headers['x-api-key'], 128);
     if (!apiKey) {
         return res.status(401).json({ success: false, message: 'API Key tidak ditemukan di header X-API-Key.' });
+    }
+    if (!isValidApiKey(apiKey)) {
+        return res.status(403).json({ success: false, message: 'API Key tidak valid.' });
     }
     try {
         
         const sql = `
-            SELECT u.*, r.name as role_name 
+            SELECT u.id, u.username, u.balance, u.api_key, u.role_id, u.h2h_callback_url, r.name as role_name 
             FROM users u 
             JOIN roles r ON u.role_id = r.id 
             WHERE u.api_key = $1`;
@@ -282,7 +505,7 @@ const protectH2H = async (req, res, next) => {
         req.user = rows[0];
         next();
     } catch (error) {
-        console.error('H2H Auth Error:', error);
+        logSafeError('H2H Auth Error:', error);
         res.status(500).json({ success: false, message: 'Server error saat validasi API Key.' });
     }
 };
@@ -294,8 +517,11 @@ const protectH2HIp = async (req, res, next) => {
         return next();
     }
 
-    const apiKey = req.headers['x-api-key'];
+    const apiKey = normalizeString(req.headers['x-api-key'], 128);
     if (!apiKey) {
+        return next();
+    }
+    if (!isValidApiKey(apiKey)) {
         return next();
     }
 
@@ -311,7 +537,7 @@ const protectH2HIp = async (req, res, next) => {
 
         if (rows.length > 0) {
             const user = rows[0];
-            const allowedIps = user.whitelisted_ips;
+            const allowedIps = user.whitelisted_ips || [];
 
             if (Array.isArray(allowedIps) && allowedIps.length > 0) {
                 if (!allowedIps.includes(requestIp)) {
@@ -547,7 +773,14 @@ app.put('/api/user/whitelisted-ips', protect, async (req, res) => {
         if (!Array.isArray(ips)) {
             return res.status(400).json({ message: 'Format data tidak valid, harus berupa array.' });
         }
-        await pool.query('UPDATE users SET whitelisted_ips = $1 WHERE id = $2', [ips, req.user.id]);
+        if (ips.length > 20) {
+            return res.status(400).json({ message: 'Maksimal 20 IP whitelist.' });
+        }
+        const cleanedIps = [...new Set(ips.map(ip => normalizeString(ip, 64)).filter(Boolean))];
+        if (!cleanedIps.every(isValidIpOrCidr)) {
+            return res.status(400).json({ message: 'Daftar IP mengandung format yang tidak valid.' });
+        }
+        await pool.query('UPDATE users SET whitelisted_ips = $1 WHERE id = $2', [cleanedIps, req.user.id]);
         res.json({ message: 'Daftar IP berhasil diperbarui.' });
     } catch (error) {
         console.error('Error updating whitelisted IPs:', error);
@@ -559,10 +792,12 @@ app.put('/api/user/whitelisted-ips', protect, async (req, res) => {
 app.post('/api/deposit/request', protect, async (req, res) => {
     const client = await pool.connect(); // Menggunakan client dari pool untuk transaksi
     try {
-        await client.query('BEGIN'); // Memulai transaksi
         const { amount } = req.body;
         const userId = req.user.id;
-        if (!amount || isNaN(amount) || amount <= 0) throw new Error('Jumlah deposit tidak valid.');
+        if (!Number.isFinite(Number(amount)) || Number(amount) < 10000 || Number(amount) > 100000000) {
+            return res.status(400).json({ message: 'Jumlah deposit tidak valid.' });
+        }
+        await client.query('BEGIN'); // Memulai transaksi
         const uniqueCode = Math.floor(Math.random() * 900) + 100;
         const totalAmount = parseInt(amount) + uniqueCode;
         // PostgreSQL: RETURNING id untuk mendapatkan ID yang di-generate
@@ -1537,10 +1772,12 @@ app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const { productId, targetGameId, targetServerId, promoCode } = req.body;
+        const productId = Number(req.body.productId);
+        const targetGameId = normalizeString(req.body.targetGameId, 80);
+        const targetServerId = normalizeString(req.body.targetServerId, 80);
         const userId = req.user.id;
 
-        if (!productId || !targetGameId) throw new Error('Produk dan ID Game wajib diisi.');
+        if (!Number.isInteger(productId) || productId <= 0 || !targetGameId) throw new Error('Produk dan ID Game wajib diisi.');
 
         // Ambil detail produk LENGKAP (termasuk join ke game_margins)
         const productQuery = `
@@ -1549,6 +1786,7 @@ app.post('/api/order', protect, async (req, res) => {
                 FROM (SELECT * FROM products WHERE id = $1 AND status = 'Active' FOR UPDATE) AS p
                 JOIN games g ON p.game_id = g.id
                 LEFT JOIN game_margins gm ON p.game_id = gm.game_id
+                WHERE g.status = 'Active'
             `;
         const { rows: products } = await client.query(productQuery, [productId]);
 
@@ -1577,43 +1815,52 @@ app.post('/api/order', protect, async (req, res) => {
         let finalPrice;
         const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
         
-        if (product.use_manual_prices && manualPrice) {
-            finalPrice = manualPrice;
+        if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
+            finalPrice = Number(manualPrice);
         } else {
             const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [user.role_id]);
-            let margin = roleRows[0].margin_percent; // Default: margin global
+            if (roleRows.length === 0) throw new Error('Harga produk tidak valid.');
+            let margin = Number(roleRows[0].margin_percent); // Default: margin global
             
             if (product.use_custom_margin) {
                 const customMargin = product[`${userRoleName}_margin`];
                 if (customMargin !== null && customMargin !== undefined) {
-                    margin = customMargin;
+                    margin = Number(customMargin);
                 }
             }
-            finalPrice = Math.ceil(product.price * (1 + (margin / 100)));
+            finalPrice = Math.ceil(Number(product.price) * (1 + (margin / 100)));
         }
         // --- AKHIR LOGIKA HARGA FINAL ---
+
+        if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
+        const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
+        const duplicate = await findRecentPendingDuplicate(client, userId, productId, finalTargetForDB);
+        if (duplicate) throw new Error(`Pesanan serupa masih pending (${duplicate.invoice_id}). Mohon tunggu sebelum mencoba lagi.`);
 
         if (user.balance < finalPrice) throw new Error('Saldo Anda tidak mencukupi.');
         
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, userId]);
         
         const invoiceId = `TRX-${Date.now()}${userId}`;
-        const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const trx_id_provider = `WEB-${Date.now()}`;
         await client.query('INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
         const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
         await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]);
         
-        axios.post(`${FOXY_BASE_URL}/v1/order`, { product_code: product.provider_sku, user_id: targetGameId, server_id: targetServerId || '', trx_id: trx_id_provider, callback_url: 'https://mikutopup.my.id/api/foxy/callback' }, { headers: { 'Authorization': FOXY_API_KEY, 'Content-Type': 'application/json' } })
-            .catch(err => console.error("Foxy API Error:", err.response ? err.response.data : err.message));
+        try {
+            await axios.post(`${FOXY_BASE_URL}/v1/order`, { product_code: product.provider_sku, user_id: targetGameId, server_id: targetServerId || '', trx_id: trx_id_provider, callback_url: 'https://mikutopup.my.id/api/foxy/callback' }, { headers: { 'Authorization': FOXY_API_KEY, 'Content-Type': 'application/json' }, timeout: 15000 });
+        } catch (providerError) {
+            console.error("Foxy API Error:", providerError.response ? providerError.response.status : providerError.message);
+            throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
+        }
 
         await client.query('COMMIT');
         res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
 
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error("Order error:", error);
-        res.status(400).json({ message: 'Gagal memproses transaksi.' });
+        logSafeError("Order error:", error);
+        res.status(400).json({ message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi.') });
     } finally {
         client.release();
     }
@@ -1623,12 +1870,21 @@ app.post('/api/foxy/callback', async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const { trx_id, status, message } = req.body;
-        console.log('Callback diterima:', req.body);
+        const trx_id = normalizeString(req.body.trx_id, 255);
+        const status = normalizeString(req.body.status, 50);
+        const message = normalizeString(req.body.message, 500);
+        console.log(`Callback Foxy diterima untuk trx_id: ${trx_id ? `...${trx_id.slice(-8)}` : 'kosong'}`);
 
         if (!trx_id || !status) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ message: 'Parameter tidak lengkap.' });
         }
+        const normalizedStatus = status.toUpperCase();
+        if (!['SUCCESS', 'FAILED', 'REFUNDED', 'PENDING'].includes(normalizedStatus)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'Status tidak valid.' });
+        }
+        // TODO: Validate HMAC/Signature from provider (e.g., Foxy) to ensure authenticity of the callback.
 
         const { rows: transactions } = await client.query('SELECT * FROM transactions WHERE provider_trx_id = $1 AND status = \'Pending\' FOR UPDATE', [trx_id]);
         if (transactions.length === 0) {
@@ -1638,17 +1894,17 @@ app.post('/api/foxy/callback', async (req, res) => {
         }
         const tx = transactions[0];
 
-        if (status.toUpperCase() === 'SUCCESS') {
-            await client.query('UPDATE transactions SET status = \'Success\' WHERE id = $1', [tx.id]);
+        if (normalizedStatus === 'SUCCESS') {
+            await client.query('UPDATE transactions SET status = \'Success\', updated_at = NOW() WHERE id = $1', [tx.id]);
                  await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} telah berhasil diproses.`, `/invoice.html?id=${tx.invoice_id}`);
-        } else if (status.toUpperCase() === 'FAILED' || status.toUpperCase() === 'REFUNDED') {
-            await client.query('UPDATE transactions SET status = \'Failed\' WHERE id = $1', [tx.id]);
+        } else if (normalizedStatus === 'FAILED' || normalizedStatus === 'REFUNDED') {
+            await client.query('UPDATE transactions SET status = \'Failed\', updated_at = NOW() WHERE id = $1', [tx.id]);
             await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
 
             const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} karena: ${message || 'Transaksi gagal dari provider'}`;
             await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
                  await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} gagal. Saldo telah dikembalikan.`, `/invoice.html?id=${tx.invoice_id}`);
-        } else if (status.toUpperCase() === 'PENDING') {
+        } else if (normalizedStatus === 'PENDING') {
             console.log(`Transaksi ${trx_id} masih pending dari callback.`);
         }
         
@@ -1657,7 +1913,7 @@ app.post('/api/foxy/callback', async (req, res) => {
 
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Callback error:', error);
+        logSafeError('Callback error:', error);
         res.status(500).json({ message: 'Gagal memproses callback.' });
     } finally {
         client.release();
@@ -1669,10 +1925,12 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
     try {
         await client.query('BEGIN');
         
-        const { productId, targetGameId, targetServerId } = req.body;
+        const productId = Number(req.body.productId);
+        const targetGameId = normalizeString(req.body.targetGameId, 80);
+        const targetServerId = normalizeString(req.body.targetServerId, 80);
         const h2hUser = req.user; // User didapat dari middleware protectH2H
 
-        if (!productId || !targetGameId) {
+        if (!Number.isInteger(productId) || productId <= 0 || !targetGameId) {
             throw new Error('productId dan targetGameId wajib diisi.');
         }
 
@@ -1683,7 +1941,7 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             FROM products p 
             JOIN games g ON p.game_id = g.id
             LEFT JOIN game_margins gm ON p.game_id = gm.game_id
-            WHERE p.id = $1 AND p.status = 'Active' FOR UPDATE
+            WHERE p.id = $1 AND p.status = 'Active' AND g.status = 'Active' FOR UPDATE
         `;
         const { rows: products } = await client.query(productQuery, [productId]);
 
@@ -1714,28 +1972,33 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         let finalPrice;
         const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
         
-        if (product.use_manual_prices && manualPrice) {
-            finalPrice = manualPrice;
+        if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
+            finalPrice = Number(manualPrice);
         } else {
             const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [userForTx.role_id]);
-            let margin = roleRows[0].margin_percent; // Default: margin global
+            if (roleRows.length === 0) throw new Error('Harga produk tidak valid.');
+            let margin = Number(roleRows[0].margin_percent); // Default: margin global
             
             if (product.use_custom_margin) {
                 const customMargin = product[`${userRoleName}_margin`];
                 if (customMargin !== null && customMargin !== undefined) {
-                    margin = customMargin;
+                    margin = Number(customMargin);
                 }
             }
-            finalPrice = Math.ceil(product.price * (1 + (margin / 100)));
+            finalPrice = Math.ceil(Number(product.price) * (1 + (margin / 100)));
         }
         // --- AKHIR LOGIKA HARGA FINAL ---
+
+        if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
+        const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
+        const duplicate = await findRecentPendingDuplicate(client, h2hUser.id, productId, finalTargetForDB);
+        if (duplicate) throw new Error(`Pesanan serupa masih pending (${duplicate.invoice_id}). Mohon tunggu sebelum mencoba lagi.`);
 
         if (userForTx.balance < finalPrice) throw new Error('Saldo H2H Anda tidak mencukupi.');
         
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, h2hUser.id]);
 
         const invoiceId = `H2H-${Date.now()}${h2hUser.id}`;
-        const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const trx_id_provider = `H2H-PROVIDER-${Date.now()}`;
 
         const txSql = 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)';
@@ -1760,8 +2023,12 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             }
         };
 
-        axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, foxyConfigHeaders)
-            .catch(err => console.error("Foxy API Error on H2H order:", err.response ? err.response.data : err.message));
+        try {
+            await axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { ...foxyConfigHeaders, timeout: 15000 });
+        } catch (providerError) {
+            console.error("Foxy API Error on H2H order:", providerError.response ? providerError.response.status : providerError.message);
+            throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
+        }
 
         await client.query('COMMIT');
         
@@ -1779,8 +2046,8 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
 
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error("H2H Order error:", error);
-        res.status(400).json({ success: false, message: 'Gagal memproses transaksi H2H.' });
+        logSafeError("H2H Order error:", error);
+        res.status(400).json({ success: false, message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi H2H.') });
     } finally {
         client.release();
     }
@@ -1944,10 +2211,10 @@ async function checkPendingTransactions() {
 
 app.put('/h2h/profile/callback', protectH2H, async (req, res) => {
     try {
-        const { callback_url } = req.body;
+        const callback_url = normalizeString(req.body.callback_url, 2048);
         // Validasi URL sederhana
-        if (!callback_url || !callback_url.startsWith('https://')) {
-            return res.status(400).json({ success: false, message: 'URL tidak valid. Harus dimulai dengan https://' });
+        if (!callback_url || !isValidHttpsCallbackUrl(callback_url)) {
+            return res.status(400).json({ success: false, message: 'URL callback tidak valid.' });
         }
         
         await pool.query('UPDATE users SET h2h_callback_url = $1 WHERE id = $2', [callback_url, req.user.id]);
@@ -1973,8 +2240,19 @@ app.get('/h2h/profile', protectH2H, async (req, res) => {
     });
 });
 
-const server = app.listen(PORT, () => {
-    console.log(`Server berjalan di port ${PORT}`);
-});
+function startServer(port = PORT) {
+    validateEnvironment({ strict: true });
+    const startedServer = app.listen(port, () => {
+        const address = startedServer.address();
+        const actualPort = address && typeof address === 'object' ? address.port : port;
+        console.log(`Server berjalan di port ${actualPort}`);
+    });
+    return startedServer;
+}
 
-module.exports = { app, pool, checkPendingTransactions, server };
+let server = null;
+if (require.main === module) {
+    server = startServer();
+}
+
+module.exports = { app, pool, checkPendingTransactions, startServer, server, validateEnvironment };

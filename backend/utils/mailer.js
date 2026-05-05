@@ -3,6 +3,7 @@ const axios = require('axios');
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
+const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://mikutopup.my.id').replace(/\/+$/, '');
 
 const sendPasswordResetEmail = async (userEmail, token) => {
     if (!BREVO_API_KEY) {
@@ -10,7 +11,7 @@ const sendPasswordResetEmail = async (userEmail, token) => {
         throw new Error('Konfigurasi email server belum lengkap.');
     }
 
-    const resetUrl = `https://mikutopup.my.id/reset-password.html?token=${token}`;
+    const resetUrl = `${APP_BASE_URL}/reset-password.html?token=${token}`;
     
     // Ini adalah format data yang diminta oleh API Brevo
     const payload = {
@@ -41,9 +42,9 @@ const sendPasswordResetEmail = async (userEmail, token) => {
 
     try {
         await axios.post(BREVO_API_URL, payload, { headers });
-        console.log(`Email reset password (API) berhasil dikirim ke ${userEmail}`);
+        console.log('Email reset password (API) berhasil dikirim.');
     } catch (error) {
-        console.error(`Gagal mengirim email (API) ke ${userEmail}:`, error.response ? error.response.data : error.message);
+        console.error('Gagal mengirim email reset password (API):', error.response ? error.response.status : error.message);
         throw new Error('Gagal mengirim email reset password.');
     }
 };

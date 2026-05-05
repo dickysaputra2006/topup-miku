@@ -71,6 +71,23 @@ function showToast(message) {
     }, 5000);
 }
 
+function tableState(colspan, message, type = 'loading') {
+    const rowClass = type === 'error' ? 'table-error-row' : type === 'empty' ? 'table-empty-row' : 'table-loading-row';
+    return `<tr class="${rowClass}"><td colspan="${colspan}"><div class="ui-state ${type}">${message}</div></td></tr>`;
+}
+
+function statusClass(status) {
+    return `status-${String(status || 'pending').toLowerCase().replace(/\s+/g, '-')}`;
+}
+
+function statusLabel(status) {
+    const normalized = String(status || 'Pending').toLowerCase();
+    if (normalized === 'success') return 'Berhasil';
+    if (normalized === 'failed') return 'Gagal';
+    if (normalized === 'refunded') return 'Refund';
+    return 'Pending';
+}
+
 // Fungsi untuk melakukan logout
 function forceLogout(message) {
     localStorage.removeItem('authToken'); // Hapus token yang tidak valid
@@ -122,7 +139,7 @@ function forceLogout(message) {
         async function fetchTransactions() {
             const tableBody = document.querySelector("#transactions-table tbody");
             if (!tableBody) return;
-            tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center;">Memuat riwayat...</td></tr>`;
+            tableBody.innerHTML = tableState(6, 'Memuat riwayat transaksi...', 'loading');
             try {
                 const response = await fetch(`${API_URL}/transactions`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (!response.ok) throw new Error('Gagal mengambil data transaksi.');
@@ -130,7 +147,7 @@ function forceLogout(message) {
                 renderTransactionsTable(transactions, tableBody);
                 transaksiLoaded = true;
             } catch (error) {
-                tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: red;">${error.message}</td></tr>`;
+                tableBody.innerHTML = tableState(6, error.message, 'error');
             }
         }
 
@@ -139,20 +156,19 @@ function forceLogout(message) {
             if (!tableBody) return;
             tableBody.innerHTML = '';
             if (transactions.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="6" style="text-align: center;">Anda belum memiliki riwayat transaksi.</td></tr>';
+                tableBody.innerHTML = tableState(6, 'Belum ada transaksi. Pesanan baru akan muncul di sini.', 'empty');
                 return;
             }
             transactions.forEach(tx => {
                 const row = document.createElement('tr');
                 const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.price);
-                const statusClass = `status-${tx.status.toLowerCase()}`;
                 row.innerHTML = `
                     <td><a href="invoice.html?id=${tx.invoice_id}" class="history-link">${tx.invoice_id}</a></td>
                     <td>${new Date(tx.created_at).toLocaleString('id-ID')}</td>
                     <td>${tx.product_name}</td>
                     <td>${tx.target_game_id}</td>
                     <td>${formattedPrice}</td>
-                    <td><span class="status-badge ${statusClass}">${tx.status}</span></td>
+                    <td><span class="status-badge ${statusClass(tx.status)}">${statusLabel(tx.status)}</span></td>
                 `;
                 tableBody.appendChild(row);
             });
@@ -168,8 +184,13 @@ function forceLogout(message) {
             depositForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const amount = this.querySelector('input[name="amount"]').value;
+                const submitButton = this.querySelector('button[type="submit"]');
                 paymentInstructionsSection.classList.remove('hidden');
-                instructionText.innerHTML = 'Memproses permintaan Anda...';
+                instructionText.innerHTML = '<div class="ui-state loading">Memproses permintaan deposit...</div>';
+                if (submitButton) {
+                    submitButton.disabled = true;
+                    submitButton.textContent = 'Memproses...';
+                }
                 try {
                     const response = await fetch('/api/deposit/request', { // Langsung ke endpoint
                         method: 'POST',
@@ -178,10 +199,15 @@ function forceLogout(message) {
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);
-                    instructionText.innerHTML = result.deposit.paymentInstructions;
+                    instructionText.innerHTML = `<div class="ui-state success">${result.deposit.paymentInstructions}</div>`;
                     depositForm.reset();
                 } catch (error) {
-                    instructionText.innerHTML = `<strong>Error:</strong> ${error.message}`;
+                    instructionText.innerHTML = `<div class="ui-state error"><strong>Error:</strong> ${error.message}</div>`;
+                } finally {
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                        submitButton.textContent = 'Buat Permintaan';
+                    }
                 }
             });
             depositFormSetup = true;
@@ -264,7 +290,7 @@ function forceLogout(message) {
     async function fetchBalanceHistory() {
     const tableBody = document.querySelector("#mutasi-table tbody");
     if (!tableBody) return;
-    tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Memuat riwayat...</td></tr>`;
+    tableBody.innerHTML = tableState(4, 'Memuat riwayat mutasi saldo...', 'loading');
     try {
         const response = await fetch(`${API_URL}/balance-history`, { headers: { 'Authorization': `Bearer ${token}` } });
         if (!response.ok) throw new Error('Gagal mengambil data mutasi.');
@@ -272,7 +298,7 @@ function forceLogout(message) {
         renderMutasiTable(history, tableBody);
         mutasiLoaded = true;
     } catch (error) {
-        tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: red;">${error.message}</td></tr>`;
+        tableBody.innerHTML = tableState(4, error.message, 'error');
     }
     }
 
@@ -280,7 +306,7 @@ function forceLogout(message) {
         if (!tableBody) return;
         tableBody.innerHTML = '';
         if (history.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Belum ada riwayat mutasi.</td></tr>';
+            tableBody.innerHTML = tableState(4, 'Belum ada mutasi saldo.', 'empty');
             return;
         }
         history.forEach(item => {
@@ -546,7 +572,8 @@ function forceLogout(message) {
 
             submitButton.disabled = true;
             submitButton.textContent = 'Mencari...';
-            hasilCekPesanan.classList.add('hidden'); // Sembunyikan hasil lama
+            hasilCekPesanan.classList.remove('hidden');
+            hasilCekPesanan.innerHTML = '<div class="ui-state loading">Mencari transaksi...</div>';
 
             try {
                 // Kita gunakan endpoint yang sudah ada
@@ -566,7 +593,7 @@ function forceLogout(message) {
 
             } catch (error) {
                 hasilCekPesanan.classList.remove('hidden');
-                hasilCekPesanan.innerHTML = `<p style="color: var(--danger-color); text-align: center;">${error.message}</p>`;
+                hasilCekPesanan.innerHTML = `<div class="ui-state error">${error.message}</div>`;
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Cari Transaksi';
@@ -577,7 +604,6 @@ function forceLogout(message) {
     function renderHasilPencarian(tx) {
         const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(tx.price);
         const formattedDate = new Date(tx.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' });
-        const statusClass = `status-${tx.status.toLowerCase()}`;
 
        hasilCekPesanan.innerHTML = `
         <h4>Detail Transaksi</h4>
@@ -589,7 +615,7 @@ function forceLogout(message) {
                         <tr><td>Produk</td><td><strong>${tx.product_name} (${tx.game_name})</strong></td></tr>
                         <tr><td>ID Tujuan</td><td><strong>${tx.target_game_id.replace('|', ' ')}</strong></td></tr>
                         <tr><td>Total Bayar</td><td><strong>${formattedPrice}</strong></td></tr>
-                        <tr><td>Status</td><td><strong><span class="status-badge ${statusClass}">${tx.status}</span></strong></td></tr>
+                        <tr><td>Status</td><td><strong><span class="status-badge ${statusClass(tx.status)}">${statusLabel(tx.status)}</span></strong></td></tr>
                     </tbody>
                 </table>
             </div>

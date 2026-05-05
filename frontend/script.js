@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        flashSales.forEach(product => {
+        const createFlashSaleCard = (product) => {
             const card = document.createElement('div');
             card.className = 'flash-sale-card';
             card.innerHTML = `
@@ -244,15 +244,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>
                 </a>
             `;
+            return card;
+        };
+
+        flashSales.forEach(product => {
+            const card = createFlashSaleCard(product);
             flashSaleTrack.appendChild(card);
         });
         
         // Duplikasi kartu untuk efek scroll tak terbatas jika item cukup
         if (flashSales.length > 2) {
             flashSales.forEach(product => {
-                const card = document.createElement('div');
-                card.className = 'flash-sale-card';
-                card.innerHTML = `...`; // Salin innerHTML dari atas
+                const card = createFlashSaleCard(product);
                 flashSaleTrack.appendChild(card);
             });
         }

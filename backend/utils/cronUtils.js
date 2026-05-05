@@ -23,6 +23,15 @@ const foxyApiHeaders = {
     'Referer': 'https://www.foxygamestore.com/'
 };
 
+function safeErrorDetail(error) {
+    if (!error) return { message: 'Unknown error' };
+    const detail = {};
+    if (error.code) detail.code = error.code;
+    if (error.response && error.response.status) detail.status = error.response.status;
+    if (error.message) detail.message = String(error.message).replace(/(api[_-]?key|authorization|password|token|secret)=?[^\s,]*/gi, '$1=[REDACTED]');
+    return detail;
+}
+
 // ========================================================================
 // === FUNGSI: CEK STATUS TRANSAKSI PENDING ===
 // ========================================================================
@@ -86,14 +95,14 @@ async function checkPendingTransactions() {
                         await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
                     }
                 } else {
-                    console.error(`Error checking Foxy status for ${tx.provider_trx_id}:`, foxyError.message);
+                console.error(`Error checking Foxy status for ${tx.provider_trx_id}:`, safeErrorDetail(foxyError));
                 }
             }
         }
         await client.query('COMMIT');
     } catch (dbError) {
         await client.query('ROLLBACK');
-        console.error('Database error during checkPendingTransactions job:', dbError);
+        console.error('Database error during checkPendingTransactions job:', safeErrorDetail(dbError));
         throw dbError;
     } finally {
         client.release();
@@ -214,7 +223,7 @@ async function syncProductsWithFoxy() {
         console.log('Smart product sync job finished successfully.');
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Smart product sync job failed:', error.response ? error.response.data : error.message);
+        console.error('Smart product sync job failed:', safeErrorDetail(error));
         throw error;
     } finally {
         client.release();
