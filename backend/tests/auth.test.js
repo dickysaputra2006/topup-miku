@@ -2,29 +2,32 @@ const { test, describe, before, after, mock } = require('node:test');
 const assert = require('node:assert');
 const bcrypt = require('bcryptjs');
 
-// Set port to a test port before requiring server
-process.env.PORT = '3001';
+// Use an ephemeral test port before requiring server.
+process.env.PORT = '0';
 process.env.JWT_SECRET = 'test-secret';
 
-const { app, pool, server } = require('../server.js');
+const { pool, startServer } = require('../server.js');
 
-const baseUrl = `http://127.0.0.1:${process.env.PORT}/api/auth/login`;
+let baseUrl;
 
 describe('Auth Login Tests', () => {
     let originalQuery;
     let originalCompare;
+    let server;
 
     before(() => {
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}/api/auth/login`;
         // Mock pool.query and bcrypt.compare
         originalQuery = pool.query;
         originalCompare = bcrypt.compare;
     });
 
-    after(() => {
+    after(async () => {
         // Restore mocks and close server
         pool.query = originalQuery;
         bcrypt.compare = originalCompare;
-        server.close();
+        await new Promise(resolve => server.close(resolve));
     });
 
     test('should return 400 if username or password is missing', async () => {

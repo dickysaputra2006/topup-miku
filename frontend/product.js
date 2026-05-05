@@ -42,11 +42,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let selectedProductId = null;
     let isValidationSuccess = false;
+    let isOrderSubmitting = false;
 
     // === Bagian 2: Definisi Semua Fungsi ===
 
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
+    function uiState(message, type = 'loading') {
+        return `<div class="ui-state ${type}">${message}</div>`;
+    }
 
     async function updateAuthButtonOnProductPage() {
     if (!userAuthButton) return;
@@ -91,6 +95,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     async function fetchGameData() {
+    productListContainer.innerHTML = uiState('Memuat daftar produk...', 'loading');
+    validationResultEl.innerHTML = '';
     try {
         const headers = {};
         if (token) {
@@ -140,24 +146,30 @@ document.addEventListener('DOMContentLoaded', function() {
         
     } catch (error) {
         console.error('Error fetching game data:', error);
-        productListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
+        productListContainer.innerHTML = uiState(`Gagal memuat produk. ${error.message}`, 'error');
     }
 }
 
     function renderProducts(products) {
         productListContainer.innerHTML = '';
         if (products.length === 0) {
-            productListContainer.innerHTML = '<p>Saat ini belum ada produk untuk game ini.</p>';
+            productListContainer.innerHTML = uiState('Saat ini belum ada produk aktif untuk game ini.', 'empty');
             return;
         }
+        const toolbar = document.createElement('div');
+        toolbar.className = 'product-selection-toolbar';
+        toolbar.innerHTML = `<span>${products.length} pilihan tersedia</span><span>Pilih nominal, lalu isi ID tujuan.</span>`;
+        productListContainer.appendChild(toolbar);
         products.forEach(product => {
             const card = document.createElement('div');
             card.className = 'product-card-selectable';
+            if (product.isFlashSale) card.classList.add('is-flash-sale');
             card.dataset.productId = product.id;
             card.dataset.price = product.price;
             card.innerHTML = `
                 <span>${product.name}</span>
                 <small>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(product.price)}</small>
+                ${product.isFlashSale ? '<em class="product-tag">Flash Sale</em>' : ''}
             `;
             card.addEventListener('click', () => handleProductSelection(card, product.id, product.price));
             productListContainer.appendChild(card);
@@ -170,6 +182,8 @@ document.addEventListener('DOMContentLoaded', function() {
              selectedProductId = productId;
             appliedPromo = null; // Reset promo saat produk baru dipilih
             promoCodeInput.value = '';
+            isValidationSuccess = false;
+            validationResultEl.innerHTML = uiState('Isi User ID lalu keluar dari kolom untuk validasi otomatis.', 'loading');
             updatePrice(); // Panggil fungsi ini, bukan set textContent langsung
             submitOrderBtn.disabled = false;
             submitOrderBtn.textContent = 'Beli Sekarang';
@@ -188,8 +202,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Fungsi inti yang akan menjalankan validasi
    const handleValidation = async () => {
         isValidationSuccess = false; // Reset status setiap kali validasi baru dimulai
-        if (!currentSelectedProductId || !targetIdInput.value) {
+        if (!currentSelectedProductId) {
             resultContainer.innerHTML = '';
+            return;
+        }
+
+        if (!targetIdInput.value) {
+            resultContainer.innerHTML = uiState('Masukkan User ID untuk memvalidasi tujuan top up.', 'loading');
             return;
         }
 
@@ -197,7 +216,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const serverIdInput = document.getElementById('target-server-id');
         const zoneId = serverIdInput ? serverIdInput.value : null;
 
-        resultContainer.innerHTML = `<p style="color: #ccc;">Mengecek nickname...</p>`;
+        resultContainer.innerHTML = uiState('Mengecek nickname...', 'loading');
 
         try {
             const response = await fetch(`${PUBLIC_API_URL}/products/${currentSelectedProductId}/validate`, {
@@ -213,6 +232,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultContainer.innerHTML = `<div class="validation-result-inline success">
                     <i class="fas fa-check-circle"></i> ${result.message}
                 </div>`;
+                isValidationSuccess = true;
                 return;
             }
 
@@ -228,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
            let message = `<div class="validation-result-inline success">
                         <p><i class="fas fa-check-circle"></i> Nickname: <strong>${result.data.username}</strong></p>`;
             if (result.data.region) {
-                message += `<p style="margin-top: 0.25rem;">🌍 Region: <strong>${result.data.region}</strong></p>`;
+                message += `<p style="margin-top: 0.25rem;">Region: <strong>${result.data.region}</strong></p>`;
             }
 
             if (!response.ok) {
@@ -245,6 +265,7 @@ document.addEventListener('DOMContentLoaded', function() {
             resultContainer.innerHTML = `<div class="validation-result-inline error">
                 <i class="fas fa-times-circle"></i> ${error.message}
             </div>`;
+            isValidationSuccess = false;
         }
     };
 
@@ -301,6 +322,7 @@ function applyFlashSaleSelection() {
             // Hapus seleksi dari kartu lain dan pilih kartu flash sale
             document.querySelectorAll('.product-card-selectable').forEach(card => card.classList.remove('selected'));
             fsCard.classList.add('selected');
+            fsCard.classList.add('is-flash-sale');
 
             // Atur ID produk yang terpilih secara global
             selectedProductId = fsProductId;
@@ -312,6 +334,8 @@ function applyFlashSaleSelection() {
             updatePrice();
             submitOrderBtn.disabled = false;
             submitOrderBtn.textContent = 'Beli Sekarang';
+            validationResultEl.innerHTML = uiState('Flash sale dipilih. Isi User ID lalu validasi tujuan top up.', 'loading');
+            fsCard.dispatchEvent(new Event('click', { bubbles: true }));
         }
     }
 }
@@ -483,7 +507,10 @@ function applyFlashSaleSelection() {
     // Event listener untuk tombol "Bayar Sekarang" di DALAM MODAL
     if (confirmBtn) {
         confirmBtn.addEventListener('click', async () => {
+            if (isOrderSubmitting) return;
+            isOrderSubmitting = true;
             confirmBtn.disabled = true;
+            submitOrderBtn.disabled = true;
             confirmBtn.innerHTML = 'Memproses...';
             const targetGameId = document.getElementById('target-game-id').value;
             const targetServerIdEl = document.getElementById('target-server-id');
@@ -505,13 +532,14 @@ function applyFlashSaleSelection() {
                 if (!response.ok) throw new Error(result.message);
                 
                 hideConfirmModal();
-                alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nAnda akan diarahkan ke halaman dashboard.`);
-                window.location.href = 'dashboard.html';
+                alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nAnda akan diarahkan ke halaman invoice.`);
+                window.location.href = `invoice.html?id=${encodeURIComponent(result.invoiceId)}`;
 
             } catch (error) {
                 alert(`Error: ${error.message}`);
-            } finally {
+                isOrderSubmitting = false;
                 confirmBtn.disabled = false;
+                submitOrderBtn.disabled = false;
                 confirmBtn.innerHTML = 'Bayar Sekarang <i class="fas fa-arrow-right"></i>';
             }
         });
@@ -519,7 +547,9 @@ function applyFlashSaleSelection() {
 }
 
 if (applyPromoBtn) {
-    applyPromoBtn.addEventListener('click', async () => {
+    const promoForm = document.getElementById('promo-form');
+    const handlePromoApply = async (e) => {
+        if (e) e.preventDefault();
         // Mengambil kode promo dan membersihkan spasi di awal/akhir
         const code = promoCodeInput.value.trim();
 
@@ -536,6 +566,8 @@ if (applyPromoBtn) {
         }
 
         try {
+            applyPromoBtn.disabled = true;
+            applyPromoBtn.textContent = 'Mengecek...';
             const response = await fetch('/api/promos/validate', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -555,8 +587,17 @@ if (applyPromoBtn) {
             appliedPromo = null; // Reset promo jika gagal
             promoResultEl.innerHTML = `<span class="error"><i class="fas fa-times-circle"></i> ${error.message}</span>`;
             updatePrice(); // Perbarui harga kembali ke normal (tanpa diskon)
+        } finally {
+            applyPromoBtn.disabled = false;
+            applyPromoBtn.textContent = 'Terapkan';
         }
-    });
+    };
+
+    if (promoForm) {
+        promoForm.addEventListener('submit', handlePromoApply);
+    } else {
+        applyPromoBtn.addEventListener('click', handlePromoApply);
+    }
 }
 
     document.querySelectorAll('.toggle-password').forEach(icon => {

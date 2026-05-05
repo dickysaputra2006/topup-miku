@@ -11,11 +11,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (!invoiceId) {
-        invoiceDetailsContainer.innerHTML = '<p style="text-align: center; color: red;">Invoice ID tidak ditemukan.</p>';
+        invoiceDetailsContainer.innerHTML = '<div class="ui-state error">Invoice ID tidak ditemukan.</div>';
         return;
     }
 
     async function fetchInvoiceDetails() {
+        invoiceDetailsContainer.innerHTML = '<div class="card"><div class="ui-state loading">Memuat detail invoice...</div></div>';
         try {
             const response = await fetch(API_URL + invoiceId, {
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -30,13 +31,20 @@ document.addEventListener('DOMContentLoaded', function() {
             renderInvoiceDetails(tx);
 
         } catch (error) {
-            invoiceDetailsContainer.innerHTML = `<p style="text-align: center; color: red;">Error: ${error.message}</p>`;
+            invoiceDetailsContainer.innerHTML = `<div class="card"><div class="ui-state error">Error: ${error.message}</div></div>`;
         }
     }
 
     function renderInvoiceDetails(tx) {
         const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(tx.price);
         const formattedDate = new Date(tx.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' });
+        const normalizedStatus = String(tx.status || 'Pending').toLowerCase();
+        const statusText = normalizedStatus === 'success' ? 'Berhasil' : normalizedStatus === 'failed' ? 'Gagal' : normalizedStatus === 'refunded' ? 'Refund' : 'Pending';
+        const statusNote = normalizedStatus === 'success'
+            ? 'Pesanan berhasil diproses.'
+            : normalizedStatus === 'failed'
+                ? 'Pesanan gagal diproses. Jika saldo terpotong, cek riwayat mutasi untuk refund.'
+                : 'Pesanan sedang diproses. Silakan cek kembali beberapa saat lagi.';
 
         let detailsHtml = `
             <div class="card">
@@ -47,7 +55,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <p>Tanggal: <strong id="invoice-date">${formattedDate}</strong></p>
                         <p>Produk: <strong id="invoice-product">${tx.product_name} (${tx.game_name})</strong></p>
                         <p>Total Bayar: <strong id="invoice-price">${formattedPrice}</strong></p>
-                        <p>Status: <strong id="invoice-status"><span class="status-badge status-${tx.status.toLowerCase()}">${tx.status}</span></strong></p>
+                        <p>Status: <strong id="invoice-status"><span class="status-badge status-${normalizedStatus}">${statusText}</span></strong></p>
+                        <p class="status-note">${statusNote}</p>
                     </div>
                 </div>
             </div>

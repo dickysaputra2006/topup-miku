@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "check": "node --check server.js && node --check utils/mailer.js && node --check utils/cronUtils.js && node --check utils/validators/cek-id-game.js && node --check utils/validators/stalk-mcgg.js && node --check utils/validators/stalk-ml-promo.js && node --check tests/auth.test.js && node --check tests/security.test.js",
     "test": "node --test"
   },
   "keywords": [],
