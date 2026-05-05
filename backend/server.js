@@ -1307,17 +1307,20 @@ app.get('/api/games/:gameId/servers', async (req, res) => {
 
 app.get('/api/public/compare-prices', async (req, res) => {
     try {
-        const { rows: products } = await pool.query(`
-            SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, g.name as game_name, 
-                   p.use_manual_prices, p.manual_prices,
-                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
-            FROM products p 
-            JOIN games g ON p.game_id = g.id
-            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
-            WHERE p.status = 'Active' ORDER BY g.name ASC, p.price ASC
-        `);
-        const { rows: roles } = await pool.query(`SELECT name, margin_percent FROM roles ORDER BY id ASC`);
-        const { rows: games } = await pool.query("SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC");
+        // ⚡ Bolt: Optimize performance by executing independent queries concurrently
+        const [ { rows: products }, { rows: roles }, { rows: games } ] = await Promise.all([
+            pool.query(`
+                SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, g.name as game_name,
+                       p.use_manual_prices, p.manual_prices,
+                       gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
+                FROM products p
+                JOIN games g ON p.game_id = g.id
+                LEFT JOIN game_margins gm ON p.game_id = gm.game_id
+                WHERE p.status = 'Active' ORDER BY g.name ASC, p.price ASC
+            `),
+            pool.query(`SELECT name, margin_percent FROM roles ORDER BY id ASC`),
+            pool.query("SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC")
+        ]);
 
         const productsWithRolePrices = products.map(product => {
             const productWithPrices = { 
