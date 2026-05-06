@@ -1,0 +1,3 @@
+## 2025-05-06 - Improve Accessibility of Icon-Only Interactable Elements
+**Learning:** Non-native interactable elements (like `<i>` or `<div>` used as buttons) must have `role="button"`, `tabindex="0"`, and `aria-label` attributes to be accessible via keyboard and screen readers. Additionally, they must have explicit keyboard event listeners (like `keydown` for `Enter` and `Space`) because they do not inherit default button behaviors.
+**Action:** Always ensure that when implementing custom toggle buttons (like password visibility toggles or custom dropdown triggers), they are fully navigable and operable via keyboard, and clearly described to screen readers.

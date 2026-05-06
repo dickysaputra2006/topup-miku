@@ -266,11 +266,18 @@ document.addEventListener('DOMContentLoaded', function () {
 }
 
     if (notificationContainer) {
-        notificationContainer.addEventListener('click', (e) => {
+        const toggleNotification = (e) => {
             e.stopPropagation();
             const isHidden = notificationPanel.classList.toggle('hidden');
             if (!isHidden) { // Jika panel baru saja ditampilkan
                 showNotifications();
+            }
+        };
+        notificationContainer.addEventListener('click', toggleNotification);
+        notificationContainer.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleNotification(e);
             }
         });
     }
@@ -412,12 +419,20 @@ if (dropdownLoginBtn) {
     });
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
+        const toggleVisibility = function () {
             const input = this.parentElement.querySelector('input');
             const isPassword = input.type === 'password';
             input.type = isPassword ? 'text' : 'password';
             this.classList.toggle('fa-eye', !isPassword);
             this.classList.toggle('fa-eye-slash', isPassword);
+            this.setAttribute('aria-label', isPassword ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi');
+        };
+        icon.addEventListener('click', toggleVisibility);
+        icon.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleVisibility.call(this);
+            }
         });
     });
 
