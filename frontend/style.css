@@ -230,6 +230,12 @@ footer {
     color: var(--text-color);
     font-size: 2rem;
     cursor: pointer;
+    transition: outline 0.3s;
+}
+.close-modal:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 .modal-content h3 {
     text-align: center;
@@ -262,6 +268,12 @@ footer {
     top: 50%;
     transform: translateY(-75%);
     cursor: pointer;
+    transition: outline 0.3s;
+}
+.toggle-password:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 .forgot-password {
     display: block;
@@ -1141,6 +1153,12 @@ html, body {
         display: block;
         padding-left: 0;
         margin-right: 0.5rem;
+        transition: outline 0.3s;
+    }
+    #hamburger-btn:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        border-radius: 4px;
     }
     .header-right .pricelist-btn, .header-right .validate-btn { display: none; }
     .header-right { gap: 0.5rem; }
@@ -1708,6 +1726,12 @@ color: green;
 #notification-container {
     position: relative;
     cursor: pointer;
+    transition: outline 0.3s;
+}
+#notification-container:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 .badge-count {
     position: absolute;
