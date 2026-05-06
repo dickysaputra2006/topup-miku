@@ -45,6 +45,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // === 2. DEFINISI SEMUA FUNGSI ===
 
+    // ⚡ Bolt: Membatasi eksekusi fungsi pencarian pada setiap keystroke untuk mencegah
+    // main-thread terblokir, mengoptimalkan filter array besar secara asinkron.
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
 
@@ -422,7 +436,9 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
+        // ⚡ Bolt: Membungkus handleSearch dengan debounce delay 300ms.
+        const debouncedSearch = debounce(() => handleSearch(searchInput.value), 300);
+        searchInput.addEventListener('input', debouncedSearch);
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 
