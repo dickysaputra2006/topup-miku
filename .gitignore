@@ -7,3 +7,8 @@ node_modules/
 # File log dan environment
 *.log
 .env
+backend/.env
+
+# Antigravity / Gemini files
+.gemini/
+cache/
