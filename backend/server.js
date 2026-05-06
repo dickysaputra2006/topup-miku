@@ -1991,7 +1991,8 @@ app.post('/api/order', protect, async (req, res) => {
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, userId]);
         
         const invoiceId = `TRX-${Date.now()}${userId}`;
-        const trx_id_provider = `WEB-${Date.now()}`;
+        // Fix for predictability in transaction IDs (callback forgery vulnerability)
+        const trx_id_provider = `WEB-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
         const { rows: txInsertRows } = await client.query('INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
         const newTransactionId = txInsertRows[0].id;
         const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
@@ -2185,7 +2186,8 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, h2hUser.id]);
 
         const invoiceId = `H2H-${Date.now()}${h2hUser.id}`;
-        const trx_id_provider = `H2H-PROVIDER-${Date.now()}`;
+        // Fix for predictability in transaction IDs (callback forgery vulnerability)
+        const trx_id_provider = `H2H-PROVIDER-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
 
         const txSql = 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)';
         await client.query(txSql, [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
