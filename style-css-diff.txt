@@ -1,0 +1,129 @@
+diff --git a/frontend/style.css b/frontend/style.css
+index 0f01205..1669505 100644
+--- a/frontend/style.css
++++ b/frontend/style.css
+@@ -14,8 +14,9 @@
+ body {
+     background-color: var(--bg-dark);
+     color: var(--text-color);
+-    font-family: sans-serif;
++    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+     margin: 0;
++    overflow-x: hidden;
+ }
+ .container {
+     width: 95%;
+@@ -56,23 +57,24 @@ body {
+ 
+ /* === HOMEPAGE & GENERAL SECTIONS === */
+ .hero-section {
+-    margin: 2rem 0;
++    margin: 1rem 0;
+     max-width: 1200px;
+     margin-left: auto;
+     margin-right: auto;
+ }
+ .hero-placeholder {
+     background-color: var(--bg-surface);
+-    height: 300px;
++    height: clamp(160px, 22vw, 260px);
+     display: flex;
+     justify-content: center;
+     align-items: center;
+-    border-radius: 8px;
++    border-radius: 12px;
+     font-size: 1.5rem;
+     border: 1px solid var(--border-color);
++    overflow: hidden;
+ }
+ .content-section {
+-    margin-bottom: 3rem;
++    margin-bottom: 1.5rem;
+ }
+ .product-grid, .product-grid-small {
+     display: grid;
+@@ -89,7 +91,7 @@ body {
+ .product-card-small {
+     background-color: var(--bg-surface);
+     border: 1px solid var(--border-color);
+-    border-radius: 8px;
++    border-radius: 10px;
+     aspect-ratio: 16 / 9;
+ }
+ .product-card-small:hover {
+@@ -101,7 +103,7 @@ body {
+ .product-card {
+     background-color: var(--bg-surface);
+     border: 1px solid var(--border-color);
+-    border-radius: 8px;
++    border-radius: 10px;
+     height: 180px; /* Atur tinggi yang tetap untuk semua kartu */
+     display: flex;
+     flex-direction: column;
+@@ -140,15 +142,15 @@ body {
+ 
+ footer {
+     text-align: center;
+-    padding: 2rem 0;
++    padding: 1rem 0;
+     margin-top: auto;
+     background-color: var(--bg-surface);
+     border-top: 1px solid var(--border-color);
+ }
+ .card {
+     background-color: var(--bg-surface);
+-    padding: 1.5rem;
+-    border-radius: 8px;
++    padding: 1.25rem 1.5rem;
++    border-radius: 10px;
+     border: 1px solid var(--border-color);
+ }
+ 
+@@ -536,11 +538,11 @@ table th {
+ }
+ .master-list {
+     flex: 1;
+-    min-width: 350px;
++    min-width: 0;
+ }
+ .detail-list {
+     flex: 2;
+-    min-width: 350px;
++    min-width: 0;
+ }
+ #games-table tbody tr {
+     cursor: pointer;
+@@ -1022,7 +1024,7 @@ html, body {
+     align-items: center;
+     gap: 1rem;
+     padding: 0 1rem;
+-    height: 60px;
++    height: 56px;
+ }
+ .header-left {
+     display: flex;
+@@ -1222,9 +1224,10 @@ html, body {
+ 
+ .admin-master-detail {
+     display: grid;
+-    grid-template-columns: 40% 1fr; 
++    grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+     gap: 2rem;
+     width: 100%;
++    box-sizing: border-box;
+ }
+ 
+ .table-container {
+@@ -2197,11 +2200,7 @@ button:disabled {
+ }
+ 
+ 
+-@media (max-width: 768px) {
+-    .pricelist-container {
+-        overflow-x: auto;
+-    }
+-}
++/* REMOVED: pricelist-container overflow-x:auto caused sidebar to scroll with table */
+ 
+ @media (max-width: 768px) {
+ 
