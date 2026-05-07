@@ -1,8 +1,12 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
 
-// --- KONFIGURASI DATABASE ---
+// ============================================================
+// === KONFIGURASI DATABASE ===
+// ============================================================
 const dbSslEnabled = String(process.env.DB_SSL || '').toLowerCase() === 'true';
 
 const dbConfig = {
@@ -18,45 +22,113 @@ if (dbSslEnabled) {
 }
 const pool = new Pool(dbConfig);
 
-// --- KONFIGURASI FOXY API ---
+// ============================================================
+// === KONFIGURASI FOXY API ===
+// ============================================================
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
+const PROVIDER_TIMEOUT_MS = 15000; // 15 detik
 
-const foxyApiHeaders = { 
+const foxyApiHeaders = {
     'Authorization': FOXY_API_KEY,
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
     'Referer': 'https://www.foxygamestore.com/'
 };
 
+// ============================================================
+// === SAFE LOGGING HELPERS ===
+// Jangan pernah log full Axios error, config, headers, atau Authorization.
+// ============================================================
+
+/**
+ * Menghasilkan ringkasan aman dari Axios/provider error.
+ * Tidak pernah mencetak Authorization, API key, token, password,
+ * config.headers, request._header, atau response body penuh.
+ */
+function safeAxiosError(error, providerName = 'Provider') {
+    if (!error) return { provider: providerName, message: 'Unknown error' };
+
+    const safe = { provider: providerName };
+
+    // Pesan error — sanitasi secret
+    if (error.message) {
+        safe.message = String(error.message)
+            .replace(/(api[_-]?key|authorization|password|token|secret)=?[^\s,]*/gi, '$1=[REDACTED]');
+    }
+
+    // HTTP response metadata (AMAN — bukan body penuh atau headers)
+    if (error.response) {
+        safe.status = error.response.status;
+        safe.statusText = error.response.statusText;
+
+        // Method & URL dari request (tanpa headers)
+        if (error.response.config) {
+            safe.method = error.response.config.method ? error.response.config.method.toUpperCase() : undefined;
+            safe.url = error.response.config.url;
+        }
+
+        // Deteksi Cloudflare challenge
+        const cfHeader = error.response.headers && error.response.headers['cf-mitigated'];
+        const bodyStr = typeof error.response.data === 'string' ? error.response.data : '';
+        const isCloudflare =
+            error.response.status === 403 &&
+            (cfHeader === 'challenge' || bodyStr.includes('Just a moment'));
+
+        safe.isCloudflareChallenge = isCloudflare;
+        safe.responseContentType = error.response.headers && error.response.headers['content-type'];
+
+        if (isCloudflare) {
+            safe.note = 'Provider blocked request with Cloudflare challenge. IP may need whitelisting.';
+        }
+    } else if (error.code === 'ECONNABORTED' || (error.message && error.message.includes('timeout'))) {
+        safe.note = 'Request timed out. Provider did not respond in time.';
+    } else if (error.code) {
+        safe.code = error.code;
+    }
+
+    return safe;
+}
+
+/**
+ * Ringkasan sederhana tanpa sensitif apapun — untuk DB error.
+ */
 function safeErrorDetail(error) {
     if (!error) return { message: 'Unknown error' };
     const detail = {};
     if (error.code) detail.code = error.code;
     if (error.response && error.response.status) detail.status = error.response.status;
-    if (error.message) detail.message = String(error.message).replace(/(api[_-]?key|authorization|password|token|secret)=?[^\s,]*/gi, '$1=[REDACTED]');
+    if (error.message) detail.message = String(error.message)
+        .replace(/(api[_-]?key|authorization|password|token|secret)=?[^\s,]*/gi, '$1=[REDACTED]');
     return detail;
 }
 
-// ========================================================================
+// ============================================================
 // === FUNGSI: CEK STATUS TRANSAKSI PENDING ===
-// ========================================================================
+// ============================================================
 async function checkPendingTransactions() {
-    console.log('Running checkPendingTransactions job...');
+    console.log('[cron][pending] Starting checkPendingTransactions...');
     let pendingTx;
     try {
         const res = await pool.query(
-            `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts, p.name as product_name, u.h2h_callback_url FROM transactions t JOIN products p ON t.product_id = p.id JOIN users u ON t.user_id = u.id WHERE t.status = 'Pending'`
+            `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts,
+                    p.name as product_name, u.h2h_callback_url
+             FROM transactions t
+             JOIN products p ON t.product_id = p.id
+             JOIN users u ON t.user_id = u.id
+             WHERE t.status = 'Pending'`
         );
         pendingTx = res.rows;
     } catch (err) {
-        console.error('Database error during checkPendingTransactions job (initial fetch):', safeErrorDetail(err));
+        console.error('[cron][pending] DB error on initial fetch:', safeErrorDetail(err));
         return;
     }
 
     if (pendingTx.length === 0) {
-        console.log('No pending transactions found.');
+        console.log('[cron][pending] No pending transactions found.');
         return;
     }
+
+    console.log(`[cron][pending] Found ${pendingTx.length} pending transaction(s). Processing...`);
 
     for (const tx of pendingTx) {
         if (!tx.provider_trx_id) continue;
@@ -66,7 +138,10 @@ async function checkPendingTransactions() {
         let isNotFound = false;
 
         try {
-            const foxyResponse = await axios.get(`${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`, { headers: foxyApiHeaders });
+            const foxyResponse = await axios.get(
+                `${FOXY_BASE_URL}/v1/status/${tx.provider_trx_id}`,
+                { headers: foxyApiHeaders, timeout: PROVIDER_TIMEOUT_MS }
+            );
             const foxyData = foxyResponse.data.data;
             foxyStatus = foxyData.status.toUpperCase();
             serialNumber = foxyData.sn || 'Tidak ada SN';
@@ -74,26 +149,31 @@ async function checkPendingTransactions() {
             if (foxyError.response && foxyError.response.status === 404) {
                 isNotFound = true;
             } else {
-                console.error(`Error checking Foxy status for ${tx.provider_trx_id}:`, safeErrorDetail(foxyError));
+                // Safe logging — tidak mencetak headers atau Authorization
+                console.error(
+                    `[cron][pending] Error checking status for trx ${tx.provider_trx_id.slice(-8)}:`,
+                    safeAxiosError(foxyError, 'Foxy')
+                );
                 continue;
             }
         }
 
         const client = await pool.connect();
         let finalStatus = null;
-        // committedStatus is assigned only after COMMIT succeeds.
-        // H2H webhook must never fire if the DB write was rolled back.
         let committedStatus = null;
         try {
             await client.query('BEGIN');
-            
-            const checkRes = await client.query('SELECT status, check_attempts FROM transactions WHERE id = $1 FOR UPDATE', [tx.id]);
+
+            const checkRes = await client.query(
+                'SELECT status, check_attempts FROM transactions WHERE id = $1 FOR UPDATE',
+                [tx.id]
+            );
             if (checkRes.rows.length === 0) {
                 await client.query('ROLLBACK');
                 continue;
             }
             const currentDbTx = checkRes.rows[0];
-            
+
             if (currentDbTx.status !== 'Pending') {
                 await client.query('ROLLBACK');
                 continue;
@@ -102,35 +182,63 @@ async function checkPendingTransactions() {
             if (isNotFound) {
                 const MAX_ATTEMPTS = 5;
                 if (currentDbTx.check_attempts < MAX_ATTEMPTS) {
-                    await client.query('UPDATE transactions SET check_attempts = check_attempts + 1 WHERE id = $1', [tx.id]);
+                    await client.query(
+                        'UPDATE transactions SET check_attempts = check_attempts + 1 WHERE id = $1',
+                        [tx.id]
+                    );
+                    console.log(`[cron][pending] Invoice ${tx.invoice_id}: not found at provider (attempt ${currentDbTx.check_attempts + 1}/${MAX_ATTEMPTS}).`);
                 } else {
                     finalStatus = 'Failed';
-                    await client.query('UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2', [finalStatus, tx.id]);
-                    await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
+                    await client.query(
+                        'UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2',
+                        [finalStatus, tx.id]
+                    );
+                    await client.query(
+                        'UPDATE users SET balance = balance + $1 WHERE id = $2',
+                        [tx.price, tx.user_id]
+                    );
                     const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} karena: Transaksi kadaluarsa di provider (Cron)`;
-                    await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
+                    await client.query(
+                        'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
+                        [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]
+                    );
+                    console.log(`[cron][pending] Invoice ${tx.invoice_id}: marked Failed (max attempts). Refunded.`);
                 }
             } else if (foxyStatus === 'SUCCESS') {
                 finalStatus = 'Success';
-                await client.query('UPDATE transactions SET status = $1, provider_sn = $2, updated_at = NOW() WHERE id = $3', [finalStatus, serialNumber, tx.id]);
+                await client.query(
+                    'UPDATE transactions SET status = $1, provider_sn = $2, updated_at = NOW() WHERE id = $3',
+                    [finalStatus, serialNumber, tx.id]
+                );
+                console.log(`[cron][pending] Invoice ${tx.invoice_id}: resolved as Success.`);
             } else if (foxyStatus === 'FAILED' || foxyStatus === 'REFUNDED') {
                 finalStatus = 'Failed';
-                await client.query('UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2', [finalStatus, tx.id]);
-                await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
+                await client.query(
+                    'UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2',
+                    [finalStatus, tx.id]
+                );
+                await client.query(
+                    'UPDATE users SET balance = balance + $1 WHERE id = $2',
+                    [tx.price, tx.user_id]
+                );
                 const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} karena: Gagal/Refund dari provider (Cron)`;
-                await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
+                await client.query(
+                    'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
+                    [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]
+                );
+                console.log(`[cron][pending] Invoice ${tx.invoice_id}: resolved as Failed. Refunded.`);
             }
 
             await client.query('COMMIT');
-            // Only mark as committed once COMMIT succeeds; catch block cannot reach here.
             committedStatus = finalStatus;
         } catch (dbError) {
             await client.query('ROLLBACK');
-            console.error(`Database error during tx ${tx.invoice_id} resolution:`, safeErrorDetail(dbError));
+            console.error(`[cron][pending] DB error resolving invoice ${tx.invoice_id}:`, safeErrorDetail(dbError));
         } finally {
             client.release();
         }
 
+        // Kirim H2H webhook HANYA setelah DB COMMIT berhasil
         if (committedStatus && tx.h2h_callback_url) {
             const webhookPayload = {
                 invoice_id: tx.invoice_id,
@@ -140,40 +248,56 @@ async function checkPendingTransactions() {
                 serial_number: serialNumber,
                 timestamp: new Date().toISOString()
             };
-            axios.post(tx.h2h_callback_url, webhookPayload)
-                 .catch(err => console.error(`Failed to send webhook for ${tx.invoice_id}:`, err.message));
+            axios.post(tx.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
+                .catch(err => console.error(
+                    `[cron][pending] Webhook failed for invoice ${tx.invoice_id}:`,
+                    safeAxiosError(err, 'H2H Webhook')
+                ));
         }
     }
+
+    console.log('[cron][pending] checkPendingTransactions finished.');
 }
 
 
-// ========================================================================
+// ============================================================
 // === FUNGSI: SINKRONISASI PRODUK ===
-// ========================================================================
-async function syncProductsWithFoxy() { 
-    console.log('Running smart product sync job...');
+// ============================================================
+async function syncProductsWithFoxy() {
+    console.log('[cron][sync] Starting smart product sync...');
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        
-        // Konfigurasi Axios dengan User-Agent
+
         const axiosConfig = {
-            headers: { 
-                'Authorization': FOXY_API_KEY,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-                'Referer': 'https://www.foxygamestore.com/'
-            }
+            headers: foxyApiHeaders,
+            timeout: PROVIDER_TIMEOUT_MS
         };
 
         // 1. Ambil semua produk dari Foxy
-        const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, axiosConfig);
-        const providerProducts = response.data.data;
-        if (!Array.isArray(providerProducts)) {
-            throw new Error('Format respons Foxy API tidak sesuai.');
+        let providerProducts;
+        try {
+            const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, axiosConfig);
+            providerProducts = response.data.data;
+        } catch (foxyError) {
+            // Safe log — tidak cetak headers atau body HTML Cloudflare
+            const safeErr = safeAxiosError(foxyError, 'Foxy');
+            if (safeErr.isCloudflareChallenge) {
+                console.warn('[cron][sync] Foxy API blocked by Cloudflare challenge. Sync skipped. Check VPS IP whitelist with Foxy support.');
+            } else {
+                console.error('[cron][sync] Failed to fetch Foxy products:', safeErr);
+            }
+            await client.query('ROLLBACK');
+            throw foxyError;
         }
+
+        if (!Array.isArray(providerProducts)) {
+            throw new Error('[cron][sync] Foxy API response format invalid — expected array.');
+        }
+
         const providerSkus = new Set(providerProducts.map(p => p.product_code));
 
-        // 2. Ambil semua produk, game, dan kategori yang ada di database kita
+        // 2. Ambil semua produk, game, dan kategori dari DB
         const { rows: localProducts } = await client.query('SELECT id, provider_sku, price, status FROM products');
         const { rows: localGames } = await client.query('SELECT id, name FROM games');
         const localGameMap = new Map(localGames.map(g => [g.name.toLowerCase(), g.id]));
@@ -189,7 +313,7 @@ async function syncProductsWithFoxy() {
             statuses: []
         };
 
-        // 3. Looping produk dari Foxy untuk mengumpulkan data batch
+        // 3. Loop produk dari Foxy untuk kumpulkan data batch
         for (const product of providerProducts) {
             const gameName = product.category_title;
             const categoryName = product.category_type;
@@ -199,19 +323,23 @@ async function syncProductsWithFoxy() {
 
             if (!gameName || !productName || !productCode || basePriceFoxy === undefined) continue;
 
-            // Dapatkan atau buat gameId
             let gameId = localGameMap.get(gameName.toLowerCase());
             if (!gameId) {
-                const { rows: newGame } = await client.query('INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id', [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']);
+                const { rows: newGame } = await client.query(
+                    'INSERT INTO games (name, category, image_url, status) VALUES ($1, $2, $3, $4) RETURNING id',
+                    [gameName, categoryName, 'https://via.placeholder.com/200', 'Active']
+                );
                 gameId = newGame[0].id;
                 localGameMap.set(gameName.toLowerCase(), gameId);
             }
 
-            // Dapatkan atau buat categoryId
             const categoryKey = `${gameId}:${categoryName.toLowerCase()}`;
             let categoryId = localCategoryMap.get(categoryKey);
             if (!categoryId) {
-                const { rows: newCat } = await client.query('INSERT INTO product_categories (game_id, name) VALUES ($1, $2) RETURNING id', [gameId, categoryName]);
+                const { rows: newCat } = await client.query(
+                    'INSERT INTO product_categories (game_id, name) VALUES ($1, $2) RETURNING id',
+                    [gameId, categoryName]
+                );
                 categoryId = newCat[0].id;
                 localCategoryMap.set(categoryKey, categoryId);
             }
@@ -224,7 +352,7 @@ async function syncProductsWithFoxy() {
             productBatch.statuses.push('Active');
         }
 
-        // Jalankan UPSERT batch untuk produk
+        // 4. Jalankan UPSERT batch
         if (productBatch.skus.length > 0) {
             await client.query(`
                 INSERT INTO products (game_id, category_id, name, provider_sku, price, status)
@@ -244,43 +372,70 @@ async function syncProductsWithFoxy() {
                 productBatch.prices,
                 productBatch.statuses
             ]);
+            console.log(`[cron][sync] Upserted ${productBatch.skus.length} product(s).`);
         }
 
-        // 4. Nonaktifkan produk lokal yang tidak ada di Foxy lagi secara batch
+        // 5. Nonaktifkan produk lokal yang tidak ada di Foxy
         const deactivateIds = localProducts
             .filter(lp => lp.status === 'Active' && !providerSkus.has(lp.provider_sku))
             .map(lp => lp.id);
 
         if (deactivateIds.length > 0) {
-            await client.query('UPDATE products SET status = $1, updated_at = NOW() WHERE id = ANY($2::int[])', ['Inactive', deactivateIds]);
-            console.log(`DEACTIVATED: ${deactivateIds.length} products`);
+            await client.query(
+                'UPDATE products SET status = $1, updated_at = NOW() WHERE id = ANY($2::int[])',
+                ['Inactive', deactivateIds]
+            );
+            console.log(`[cron][sync] Deactivated ${deactivateIds.length} product(s) no longer at provider.`);
         }
-        
+
         await client.query('COMMIT');
-        console.log('Smart product sync job finished successfully.');
+        console.log('[cron][sync] Smart product sync finished successfully.');
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Smart product sync job failed:', safeErrorDetail(error));
+        // Hindari double-log jika sudah di-log di atas (Cloudflare case)
+        if (!error._cronLogged) {
+            console.error('[cron][sync] Product sync failed:', safeErrorDetail(error));
+        }
         throw error;
     } finally {
         client.release();
     }
 }
 
-// ========================================================================
-// === FUNGSI UTAMA UNTUK MENJALANKAN SEMUA CRON JOB ===
-// ========================================================================
+// ============================================================
+// === FUNGSI UTAMA: JALANKAN SEMUA CRON JOBS ===
+// Setiap job dibungkus try/catch agar satu gagal tidak hentikan yang lain.
+// ============================================================
 async function runAllCronJobs() {
-    console.log('Starting all cron jobs...');
+    console.log('[cron] Starting all cron jobs...');
+    const results = { pending: 'skipped', sync: 'skipped' };
+
+    // Job 1: Cek pending transactions (kritis — selalu jalankan duluan)
     try {
         await checkPendingTransactions();
-        await syncProductsWithFoxy();
-        console.log('All cron jobs completed successfully.');
-    } catch (error) {
-        console.error('One or more cron jobs failed:', error);
-        // Lemparkan error agar bisa ditangkap oleh pemanggil
-        throw error; 
+        results.pending = 'success';
+    } catch (err) {
+        results.pending = 'failed';
+        console.error('[cron] checkPendingTransactions failed:', safeErrorDetail(err));
     }
+
+    // Job 2: Sync produk (non-kritis — gagal tidak stop job lain)
+    try {
+        await syncProductsWithFoxy();
+        results.sync = 'success';
+    } catch (err) {
+        results.sync = 'failed';
+        // Tidak re-throw — cron exit 0 meski sync gagal
+        const safeErr = safeAxiosError(err, 'Foxy');
+        if (safeErr.isCloudflareChallenge) {
+            console.warn('[cron] Product sync blocked by Cloudflare. Pending check still completed.');
+        } else {
+            console.error('[cron] syncProductsWithFoxy failed:', safeErrorDetail(err));
+        }
+    }
+
+    console.log(`[cron] All jobs completed. Summary: pending=${results.pending}, sync=${results.sync}`);
+    return results;
 }
 
 module.exports = { checkPendingTransactions, syncProductsWithFoxy, runAllCronJobs };

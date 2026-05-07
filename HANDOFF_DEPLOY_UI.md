@@ -127,8 +127,19 @@ Verifikasi backend berjalan sempurna:
    `git pull origin main` -> `cd backend && npm ci --omit=dev` -> `pm2 restart topup-miku`
 
 ### [MEDIUM PRIORITY]
-1. **Setup Cron:** Daftarkan cron job untuk sync produk/status:
-   `*/5 * * * * cd /var/www/topup-miku/backend && /usr/bin/node cron_job_script.js >> /var/log/topup-miku-cron.log 2>&1`
+1. **Setup Cron:** Cron job sekarang mendukung mode argumen terpisah. Gunakan jadwal berikut di VPS:
+
+   ```bash
+   # Cek & resolve pending transactions — setiap 5 menit
+   */5 * * * * cd /var/www/topup-miku/backend && /usr/bin/node cron_job_script.js --pending-only >> /var/log/topup-miku-cron.log 2>&1
+
+   # Sync produk dari Foxy — setiap 4 jam (bukan 5 menit, terlalu sering)
+   0 */4 * * * cd /var/www/topup-miku/backend && /usr/bin/node cron_job_script.js --sync-only >> /var/log/topup-miku-cron.log 2>&1
+   ```
+
+   > **Catatan Cloudflare:** Jika Foxy API mengembalikan 403 (Cloudflare challenge), sync produk akan gagal dengan log ringkas — tidak akan mencetak FOXY_API_KEY atau header sensitif. Pending check tetap berjalan normal.
+   > Pastikan IP VPS `43.133.133.124` sudah diwhitelist oleh Foxy di dashboard mereka.
+
 2. **Transaction Test:** Lakukan simulasi order kecil (real data) untuk memastikan flow Foxy -> Callback -> Saldo berjalan 100%.
 3. **Security Audit:** Cek `npm audit` secara berkala (Gunakan review manual, jangan otomatis `--force`).
 
@@ -152,6 +163,8 @@ Verifikasi backend berjalan sempurna:
 1. **JANGAN** pernah commit file `.env` atau mengekspos secret key di log/laporan.
 2. **JANGAN** mengubah route API atau logic backend tanpa koordinasi dokumentasi (untuk menghindari kerusakan integrasi frontend).
 3. **JANGAN** jalankan `npm audit fix --force` karena berisiko memecah dependensi Express 4 yang stabil saat ini.
+4. **JANGAN** log full Axios error — hanya gunakan `safeAxiosError()` helper yang sudah ada di `server.js` dan `cronUtils.js`. FOXY_API_KEY tidak boleh muncul di log.
+5. **JANGAN** truncate lock file `/tmp/topup-miku-cron.lock` secara manual kecuali diperlukan (stale lock auto-removed setelah 10 menit).
 
 ---
 *Laporan ini dibuat oleh Antigravity (Advanced Agentic Coding AI).*
