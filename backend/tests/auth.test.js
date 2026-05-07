@@ -43,7 +43,7 @@ describe('Auth Login Tests', () => {
     });
 
     test('should return 401 if user is not found', async () => {
-        mock.method(pool, 'query', async () => ({ rows: [] }));
+        pool.query = async () => ({ rows: [] });
 
         const res = await fetch(baseUrl, {
             method: 'POST',
@@ -55,8 +55,7 @@ describe('Auth Login Tests', () => {
         const data = await res.json();
         assert.strictEqual(data.message, 'Username atau password salah.');
 
-        // Restore mock
-        pool.query.mock.restore();
+        pool.query = originalQuery;
     });
 
     test('should return 401 if password does not match', async () => {
@@ -66,8 +65,8 @@ describe('Auth Login Tests', () => {
             password: 'hashedpassword',
             role_name: 'BRONZE'
         };
-        mock.method(pool, 'query', async () => ({ rows: [mockUser] }));
-        mock.method(bcrypt, 'compare', async () => false); // Password doesn't match
+        pool.query = async () => ({ rows: [mockUser] });
+        bcrypt.compare = async () => false;
 
         const res = await fetch(baseUrl, {
             method: 'POST',
@@ -79,9 +78,8 @@ describe('Auth Login Tests', () => {
         const data = await res.json();
         assert.strictEqual(data.message, 'Username atau password salah.');
 
-        // Restore mocks
-        pool.query.mock.restore();
-        bcrypt.compare.mock.restore();
+        pool.query = originalQuery;
+        bcrypt.compare = originalCompare;
     });
 
     test('should return 200 and token on successful login', async () => {
@@ -91,8 +89,8 @@ describe('Auth Login Tests', () => {
             password: 'hashedpassword',
             role_name: 'BRONZE'
         };
-        mock.method(pool, 'query', async () => ({ rows: [mockUser] }));
-        mock.method(bcrypt, 'compare', async () => true); // Password matches
+        pool.query = async () => ({ rows: [mockUser] });
+        bcrypt.compare = async () => true;
 
         const res = await fetch(baseUrl, {
             method: 'POST',
@@ -105,15 +103,14 @@ describe('Auth Login Tests', () => {
         assert.strictEqual(data.message, 'Login berhasil!');
         assert.ok(data.token, 'Token should be present in response');
 
-        // Restore mocks
-        pool.query.mock.restore();
-        bcrypt.compare.mock.restore();
+        pool.query = originalQuery;
+        bcrypt.compare = originalCompare;
     });
 
     test('should return 500 on database error', async () => {
-        mock.method(pool, 'query', async () => {
+        pool.query = async () => {
             throw new Error('Database connection failed');
-        });
+        };
 
         const res = await fetch(baseUrl, {
             method: 'POST',
@@ -125,7 +122,6 @@ describe('Auth Login Tests', () => {
         const data = await res.json();
         assert.strictEqual(data.message, 'Terjadi kesalahan pada server.');
 
-        // Restore mock
-        pool.query.mock.restore();
+        pool.query = originalQuery;
     });
 });

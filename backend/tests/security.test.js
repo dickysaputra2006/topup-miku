@@ -41,7 +41,7 @@ describe('Security: Error Exposure Tests', () => {
             api_key: validApiKey
         };
 
-        mock.method(pool, 'query', async (sql, params) => {
+        pool.query = async (sql, params) => {
             if (sql.includes('u.api_key = $1')) {
                 return { rows: [mockUser] };
             }
@@ -50,14 +50,14 @@ describe('Security: Error Exposure Tests', () => {
             }
             // Trigger error in the main transaction block
             throw new Error('Sensitive database error details that should not be leaked');
-        });
-        mock.method(pool, 'connect', async () => ({
+        };
+        pool.connect = async () => ({
             query: async (sql) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK') return {};
                 throw new Error('Sensitive database error details that should not be leaked');
             },
             release: () => {}
-        }));
+        });
 
         const res = await fetch(h2hOrderUrl, {
             method: 'POST',
@@ -79,8 +79,8 @@ describe('Security: Error Exposure Tests', () => {
         assert.strictEqual(data.message, 'Gagal memproses transaksi H2H.');
         assert.ok(!JSON.stringify(data).includes('Sensitive database error details'), 'Response should not contain sensitive error details');
 
-        pool.query.mock.restore();
-        pool.connect.mock.restore();
+        pool.query = originalQuery;
+        pool.connect = originalConnect;
     });
 
     test('should not expose sensitive error message in standard order endpoint', async () => {
@@ -90,13 +90,13 @@ describe('Security: Error Exposure Tests', () => {
         // but since we use real fetch, we need a real token or mock protect middleware.
         // Easiest is to mock pool.query to fail during the order process after protect passes.
 
-        mock.method(pool, 'connect', async () => ({
+        pool.connect = async () => ({
             query: async (sql) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK') return {};
                 throw new Error('Another sensitive error');
             },
             release: () => {}
-        }));
+        });
 
         // We need a token. Let's sign one.
         const jwt = require('jsonwebtoken');
@@ -120,18 +120,18 @@ describe('Security: Error Exposure Tests', () => {
         assert.strictEqual(data.message, 'Gagal memproses transaksi.');
         assert.ok(!JSON.stringify(data).includes('Another sensitive error'), 'Response should not contain sensitive error details');
 
-        pool.connect.mock.restore();
+        pool.connect = originalConnect;
     });
 
     test('should reject admin access if user role is changed in DB', async () => {
         const adminUrl = `http://127.0.0.1:${server.address().port}/api/admin/roles`;
         
-        mock.method(pool, 'query', async (sql) => {
+        pool.query = async (sql) => {
             if (sql.includes('SELECT r.name as role_name')) {
                 return { rows: [{ role_name: 'User' }] };
             }
             return { rows: [] };
-        });
+        };
 
         const jwt = require('jsonwebtoken');
         const token = jwt.sign({ id: 1, username: 'adminuser', role: 'Admin' }, process.env.JWT_SECRET);
@@ -144,7 +144,7 @@ describe('Security: Error Exposure Tests', () => {
         const data = await res.json();
         assert.strictEqual(data.message, 'Akses ditolak: Hanya untuk Admin.');
 
-        pool.query.mock.restore();
+        pool.query = originalQuery;
     });
 
     test('should reject invalid H2H API key', async () => {
@@ -163,13 +163,13 @@ describe('Security: Error Exposure Tests', () => {
     test('should reject invalid callback status', async () => {
         const callbackUrl = `http://127.0.0.1:${server.address().port}/api/foxy/callback`;
         
-        mock.method(pool, 'connect', async () => ({
+        pool.connect = async () => ({
             query: async (sql) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK') return {};
                 return { rows: [] };
             },
             release: () => {}
-        }));
+        });
 
         const res = await fetch(callbackUrl, {
             method: 'POST',
@@ -181,7 +181,7 @@ describe('Security: Error Exposure Tests', () => {
         const data = await res.json();
         assert.strictEqual(data.message, 'Status tidak valid.');
         
-        pool.connect.mock.restore();
+        pool.connect = originalConnect;
     });
 
     test('should apply rate limiter to register endpoint', async () => {
@@ -198,9 +198,9 @@ describe('Security: Error Exposure Tests', () => {
         
         let updateQueryExecuted = false;
         
-        mock.method(pool, 'query', async () => ({ rows: [] }));
+        pool.query = async () => ({ rows: [] });
         
-        mock.method(pool, 'connect', async () => ({
+        pool.connect = async () => ({
             query: async (sql, params) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
                 if (sql.includes('SELECT * FROM transactions')) {
@@ -214,7 +214,7 @@ describe('Security: Error Exposure Tests', () => {
                 return { rows: [] };
             },
             release: () => {}
-        }));
+        });
 
         const res = await fetch(callbackUrl, {
             method: 'POST',
@@ -225,7 +225,7 @@ describe('Security: Error Exposure Tests', () => {
         assert.strictEqual(res.status, 200);
         assert.ok(updateQueryExecuted, 'UPDATE query with provider_sn should be executed');
         
-        pool.connect.mock.restore();
-        pool.query.mock.restore();
+        pool.connect = originalConnect;
+        pool.query = originalQuery;
     });
 });
