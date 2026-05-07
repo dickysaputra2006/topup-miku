@@ -70,6 +70,40 @@ function logSafeError(label, error) {
     console.error(label, safeErrorDetail(error));
 }
 
+/**
+ * Safe summary of Axios/provider error. Never prints Authorization, config.headers,
+ * request._header, or full response body. Detects Cloudflare challenge.
+ */
+function safeAxiosError(error, providerName) {
+    const name = providerName || 'Provider';
+    if (!error) return { provider: name, message: 'Unknown error' };
+    const safe = { provider: name };
+    if (error.message) {
+        safe.message = String(error.message)
+            .replace(/(api[_-]?key|authorization|password|token|secret)=?[^\s,]*/gi, '$1=[REDACTED]');
+    }
+    if (error.response) {
+        safe.status = error.response.status;
+        safe.statusText = error.response.statusText;
+        if (error.response.config) {
+            safe.method = error.response.config.method ? error.response.config.method.toUpperCase() : undefined;
+            safe.url = error.response.config.url;
+        }
+        const cfHeader = error.response.headers && error.response.headers['cf-mitigated'];
+        const bodyStr = typeof error.response.data === 'string' ? error.response.data : '';
+        const isCloudflare = error.response.status === 403 &&
+            (cfHeader === 'challenge' || bodyStr.includes('Just a moment'));
+        safe.isCloudflareChallenge = isCloudflare;
+        safe.responseContentType = error.response.headers && error.response.headers['content-type'];
+        if (isCloudflare) safe.note = 'Provider blocked request with Cloudflare challenge';
+    } else if (error.code === 'ECONNABORTED' || (error.message && error.message.includes('timeout'))) {
+        safe.note = 'Request timed out';
+    } else if (error.code) {
+        safe.code = error.code;
+    }
+    return safe;
+}
+
 function normalizeString(value, maxLength = 255) {
     if (typeof value !== 'string') return '';
     return value.trim().slice(0, maxLength);
@@ -140,6 +174,8 @@ function getSafeOrderErrorMessage(error, fallback) {
         'productId dan targetGameId wajib diisi.',
         'Produk tidak valid atau tidak aktif.',
         'Terjadi perubahan harga',
+        'Harga produk sedang diperbarui',
+        'Produk sedang tidak tersedia',
         'Server ID wajib diisi',
         'Saldo Anda tidak mencukupi.',
         'Saldo H2H Anda tidak mencukupi.',
@@ -177,6 +213,7 @@ async function findRecentPendingDuplicate(client, userId, productId, targetGameI
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
 const FOXY_CALLBACK_URL = process.env.FOXY_CALLBACK_URL || 'https://mikutopup.my.id/api/foxy/callback';
+const PROVIDER_TIMEOUT_MS = 15000; // 15 detik untuk semua request ke provider
 
 let foxyProductCache = null;
 let foxyCacheTimestamp = null;
@@ -191,15 +228,27 @@ async function getFoxyProducts() {
     const foxyConfig = {
         headers: {
             'Authorization': FOXY_API_KEY,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/108.0.0.0 Safari/537.36',
             'Referer': 'https://www.foxygamestore.com/'
-        }
+        },
+        timeout: PROVIDER_TIMEOUT_MS
     };
 
-    const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
-    foxyProductCache = response.data.data;
-    foxyCacheTimestamp = now;
-    return foxyProductCache;
+    try {
+        const response = await axios.get(`${FOXY_BASE_URL}/v1/products`, foxyConfig);
+        foxyProductCache = response.data.data;
+        foxyCacheTimestamp = now;
+        return foxyProductCache;
+    } catch (err) {
+        // Safe log — tidak print headers atau Authorization
+        const safeErr = safeAxiosError(err, 'Foxy');
+        if (safeErr.isCloudflareChallenge) {
+            console.warn('[getFoxyProducts] Blocked by Cloudflare challenge. VPS IP may need whitelisting.');
+        } else {
+            console.error('[getFoxyProducts] Failed to fetch products:', safeErr);
+        }
+        throw err;
+    }
 }
 
 // Middleware (HARUS DI ATAS SEMUA RUTE)
@@ -1868,25 +1917,11 @@ app.post('/api/order', protect, async (req, res) => {
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
         const product = products[0];
 
-        // --- FITUR BARU: PENGECEKAN HARGA REAL-TIME (SUDAH BENAR) ---
-        console.log('Melakukan pengecekan harga real-time ke Foxy...');
-        const providerProducts = await getFoxyProducts();
-        const currentFoxyProduct = providerProducts.find(p => p.product_code === product.provider_sku);
-
-        if (currentFoxyProduct && currentFoxyProduct.product_price > product.price) {
-            console.warn(`Perubahan harga terdeteksi untuk SKU ${product.provider_sku}. DB: ${product.price}, Foxy: ${currentFoxyProduct.product_price}. Menjalankan sinkronisasi...`);
-            syncProductsWithFoxy().catch(err => console.error("Gagal memicu sinkronisasi otomatis:", err));
-            throw new Error('Terjadi perubahan harga pada produk ini. Silakan coba pesan kembali.');
-        }
-        // --- AKHIR FITUR BARU ---
-
-        if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
-        
+        // --- LOGIKA HARGA FINAL TIGA LAPIS (YANG DISEMPURNAKAN) ---
         const { rows: users } = await client.query('SELECT balance, role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE', [userId]);
         const user = users[0];
         const userRoleName = user.role_name.toLowerCase();
 
-        // --- LOGIKA HARGA FINAL TIGA LAPIS (YANG DISEMPURNAKAN) ---
         let finalPrice;
         const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
         
@@ -1908,9 +1943,6 @@ app.post('/api/order', protect, async (req, res) => {
         // --- AKHIR LOGIKA HARGA FINAL ---
 
         // --- FLASH SALE OVERRIDE ---
-        // Cek apakah produk memiliki flash sale aktif. Logika ini identik
-        // dengan yang digunakan di /api/games/:gameId/products untuk memastikan
-        // harga yang ditampilkan sama dengan harga yang dikenakan.
         const { rows: flashSaleRows } = await client.query(
             `SELECT discount_price FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at LIMIT 1`,
             [productId]
@@ -1923,8 +1955,43 @@ app.post('/api/order', protect, async (req, res) => {
         }
         // --- AKHIR FLASH SALE OVERRIDE ---
 
+        // --- PRICE GUARD: Cek harga provider real-time sebelum order ---
+        try {
+            console.log('[order] Checking real-time price from Foxy...');
+            const providerProducts = await getFoxyProducts();
+            const currentFoxyProduct = providerProducts
+                ? providerProducts.find(p => p.product_code === product.provider_sku)
+                : null;
+
+            if (!currentFoxyProduct) {
+                console.warn(`[order] Product SKU ${product.provider_sku} not found in provider list.`);
+                throw new Error('Produk sedang tidak tersedia, silakan coba lagi nanti.');
+            }
+
+            const currentProviderCost = Number(currentFoxyProduct.product_price);
+            // Blokir jika harga provider > finalPrice yang dikenakan ke user
+            if (currentProviderCost > finalPrice) {
+                console.warn(`[order] Price risk: Provider cost (${currentProviderCost}) > Final user price (${finalPrice}). SKU ${product.provider_sku}.`);
+                syncProductsWithFoxy().catch(err => console.error('[order] Auto-sync after price change failed:', safeAxiosError(err, 'Foxy')));
+                throw new Error('Harga produk sedang diperbarui, silakan coba beberapa saat lagi.');
+            }
+        } catch (priceGuardErr) {
+            // Jika provider error (403, timeout, network error), WAJIB block order
+            if (priceGuardErr.message && (
+                priceGuardErr.message.startsWith('Harga produk sedang diperbarui') ||
+                priceGuardErr.message.startsWith('Produk sedang tidak tersedia') ||
+                priceGuardErr.message.startsWith('Terjadi perubahan harga')
+            )) {
+                throw priceGuardErr;
+            }
+            console.warn('[order] Provider check failed, blocking order:', safeAxiosError(priceGuardErr, 'Foxy'));
+            throw new Error('Harga produk sedang diperbarui, silakan coba beberapa saat lagi.');
+        }
+        // --- AKHIR PRICE GUARD ---
+
+        if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
+        
         // --- PROMO CODE ENFORCEMENT ---
-        // Re-validasi promo server-side di dalam transaksi. Tidak mempercayai frontend.
         let appliedPromoId = null;
         if (promoCode) {
             const { rows: promoRows } = await client.query(
@@ -1960,7 +2027,6 @@ app.post('/api/order', protect, async (req, res) => {
                 throw new Error('Promo ini tidak berlaku untuk produk ini.');
             }
 
-            // Hitung diskon dari harga efektif (setelah margin + flash sale)
             let discount = 0;
             if (promo.type === 'percentage') {
                 discount = Math.floor(finalPrice * Number(promo.value) / 100);
@@ -1970,7 +2036,6 @@ app.post('/api/order', protect, async (req, res) => {
             if (!Number.isFinite(discount) || discount < 0) {
                 throw new Error('Nilai diskon promo tidak valid.');
             }
-            // Cap: finalPrice minimum 1
             if (discount >= finalPrice) {
                 discount = finalPrice - 1;
             }
@@ -1997,7 +2062,6 @@ app.post('/api/order', protect, async (req, res) => {
         const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
         await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]);
 
-        // --- PROMO USAGE INSERT (inside transaction, auto-rollback on failure) ---
         if (appliedPromoId) {
             await client.query('UPDATE promo_codes SET uses_count = uses_count + 1, updated_at = NOW() WHERE id = $1', [appliedPromoId]);
             await client.query(
@@ -2005,12 +2069,15 @@ app.post('/api/order', protect, async (req, res) => {
                 [appliedPromoId, userId, productId, newTransactionId, targetGameId]
             );
         }
-        // --- AKHIR PROMO USAGE INSERT ---
         
         try {
-            await axios.post(`${FOXY_BASE_URL}/v1/order`, { product_code: product.provider_sku, user_id: targetGameId, server_id: targetServerId || '', trx_id: trx_id_provider, callback_url: FOXY_CALLBACK_URL }, { headers: { 'Authorization': FOXY_API_KEY, 'Content-Type': 'application/json' }, timeout: 15000 });
+            await axios.post(
+                `${FOXY_BASE_URL}/v1/order`,
+                { product_code: product.provider_sku, user_id: targetGameId, server_id: targetServerId || '', trx_id: trx_id_provider, callback_url: FOXY_CALLBACK_URL },
+                { headers: { 'Authorization': FOXY_API_KEY, 'Content-Type': 'application/json' }, timeout: PROVIDER_TIMEOUT_MS }
+            );
         } catch (providerError) {
-            console.error("Foxy API Error:", providerError.response ? providerError.response.status : providerError.message);
+            console.error('[order] Foxy order submission failed:', safeAxiosError(providerError, 'Foxy'));
             throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
         }
 
@@ -2122,33 +2189,20 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             throw new Error('Server ID wajib diisi untuk game ini.');
         }
 
-        // --- FITUR BARU: PENGECEKAN HARGA REAL-TIME ---
-        console.log(`[H2H] Melakukan pengecekan harga real-time untuk SKU ${product.provider_sku}`);
-        const providerProducts = await getFoxyProducts();
-        const currentFoxyProduct = providerProducts.find(p => p.product_code === product.provider_sku);
-
-        if (currentFoxyProduct && currentFoxyProduct.product_price > product.price) {
-            console.warn(`[H2H] Perubahan harga terdeteksi untuk SKU ${product.provider_sku}. DB: ${product.price}, Foxy: ${currentFoxyProduct.product_price}.`);
-            syncProductsWithFoxy().catch(err => console.error("[H2H] Gagal memicu sinkronisasi otomatis:", err));
-            throw new Error('Terjadi perubahan harga pada produk. Silakan coba lagi dalam beberapa saat.');
-        }
-        // --- AKHIR FITUR BARU ---
-
+        // 2. Ambil User H2H
         const { rows: users } = await client.query('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE', [h2hUser.id]);
         const userForTx = users[0];
         const userRoleName = h2hUser.role_name.toLowerCase();
 
-        // --- LOGIKA HARGA FINAL TIGA LAPIS ---
+        // --- LOGIKA HARGA FINAL ---
         let finalPrice;
         const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
-        
         if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
             finalPrice = Number(manualPrice);
         } else {
             const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [userForTx.role_id]);
             if (roleRows.length === 0) throw new Error('Harga produk tidak valid.');
-            let margin = Number(roleRows[0].margin_percent); // Default: margin global
-            
+            let margin = Number(roleRows[0].margin_percent);
             if (product.use_custom_margin) {
                 const customMargin = product[`${userRoleName}_margin`];
                 if (customMargin !== null && customMargin !== undefined) {
@@ -2157,12 +2211,8 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             }
             finalPrice = Math.ceil(Number(product.price) * (1 + (margin / 100)));
         }
-        // --- AKHIR LOGIKA HARGA FINAL ---
-
+        
         // --- FLASH SALE OVERRIDE ---
-        // Cek apakah produk memiliki flash sale aktif. Logika ini identik
-        // dengan yang digunakan di /h2h/products untuk memastikan
-        // harga yang ditampilkan sama dengan harga yang dikenakan.
         const { rows: h2hFlashSaleRows } = await client.query(
             `SELECT discount_price FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at LIMIT 1`,
             [productId]
@@ -2173,7 +2223,38 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
                 finalPrice = flashPrice;
             }
         }
-        // --- AKHIR FLASH SALE OVERRIDE ---
+
+        // --- PRICE GUARD H2H ---
+        try {
+            console.log(`[h2h-order] Checking real-time price for SKU ${product.provider_sku}...`);
+            const providerProducts = await getFoxyProducts();
+            const currentFoxyProduct = providerProducts
+                ? providerProducts.find(p => p.product_code === product.provider_sku)
+                : null;
+            
+            if (!currentFoxyProduct) {
+                console.warn(`[h2h-order] Product SKU ${product.provider_sku} not found in provider list.`);
+                throw new Error('Produk sedang tidak tersedia, silakan coba lagi nanti.');
+            }
+
+            const currentProviderCost = Number(currentFoxyProduct.product_price);
+            if (currentProviderCost > finalPrice) {
+                console.warn(`[h2h-order] Price risk: Cost (${currentProviderCost}) > Final price (${finalPrice}). SKU ${product.provider_sku}.`);
+                syncProductsWithFoxy().catch(err => console.error('[h2h-order] Auto-sync after price change failed:', safeAxiosError(err, 'Foxy')));
+                throw new Error('Harga produk sedang diperbarui, silakan coba beberapa saat lagi.');
+            }
+        } catch (priceGuardErr) {
+            if (priceGuardErr.message && (
+                priceGuardErr.message.startsWith('Harga produk sedang diperbarui') ||
+                priceGuardErr.message.startsWith('Produk sedang tidak tersedia') ||
+                priceGuardErr.message.startsWith('Terjadi perubahan harga')
+            )) {
+                throw priceGuardErr;
+            }
+            console.warn('[h2h-order] Provider check failed, blocking order:', safeAxiosError(priceGuardErr, 'Foxy'));
+            throw new Error('Harga produk sedang diperbarui, silakan coba beberapa saat lagi.');
+        }
+        // --- AKHIR PRICE GUARD H2H ---
 
         if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
@@ -2187,8 +2268,7 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         const invoiceId = `H2H-${Date.now()}${h2hUser.id}`;
         const trx_id_provider = `H2H-PROVIDER-${Date.now()}`;
 
-        const txSql = 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)';
-        await client.query(txSql, [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
+        await client.query('INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
 
         const historyDesc = `Pembelian H2H: ${product.name} (${invoiceId})`;
         await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [h2hUser.id, -finalPrice, 'Purchase', historyDesc, invoiceId]);
@@ -2204,15 +2284,15 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         const foxyConfigHeaders = {
             headers: {
                 'Authorization': FOXY_API_KEY,
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/108.0.0.0 Safari/537.36',
                 'Referer': 'https://www.foxygamestore.com/'
             }
         };
 
         try {
-            await axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { ...foxyConfigHeaders, timeout: 15000 });
+            await axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { ...foxyConfigHeaders, timeout: PROVIDER_TIMEOUT_MS });
         } catch (providerError) {
-            console.error("Foxy API Error on H2H order:", providerError.response ? providerError.response.status : providerError.message);
+            console.error('[h2h-order] Foxy order submission failed:', safeAxiosError(providerError, 'Foxy'));
             throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
         }
 
