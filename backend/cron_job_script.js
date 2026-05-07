@@ -9,6 +9,9 @@ const LOCK_FILE = '/tmp/topup-miku-cron.lock';
 const LOCK_STALE_MS = 10 * 60 * 1000; // 10 menit — anggap stale jika lebih lama
 const GLOBAL_TIMEOUT_MS = 4 * 60 * 1000; // 4 menit batas total run
 
+// Track apakah lock berhasil di-acquire oleh proses ini
+let lockAcquired = false;
+
 // ============================================================
 // === OVERLAP PREVENTION — LOCK FILE ===
 // ============================================================
@@ -33,10 +36,16 @@ function acquireLock() {
         console.error('[cron] Failed to write lock file:', err.message);
         return false;
     }
+    lockAcquired = true;
     return true;
 }
 
+/**
+ * Hapus lock file — hanya jika milik PID kita.
+ * Aman dipanggil berkali-kali (idempotent).
+ */
 function releaseLock() {
+    if (!lockAcquired) return;
     try {
         if (fs.existsSync(LOCK_FILE)) {
             const content = fs.readFileSync(LOCK_FILE, 'utf8').trim();
@@ -44,7 +53,28 @@ function releaseLock() {
                 fs.unlinkSync(LOCK_FILE);
             }
         }
-    } catch (_) { /* tidak fatal */ }
+    } catch (err) {
+        console.warn('[cron] Failed to remove lock file:', err.message);
+    }
+    lockAcquired = false;
+}
+
+// ============================================================
+// === SAFETY NET — pastikan lock selalu dihapus ===
+// ============================================================
+// process.on('exit') berjalan saat event loop habis atau setelah
+// process.exit() dipanggil — sebagai jaring pengaman terakhir.
+process.on('exit', () => {
+    releaseLock();
+});
+
+// Tangkap signal agar cleanup jalan sebelum OS kill proses
+for (const sig of ['SIGINT', 'SIGTERM']) {
+    process.on(sig, () => {
+        console.warn(`[cron] Received ${sig}, cleaning up...`);
+        releaseLock();
+        process.exit(128 + (sig === 'SIGINT' ? 2 : 15));
+    });
 }
 
 // ============================================================
@@ -82,6 +112,7 @@ async function main() {
     }
 
     const results = { pending: 'skipped', sync: 'skipped' };
+    let exitCode = 0;
 
     try {
         if (MODE_SYNC_ONLY) {
@@ -124,15 +155,13 @@ async function main() {
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
         console.log(`[cron] Finished at ${new Date().toISOString()} | elapsed: ${elapsed}s | pending=${results.pending}, sync=${results.sync}`);
 
-        // Exit success jika setidaknya job yang dijadwalkan tidak crash fatal
-        process.exit(0);
-
     } catch (fatalError) {
         console.error('[cron] Fatal unexpected error:', fatalError.message);
-        process.exit(1);
+        exitCode = 1;
     } finally {
         clearTimeout(globalTimeout);
         releaseLock();
+        process.exit(exitCode);
     }
 }
 
