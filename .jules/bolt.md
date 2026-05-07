@@ -1,0 +1,3 @@
+## 2024-05-24 - Frontend Synchronous Input Blocking
+**Learning:** The plain vanilla JS frontend was processing every single keystroke on the `input` event for `searchInput` and `gameSearchInput`, updating the DOM and applying array filters immediately without batching. In `script.js` and `compare-prices.js`, filtering the full array (like `allGamesData`) synchronously blocks the main thread, leading to jittery typing and slow UI updates, especially when typing fast.
+**Action:** Implemented a locally defined utility `debounce` function in the frontend JS files, which wraps the event handlers with a 300ms delay. Next time, always check if frequent DOM manipulations and array searches within `input` or `scroll` handlers lack debouncing/throttling and apply it.

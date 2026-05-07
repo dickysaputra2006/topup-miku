@@ -421,8 +421,18 @@ if (dropdownLoginBtn) {
         });
     });
 
+    // Debounce utility to prevent main-thread blocking on frequent events
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
+        const debouncedSearch = debounce(() => handleSearch(searchInput.value), 300);
+        searchInput.addEventListener('input', debouncedSearch);
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 
