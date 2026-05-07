@@ -14,7 +14,7 @@
 <header>
     <div class="header-container container">
         <div class="header-left">
-            <button id="hamburger-btn" class="header-icon-btn">
+            <button id="hamburger-btn" class="header-icon-btn" aria-label="Buka Menu">
                 <i class="fas fa-bars"></i>
             </button>
             <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
@@ -38,7 +38,7 @@
         </div>
 
         <div class="header-right">
-                    <div id="notification-container" class="header-icon-btn">
+                    <button id="notification-container" class="header-icon-btn" aria-label="Buka Notifikasi">
                     <i class="fas fa-bell"></i>
                     <span id="notification-badge" class="badge-count hidden">0</span>
                     <div id="notification-panel" class="notification-panel hidden">
@@ -48,7 +48,7 @@
                         <div id="notification-list" class="notification-list">
                             </div>
                     </div>
-                </div>
+                </button>
             
              <a href="validate.html" class="header-btn validate-btn">Validasi ID</a> <a href="compare-prices.html" class="header-btn pricelist-btn">Pricelist</a>
             <a href="#" id="user-auth-button" class="header-btn">Masuk</a>
@@ -105,7 +105,7 @@
 
     <div id="auth-modal" class="modal-overlay hidden">
         <div class="modal-content">
-            <button id="close-modal-btn" class="close-modal">&times;</button>
+            <button id="close-modal-btn" class="close-modal" aria-label="Tutup Modal">&times;</button>
             <div id="login-container">
                 <h3>Masuk Akun</h3>
                 <p class="form-description">Selamat datang kembali! Silakan masuk.</p>
