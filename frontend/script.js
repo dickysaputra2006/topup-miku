@@ -412,12 +412,19 @@ if (dropdownLoginBtn) {
     });
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
+        const togglePasswordVisibility = function () {
             const input = this.parentElement.querySelector('input');
             const isPassword = input.type === 'password';
             input.type = isPassword ? 'text' : 'password';
             this.classList.toggle('fa-eye', !isPassword);
             this.classList.toggle('fa-eye-slash', isPassword);
+        };
+        icon.addEventListener('click', togglePasswordVisibility);
+        icon.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                togglePasswordVisibility.call(this);
+            }
         });
     });
 
