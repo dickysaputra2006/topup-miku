@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    MIKU Store — Responsive & UI Polish Patch (style-responsive.css)
    Loaded AFTER style.css to safely override specific rules.
    Tidak mengubah logika JS atau backend.
@@ -11,14 +11,17 @@
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.25);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 html {
   box-sizing: border-box;
 }
-*, *::before, *::after {
+
+*,
+*::before,
+*::after {
   box-sizing: inherit;
 }
 
@@ -101,7 +104,7 @@ header {
 
 .product-card:hover {
   transform: translateY(-3px) scale(1.02);
-  box-shadow: 0 6px 20px rgba(236,72,153,0.2);
+  box-shadow: 0 6px 20px rgba(236, 72, 153, 0.2);
 }
 
 .product-card img {
@@ -141,7 +144,8 @@ footer {
 
 /* Container utama: flex column on mobile, row on desktop */
 .pricelist-container {
-  overflow-x: visible !important; /* OVERRIDE: hapus overflow-x: auto dari parent */
+  overflow-x: visible !important;
+  /* OVERRIDE: hapus overflow-x: auto dari parent */
   flex-wrap: nowrap;
 }
 
@@ -167,7 +171,8 @@ footer {
 
   .pricelist-container .dashboard-content {
     flex: 1;
-    min-width: 0; /* PENTING: cegah flex child overflow */
+    min-width: 0;
+    /* PENTING: cegah flex child overflow */
   }
 }
 
@@ -175,7 +180,8 @@ footer {
 @media (max-width: 768px) {
   .pricelist-container {
     flex-direction: column !important;
-    overflow-x: visible !important; /* TIDAK ADA overflow-x di parent */
+    overflow-x: visible !important;
+    /* TIDAK ADA overflow-x di parent */
   }
 
   .pricelist-container .game-selector {
@@ -213,7 +219,8 @@ footer {
 }
 
 .modern-table-wrapper {
-  overflow: visible; /* biarkan inner .table-container yang handle scroll */
+  overflow: visible;
+  /* biarkan inner .table-container yang handle scroll */
   max-width: 100%;
 }
 
@@ -224,7 +231,8 @@ footer {
 
 /* Tabel bisa lebih lebar dari kontainer, tapi scrollnya terbatas di wrapper */
 table {
-  min-width: max-content; /* membolehkan tabel lebih lebar dari layar */
+  min-width: max-content;
+  /* membolehkan tabel lebih lebar dari layar */
 }
 
 /* === 11. DASHBOARD & ADMIN SIDEBAR === */
@@ -239,6 +247,7 @@ table {
 }
 
 @media (max-width: 768px) {
+
   .dashboard-container,
   .admin-page-container {
     margin-top: 1rem;
@@ -260,16 +269,19 @@ table {
 
 .master-list,
 .detail-list {
-  min-width: 0; /* override min-width: 350px yang menyebabkan overflow */
+  min-width: 0;
+  /* override min-width: 350px yang menyebabkan overflow */
 }
 
 @media (max-width: 768px) {
   .admin-master-detail {
     grid-template-columns: 1fr;
   }
+
   .admin-forms-container {
     flex-direction: column;
   }
+
   .admin-form {
     min-width: 0;
   }
@@ -402,7 +414,8 @@ textarea {
 
 /* === 26. COMPARE CARD === */
 .compare-card {
-  overflow: hidden; /* Pastikan tidak meluber */
+  overflow: hidden;
+  /* Pastikan tidak meluber */
 }
 
 .compare-header h3 {
@@ -480,6 +493,7 @@ textarea {
 
 /* === 29. ADMIN TABLE pada mobile — hanya wrapper scroll === */
 @media (max-width: 768px) {
+
   .admin-content .table-container table,
   .dashboard-content .table-container table {
     white-space: nowrap;
@@ -501,6 +515,7 @@ button {
   .game-selector-form {
     flex-direction: column;
   }
+
   .game-selector-form input,
   .game-selector-form select {
     min-width: 0;
@@ -514,12 +529,15 @@ button {
     flex-direction: column;
     align-items: stretch;
   }
+
   .form-row-container button {
     width: 100%;
   }
+
   .promo-form-container {
     flex-direction: column;
   }
+
   .promo-form-container button {
     width: 100%;
   }
@@ -565,29 +583,31 @@ button {
   }
 
   /* User ID card (.card:nth-of-type(2)) */
-  .order-page-wrapper > .card:nth-of-type(2) {
+  .order-page-wrapper>.card:nth-of-type(2) {
     grid-column: 1;
     grid-row: 2;
   }
 
   /* Nominal card (.card:nth-of-type(3)) */
-  .order-page-wrapper > .card:nth-of-type(3) {
+  .order-page-wrapper>.card:nth-of-type(3) {
     grid-column: 1;
     grid-row: 3;
   }
 
   /* Promo card (.card:nth-of-type(4)) — kolom kanan atas */
-  .order-page-wrapper > .card:nth-of-type(4) {
+  .order-page-wrapper>.card:nth-of-type(4) {
     grid-column: 2;
-    grid-row: 1 / 3;  /* span dari baris 1 ke 3 agar tidak terlalu pendek */
+    grid-row: 1 / 3;
+    /* span dari baris 1 ke 3 agar tidak terlalu pendek */
   }
 
   /* Bayar & Proses card (.card:nth-of-type(5)) — kolom kanan bawah, sticky */
-  .order-page-wrapper > .card:nth-of-type(5) {
+  .order-page-wrapper>.card:nth-of-type(5) {
     grid-column: 2;
     grid-row: 3;
     position: sticky;
-    top: 4.5rem;  /* di bawah header sticky */
+    top: 4.5rem;
+    /* di bawah header sticky */
   }
 
   /* Pastikan nominal grid pakai auto-fill yang rapi */
@@ -624,6 +644,7 @@ button {
   overflow-wrap: anywhere;
   white-space: normal;
   max-width: 100%;
+  line-clamp: 2;
 }
 
 .product-card-selectable small {
@@ -653,14 +674,16 @@ button {
 /* Desktop: sidebar STRETCH setinggi tabel (ubah align dari flex-start → stretch) */
 @media (min-width: 769px) {
   .pricelist-container {
-    align-items: stretch !important;  /* override flex-start sebelumnya */
+    align-items: stretch !important;
+    /* override flex-start sebelumnya */
   }
 
   .pricelist-container .game-selector {
     /* Tidak lagi min-height auto; biarkan flex stretch mengatur tingginya */
     position: sticky;
     top: 5rem;
-    align-self: flex-start;    /* sticky perlu align-self:flex-start agar bisa sticky */
+    align-self: flex-start;
+    /* sticky perlu align-self:flex-start agar bisa sticky */
     min-height: calc(100vh - 7rem);
     max-height: calc(100vh - 5rem);
     overflow-y: auto;
@@ -670,7 +693,8 @@ button {
 
   /* Dropdown game: padding kanan yang cukup agar arrow tidak tertutup teks */
   #game-selector-dropdown {
-    padding-right: 2.5rem !important;  /* ruang untuk panah custom */
+    padding-right: 2.5rem !important;
+    /* ruang untuk panah custom */
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
@@ -745,7 +769,8 @@ button {
 .admin-content,
 .dashboard-content {
   min-width: 0;
-  overflow: visible;  /* KRITIS: harus visible, bukan hidden */
+  overflow: visible;
+  /* KRITIS: harus visible, bukan hidden */
 }
 
 /* Table container admin: horizontal scroll internal */
@@ -825,6 +850,7 @@ table th {
 
 /* Sembunyikan KEDUA tombol hamburger di desktop */
 @media (min-width: 901px) {
+
   #menu-toggle-btn,
   .menu-toggle-btn {
     display: none !important;
@@ -833,6 +859,7 @@ table th {
 
 /* Tampilkan di mobile */
 @media (max-width: 900px) {
+
   #menu-toggle-btn,
   .menu-toggle-btn {
     display: flex;
