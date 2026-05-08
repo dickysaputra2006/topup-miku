@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="style-responsive.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
+</head>
 <body>
 <header>
     <div class="header-container container">
@@ -15,58 +16,68 @@
             <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
         </div>
         <div class="header-right">
-             <a href="#" id="user-auth-button" class="header-btn">Masuk</a>
+            <a href="#" id="user-auth-button" class="header-btn">Masuk</a>
         </div>
     </div>
 </header>
 
     <main class="container">
         <div class="order-page-wrapper">
-            <div id="game-info" class="card">
-                <img id="game-image" src="https://via.placeholder.com/200" alt="Game Logo">
-                <div class="game-info-text">
-                    <h2 id="game-name">Memuat nama game...</h2>
-                    <p>Pengiriman Cepat & Terpercaya</p>
+
+            <!-- Kolom Kiri: Game Info + Step 1 + Step 2 -->
+            <div class="order-main-col">
+
+                <div id="game-info" class="card">
+                    <img id="game-image" src="https://via.placeholder.com/200" alt="Game Logo">
+                    <div class="game-info-text">
+                        <h2 id="game-name">Memuat nama game...</h2>
+                        <p>Pengiriman Cepat &amp; Terpercaya</p>
+                    </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <h3><span>1</span> Masukkan User ID</h3>
-                <form id="order-form" class="order-form-grid">
-                    <input type="text" id="target-game-id" placeholder="Masukkan User ID" required>
-                    <div id="server-input-container"></div>
-                     <div id="validation-result" style="margin-top: 1rem; min-height: 24px;"></div>
-                </form>
-            </div>
-            
-            <div class="card">
-                <h3><span>2</span> Pilih Nominal Top Up</h3>
-                <div id="product-list-container" class="product-grid">
-                    <p>Memuat produk...</p>
+                <div class="card">
+                    <h3><span>1</span> Masukkan User ID</h3>
+                    <form id="order-form" class="order-form-grid">
+                        <input type="text" id="target-game-id" placeholder="Masukkan User ID" required>
+                        <div id="server-input-container"></div>
+                        <div id="validation-result" style="margin-top: 1rem; min-height: 24px;"></div>
+                    </form>
                 </div>
-            </div>
-            
 
-            <div class="card">
-                <h3><span>3</span> Punya Kode Promo?</h3>
-                <form id="promo-form" class="promo-form-container">
-                    <input type="text" id="promo-code-input" placeholder="Masukkan Kode di Sini">
-                    <button type="submit" id="apply-promo-btn">Terapkan</button>
-                </form>
-                <div id="promo-result" class="promo-result"></div>
-            </div>
-
-            <div class="card">
-                <h3><span>4</span> Bayar & Proses</h3>
-                <div id="payment-info">
-                    <p><span>Metode Pembayaran</span> <strong>Saldo Akun</strong></p>
-                    <hr>
-                    <p class="total-payment"><span>Total Bayar</span> <strong id="total-price">-</strong></p>
+                <div class="card">
+                    <h3><span>2</span> Pilih Nominal Top Up</h3>
+                    <div id="product-list-container" class="product-grid">
+                        <p>Memuat produk...</p>
+                    </div>
                 </div>
-                <button id="submit-order-btn" class="order-button" disabled>Pilih Nominal Dahulu</button>
-            </div>
 
-        </div>
+            </div><!-- /.order-main-col -->
+
+            <!-- Kolom Kanan: Step 3 + Step 4 (Sticky Summary) -->
+            <div class="order-side-col">
+
+                <div class="card">
+                    <h3><span>3</span> Punya Kode Promo?</h3>
+                    <form id="promo-form" class="promo-form-container">
+                        <input type="text" id="promo-code-input" placeholder="Masukkan Kode di Sini">
+                        <button type="submit" id="apply-promo-btn">Terapkan</button>
+                    </form>
+                    <div id="promo-result" class="promo-result"></div>
+                </div>
+
+                <div class="card">
+                    <h3><span>4</span> Bayar &amp; Proses</h3>
+                    <div id="payment-info">
+                        <p><span>Metode Pembayaran</span> <strong>Saldo Akun</strong></p>
+                        <hr>
+                        <p class="total-payment"><span>Total Bayar</span> <strong id="total-price">-</strong></p>
+                    </div>
+                    <button id="submit-order-btn" class="order-button" disabled>Pilih Nominal Dahulu</button>
+                </div>
+
+            </div><!-- /.order-side-col -->
+
+        </div><!-- /.order-page-wrapper -->
     </main>
 
     <div id="auth-modal" class="modal-overlay hidden">
@@ -87,29 +98,29 @@
                 <p class="switch-form">Belum punya akun? <a href="#" id="show-register">Daftar di sini</a></p>
             </div>
             <div id="register-container" class="hidden">
-    <h3>Daftar Akun Baru</h3>
-    <p class="form-description">Masukkan data Anda untuk membuat akun baru.</p>
-    <form id="register-form">
-        <input name="fullName" type="text" placeholder="Nama Lengkap (Contoh: John Doe)" required>
-        <input name="username" type="text" placeholder="Username (untuk login)" required>
-        <input name="email" type="email" placeholder="Email" required>
-        <input name="nomorWa" type="text" placeholder="Nomor Telepon (Contoh: 62812...)" required>
-        <div class="password-wrapper">
-            <input name="password" type="password" placeholder="Password" required>
-            <i class="fas fa-eye-slash toggle-password"></i>
-        </div>
-        <div class="password-wrapper">
-            <input name="confirmPassword" type="password" placeholder="Konfirmasi Password" required>
-            <i class="fas fa-eye-slash toggle-password"></i>
-        </div>
-        <div class="terms">
-            <input type="checkbox" id="terms-product" name="terms" required>
-            <label for="terms-product">Dengan mendaftar, Anda setuju dengan <a href="#">syarat dan ketentuan</a> kami.</label>
-        </div>
-        <button type="submit">Daftar</button>
-    </form>
-    <p class="switch-form">Sudah punya akun? <a href="#" id="show-login">Masuk</a></p>
-</div>
+                <h3>Daftar Akun Baru</h3>
+                <p class="form-description">Masukkan data Anda untuk membuat akun baru.</p>
+                <form id="register-form">
+                    <input name="fullName" type="text" placeholder="Nama Lengkap (Contoh: John Doe)" required>
+                    <input name="username" type="text" placeholder="Username (untuk login)" required>
+                    <input name="email" type="email" placeholder="Email" required>
+                    <input name="nomorWa" type="text" placeholder="Nomor Telepon (Contoh: 62812...)" required>
+                    <div class="password-wrapper">
+                        <input name="password" type="password" placeholder="Password" required>
+                        <i class="fas fa-eye-slash toggle-password"></i>
+                    </div>
+                    <div class="password-wrapper">
+                        <input name="confirmPassword" type="password" placeholder="Konfirmasi Password" required>
+                        <i class="fas fa-eye-slash toggle-password"></i>
+                    </div>
+                    <div class="terms">
+                        <input type="checkbox" id="terms-product" name="terms" required>
+                        <label for="terms-product">Dengan mendaftar, Anda setuju dengan <a href="#">syarat dan ketentuan</a> kami.</label>
+                    </div>
+                    <button type="submit">Daftar</button>
+                </form>
+                <p class="switch-form">Sudah punya akun? <a href="#" id="show-login">Masuk</a></p>
+            </div>
             <div id="forgot-password-container" class="hidden">
                 <h3>Lupa Password</h3>
                 <p class="form-description">Masukkan email Anda untuk menerima link reset password.</p>
@@ -131,13 +142,11 @@
         <p class="form-description">
             <i class="fas fa-info-circle"></i> Harap periksa kembali pesanan Anda sebelum melanjutkan ke proses pembayaran. Pastikan data yang Anda masukkan sudah benar.
         </p>
-
         <div class="confirmation-details">
             <h4>Informasi Akun</h4>
             <p><span>IGN:</span> <strong id="confirm-ign">-</strong></p>
             <p><span>User ID:</span> <strong id="confirm-userid">-</strong></p>
             <p><span>Server ID:</span> <strong id="confirm-serverid">-</strong></p>
-
             <h4>Ringkasan Pesanan</h4>
             <p><span>Kategori:</span> <strong id="confirm-kategori">-</strong></p>
             <p><span>Produk:</span> <strong id="confirm-produk">-</strong></p>
@@ -146,7 +155,6 @@
             <hr>
             <p class="total-payment"><span>Total Pembayaran</span> <strong id="confirm-total">-</strong></p>
         </div>
-
         <div class="confirmation-actions">
             <button id="cancel-order-btn" class="edit-btn">Batalkan</button>
             <button id="confirm-order-btn" class="order-button">Bayar Sekarang <i class="fas fa-arrow-right"></i></button>
@@ -154,11 +162,10 @@
     </div>
 </div>
 
-
     <footer>
     <div class="container footer-content">
         <div class="footer-links">
-            <a href="/syarat-ketentuan.html">Syarat & Ketentuan</a>
+            <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
             <a href="/kebijakan-refund.html">Kebijakan Refund</a>
             <a href="/kontak.html">Kontak Kami</a>
         </div>
