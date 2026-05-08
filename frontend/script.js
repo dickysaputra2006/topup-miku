@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function () {
+﻿document.addEventListener('DOMContentLoaded', function () {
     const logoutMessage = sessionStorage.getItem('logoutMessage');
     if (logoutMessage) {
         // Kita gunakan alert() sederhana di sini, atau Anda bisa buat toast juga
@@ -312,15 +312,19 @@ if (dropdownLoginBtn) {
                 confirmPasswordInput.focus();
                 return;
             }
+            // Phase 2B: baca countryCode dari select
+            const countryCodeEl = registerForm.querySelector('select[name="countryCode"]');
+            const countryCode = countryCodeEl ? countryCodeEl.value : '+62';
             const data = {
                 fullName: registerForm.querySelector('input[name="fullName"]').value,
                 username: registerForm.querySelector('input[name="username"]').value,
                 email: registerForm.querySelector('input[name="email"]').value,
+                countryCode: countryCode,
                 nomorWa: registerForm.querySelector('input[name="nomorWa"]').value,
                 password: passwordInput.value
             };
             try {
-                const response = await fetch(`${API_URL_AUTH}/register`, {
+                const response = await fetch(${"$"}{API_URL_AUTH}/register, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
@@ -331,7 +335,7 @@ if (dropdownLoginBtn) {
                 registerForm.reset();
                 if(showLoginLink) showLoginLink.click();
             } catch (error) {
-                alert(`Error Registrasi: ${error.message}`);
+                alert(Error Registrasi: {error.message});
             }
         });
     }
