@@ -398,10 +398,14 @@ function applyFlashSaleSelection() {
                 confirmPasswordInput.focus();
                 return;
             }
+            // Phase 2B: baca countryCode
+            const countryCodeEl = registerForm.querySelector('select[name="countryCode"]');
+            const countryCode = countryCodeEl ? countryCodeEl.value : '+62';
             const data = {
                 fullName: registerForm.querySelector('input[name="fullName"]').value,
                 username: registerForm.querySelector('input[name="username"]').value,
                 email: registerForm.querySelector('input[name="email"]').value,
+                countryCode: countryCode,
                 nomorWa: registerForm.querySelector('input[name="nomorWa"]').value,
                 password: passwordInput.value
             };

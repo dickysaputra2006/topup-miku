@@ -1001,3 +1001,50 @@ table th {
     transition: none;
   }
 }
+/* ===================================================================
+   PHASE 2B — PHONE INPUT GROUP (Country Code Picker + Local Number)
+   Tampil konsisten di mobile dan desktop, di dalam modal register.
+=================================================================== */
+
+.phone-input-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+/* Dropdown kode negara */
+.phone-country-code {
+  flex: 0 0 auto;
+  width: 100px;
+  min-width: 90px;
+  padding: 0.65rem 0.5rem;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--border-color, rgba(255,255,255,0.15));
+  background-color: var(--bg-surface, #1e1e2e);
+  color: var(--text-color, #eee);
+  font-size: 0.9rem;
+  cursor: pointer;
+  appearance: auto; /* Tampilkan native dropdown arrow */
+  /* Tidak ada overflow tersembunyi agar emoji flag muncul */
+}
+
+.phone-country-code:focus {
+  outline: 2px solid var(--primary-color, #ec4899);
+  outline-offset: 1px;
+}
+
+/* Input nomor lokal */
+.phone-local-input {
+  flex: 1;
+  min-width: 0; /* Mencegah overflow flex */
+}
+
+/* Mobile: stack menjadi baris lebih sempit */
+@media (max-width: 400px) {
+  .phone-country-code {
+    width: 82px;
+    min-width: 80px;
+    font-size: 0.82rem;
+  }
+}

@@ -117,6 +117,33 @@ function isValidPassword(password) {
     return typeof password === 'string' && password.length >= 8 && password.length <= 128;
 }
 
+/**
+ * Normalize a WhatsApp number to E.164 format.
+ * Accepts: countryCode (e.g. '+62') + localNumber (e.g. '81234567890' or '081234567890').
+ * Returns the normalized string (e.g. '+6281234567890') or null if invalid.
+ *
+ * Rules:
+ *   - Strip spaces, dashes, parentheses from localNumber
+ *   - Strip a leading '0' from localNumber (common Indonesian format: 081xxx -> 81xxx)
+ *   - Concatenate countryCode + stripped localNumber
+ *   - Final result must match E.164 pattern: +[1-3 digit country][6-12 digit local]
+ */
+function normalizePhone(countryCode, localNumber) {
+    if (typeof countryCode !== 'string' || typeof localNumber !== 'string') return null;
+    // Sanitize country code: must start with '+' followed by 1-3 digits
+    const cc = countryCode.trim().replace(/\s+/g, '');
+    if (!/^\+[0-9]{1,3}$/.test(cc)) return null;
+    // Sanitize local number: strip formatting chars
+    let local = localNumber.trim().replace(/[\s\-().]/g, '');
+    // Strip leading '0' (e.g. 0812 -> 812)
+    if (local.startsWith('0')) local = local.slice(1);
+    // Only digits allowed in local part
+    if (!/^[0-9]+$/.test(local)) return null;
+    // Reasonable length: 6-12 digits for local part
+    if (local.length < 6 || local.length > 12) return null;
+    return cc + local;
+}
+
 function hashResetToken(token) {
     return crypto.createHash('sha256').update(token).digest('hex');
 }
@@ -354,27 +381,67 @@ app.use('/api/products', apiLimiter);
 // === AUTH ENDPOINTS ===
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const fullName = normalizeString(req.body.fullName, 255);
-        const username = normalizeString(req.body.username, 80);
-        const email = normalizeString(req.body.email, 255).toLowerCase();
-        const nomorWa = normalizeString(req.body.nomorWa, 30);
+        const fullName  = normalizeString(req.body.fullName, 255);
+        const username  = normalizeString(req.body.username, 80);
+        const email     = normalizeString(req.body.email, 255).toLowerCase();
+        // Phase 2B: accept countryCode + nomorWa separately
+        const countryCode  = normalizeString(req.body.countryCode || '+62', 5);
+        const rawNomorWa   = normalizeString(req.body.nomorWa, 30);
         const { password } = req.body;
-        if (!fullName || !username || !email || !nomorWa || !password) return res.status(400).json({ message: 'Semua kolom wajib diisi!' });
-        if (!/^[a-zA-Z0-9_.-]{3,80}$/.test(username)) return res.status(400).json({ message: 'Username hanya boleh berisi huruf, angka, titik, strip, dan underscore.' });
-        if (!isValidEmail(email)) return res.status(400).json({ message: 'Format email tidak valid.' });
-        if (!/^\+?[0-9]{8,20}$/.test(nomorWa)) return res.status(400).json({ message: 'Nomor WhatsApp tidak valid.' });
-        if (!isValidPassword(password)) return res.status(400).json({ message: 'Password minimal 8 karakter dan maksimal 128 karakter.' });
+
+        // --- Basic presence checks ---
+        if (!fullName)    return res.status(400).json({ message: 'Nama lengkap wajib diisi.' });
+        if (!username)    return res.status(400).json({ message: 'Username wajib diisi.' });
+        if (!email)       return res.status(400).json({ message: 'Email wajib diisi.' });
+        if (!rawNomorWa)  return res.status(400).json({ message: 'Nomor WhatsApp wajib diisi.' });
+        if (!password)    return res.status(400).json({ message: 'Password wajib diisi.' });
+
+        // --- Field validation ---
+        if (!/^[a-zA-Z0-9_.-]{3,80}$/.test(username))
+            return res.status(400).json({ message: 'Username hanya boleh berisi huruf, angka, titik, strip, dan underscore (3-80 karakter).' });
+        if (!isValidEmail(email))
+            return res.status(400).json({ message: 'Format email tidak valid.' });
+        if (!isValidPassword(password))
+            return res.status(400).json({ message: 'Password minimal 8 karakter dan maksimal 128 karakter.' });
+
+        // --- Phone normalization (Phase 2B) ---
+        if (!/^\+[0-9]{1,3}$/.test(countryCode.trim()))
+            return res.status(400).json({ message: 'Kode negara tidak valid. Contoh: +62' });
+        const normalizedPhone = normalizePhone(countryCode, rawNomorWa);
+        if (!normalizedPhone)
+            return res.status(400).json({ message: 'Nomor WhatsApp tidak valid. Masukkan nomor lokal tanpa angka 0 di depan. Contoh: 81234567890' });
+
+        // --- Pre-check duplicates (user-friendly, specific messages) ---
+        const dupCheck = await pool.query(
+            'SELECT username, email, nomor_wa FROM users WHERE username = $1 OR email = $2 OR (nomor_wa = $3 AND nomor_wa IS NOT NULL AND nomor_wa <> \'\')',
+            [username, email, normalizedPhone]
+        );
+        for (const row of dupCheck.rows) {
+            if (row.username === username)
+                return res.status(409).json({ message: 'Username sudah digunakan. Silakan pilih username lain.' });
+            if (row.email === email)
+                return res.status(409).json({ message: 'Email sudah terdaftar. Silakan gunakan email lain atau login.' });
+            if (row.nomor_wa === normalizedPhone)
+                return res.status(409).json({ message: 'Nomor WhatsApp sudah terdaftar. Gunakan nomor lain atau hubungi admin.' });
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
         const { rows: bronzeRole } = await pool.query("SELECT id FROM roles WHERE name = 'BRONZE'");
         let defaultRoleId = 1;
-        if (bronzeRole.length > 0) {
-            defaultRoleId = bronzeRole[0].id;
-        }
+        if (bronzeRole.length > 0) defaultRoleId = bronzeRole[0].id;
+
         const sql = 'INSERT INTO users (full_name, username, email, nomor_wa, password, role_id) VALUES ($1, $2, $3, $4, $5, $6)';
-        await pool.query(sql, [fullName, username, email, nomorWa, hashedPassword, defaultRoleId]);
+        await pool.query(sql, [fullName, username, email, normalizedPhone, hashedPassword, defaultRoleId]);
         res.status(201).json({ message: 'Registrasi berhasil! Silakan login.' });
     } catch (error) {
-        if (error.code === '23505') return res.status(409).json({ message: 'Username atau Email sudah digunakan.' });
+        // Fallback for race condition on unique constraint
+        if (error.code === '23505') {
+            const detail = error.detail || '';
+            if (detail.includes('username'))  return res.status(409).json({ message: 'Username sudah digunakan.' });
+            if (detail.includes('email'))     return res.status(409).json({ message: 'Email sudah terdaftar.' });
+            if (detail.includes('nomor_wa'))  return res.status(409).json({ message: 'Nomor WhatsApp sudah terdaftar.' });
+            return res.status(409).json({ message: 'Data yang Anda masukkan sudah digunakan. Periksa kembali username, email, atau nomor WhatsApp.' });
+        }
         logSafeError('Error during registration:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }

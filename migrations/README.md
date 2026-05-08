@@ -21,6 +21,17 @@ They are intended for local sandbox use and are additive only.
    - Adds low-risk unique indexes for new support tables.
    - Risk: Low to Medium if the tables are empty. Run duplicate checks first if the tables already contain data.
 
+5. `005_unique_phone_and_register_safety.sql`
+   - **Phase 2B: Registration Safety.** Normalizes all existing `users.nomor_wa` values to E.164 format (`+6281234567890`), then enforces a partial unique index.
+   - **5 steps (all atomic in one transaction):**
+     1. Creates temporary PL/pgSQL helper `normalize_wa_to_e164()`
+     2. `UPDATE users SET nomor_wa = ...` — normalizes formats: leading-`0`, `62xxx`, `60xxx`, `65xxx`, `63xxx` → E.164
+     3. Safety check: if post-normalization duplicates exist → `RAISE EXCEPTION` → automatic `ROLLBACK`
+     4. `CREATE UNIQUE INDEX IF NOT EXISTS uq_users_nomor_wa` (partial: excludes NULL/empty)
+     5. Drops helper function
+   - **Risk:** Low if no post-normalization duplicates exist. Run pre-flight queries first.
+   - **Pre-flight:** See commented queries inside the migration file (Step 0 and Step 1).
+
 ## Manual Apply Commands
 
 Run these manually from the project root after connecting to your local PostgreSQL database. Replace the connection string with your local database.
@@ -30,6 +41,7 @@ psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\001_add
 psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\002_add_missing_tables.sql
 psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\003_add_safe_indexes.sql
 psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\004_add_low_risk_unique_constraints.sql
+psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\005_unique_phone_and_register_safety.sql
 ```
 
 If you prefer an interactive session:
@@ -39,11 +51,14 @@ If you prefer an interactive session:
 \i migrations/002_add_missing_tables.sql
 \i migrations/003_add_safe_indexes.sql
 \i migrations/004_add_low_risk_unique_constraints.sql
+\i migrations/005_unique_phone_and_register_safety.sql
 ```
 
 ## Preflight Checks
 
-Run these before `004_add_low_risk_unique_constraints.sql` if your local database already has data.
+### Before `004_add_low_risk_unique_constraints.sql`
+
+Run these if your database already has data in the new tables:
 
 ```sql
 SELECT token, COUNT(*)
@@ -66,6 +81,80 @@ FROM game_servers
 GROUP BY game_id, server_name
 HAVING COUNT(*) > 1;
 ```
+
+### Before `005_unique_phone_and_register_safety.sql`
+
+**Step 0 — Inspect existing formats** (see what's in the DB before migration):
+
+```sql
+SELECT
+    id,
+    username,
+    nomor_wa AS raw,
+    CASE
+        WHEN nomor_wa IS NULL OR nomor_wa = '' THEN NULL
+        ELSE CASE
+            WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '+%'
+                THEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+            WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '62%'
+                THEN '+' || regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+            WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '60%'
+                THEN '+' || regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+            WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '65%'
+                THEN '+' || regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+            WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '63%'
+                THEN '+' || regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+            WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '0%'
+                THEN '+62' || substring(regexp_replace(nomor_wa, '[\s\-().]', '', 'g') FROM 2)
+            ELSE regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+        END
+    END AS normalized_nomor_wa
+FROM users
+WHERE nomor_wa IS NOT NULL AND nomor_wa <> ''
+ORDER BY id;
+```
+
+**Step 1 — Detect duplicates AFTER normalization** (must return 0 rows before applying):
+
+```sql
+WITH normalized AS (
+    SELECT
+        id, username, nomor_wa AS raw,
+        CASE
+            WHEN nomor_wa IS NULL OR nomor_wa = '' THEN NULL
+            ELSE CASE
+                WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '+%'
+                    THEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+                WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '62%'
+                    THEN '+' || regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+                WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '60%'
+                    THEN '+' || regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+                WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '65%'
+                    THEN '+' || regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+                WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '63%'
+                    THEN '+' || regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+                WHEN regexp_replace(nomor_wa, '[\s\-().]', '', 'g') LIKE '0%'
+                    THEN '+62' || substring(regexp_replace(nomor_wa, '[\s\-().]', '', 'g') FROM 2)
+                ELSE regexp_replace(nomor_wa, '[\s\-().]', '', 'g')
+            END
+        END AS normalized_wa
+    FROM users
+    WHERE nomor_wa IS NOT NULL AND nomor_wa <> ''
+)
+SELECT
+    normalized_wa,
+    COUNT(*) AS total,
+    array_agg(id ORDER BY id) AS user_ids,
+    array_agg(username ORDER BY id) AS usernames,
+    array_agg(raw ORDER BY id) AS raw_values
+FROM normalized
+WHERE normalized_wa IS NOT NULL
+GROUP BY normalized_wa
+HAVING COUNT(*) > 1
+ORDER BY total DESC;
+```
+
+> If Step 1 returns any rows: do NOT apply migration 005. Resolve duplicates manually (contact users, merge accounts) and re-run Step 1 until it returns 0 rows.
 
 ## Verification SQL
 
