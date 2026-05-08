@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Admin Panel - GameStore</title>
+    <title>Admin Panel - MIKU Store</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="style-responsive.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -13,7 +13,7 @@
     <header>
         <div class="header-container container">
             <div class="header-left">
-                <button id="menu-toggle-btn" class="header-icon-btn">
+                <button id="menu-toggle-btn" class="header-icon-btn" aria-label="Toggle menu">
                     <i class="fas fa-bars"></i>
                 </button>
                 <h1 class="logo">Admin Panel</h1>
@@ -25,12 +25,12 @@
     </header>
 
     <div class="admin-page-container container">
-    <aside class="admin-sidebar">
-        <button id="menu-toggle-btn" class="header-icon-btn">
+    <aside class="admin-sidebar" id="admin-sidebar">
+        <button class="menu-toggle-btn header-icon-btn" aria-label="Toggle menu">
             <i class="fas fa-bars"></i>
         </button>
         <nav class="sidebar-nav">
-            <a href="#" class="admin-nav-link active" data-target="produk-dan-game"><i class="fas fa-gamepad"></i> Produk & Game</a>
+            <a href="#" class="admin-nav-link active" data-target="produk-dan-game"><i class="fas fa-gamepad"></i> Produk &amp; Game</a>
             <a href="#" class="admin-nav-link" data-target="deposit"><i class="fas fa-hand-holding-usd"></i> Persetujuan Deposit</a>
             <a href="#" class="admin-nav-link" data-target="saldo"><i class="fas fa-wallet"></i> Manajemen Saldo</a>
             <a href="#" class="admin-nav-link" data-target="margin"><i class="fas fa-percentage"></i> Manajemen Margin</a>
@@ -52,7 +52,7 @@
         </form>
                 </div>
                 <div class="card">
-                    <h3>Manajemen Game & Produk</h3>
+                    <h3>Manajemen Game &amp; Produk</h3>
                     <div class="admin-forms-container">
                         <form id="add-game-form" class="admin-form">
                             <h4>Tambah Game Baru</h4>
@@ -85,7 +85,7 @@
                     </div>
                 </div>
                 <div class="card">
-                    <h3>Daftar Game & Produk</h3>
+                    <h3>Daftar Game &amp; Produk</h3>
                     <div class="admin-game-manager">
                         <h4><i class="fas fa-search"></i> Pilih Game untuk Dikelola</h4>
                         <div class="game-selector-form">
@@ -310,7 +310,7 @@
         <form id="add-flash-sale-form" class="admin-form" style="background: none; padding: 0;">
             <div class="admin-forms-container">
                 <div class="admin-form">
-                    <label for="fs-game-search">1. Cari & Pilih Game</label>
+                    <label for="fs-game-search">1. Cari &amp; Pilih Game</label>
                     <input type="text" id="fs-game-search" placeholder="Ketik nama game...">
                     <select id="fs-game-selector" required>
                         <option value="">-- Pilih Game --</option>
