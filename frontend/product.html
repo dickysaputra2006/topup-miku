@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -21,6 +21,29 @@
     </div>
 </header>
 
+    <!-- Step Navigation Mobile (only visible on mobile via CSS) -->
+    <nav id="mobile-step-nav" aria-label="Step navigation" role="navigation">
+        <button class="step-nav-btn active" data-step="1" aria-label="Langkah 1: Masukkan User ID">
+            <span class="step-nav-num">1</span>
+            <span class="step-nav-label">ID</span>
+        </button>
+        <span class="step-nav-divider" aria-hidden="true"></span>
+        <button class="step-nav-btn" data-step="2" aria-label="Langkah 2: Pilih Nominal">
+            <span class="step-nav-num">2</span>
+            <span class="step-nav-label">Produk</span>
+        </button>
+        <span class="step-nav-divider" aria-hidden="true"></span>
+        <button class="step-nav-btn" data-step="3" aria-label="Langkah 3: Kode Promo">
+            <span class="step-nav-num">3</span>
+            <span class="step-nav-label">Promo</span>
+        </button>
+        <span class="step-nav-divider" aria-hidden="true"></span>
+        <button class="step-nav-btn" data-step="4" aria-label="Langkah 4: Bayar & Proses">
+            <span class="step-nav-num">4</span>
+            <span class="step-nav-label">Bayar</span>
+        </button>
+    </nav>
+
     <main class="container">
         <div class="order-page-wrapper">
 
@@ -35,7 +58,7 @@
                     </div>
                 </div>
 
-                <div class="card">
+                <div id="order-step-1" class="card">
                     <h3><span>1</span> Masukkan User ID</h3>
                     <form id="order-form" class="order-form-grid">
                         <input type="text" id="target-game-id" placeholder="Masukkan User ID" required>
@@ -44,7 +67,7 @@
                     </form>
                 </div>
 
-                <div class="card">
+                <div id="order-step-2" class="card">
                     <h3><span>2</span> Pilih Nominal Top Up</h3>
                     <div id="product-list-container" class="product-grid">
                         <p>Memuat produk...</p>
@@ -56,7 +79,7 @@
             <!-- Kolom Kanan: Step 3 + Step 4 (Sticky Summary) -->
             <div class="order-side-col">
 
-                <div class="card">
+                <div id="order-step-3" class="card">
                     <h3><span>3</span> Punya Kode Promo?</h3>
                     <form id="promo-form" class="promo-form-container">
                         <input type="text" id="promo-code-input" placeholder="Masukkan Kode di Sini">
@@ -65,7 +88,7 @@
                     <div id="promo-result" class="promo-result"></div>
                 </div>
 
-                <div class="card">
+                <div id="order-step-4" class="card">
                     <h3><span>4</span> Bayar &amp; Proses</h3>
                     <div id="payment-info">
                         <p><span>Metode Pembayaran</span> <strong>Saldo Akun</strong></p>

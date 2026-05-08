@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    MIKU Store — Responsive & UI Polish Patch (style-responsive.css)
    Loaded AFTER style.css to safely override specific rules.
    Tidak mengubah logika JS atau backend.
@@ -859,5 +859,145 @@ table th {
 @media (max-width: 480px) {
   #game-selector-dropdown {
     font-size: 0.9rem;
+  }
+}
+
+/* ===================================================================
+   MOBILE STEP NAVIGATION — hanya tampil di mobile (≤768px)
+   Sticky di bawah header, tidak menutupi konten.
+=================================================================== */
+
+/* ── Sembunyikan di desktop — tidak ada perubahan layout PC ── */
+#mobile-step-nav {
+  display: none;
+}
+
+/* ── Tampilkan di mobile ── */
+@media (max-width: 768px) {
+  #mobile-step-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    position: sticky;
+    /* Letakkan tepat di bawah header (header ~56px) */
+    top: 56px;
+    z-index: 90;
+    background-color: var(--bg-dark, #13131f);
+    border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08));
+    padding: 0.5rem 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+    /* Pastikan tidak overflow horizontal */
+    overflow-x: hidden;
+    /* Subtle backdrop blur kalau browser mendukung */
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    /* Hapus margin/padding bawaan nav */
+    margin: 0;
+  }
+
+  /* Tombol step */
+  .step-nav-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.3rem 0.6rem;
+    border-radius: 8px;
+    color: var(--text-muted, #888);
+    transition: color 0.2s ease, background-color 0.2s ease;
+    min-width: 52px;
+    flex: 1;
+    max-width: 80px;
+  }
+
+  .step-nav-btn:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: var(--text-color, #eee);
+  }
+
+  /* Nomor step: lingkaran kecil */
+  .step-nav-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-muted, #888);
+    transition: background-color 0.2s ease, color 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  /* Label step */
+  .step-nav-label {
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  /* State: ACTIVE (step yang sedang dilihat) */
+  .step-nav-btn.active .step-nav-num {
+    background-color: var(--primary-color, #ec4899);
+    color: #fff;
+  }
+
+  .step-nav-btn.active {
+    color: var(--primary-color, #ec4899);
+  }
+
+  .step-nav-btn.active .step-nav-label {
+    font-weight: 700;
+  }
+
+  /* State: COMPLETED (step yang sudah dilewati) */
+  .step-nav-btn.completed .step-nav-num {
+    background-color: rgba(236, 72, 153, 0.25);
+    color: var(--primary-color, #ec4899);
+  }
+
+  .step-nav-btn.completed {
+    color: rgba(236, 72, 153, 0.7);
+  }
+
+  /* Garis pemisah antar step */
+  .step-nav-divider {
+    height: 1px;
+    flex: 1;
+    max-width: 20px;
+    background-color: var(--border-color, rgba(255,255,255,0.12));
+    align-self: center;
+    flex-shrink: 1;
+  }
+
+  /* Scroll anchor offset: agar section tidak tertutup header + step-nav
+     Header ~56px + step-nav ~52px = ~108px total */
+  #order-step-1,
+  #order-step-2,
+  #order-step-3,
+  #order-step-4 {
+    scroll-margin-top: 116px;
+  }
+
+  /* Tambahan: beri jarak atas main agar tidak tertutup step-nav sticky */
+  main.container {
+    /* Step-nav ~52px sudah sticky, tidak perlu extra padding */
+    padding-top: 0.5rem;
+  }
+}
+
+/* ── Respect prefers-reduced-motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .step-nav-btn,
+  .step-nav-num {
+    transition: none;
   }
 }
