@@ -1,4 +1,17 @@
 document.addEventListener('DOMContentLoaded', function () {
+    // Utility debounce function
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     const logoutMessage = sessionStorage.getItem('logoutMessage');
     if (logoutMessage) {
         // Kita gunakan alert() sederhana di sini, atau Anda bisa buat toast juga
@@ -422,7 +435,8 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
+        const debouncedHandleSearch = debounce(() => handleSearch(searchInput.value), 300);
+        searchInput.addEventListener('input', debouncedHandleSearch);
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 

@@ -1,0 +1,3 @@
+## 2024-05-18 - Un-debounced Vanilla JS Inputs blocking the Main Thread
+**Learning:** In a vanilla JS setup without frameworks, adding synchronous callbacks to fast-triggering events (like 'input' on search bars) results in expensive DOM queries or operations executing on every keystroke. This causes severe main-thread blocking, rendering the UI unresponsive during typing.
+**Action:** Always wrap event listeners for user input in a locally scoped debounce utility (e.g., using `setTimeout` and `clearTimeout`) to batch operations, ensuring they only trigger after a short period of inactivity (e.g., 300ms) rather than firing for each individual keystroke.
