@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    MIKU Store — Responsive & UI Polish Patch (style-responsive.css)
    Loaded AFTER style.css to safely override specific rules.
    Tidak mengubah logika JS atau backend.
@@ -526,26 +526,88 @@ button {
 }
 
 /* ============================================================
-   PHASE 2A — UI/UX QUICK FIXES
+   PHASE 2A — UI/UX QUICK FIXES (Revised)
    ============================================================ */
 
-/* === A1. PRODUCT PAGE — Desktop lebih lebar & profesional ===
-   Override max-width 920px → lebih luas di layar besar.
-   Pakai max-width container penuh (1180px via .container),
-   wrapper tetap di-center tapi tidak terlalu sempit. */
+/* ===================================================================
+   A1. PRODUCT PAGE DESKTOP — Profesional & Proporsional
+   Layout: 2-kolom grid di desktop ≥900px (sudah ada di style.css).
+   Di sini kita:
+   - Perlebar wrapper agar tidak terlalu sempit
+   - Perkuat grid layout supaya kolom kiri (info+input+nominal) dan
+     kolom kanan (promo+bayar) lebih seimbang dan konsisten
+   - Pastikan card punya consistent spacing
+=================================================================== */
+
+/* Override max-width agar lebih lebar di desktop besar */
 .order-page-wrapper {
-  max-width: min(1100px, 100%); /* override 920px di style.css & style-responsive.css atas */
+  max-width: min(1100px, 100%);
+  margin-inline: auto;
+  padding: 1.5rem 0;
 }
 
-@media (min-width: 1024px) {
+/* Desktop ≥900px: perkuat 2-kolom layout dari style.css */
+@media (min-width: 900px) {
   .order-page-wrapper {
+    display: grid;
+    /* Kiri (game info + user ID + nominal): lebih lebar.
+       Kanan (promo + bayar): lebar tetap proporsional */
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 1.25rem;
+    align-items: start;
     max-width: 1060px;
-    margin-inline: auto;
+  }
+
+  /* Kolom kiri: game-info (#game-info = .card:nth-of-type(1)) */
+  #game-info {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  /* User ID card (.card:nth-of-type(2)) */
+  .order-page-wrapper > .card:nth-of-type(2) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  /* Nominal card (.card:nth-of-type(3)) */
+  .order-page-wrapper > .card:nth-of-type(3) {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  /* Promo card (.card:nth-of-type(4)) — kolom kanan atas */
+  .order-page-wrapper > .card:nth-of-type(4) {
+    grid-column: 2;
+    grid-row: 1 / 3;  /* span dari baris 1 ke 3 agar tidak terlalu pendek */
+  }
+
+  /* Bayar & Proses card (.card:nth-of-type(5)) — kolom kanan bawah, sticky */
+  .order-page-wrapper > .card:nth-of-type(5) {
+    grid-column: 2;
+    grid-row: 3;
+    position: sticky;
+    top: 4.5rem;  /* di bawah header sticky */
+  }
+
+  /* Pastikan nominal grid pakai auto-fill yang rapi */
+  #product-list-container.product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.6rem;
   }
 }
 
-/* === A2. PRODUCT CARD SELECTABLE — Mobile overflow fix ===
-   Nama produk panjang harus wrap, harga tidak keluar container. */
+/* Laptop besar ≥1200px: beri ruang lebih lega */
+@media (min-width: 1200px) {
+  .order-page-wrapper {
+    max-width: 1080px;
+    grid-template-columns: minmax(0, 1fr) 380px;
+  }
+}
+
+/* ===================================================================
+   A2. PRODUCT CARD SELECTABLE — nama panjang tidak overflow di mobile
+=================================================================== */
 .product-card-selectable {
   overflow: hidden;
   word-break: break-word;
@@ -553,7 +615,6 @@ button {
 }
 
 .product-card-selectable span {
-  /* Clamp ke 2 baris, fallback graceful di browser lama */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -573,7 +634,7 @@ button {
   display: block;
 }
 
-/* Grid produk selectable: kolom tidak terlalu sempit di mobile */
+/* Grid produk selectable di mobile: 3 kolom */
 @media (max-width: 480px) {
   #product-list-container.product-grid {
     grid-template-columns: repeat(3, 1fr);
@@ -581,56 +642,90 @@ button {
   }
 }
 
-/* === A3. COMPARE-PRICES — Internal scroll, nama produk clamp ===
-   Masalah: nama produk panjang membuat row vertikal memanjang
-   dan scrollbar horizontal tenggelam.
-   Fix: max-height pada compare-card wrapper + nama produk di-clamp */
+/* ===================================================================
+   A3. COMPARE-PRICES — Internal scroll + Sidebar stretch di desktop
+   Masalah:
+   1. Sidebar kiri tidak memanjang setinggi tabel kanan (align-items:flex-start)
+   2. Arrow dropdown tertutup teks (kurang padding-right)
+   3. Nama game di sidebar tidak truncate rapi
+=================================================================== */
 
-/* Nama produk di tabel perbandingan harga */
-#compare-prices-table td:nth-child(2) {
-  max-width: 200px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Desktop: sidebar STRETCH setinggi tabel (ubah align dari flex-start → stretch) */
+@media (min-width: 769px) {
+  .pricelist-container {
+    align-items: stretch !important;  /* override flex-start sebelumnya */
+  }
+
+  .pricelist-container .game-selector {
+    /* Tidak lagi min-height auto; biarkan flex stretch mengatur tingginya */
+    position: sticky;
+    top: 5rem;
+    align-self: flex-start;    /* sticky perlu align-self:flex-start agar bisa sticky */
+    min-height: calc(100vh - 7rem);
+    max-height: calc(100vh - 5rem);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Dropdown game: padding kanan yang cukup agar arrow tidak tertutup teks */
+  #game-selector-dropdown {
+    padding-right: 2.5rem !important;  /* ruang untuk panah custom */
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Search input di sidebar: full width */
+  #game-search-input {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
 }
 
-/* Kolom Nama Game */
+/* Nama produk di tabel perbandingan: clamp dengan ellipsis */
 #compare-prices-table td:nth-child(1) {
-  max-width: 150px;
+  max-width: 140px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Kolom SKU */
+#compare-prices-table td:nth-child(2) {
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 #compare-prices-table td:nth-child(3) {
-  max-width: 150px;
+  max-width: 140px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Harga kolom: tidak perlu wrap */
 #compare-prices-table td:nth-child(n+4) {
   white-space: nowrap;
 }
 
-/* Batas tinggi tabel perbandingan harga agar tidak tumbuh tak terbatas */
+/* Tabel compare: max-height internal scroll */
 .compare-card .modern-table-wrapper {
-  max-height: min(65vh, 600px);
+  max-height: min(70vh, 640px);
   overflow-y: auto;
-  overflow-x: hidden; /* scroll horizontal hanya di .table-container */
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
 .compare-card .modern-table-wrapper .table-container {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  /* Scroll horizontal HANYA di sini, tidak propagate ke parent */
   max-width: 100%;
 }
 
-/* Header tabel sticky saat scroll vertikal */
+/* Sticky thead compare table */
 #compare-prices-table thead th {
   position: sticky;
   top: 0;
@@ -638,20 +733,37 @@ button {
   z-index: 2;
 }
 
-/* === A4. ADMIN TABLE — Internal scroll, tidak overflow global ===
-   Tabel produk besar tidak boleh horizontal overflow ke halaman. */
+/* ===================================================================
+   A4. ADMIN TABLE — Internal scroll, tombol HARUS bisa diklik
+   PENTING: jangan pakai overflow:hidden di admin-content!
+   overflow:hidden akan clip area klik tombol yang berada di dalam
+   container dengan scroll.
+=================================================================== */
+
+/* Admin content: min-width 0 tapi JANGAN overflow:hidden
+   (hidden mematikan click events pada area di luar bounds) */
+.admin-content,
+.dashboard-content {
+  min-width: 0;
+  overflow: visible;  /* KRITIS: harus visible, bukan hidden */
+}
+
+/* Table container admin: horizontal scroll internal */
 .admin-content .table-container {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   max-width: 100%;
 }
 
-/* Admin products table: max-height + internal scroll saat data banyak */
+/* Admin products table: max-height + scroll vertikal internal */
 #product-list-container .table-container {
-  max-height: min(60vh, 520px);
+  max-height: min(55vh, 480px);
   overflow-y: auto;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  /* Pastikan z-index normal agar event klik tombol di dalam tidak terblokir */
+  position: relative;
+  z-index: 1;
 }
 
 /* Sticky thead di admin products table */
@@ -662,7 +774,16 @@ button {
   z-index: 2;
 }
 
-/* Nama produk di admin table: tidak memanjang vertikal */
+/* Tombol Aksi & Harga: pastikan bisa diklik (pointer-events, z-index) */
+.edit-validation-btn,
+.manual-price-btn {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Nama produk di admin table: ellipsis */
 #products-table td:first-child {
   max-width: 180px;
   white-space: nowrap;
@@ -670,7 +791,7 @@ button {
   text-overflow: ellipsis;
 }
 
-/* Admin flash-sales & promos table: juga constraint */
+/* Admin flash-sales & promos table */
 #flash-sales-table td:nth-child(2),
 #promos-table td:nth-child(2) {
   max-width: 160px;
@@ -679,9 +800,9 @@ button {
   text-overflow: ellipsis;
 }
 
-/* === A5. GLOBAL: Pastikan tidak ada horizontal overflow dari tabel ===
-   Semua .table-container sudah punya overflow-x: auto.
-   Pastikan body dan container tidak overflow. */
+/* ===================================================================
+   A5. GLOBAL — No global horizontal overflow
+=================================================================== */
 .admin-page-container,
 .dashboard-container,
 .pricelist-container {
@@ -689,29 +810,38 @@ button {
   max-width: 100%;
 }
 
-/* Admin content: min-width 0 agar tidak overflow */
-.admin-content,
-.dashboard-content {
-  min-width: 0;
-  overflow: hidden; /* prevent content dari bleeding ke luar */
-}
-
-/* Table rows: semua kolom wrap rapi */
+/* Table cells: max-width untuk mencegah layout break */
 table td,
 table th {
   max-width: 300px;
   overflow-wrap: break-word;
 }
 
-/* === A6. GAME SELECTOR DROPDOWN on compare-prices — rapi ===
-   Dropdown tidak keluar container di mobile. */
-@media (max-width: 480px) {
-  #game-selector-dropdown {
-    font-size: 0.9rem;
+/* ===================================================================
+   A6. HAMBURGER / MENU-TOGGLE — Sembunyikan di desktop
+   Di desktop sidebar sudah visible. Tombol hamburger hanya perlu
+   tampil di mobile/tablet (≤900px).
+=================================================================== */
+
+/* Sembunyikan KEDUA tombol hamburger di desktop */
+@media (min-width: 901px) {
+  #menu-toggle-btn,
+  .menu-toggle-btn {
+    display: none !important;
   }
 }
 
-/* === A7. Sidebar toggle button (class-based) — styling konsisten === */
+/* Tampilkan di mobile */
+@media (max-width: 900px) {
+  #menu-toggle-btn,
+  .menu-toggle-btn {
+    display: flex;
+  }
+}
+
+/* ===================================================================
+   A7. Sidebar toggle button styling (class-based)
+=================================================================== */
 .menu-toggle-btn {
   background: none;
   border: none;
@@ -721,7 +851,6 @@ table th {
   padding: 0.35rem 0.5rem;
   border-radius: var(--radius-sm);
   min-height: 36px;
-  display: flex;
   align-items: center;
   justify-content: center;
 }
@@ -730,3 +859,11 @@ table th {
   background-color: rgba(255, 255, 255, 0.08);
 }
 
+/* ===================================================================
+   A8. GAME SELECTOR DROPDOWN — Mobile font size
+=================================================================== */
+@media (max-width: 480px) {
+  #game-selector-dropdown {
+    font-size: 0.9rem;
+  }
+}
