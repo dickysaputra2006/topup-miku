@@ -1,0 +1,69 @@
+diff --git a/frontend/dashboard.html b/frontend/dashboard.html
+index f15b5c9..8a6cbaf 100644
+--- a/frontend/dashboard.html
++++ b/frontend/dashboard.html
+@@ -1,4 +1,4 @@
+-﻿<!DOCTYPE html>
++<!DOCTYPE html>
+ <html lang="id">
+ <head>
+     <meta charset="UTF-8">
+@@ -13,7 +13,7 @@
+     <header>
+         <div class="header-container container">
+             <div class="header-left">
+-                <button id="menu-toggle-btn" class="header-icon-btn">
++                <button id="menu-toggle-btn" class="header-icon-btn" aria-label="Toggle menu">
+                     <i class="fas fa-bars"></i>
+                 </button>
+                  <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
+@@ -26,8 +26,8 @@
+     </header>
+ 
+     <div class="dashboard-container container">
+-    <aside class="sidebar">
+-        <button id="menu-toggle-btn" class="header-icon-btn">
++    <aside class="sidebar" id="dashboard-sidebar">
++        <button class="menu-toggle-btn header-icon-btn" aria-label="Toggle menu">
+             <i class="fas fa-bars"></i>
+         </button>
+         <nav class="sidebar-nav">
+@@ -84,7 +84,7 @@
+                 </div>
+             </section>
+ 
+-                </section> <section id="mutasi-saldo" class="dashboard-section hidden">
++            <section id="mutasi-saldo" class="dashboard-section hidden">
+     <div class="card">
+         <h3>Riwayat Mutasi Saldo</h3>
+         <div class="table-container">
+@@ -102,9 +102,9 @@
+             </table>
+         </div>
+     </div>
+-                </section>
++            </section>
+ 
+-                </section> <section id="deposit-tab" class="dashboard-section hidden">
++            <section id="deposit-tab" class="dashboard-section hidden">
+                     <div class="card">
+                         <h3>Deposit Saldo</h3>
+                         <form id="deposit-form">
+@@ -160,7 +160,7 @@
+             
+             <section id="integrasi" class="dashboard-section hidden">
+             <div class="card">
+-                <h3>Key & Dokumentasi</h3>
++                <h3>Key &amp; Dokumentasi</h3>
+                 <p class="form-description" style="text-align: left;">Gunakan API Key di bawah ini untuk menghubungkan sistem atau bot Anda ke layanan kami.</p>
+                 
+                 <div class="api-key-wrapper">
+@@ -252,7 +252,7 @@
+     <footer>
+     <div class="container footer-content">
+         <div class="footer-links">
+-            <a href="/syarat-ketentuan.html">Syarat & Ketentuan</a>
++            <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
+             <a href="/kebijakan-refund.html">Kebijakan Refund</a>
+             <a href="/kontak.html">Kontak Kami</a>
+         </div>

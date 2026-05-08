@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.admin-nav-link');
     const sections = document.querySelectorAll('.admin-section');
     const sidebar = document.getElementById('admin-sidebar');
-    const menuToggleBtn = document.querySelectorAll('#menu-toggle-btn');
+    const menuToggleBtn = document.querySelectorAll('#menu-toggle-btn, .menu-toggle-btn');
     const validationEditor = document.getElementById('product-validation-editor');
     const validationForm = document.getElementById('validation-config-form');
     const validationSelector = document.getElementById('validation-selector');

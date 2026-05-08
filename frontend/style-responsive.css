@@ -524,3 +524,209 @@ button {
     width: 100%;
   }
 }
+
+/* ============================================================
+   PHASE 2A — UI/UX QUICK FIXES
+   ============================================================ */
+
+/* === A1. PRODUCT PAGE — Desktop lebih lebar & profesional ===
+   Override max-width 920px → lebih luas di layar besar.
+   Pakai max-width container penuh (1180px via .container),
+   wrapper tetap di-center tapi tidak terlalu sempit. */
+.order-page-wrapper {
+  max-width: min(1100px, 100%); /* override 920px di style.css & style-responsive.css atas */
+}
+
+@media (min-width: 1024px) {
+  .order-page-wrapper {
+    max-width: 1060px;
+    margin-inline: auto;
+  }
+}
+
+/* === A2. PRODUCT CARD SELECTABLE — Mobile overflow fix ===
+   Nama produk panjang harus wrap, harga tidak keluar container. */
+.product-card-selectable {
+  overflow: hidden;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.product-card-selectable span {
+  /* Clamp ke 2 baris, fallback graceful di browser lama */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  max-width: 100%;
+}
+
+.product-card-selectable small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+
+/* Grid produk selectable: kolom tidak terlalu sempit di mobile */
+@media (max-width: 480px) {
+  #product-list-container.product-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+}
+
+/* === A3. COMPARE-PRICES — Internal scroll, nama produk clamp ===
+   Masalah: nama produk panjang membuat row vertikal memanjang
+   dan scrollbar horizontal tenggelam.
+   Fix: max-height pada compare-card wrapper + nama produk di-clamp */
+
+/* Nama produk di tabel perbandingan harga */
+#compare-prices-table td:nth-child(2) {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Kolom Nama Game */
+#compare-prices-table td:nth-child(1) {
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Kolom SKU */
+#compare-prices-table td:nth-child(3) {
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Harga kolom: tidak perlu wrap */
+#compare-prices-table td:nth-child(n+4) {
+  white-space: nowrap;
+}
+
+/* Batas tinggi tabel perbandingan harga agar tidak tumbuh tak terbatas */
+.compare-card .modern-table-wrapper {
+  max-height: min(65vh, 600px);
+  overflow-y: auto;
+  overflow-x: hidden; /* scroll horizontal hanya di .table-container */
+  -webkit-overflow-scrolling: touch;
+}
+
+.compare-card .modern-table-wrapper .table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Scroll horizontal HANYA di sini, tidak propagate ke parent */
+  max-width: 100%;
+}
+
+/* Header tabel sticky saat scroll vertikal */
+#compare-prices-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-surface);
+  z-index: 2;
+}
+
+/* === A4. ADMIN TABLE — Internal scroll, tidak overflow global ===
+   Tabel produk besar tidak boleh horizontal overflow ke halaman. */
+.admin-content .table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+
+/* Admin products table: max-height + internal scroll saat data banyak */
+#product-list-container .table-container {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sticky thead di admin products table */
+#products-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-surface);
+  z-index: 2;
+}
+
+/* Nama produk di admin table: tidak memanjang vertikal */
+#products-table td:first-child {
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Admin flash-sales & promos table: juga constraint */
+#flash-sales-table td:nth-child(2),
+#promos-table td:nth-child(2) {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* === A5. GLOBAL: Pastikan tidak ada horizontal overflow dari tabel ===
+   Semua .table-container sudah punya overflow-x: auto.
+   Pastikan body dan container tidak overflow. */
+.admin-page-container,
+.dashboard-container,
+.pricelist-container {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Admin content: min-width 0 agar tidak overflow */
+.admin-content,
+.dashboard-content {
+  min-width: 0;
+  overflow: hidden; /* prevent content dari bleeding ke luar */
+}
+
+/* Table rows: semua kolom wrap rapi */
+table td,
+table th {
+  max-width: 300px;
+  overflow-wrap: break-word;
+}
+
+/* === A6. GAME SELECTOR DROPDOWN on compare-prices — rapi ===
+   Dropdown tidak keluar container di mobile. */
+@media (max-width: 480px) {
+  #game-selector-dropdown {
+    font-size: 0.9rem;
+  }
+}
+
+/* === A7. Sidebar toggle button (class-based) — styling konsisten === */
+.menu-toggle-btn {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--radius-sm);
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.menu-toggle-btn:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+

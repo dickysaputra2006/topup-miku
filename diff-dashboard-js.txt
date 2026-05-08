@@ -1,0 +1,54 @@
+diff --git a/frontend/dashboard.js b/frontend/dashboard.js
+index 9d408f4..81fa116 100644
+--- a/frontend/dashboard.js
++++ b/frontend/dashboard.js
+@@ -1,23 +1,22 @@
+-document.addEventListener('DOMContentLoaded', function() {
++﻿document.addEventListener('DOMContentLoaded', function() {
+     // --- KODE UNTUK MENU HAMBURGER DI DASHBOARD ---
+     const sidebar = document.querySelector('.sidebar');
+-    document.querySelectorAll('#menu-toggle-btn').forEach(btn => {
+-    btn.addEventListener('click', (e) => {
+-        e.stopPropagation();
+-        sidebar.classList.toggle('active');
+-        document.body.classList.toggle('menu-open');
++    document.querySelectorAll('#menu-toggle-btn, .menu-toggle-btn').forEach(btn => {
++        btn.addEventListener('click', (e) => {
++            e.stopPropagation();
++            sidebar.classList.toggle('active');
++            document.body.classList.toggle('menu-open');
++        });
+     });
+-});
+ 
+-document.addEventListener('click', function (event) {
++    document.addEventListener('click', function (event) {
+         if (sidebar && sidebar.classList.contains('active')) {
+-            if (!sidebar.contains(event.target) && !event.target.closest('#menu-toggle-btn')) {
++            if (!sidebar.contains(event.target) && !event.target.closest('#menu-toggle-btn') && !event.target.closest('.menu-toggle-btn')) {
+                 sidebar.classList.remove('active');
+                 document.body.classList.remove('menu-open');
+             }
+         }
+     });
+-  
+ 
+     const API_URL = '/api/user';
+     const token = localStorage.getItem('authToken');
+@@ -26,7 +25,6 @@ document.addEventListener('click', function (event) {
+         window.location.href = 'index.html';
+         return;
+     }
+-
+     const logoutButton = document.getElementById('logout-button');
+     const editProfileBtn = document.querySelector('.edit-btn');
+     const editModal = document.getElementById('edit-profile-modal');
+@@ -245,7 +243,7 @@ function forceLogout(message) {
+             apiKeyDisplay.textContent = fullApiKey;
+             toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+         } else {
+-            apiKeyDisplay.textContent = '•'.repeat(fullApiKey.length > 0 ? 32 : 0);
++            apiKeyDisplay.textContent = 'â€¢'.repeat(fullApiKey.length > 0 ? 32 : 0);
+             toggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
+         }
+     }
