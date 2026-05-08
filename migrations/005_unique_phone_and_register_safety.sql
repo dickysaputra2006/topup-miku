@@ -247,19 +247,25 @@ END $$;
 -- Partial: NULL and empty-string values are excluded, allowing
 -- legacy accounts with no phone to coexist safely.
 -- IF NOT EXISTS makes this idempotent on re-run.
+-- Wrapped in DO block so RAISE NOTICE is valid PL/pgSQL.
 -- ============================================================
-CREATE UNIQUE INDEX IF NOT EXISTS uq_users_nomor_wa
-    ON users (nomor_wa)
-    WHERE nomor_wa IS NOT NULL AND nomor_wa <> '';
-
-RAISE NOTICE '[005] Step 4 complete: Unique index uq_users_nomor_wa created (or already exists).';
+DO $$
+BEGIN
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_users_nomor_wa
+        ON users (nomor_wa)
+        WHERE nomor_wa IS NOT NULL AND nomor_wa <> '';
+    RAISE NOTICE '[005] Step 4 complete: Unique index uq_users_nomor_wa created (or already exists).';
+END $$;
 
 -- ============================================================
 -- STEP 5: Clean up helper function (not needed after migration)
 -- ============================================================
-DROP FUNCTION IF EXISTS normalize_wa_to_e164(TEXT);
-
-RAISE NOTICE '[005] Migration 005 completed successfully.';
+DO $$
+BEGIN
+    DROP FUNCTION IF EXISTS normalize_wa_to_e164(TEXT);
+    RAISE NOTICE '[005] Step 5 complete: Helper function dropped.';
+    RAISE NOTICE '[005] Migration 005 completed successfully.';
+END $$;
 
 COMMIT;
 
