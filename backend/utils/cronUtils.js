@@ -227,6 +227,14 @@ async function checkPendingTransactions() {
                     [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]
                 );
                 console.log(`[cron][pending] Invoice ${tx.invoice_id}: resolved as Failed. Refunded.`);
+            } else if (foxyStatus === 'PARTIAL_REFUND') {
+                // Tidak auto-refund — butuh review manual admin
+                finalStatus = 'Partial Refund';
+                await client.query(
+                    'UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2',
+                    [finalStatus, tx.id]
+                );
+                console.log(`[cron][pending] Invoice ${tx.invoice_id}: set to Partial Refund (needs admin review). No auto-refund.`);
             }
 
             await client.query('COMMIT');

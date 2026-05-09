@@ -1163,7 +1163,112 @@ if (manualPriceForm) {
         await fetchAndDisplayMargins();
         await fetchAndDisplayPromos();
         await fetchAndDisplayFlashSales();
+        await fetchAdminTransactions();
     }
-    
+
+    // === TRANSAKSI: Load & Resolve ===
+    async function fetchAdminTransactions() {
+        const tbody = document.getElementById('admin-transactions-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">Memuat transaksi...</td></tr>';
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/transactions`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) throw new Error('Gagal memuat transaksi.');
+            const transactions = await response.json();
+            tbody.innerHTML = '';
+            if (transactions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">Belum ada transaksi.</td></tr>';
+                return;
+            }
+            transactions.forEach(tx => {
+                const statusNorm = String(tx.status || '').toLowerCase();
+                const statusClass = 'status-' + statusNorm.replace(/\s+/g, '-');
+                const statusLabel = statusNorm === 'success' ? 'Berhasil'
+                    : statusNorm === 'failed' ? 'Gagal'
+                    : statusNorm === 'partial refund' ? 'Perlu Review'
+                    : tx.status || 'Pending';
+                const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.price);
+                const formattedDate = new Date(tx.created_at).toLocaleString('id-ID');
+                const isPartialRefund = tx.status === 'Partial Refund';
+                const isPending = tx.status === 'Pending';
+                let actionsHtml = '-';
+                if (isPartialRefund) {
+                    // Semua aksi tersedia untuk Partial Refund
+                    actionsHtml = `
+                    <div class="admin-resolve-actions">
+                        <button class="resolve-btn resolve-btn-success"
+                            data-invoice="${tx.invoice_id}" data-action="success"
+                            title="Mark berhasil">✓ Berhasil</button>
+                        <button class="resolve-btn resolve-btn-refund"
+                            data-invoice="${tx.invoice_id}" data-action="refund"
+                            title="Refund dan gagalkan">↩ Refund</button>
+                        <button class="resolve-btn resolve-btn-review"
+                            data-invoice="${tx.invoice_id}" data-action="keep_review"
+                            title="Tandai perlu review">⏸ Review</button>
+                    </div>
+                    `;
+                } else if (isPending) {
+                    // Pending: hanya boleh dipindah ke Partial Refund via keep_review
+                    actionsHtml = `
+                    <div class="admin-resolve-actions">
+                        <button class="resolve-btn resolve-btn-review"
+                            data-invoice="${tx.invoice_id}" data-action="keep_review"
+                            title="Tandai perlu review admin">⏸ Tandai Review</button>
+                    </div>
+                    `;
+                }
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><a href="/invoice.html?id=${tx.invoice_id}" target="_blank" class="history-link">${tx.invoice_id}</a></td>
+                    <td>${tx.user_name || '-'}</td>
+                    <td>${tx.product_name || '-'}</td>
+                    <td>${formattedPrice}</td>
+                    <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                    <td>${formattedDate}</td>
+                    <td>${actionsHtml}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Event delegation untuk tombol resolve
+            tbody.querySelectorAll('.resolve-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const invoiceId = btn.dataset.invoice;
+                    const action = btn.dataset.action;
+                    const confirmMessages = {
+                        success: `Konfirmasi: Tandai invoice ${invoiceId} sebagai BERHASIL?\nPastikan produk benar-benar sudah dikirimkan ke pelanggan.`,
+                        refund: `Konfirmasi: REFUND invoice ${invoiceId}?\nSaldo akan dikembalikan ke user dan status jadi Gagal.`,
+                        keep_review: `Konfirmasi: Pertahankan invoice ${invoiceId} dalam status Review Admin?`
+                    };
+                    if (!confirm(confirmMessages[action])) return;
+                    await adminResolveTransaction(invoiceId, action);
+                });
+            });
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:red">${error.message}</td></tr>`;
+        }
+    }
+
+    async function adminResolveTransaction(invoiceId, action) {
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/transactions/${invoiceId}/resolve`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message);
+            alert(result.message);
+            await fetchAdminTransactions(); // Reload tabel setelah sukses
+        } catch (error) {
+            alert(`Gagal: ${error.message}`);
+        }
+    }
+
     initAdminPage();
 });

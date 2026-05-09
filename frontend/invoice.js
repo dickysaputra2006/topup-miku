@@ -39,12 +39,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(tx.price);
         const formattedDate = new Date(tx.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' });
         const normalizedStatus = String(tx.status || 'Pending').toLowerCase();
-        const statusText = normalizedStatus === 'success' ? 'Berhasil' : normalizedStatus === 'failed' ? 'Gagal' : normalizedStatus === 'refunded' ? 'Refund' : 'Pending';
+        const statusText = normalizedStatus === 'success' ? 'Berhasil'
+            : normalizedStatus === 'failed' ? 'Gagal'
+            : normalizedStatus === 'refunded' ? 'Refund'
+            : normalizedStatus === 'partial refund' ? 'Perlu Review Admin'
+            : 'Pending';
         const statusNote = normalizedStatus === 'success'
             ? 'Pesanan berhasil diproses.'
             : normalizedStatus === 'failed'
                 ? 'Pesanan gagal diproses. Jika saldo terpotong, cek riwayat mutasi untuk refund.'
-                : 'Pesanan sedang diproses. Silakan cek kembali beberapa saat lagi.';
+                : normalizedStatus === 'partial refund'
+                    ? 'Pesanan ini memerlukan tinjauan admin. Silakan hubungi CS kami untuk informasi lebih lanjut.'
+                    : 'Pesanan sedang diproses. Silakan cek kembali beberapa saat lagi.';
 
         let detailsHtml = `
             <div class="card">
