@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cek Status Transaksi - MIKU Store</title>
+    <meta name="description" content="Cek status transaksi topup game Anda di MIKU Store menggunakan nomor invoice.">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-responsive.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+</head>
+<body class="check-transaction-page">
+
+<header>
+    <div class="header-container container">
+        <div class="header-left">
+            <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
+        </div>
+        <div class="header-right">
+            <a href="index.html" class="header-btn">Kembali ke Toko</a>
+        </div>
+    </div>
+</header>
+
+<main class="container" style="padding: 2rem 0 3rem;">
+    <h2><i class="fas fa-search"></i> Cek Status Transaksi</h2>
+    <p class="form-description" style="margin-bottom:1.5rem;">Masukkan nomor invoice untuk melihat status transaksi Anda secara real-time.</p>
+
+    <!-- Form pencarian -->
+    <div class="card transaction-check-card">
+        <form id="check-form">
+            <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
+                <div style="flex:1; min-width:200px;">
+                    <label for="invoice-input" style="display:block; margin-bottom:0.4rem; font-size:0.9rem; color:var(--muted-color);">
+                        <i class="fas fa-receipt"></i> Nomor Invoice
+                    </label>
+                    <input
+                        type="text"
+                        id="invoice-input"
+                        class="dashboard-input"
+                        placeholder="Contoh: TRX-1234567890"
+                        maxlength="64"
+                        autocomplete="off"
+                        style="width:100%; box-sizing:border-box;"
+                    >
+                </div>
+                <button type="submit" class="topup-btn" id="check-btn" style="height:42px; padding:0 1.5rem; white-space:nowrap;">
+                    <i class="fas fa-search"></i> Cek Sekarang
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Hasil pencarian -->
+    <div id="check-result" class="card transaction-check-card hidden" style="margin-top:1.25rem;">
+        <div id="check-result-content"></div>
+    </div>
+
+    <!-- Transaksi terbaru -->
+    <div style="margin-top:2.5rem;">
+        <h3><i class="fas fa-history"></i> Transaksi Terbaru</h3>
+        <p class="form-description" style="margin-bottom:1rem;">10 transaksi terakhir di MIKU Store (invoice disembunyikan untuk privasi).</p>
+        <div id="recent-transactions-container">
+            <div class="ui-state loading">Memuat transaksi terbaru...</div>
+        </div>
+    </div>
+</main>
+
+<footer>
+    <div class="container footer-content">
+        <div class="footer-links">
+            <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
+            <a href="/kebijakan-refund.html">Kebijakan Refund</a>
+            <a href="/kontak.html">Kontak Kami</a>
+        </div>
+        <p>&copy; 2025 MIKU Store. Dibuat dengan ❤️</p>
+    </div>
+</footer>
+
+<script src="cek-transaksi.js"></script>
+</body>
+</html>

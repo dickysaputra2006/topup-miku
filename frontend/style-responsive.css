@@ -1112,6 +1112,86 @@ table th {
     color: #fff;
 }
 
+/* ============================================================
+   CEK TRANSAKSI PAGE — class unik, tidak merusak halaman lain
+   ============================================================ */
+.transaction-check-card { margin-bottom: 0; }
+
+.trx-detail-grid {
+    display: flex; flex-direction: column;
+    gap: 0.6rem; margin-top: 1rem;
+}
+.trx-detail-row {
+    display: flex; align-items: flex-start; gap: 1rem;
+    font-size: 0.95rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+.trx-label { flex: 0 0 100px; color: var(--muted-color); font-weight: 500; }
+.trx-value  { flex: 1; word-break: break-all; }
+.trx-value code {
+    background: rgba(255,255,255,0.06);
+    padding: 2px 6px; border-radius: 4px;
+    font-size: 0.88rem;
+}
+
+.partial-refund-notice {
+    margin-top: 1rem; padding: 0.75rem 1rem;
+    background: rgba(249,115,22,0.12);
+    border: 1px solid #F97316;
+    border-radius: 8px; color: #fb923c;
+    font-size: 0.9rem; line-height: 1.5;
+}
+.partial-refund-notice i { margin-right: 0.4rem; }
+
+.recent-transaction-list {
+    border: 1px solid var(--border-color);
+    border-radius: 10px; overflow: hidden;
+    background: var(--bg-surface);
+}
+.recent-trx-header {
+    display: grid;
+    grid-template-columns: 1.6fr 2fr 1fr 1fr;
+    gap: 0.5rem; padding: 0.65rem 1rem;
+    background: rgba(255,255,255,0.04);
+    font-size: 0.8rem; font-weight: 600;
+    color: var(--muted-color); text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid var(--border-color);
+}
+.recent-trx-row {
+    display: grid;
+    grid-template-columns: 1.6fr 2fr 1fr 1fr;
+    gap: 0.5rem; padding: 0.65rem 1rem;
+    font-size: 0.88rem;
+    border-bottom: 1px solid rgba(75,85,99,0.4);
+    align-items: center; transition: background 0.15s;
+}
+.recent-trx-row:last-child { border-bottom: none; }
+.recent-trx-row:hover { background: rgba(255,255,255,0.03); }
+.recent-trx-invoice code {
+    background: rgba(255,255,255,0.06);
+    padding: 2px 5px; border-radius: 4px; font-size: 0.82rem;
+}
+.recent-trx-product { display: flex; flex-direction: column; gap: 2px; }
+.recent-game-name   { font-weight: 600; font-size: 0.88rem; }
+.recent-product-name { font-size: 0.78rem; color: var(--muted-color); }
+.recent-trx-date    { font-size: 0.8rem; color: var(--muted-color); }
+
+@media (max-width: 640px) {
+    .recent-trx-header,
+    .recent-trx-row { grid-template-columns: 1.4fr 1.6fr 1fr; }
+    .recent-trx-header > span:last-child,
+    .recent-trx-row > .recent-trx-date { display: none; }
+    .trx-label { flex: 0 0 80px; }
+}
+@media (max-width: 480px) {
+    .recent-trx-header,
+    .recent-trx-row { grid-template-columns: 1.5fr 1fr; }
+    .recent-trx-header > span:nth-child(2),
+    .recent-trx-row > .recent-trx-product { display: none; }
+}
+
 /* ── Very small ≤360px ── */
 @media (max-width: 360px) {
   .phone-country-code {
@@ -1121,3 +1201,4 @@ table th {
     font-size: 0.8rem;
   }
 }
+
