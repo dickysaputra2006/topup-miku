@@ -99,7 +99,9 @@ header {
 .product-card {
   height: clamp(150px, 18vw, 180px);
   border-radius: var(--radius-md);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  /* position:relative dan overflow:hidden sudah di style.css */
+  padding: 0; /* Override jika ada padding dari base */
 }
 
 .product-card:hover {
@@ -107,9 +109,14 @@ header {
   box-shadow: 0 6px 20px rgba(236, 72, 153, 0.2);
 }
 
+/* Image sudah full-cover via style.css, responsive CSS tidak perlu override height img */
 .product-card img {
-  height: clamp(80px, 10vw, 110px);
-  border-radius: var(--radius-sm);
+  border-radius: 0; /* Card wrapper yang punya border-radius */
+}
+
+/* Overlay span: pastikan font size proporsional di tiap ukuran */
+.product-card span {
+  font-size: clamp(0.72rem, 1.8vw, 0.85rem);
 }
 
 /* === 7. FOOTER: lebih compact === */
@@ -432,12 +439,10 @@ textarea {
 
   .product-card {
     height: 140px;
-    padding: 0.5rem;
+    padding: 0; /* Image cover — tidak pakai padding */
   }
 
-  .product-card img {
-    height: 72px;
-  }
+  /* Tidak override .product-card img height — sekarang img full-cover via style.css */
 
   .hero-placeholder {
     height: clamp(120px, 40vw, 160px);
@@ -1434,7 +1439,11 @@ table th {
     font-size: 0.82rem;
     line-height: 1.25;
     margin-bottom: 0.2rem;
+    display: -webkit-box;
     -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;             /* Standard property for compatibility */
+    overflow: hidden;
     max-height: calc(1.25em * 2);
 }
 
@@ -1531,6 +1540,73 @@ table th {
         padding: 0.3rem 0.5rem;
     }
 }
+
+/* ============================================================
+   PHASE 3C-2 — Homepage Game Card: Marquee Overlay
+   CSS-only. script.js tidak disentuh sama sekali.
+   ============================================================ */
+
+/* Keyframe: scroll nama dari kanan ke kiri */
+@keyframes marquee-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-60%); }
+}
+
+/* Inner wrapper teks — paused by default, running saat hover */
+.product-card span {
+    /* Bungkus teks dalam block yang bisa di-animate */
+    display: inline-block;
+    /* Animasi siap tapi dihentikan sampai hover */
+    animation: marquee-scroll 5s linear infinite;
+    animation-play-state: paused;
+    /* Pastikan teks tidak wrap */
+    white-space: nowrap;
+    /* Min-width agar teks tidak collapse */
+    min-width: 100%;
+}
+
+/* Aktifkan marquee saat card di-hover */
+.product-card:hover span {
+    animation-play-state: running;
+}
+
+/* Nama pendek (tidak overflow): animasi tidak bergerak karena
+   translateX(-60%) pada konten yang pas = tidak terlihat bergerak.
+   Nama panjang: scroll tampak jelas. */
+
+/* Respect prefers-reduced-motion: matikan animasi */
+@media (prefers-reduced-motion: reduce) {
+    .product-card span {
+        animation: none !important;
+    }
+}
+
+/* Mobile: marquee tetap aktif tapi durasi sedikit lebih cepat */
+@media (max-width: 768px) {
+    .product-card span {
+        /* Mobile: auto-play tanpa perlu hover
+           karena tidak ada hover state di touchscreen */
+        animation-play-state: running;
+        animation-duration: 6s;
+        font-size: 0.75rem;
+        padding: 0.45rem 0.5rem 0.4rem;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .product-card span {
+            animation: none !important;
+        }
+    }
+}
+
+/* ≤480px: card lebih kecil, overlay lebih compact */
+@media (max-width: 480px) {
+    .product-card span {
+        font-size: 0.7rem;
+        padding: 0.4rem 0.45rem 0.35rem;
+        animation-duration: 5s;
+    }
+}
+
 
 
 
