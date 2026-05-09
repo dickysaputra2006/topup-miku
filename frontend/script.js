@@ -324,7 +324,7 @@ if (dropdownLoginBtn) {
                 password: passwordInput.value
             };
             try {
-                const response = await fetch(${"$"}{API_URL_AUTH}/register, {
+                const response = await fetch(`${API_URL_AUTH}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
@@ -335,7 +335,7 @@ if (dropdownLoginBtn) {
                 registerForm.reset();
                 if(showLoginLink) showLoginLink.click();
             } catch (error) {
-                alert(Error Registrasi: {error.message});
+                alert(`Error Registrasi: ${error.message}`);
             }
         });
     }
@@ -425,9 +425,23 @@ if (dropdownLoginBtn) {
         });
     });
 
+    // Fungsi debounce khusus
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
-        searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
+        const debouncedSearch = debounce(() => handleSearch(searchInput.value), 300);
+        searchInput.addEventListener('input', debouncedSearch);
+        searchInput.addEventListener('focus', debouncedSearch);
     }
 
     if (headerRight) {

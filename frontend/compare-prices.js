@@ -130,14 +130,28 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // Fungsi debounce khusus
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        const debouncedSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGamesData.filter(game =>
                 game.name.toLowerCase().includes(searchTerm)
             );
             renderGamesDropdown(filteredGames, displayRoles);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedSearch);
     }
 
     

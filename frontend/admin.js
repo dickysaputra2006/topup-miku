@@ -718,12 +718,26 @@ if (promosTableBody) {
         });
     }
 
+    // Fungsi debounce khusus
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        const debouncedSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGames.filter(game => game.name.toLowerCase().includes(searchTerm));
             populateGameSelectorDropdown(filteredGames);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedSearch);
     }
 
    if (gameSelectorDropdown) {
