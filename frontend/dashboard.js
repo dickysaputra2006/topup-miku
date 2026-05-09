@@ -1,4 +1,4 @@
-﻿document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
     // --- KODE UNTUK MENU HAMBURGER DI DASHBOARD ---
     const sidebar = document.querySelector('.sidebar');
     document.querySelectorAll('#menu-toggle-btn, .menu-toggle-btn').forEach(btn => {
@@ -83,6 +83,7 @@ function statusLabel(status) {
     if (normalized === 'success') return 'Berhasil';
     if (normalized === 'failed') return 'Gagal';
     if (normalized === 'refunded') return 'Refund';
+    if (normalized === 'partial refund') return 'Perlu Review';
     return 'Pending';
 }
 
@@ -128,12 +129,14 @@ function forceLogout(message) {
         document.getElementById('count-berhasil').textContent = summary.berhasil;
         document.getElementById('count-pending').textContent = summary.pending;
         document.getElementById('count-gagal').textContent = summary.gagal;
+        const reviewEl = document.getElementById('count-review');
+        if (reviewEl) reviewEl.textContent = summary.review || 0;
     } catch (error) {
         console.error('Gagal memuat ringkasan transaksi:', error);
     }
 }
 
-            // Fungsi dari transaksi.js
+        // Fungsi dari transaksi.js
         async function fetchTransactions() {
             const tableBody = document.querySelector("#transactions-table tbody");
             if (!tableBody) return;

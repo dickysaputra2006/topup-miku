@@ -836,7 +836,8 @@ app.get('/api/user/transaction-summary', protect, async (req, res) => {
             SELECT 
                 COALESCE(SUM(CASE WHEN status = 'Success' THEN 1 ELSE 0 END), 0) AS berhasil,
                 COALESCE(SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END), 0) AS pending,
-                COALESCE(SUM(CASE WHEN status = 'Failed' THEN 1 ELSE 0 END), 0) AS gagal
+                COALESCE(SUM(CASE WHEN status = 'Failed' THEN 1 ELSE 0 END), 0) AS gagal,
+                COALESCE(SUM(CASE WHEN status = 'Partial Refund' THEN 1 ELSE 0 END), 0) AS review
             FROM transactions 
             WHERE user_id = $1;
         `;
@@ -1156,7 +1157,7 @@ app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
 app.get('/api/admin/transactions', protectAdmin, async (req, res) => {
     try {
         const sql = `
-            SELECT t.invoice_id, t.target_game_id, t.price, t.status, t.created_at, p.name as product_name, u.username as user_name
+            SELECT t.invoice_id, t.user_id, t.target_game_id, t.price, t.status, t.created_at, p.name as product_name, u.username as user_name
             FROM transactions t
             JOIN products p ON t.product_id = p.id
             JOIN users u ON t.user_id = u.id
@@ -1167,6 +1168,123 @@ app.get('/api/admin/transactions', protectAdmin, async (req, res) => {
     } catch (error) {
         console.error("Gagal mengambil riwayat transaksi admin:", error);
         res.status(500).json({ message: 'Server error saat mengambil riwayat transaksi.' });
+    }
+});
+
+// Admin manual resolve: mark berhasil, refund/gagalkan, atau keep_review
+app.put('/api/admin/transactions/:invoiceId/resolve', protectAdmin, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const invoiceId = normalizeString(req.params.invoiceId, 100);
+        const action = normalizeString(req.body.action || '', 20);
+
+        if (!['success', 'refund', 'keep_review'].includes(action)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'Aksi tidak valid. Gunakan: success, refund, keep_review.' });
+        }
+
+        // Lock baris untuk hindari race condition
+        const { rows } = await client.query(
+            'SELECT * FROM transactions WHERE invoice_id = $1 FOR UPDATE',
+            [invoiceId]
+        );
+        if (rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'Transaksi tidak ditemukan.' });
+        }
+        const tx = rows[0];
+
+        // Hanya boleh resolve dari status non-final
+        if (!['Pending', 'Partial Refund'].includes(tx.status)) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                message: `Transaksi sudah berstatus "${tx.status}". Tidak bisa diubah lagi.`
+            });
+        }
+
+        // action success/refund hanya boleh dari Partial Refund (bukan dari Pending biasa)
+        if ((action === 'success' || action === 'refund') && tx.status !== 'Partial Refund') {
+            await client.query('ROLLBACK');
+            return res.status(400).json({
+                message: `Aksi "${action}" hanya diizinkan untuk transaksi berstatus "Partial Refund". Status saat ini: "${tx.status}".`
+            });
+        }
+
+        if (action === 'success') {
+            await client.query(
+                "UPDATE transactions SET status = 'Success', updated_at = NOW() WHERE id = $1",
+                [tx.id]
+            );
+            await createNotification(
+                tx.user_id,
+                `Pesanan ${tx.invoice_id} telah dikonfirmasi berhasil oleh admin.`,
+                `/invoice.html?id=${tx.invoice_id}`
+            );
+            await client.query('COMMIT');
+            return res.json({ message: `Transaksi ${invoiceId} berhasil ditandai Berhasil.` });
+
+
+        } else if (action === 'refund') {
+            // DOUBLE REFUND GUARD: cek apakah sudah pernah ada refund
+            const { rows: existingRefunds } = await client.query(
+                "SELECT id FROM balance_history WHERE reference_id = $1 AND type = 'Refund' LIMIT 1",
+                [tx.invoice_id]
+            );
+            if (existingRefunds.length > 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ message: 'Saldo untuk transaksi ini sudah pernah direfund sebelumnya.' });
+            }
+
+            await client.query(
+                "UPDATE transactions SET status = 'Failed', updated_at = NOW() WHERE id = $1",
+                [tx.id]
+            );
+            await client.query(
+                'UPDATE users SET balance = balance + $1 WHERE id = $2',
+                [tx.price, tx.user_id]
+            );
+            const histDesc = `Refund admin untuk invoice ${tx.invoice_id}`;
+            await client.query(
+                "INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, 'Refund', $3, $4)",
+                [tx.user_id, tx.price, histDesc, tx.invoice_id]
+            );
+            await createNotification(
+                tx.user_id,
+                `Pesanan ${tx.invoice_id} gagal. Saldo Rp ${Number(tx.price).toLocaleString('id-ID')} telah dikembalikan.`,
+                `/invoice.html?id=${tx.invoice_id}`
+            );
+            await client.query('COMMIT');
+            return res.json({ message: `Transaksi ${invoiceId} berhasil di-refund dan ditandai Gagal.` });
+
+        } else if (action === 'keep_review') {
+            // Jika masih Pending, jadikan Partial Refund; jika sudah Partial Refund, no-op (update updated_at)
+            if (tx.status === 'Pending') {
+                await client.query(
+                    "UPDATE transactions SET status = 'Partial Refund', updated_at = NOW() WHERE id = $1",
+                    [tx.id]
+                );
+            } else {
+                // Sudah Partial Refund — update updated_at saja sebagai tanda admin sudah lihat
+                await client.query(
+                    'UPDATE transactions SET updated_at = NOW() WHERE id = $1',
+                    [tx.id]
+                );
+            }
+            await client.query('COMMIT');
+            return res.json({ message: `Transaksi ${invoiceId} tetap dalam status Review Admin.` });
+        }
+
+        // Seharusnya tidak sampai sini
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: 'Aksi tidak valid.' });
+
+    } catch (error) {
+        await client.query('ROLLBACK');
+        logSafeError('Admin resolve error:', error);
+        res.status(500).json({ message: 'Gagal memproses aksi admin.' });
+    } finally {
+        client.release();
     }
 });
 app.put('/api/admin/products/:id/status', protectAdmin, async (req, res) => {
@@ -2179,7 +2297,7 @@ app.post('/api/foxy/callback', async (req, res) => {
             return res.status(400).json({ message: 'Parameter tidak lengkap.' });
         }
         const normalizedStatus = status.toUpperCase();
-        if (!['SUCCESS', 'FAILED', 'REFUNDED', 'PENDING'].includes(normalizedStatus)) {
+        if (!['SUCCESS', 'FAILED', 'REFUNDED', 'PENDING', 'PARTIAL_REFUND'].includes(normalizedStatus)) {
             await client.query('ROLLBACK');
             return res.status(400).json({ message: 'Status tidak valid.' });
         }
@@ -2210,6 +2328,18 @@ app.post('/api/foxy/callback', async (req, res) => {
                  await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} gagal. Saldo telah dikembalikan.`, `/invoice.html?id=${tx.invoice_id}`);
         } else if (normalizedStatus === 'PENDING') {
             console.log(`Transaksi ${trx_id} masih pending dari callback.`);
+        } else if (normalizedStatus === 'PARTIAL_REFUND') {
+            // Tidak auto-refund saldo, tidak mark Success/Failed — butuh review admin
+            await client.query(
+                "UPDATE transactions SET status = 'Partial Refund', updated_at = NOW() WHERE id = $1",
+                [tx.id]
+            );
+            await createNotification(
+                tx.user_id,
+                `Pesanan ${tx.invoice_id} memerlukan tinjauan admin. Silakan hubungi CS kami untuk informasi lebih lanjut.`,
+                `/invoice.html?id=${tx.invoice_id}`
+            );
+            console.log(`[callback] Invoice ${tx.invoice_id}: set to Partial Refund (needs admin review).`);
         }
         
         await client.query('COMMIT');

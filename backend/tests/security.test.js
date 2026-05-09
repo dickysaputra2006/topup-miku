@@ -228,4 +228,163 @@ describe('Security: Error Exposure Tests', () => {
         pool.connect.mock.restore();
         pool.query.mock.restore();
     });
+
+    test('should accept PARTIAL_REFUND callback with HTTP 200', async () => {
+        const callbackUrl = `http://127.0.0.1:${server.address().port}/api/foxy/callback`;
+
+        let partialRefundUpdateExecuted = false;
+        let balanceModified = false;
+
+        mock.method(pool, 'query', async () => ({ rows: [] }));
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (sql.includes('SELECT * FROM transactions')) {
+                    return { rows: [{ id: 1, invoice_id: 'TRX-PR1', user_id: 1, status: 'Pending', price: 5000 }] };
+                }
+                if (sql.includes("status = 'Partial Refund'")) {
+                    partialRefundUpdateExecuted = true;
+                }
+                if (sql.includes('UPDATE users SET balance')) {
+                    balanceModified = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(callbackUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trx_id: 'PR-TRX-001', status: 'PARTIAL_REFUND' })
+        });
+
+        assert.strictEqual(res.status, 200, 'PARTIAL_REFUND callback should return 200');
+        assert.ok(partialRefundUpdateExecuted, "DB should be updated to 'Partial Refund'");
+        assert.strictEqual(balanceModified, false, 'Balance should NOT be modified on PARTIAL_REFUND');
+
+        pool.connect.mock.restore();
+        pool.query.mock.restore();
+    });
+
+    test('should reject admin resolve on final status (Success)', async () => {
+        const jwt = require('jsonwebtoken');
+        const token = jwt.sign({ id: 1, username: 'adminuser', role: 'Admin' }, process.env.JWT_SECRET);
+        const resolveUrl = `http://127.0.0.1:${server.address().port}/api/admin/transactions/TRX-DONE/resolve`;
+
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (sql.includes('FOR UPDATE')) {
+                    return { rows: [{ id: 99, invoice_id: 'TRX-DONE', user_id: 1, status: 'Success', price: 5000 }] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(resolveUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ action: 'refund' })
+        });
+
+        assert.strictEqual(res.status, 400, 'Should reject resolve on already-final transaction');
+        const data = await res.json();
+        assert.ok(data.message.includes('Success') || data.message.includes('Tidak bisa'),
+            'Error message should mention final status');
+
+        pool.connect.mock.restore();
+        pool.query.mock.restore();
+    });
+
+    test('should block double refund with 409', async () => {
+        const jwt = require('jsonwebtoken');
+        const token = jwt.sign({ id: 1, username: 'adminuser', role: 'Admin' }, process.env.JWT_SECRET);
+        const resolveUrl = `http://127.0.0.1:${server.address().port}/api/admin/transactions/TRX-PR2/resolve`;
+
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (sql.includes('FOR UPDATE')) {
+                    return { rows: [{ id: 10, invoice_id: 'TRX-PR2', user_id: 2, status: 'Partial Refund', price: 8000 }] };
+                }
+                if (sql.includes("type = 'Refund'") && sql.includes('reference_id')) {
+                    // Simulasikan sudah ada refund sebelumnya
+                    return { rows: [{ id: 1 }] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(resolveUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ action: 'refund' })
+        });
+
+        assert.strictEqual(res.status, 409, 'Double refund should return 409 Conflict');
+        const data = await res.json();
+        assert.ok(data.message.includes('sudah pernah direfund'), 'Should explain double refund blocked');
+
+        pool.connect.mock.restore();
+        pool.query.mock.restore();
+    });
+
+    test('should reject success/refund action from Pending status (must be Partial Refund first)', async () => {
+        const jwt = require('jsonwebtoken');
+        const token = jwt.sign({ id: 1, username: 'adminuser', role: 'Admin' }, process.env.JWT_SECRET);
+        const resolveUrl = `http://127.0.0.1:${server.address().port}/api/admin/transactions/TRX-PEND/resolve`;
+
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (sql.includes('FOR UPDATE')) {
+                    // Transaksi masih Pending
+                    return { rows: [{ id: 55, invoice_id: 'TRX-PEND', user_id: 3, status: 'Pending', price: 10000 }] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(resolveUrl, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ action: 'success' })
+        });
+
+        assert.strictEqual(res.status, 400, 'Should reject success action on Pending transaction');
+        const data = await res.json();
+        assert.ok(data.message.includes('Partial Refund'), 'Error message should require Partial Refund status first');
+
+        pool.connect.mock.restore();
+        pool.query.mock.restore();
+    });
 });
