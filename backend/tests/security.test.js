@@ -564,3 +564,190 @@ describe('Public Transaction Endpoints', () => {
         pool.query.mock.restore();
     });
 });
+
+// ============================================================
+// PHASE 4A — Deposit Endpoint Tests
+// ============================================================
+describe('Phase 4A: Deposit Endpoints', () => {
+    let server;
+    let baseUrl;
+    const JWT_SECRET = 'test-secret';
+    const jwt = require('jsonwebtoken');
+
+    // Generate valid user token for tests
+    function makeToken(userId = 99) {
+        return jwt.sign({ id: userId, role_name: 'User' }, JWT_SECRET, { expiresIn: '1h' });
+    }
+
+    before(() => {
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        try { pool.query.mock.restore(); } catch (_) {}
+        try { pool.connect.mock.restore(); } catch (_) {}
+        await new Promise(resolve => server.close(resolve));
+    });
+
+    test('POST /api/deposit/request — rejects unauthenticated request', async () => {
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 50000 })
+        });
+        assert.strictEqual(res.status, 401);
+    });
+
+    test('POST /api/deposit/request — rejects amount below minimum (< 10000)', async () => {
+        // protect middleware hanya verify JWT — tidak query DB
+        // amount validation terjadi sebelum query DB
+        const token = makeToken(99);
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 5000 })
+        });
+        assert.strictEqual(res.status, 400);
+        const body = await res.json();
+        assert.ok(body.message.includes('tidak valid'));
+    });
+
+    test('POST /api/deposit/request — rejects amount above maximum (> 100000000)', async () => {
+        const token = makeToken(99);
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 999999999 })
+        });
+        assert.strictEqual(res.status, 400);
+    });
+
+    test('POST /api/deposit/request — valid request creates Pending deposit, no balance change', async () => {
+        const token = makeToken(99);
+        const insertedRows = [];
+        const updatedBalance = [];
+
+        // Mock protect middleware (pool.query for user lookup)
+        const originalQuery = pool.query;
+        const originalConnect = pool.connect;
+
+        mock.method(pool, 'query', async (sql, params) => {
+            if (typeof sql === 'string' && (sql.includes('u.id = $1') || sql.includes('WHERE id = $1'))) {
+                return { rows: [{ id: 99, role_name: 'User', username: 'testuser' }] };
+            }
+            return { rows: [] };
+        });
+
+        // Mock pool.connect for the transaction
+        const fakeClient = {
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+                if (sql.includes('INSERT INTO deposits')) {
+                    insertedRows.push({ sql, params });
+                    return { rows: [{ id: 1001, created_at: new Date() }] };
+                }
+                if (sql.includes('UPDATE users SET balance')) {
+                    updatedBalance.push({ sql, params });
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        mock.method(pool, 'connect', async () => fakeClient);
+
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 50000 })
+        });
+
+        assert.strictEqual(res.status, 201, 'Should return 201 Created');
+        const body = await res.json();
+        assert.ok(body.deposit, 'Should have deposit field');
+        assert.strictEqual(body.deposit.status, 'Pending', 'Status must be Pending');
+        assert.ok(body.deposit.id, 'Should have deposit id');
+        assert.ok(body.deposit.unique_code, 'Should have unique_code');
+
+        // Verify INSERT used status='Pending', not any success status
+        assert.ok(insertedRows.length === 1, 'Should have exactly one INSERT');
+        assert.ok(insertedRows[0].params.includes('Pending'), 'Status param must be Pending');
+
+        // CRITICAL: verify no balance UPDATE was called
+        assert.strictEqual(updatedBalance.length, 0, 'CRITICAL: balance must NOT be updated on deposit request');
+
+        pool.query.mock.restore();
+        pool.connect.mock.restore();
+    });
+
+    test('POST /api/deposit/request — response does not expose fake bank info', async () => {
+        const token = makeToken(99);
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('u.id = $1') || sql.includes('WHERE id = $1')) return { rows: [{ id: 99, role_name: 'User' }] };
+            return { rows: [] };
+        });
+        const fakeClient = {
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'COMMIT') return {};
+                if (sql.includes('INSERT INTO deposits')) return { rows: [{ id: 1002, created_at: new Date() }] };
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        mock.method(pool, 'connect', async () => fakeClient);
+
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 50000 })
+        });
+        const body = await res.json();
+        const instrText = body.deposit?.paymentInstructions || '';
+        // Pastikan tidak ada nomor rekening palsu lama
+        assert.ok(!instrText.includes('123-456-7890'), 'Must not expose fake bank account');
+        assert.ok(!instrText.includes('Bank ABC'), 'Must not expose fake bank name');
+
+        pool.query.mock.restore();
+        pool.connect.mock.restore();
+    });
+
+    test('GET /api/user/deposits — rejects unauthenticated request', async () => {
+        const res = await fetch(`${baseUrl}/api/user/deposits`);
+        assert.strictEqual(res.status, 401);
+    });
+
+    test('GET /api/user/deposits — returns only deposits for authenticated user', async () => {
+        const token = makeToken(99);
+        let queriedUserId = null;
+
+        mock.method(pool, 'query', async (sql, params) => {
+            if (sql.includes('u.id = $1') || (sql.includes('WHERE id = $1') && !sql.includes('deposits'))) {
+                return { rows: [{ id: 99, role_name: 'User' }] };
+            }
+            if (sql.includes('FROM deposits') && sql.includes('user_id = $1')) {
+                queriedUserId = params[0];
+                return { rows: [
+                    { id: 1, amount: 50123, unique_code: 123, status: 'Pending', created_at: new Date() },
+                    { id: 2, amount: 100456, unique_code: 456, status: 'Success', created_at: new Date() }
+                ]};
+            }
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/user/deposits`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        assert.strictEqual(res.status, 200);
+        const list = await res.json();
+        assert.ok(Array.isArray(list), 'Should return array');
+        assert.strictEqual(list.length, 2, 'Should return 2 deposits');
+        // Verify query was filtered by this user's ID
+        assert.strictEqual(queriedUserId, 99, 'Query must filter by authenticated user_id');
+        // Verify no sensitive fields exposed
+        list.forEach(d => {
+            assert.ok(!('user_id' in d), 'user_id must not be exposed in deposit list');
+        });
+
+        pool.query.mock.restore();
+    });
+});

@@ -175,12 +175,15 @@ function forceLogout(message) {
             });
         }
 
-        // Fungsi dari deposit.js
+        // Fungsi deposit tab
         function setupDepositForm() {
             const depositForm = document.getElementById('deposit-form');
             const paymentInstructionsSection = document.getElementById('payment-instructions');
             const instructionText = document.getElementById('instruction-text');
             if (!depositForm) return;
+
+            // Load riwayat deposit saat tab dibuka
+            loadDepositHistory();
 
             depositForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -193,25 +196,63 @@ function forceLogout(message) {
                     submitButton.textContent = 'Memproses...';
                 }
                 try {
-                    const response = await fetch('/api/deposit/request', { // Langsung ke endpoint
+                    const response = await fetch('/api/deposit/request', {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                         body: JSON.stringify({ amount: parseInt(amount) })
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);
-                    instructionText.innerHTML = `<div class="ui-state success">${result.deposit.paymentInstructions}</div>`;
+                    instructionText.innerHTML = `<div class="ui-state success">
+                        <p><strong>Request #${result.deposit.id} berhasil dibuat!</strong></p>
+                        <p style="margin-top:0.5rem;">${result.deposit.paymentInstructions}</p>
+                        <p style="margin-top:0.5rem; color:#ffc107;"><i class="fas fa-clock"></i> Saldo akan masuk setelah admin memverifikasi pembayaran Anda.</p>
+                    </div>`;
                     depositForm.reset();
+                    setTimeout(loadDepositHistory, 500);
                 } catch (error) {
                     instructionText.innerHTML = `<div class="ui-state error"><strong>Error:</strong> ${error.message}</div>`;
                 } finally {
                     if (submitButton) {
                         submitButton.disabled = false;
-                        submitButton.textContent = 'Buat Permintaan';
+                        submitButton.textContent = 'Ajukan Deposit';
                     }
                 }
             });
             depositFormSetup = true;
+        }
+
+        // Fetch dan render riwayat deposit user
+        async function loadDepositHistory() {
+            const tbody = document.getElementById('deposit-history-body');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Memuat...</td></tr>';
+            try {
+                const response = await fetch('/api/user/deposits', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Gagal memuat riwayat');
+                const deposits = await response.json();
+                if (deposits.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#aaa;">Belum ada riwayat deposit.</td></tr>';
+                    return;
+                }
+                const statusClass = { 'Pending': 'status-pending', 'Success': 'status-success', 'Rejected': 'status-failed' };
+                tbody.innerHTML = deposits.map(d => {
+                    const tgl = new Date(d.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
+                    const nominal = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(d.amount);
+                    const cls = statusClass[d.status] || 'status-pending';
+                    return `<tr>
+                        <td>${d.id}</td>
+                        <td>${tgl}</td>
+                        <td>${nominal}</td>
+                        <td>+${d.unique_code}</td>
+                        <td><span class="badge ${cls}">${d.status}</span></td>
+                    </tr>`;
+                }).join('');
+            } catch (err) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#f87171;">Gagal memuat riwayat deposit.</td></tr>`;
+            }
         }
 
     function updateDashboardUI(data) {
