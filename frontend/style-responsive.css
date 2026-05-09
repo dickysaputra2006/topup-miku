@@ -1202,3 +1202,16 @@ table th {
   }
 }
 
+/* ── Header: sembunyikan .validate-btn dan .cek-trx-btn di mobile kecil ──
+   Di mobile (≤640px) header-right sudah sempit — link ada di hamburger menu.
+   Sisakan hanya .pricelist-btn dan #user-auth-button di header-right mobile.
+   Di desktop (≥641px) semua link tampil normal.
+────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .validate-btn,
+  .cek-trx-btn {
+    display: none;
+  }
+}
+
+
