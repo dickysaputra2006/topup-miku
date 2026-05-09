@@ -1,23 +1,107 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Kontak Kami - MIKU Store</title>
+    <meta name="description" content="Hubungi tim admin MIKU Store untuk bantuan transaksi, klaim refund, atau pertanyaan lainnya.">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="style-responsive.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
-<body>
-    <header>
-        </header>
-    <main class="container" style="padding-top: 2rem;">
-        <div class="card">
-            <h2>Kontak Kami</h2>
-            <p>Jika Anda memiliki pertanyaan atau mengalami kendala, jangan ragu untuk menghubungi kami melalui:</p>
-            <p><strong>Email:</strong> mikuidhelpcenter@gmail.com</p>
-            <p><strong>WhatsApp:</strong> +62 812-5103-3530</p>
+<body class="static-page">
+
+<header>
+    <div class="header-container container">
+        <div class="header-left">
+            <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
         </div>
-    </main>
-    <footer>
-        </footer>
+        <div class="header-right">
+            <a href="index.html" class="header-btn">Kembali ke Toko</a>
+        </div>
+    </div>
+</header>
+
+<main class="container static-main">
+    <div class="static-card">
+        <h2><i class="fas fa-headset"></i> Kontak Kami</h2>
+        <p class="form-description">Ada pertanyaan atau butuh bantuan? Tim admin MIKU Store siap membantu Anda.</p>
+
+        <div class="static-section">
+            <h3><i class="fas fa-comment-dots"></i> Cara Menghubungi Admin</h3>
+            <p>Silakan hubungi admin MIKU Store melalui kontak resmi yang tersedia di halaman utama atau yang tercantum pada invoice transaksi Anda.</p>
+            <div class="contact-notice">
+                <i class="fas fa-info-circle"></i>
+                <span>Untuk mempercepat proses penanganan, siapkan <strong>nomor invoice</strong> transaksi Anda sebelum menghubungi admin.</span>
+            </div>
+        </div>
+
+        <div class="static-section">
+            <h3><i class="fas fa-clock"></i> Jam Layanan</h3>
+            <p>Tim admin MIKU Store berusaha merespons setiap pertanyaan secepat mungkin. Estimasi respons:</p>
+            <ul>
+                <li>Pertanyaan umum: <strong>dalam 1×24 jam</strong></li>
+                <li>Klaim refund / kendala transaksi: <strong>dalam 1×24 jam kerja</strong></li>
+                <li>Status Perlu Review Admin: <strong>1×24 jam</strong> atau tergantung respons provider</li>
+            </ul>
+        </div>
+
+        <div class="static-section">
+            <h3><i class="fas fa-receipt"></i> Informasi yang Perlu Disiapkan</h3>
+            <p>Agar admin dapat membantu lebih cepat, siapkan informasi berikut saat menghubungi:</p>
+            <ul>
+                <li><strong>Nomor Invoice</strong> transaksi (contoh: TRX-1234567890)</li>
+                <li><strong>Status transaksi</strong> yang terlihat di dashboard atau halaman <a href="cek-transaksi.html" class="static-link">Cek Transaksi</a></li>
+                <li><strong>ID Game / ID Server</strong> yang digunakan saat pemesanan</li>
+                <li><strong>Screenshot</strong> atau bukti transaksi jika ada</li>
+            </ul>
+        </div>
+
+        <div class="static-section">
+            <h3><i class="fas fa-search"></i> Cek Status Transaksi Sendiri</h3>
+            <p>Sebelum menghubungi admin, Anda bisa cek status transaksi secara mandiri melalui:</p>
+            <ul>
+                <li><a href="cek-transaksi.html" class="static-link"><i class="fas fa-search"></i> Halaman Cek Transaksi</a> — masukkan nomor invoice untuk melihat status terkini.</li>
+                <li><a href="dashboard.html" class="static-link"><i class="fas fa-tachometer-alt"></i> Dashboard</a> — login untuk melihat riwayat lengkap transaksi Anda.</li>
+            </ul>
+        </div>
+
+        <div class="static-section">
+            <h3><i class="fas fa-link"></i> Halaman Lainnya</h3>
+            <div class="contact-links-grid">
+                <a href="syarat-ketentuan.html" class="contact-page-link">
+                    <i class="fas fa-file-contract"></i>
+                    <span>Syarat &amp; Ketentuan</span>
+                </a>
+                <a href="kebijakan-refund.html" class="contact-page-link">
+                    <i class="fas fa-undo-alt"></i>
+                    <span>Kebijakan Refund</span>
+                </a>
+                <a href="cek-transaksi.html" class="contact-page-link">
+                    <i class="fas fa-search"></i>
+                    <span>Cek Transaksi</span>
+                </a>
+                <a href="validate.html" class="contact-page-link">
+                    <i class="fas fa-id-card"></i>
+                    <span>Validasi ID Game</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer>
+    <div class="container footer-content">
+        <div class="footer-links">
+            <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
+            <a href="/kebijakan-refund.html">Kebijakan Refund</a>
+            <a href="/kontak.html">Kontak Kami</a>
+            <a href="/cek-transaksi.html">Cek Transaksi</a>
+        </div>
+        <p>&copy; 2025 MIKU Store. Dibuat dengan ❤️</p>
+    </div>
+</footer>
+
 </body>
 </html>
