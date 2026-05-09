@@ -1214,4 +1214,141 @@ table th {
   }
 }
 
+/* ============================================================
+   STATIC PAGES — Syarat & Ketentuan, Kebijakan Refund, Kontak
+   Class unik, tidak merusak halaman lain.
+   ============================================================ */
+
+/* Layout wrapper */
+.static-main {
+    padding: 2rem 0 3rem;
+}
+
+/* Card utama konten */
+.static-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg, 14px);
+    padding: 2rem 2.5rem;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* Section per topik */
+.static-section {
+    margin-top: 1.75rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid rgba(75, 85, 99, 0.35);
+}
+
+.static-section:first-of-type {
+    margin-top: 1.25rem;
+    border-top: none;
+    padding-top: 0;
+}
+
+.static-section h3 {
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+    color: var(--primary-color);
+}
+
+.static-section p,
+.static-section li {
+    color: var(--text-color);
+    line-height: 1.7;
+    font-size: 0.95rem;
+}
+
+.static-section ul,
+.static-section ol {
+    padding-left: 1.4rem;
+    margin: 0.5rem 0;
+}
+
+.static-section ul li,
+.static-section ol li {
+    margin-bottom: 0.4rem;
+}
+
+/* Inline link di konten static */
+.static-link {
+    color: var(--primary-color);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: opacity 0.15s;
+}
+.static-link:hover { opacity: 0.8; }
+
+/* Notice box (kontak.html) */
+.contact-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    background: rgba(236, 72, 153, 0.08);
+    border: 1px solid rgba(236, 72, 153, 0.25);
+    border-radius: var(--radius-sm, 6px);
+    padding: 0.75rem 1rem;
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--text-color);
+}
+.contact-notice i {
+    color: var(--primary-color);
+    margin-top: 2px;
+    flex-shrink: 0;
+}
+
+/* Grid quick-link (kontak.html) */
+.contact-links-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
+.contact-page-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm, 6px);
+    padding: 0.65rem 1rem;
+    text-decoration: none;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    transition: background 0.15s, border-color 0.15s;
+}
+.contact-page-link:hover {
+    background: rgba(236, 72, 153, 0.1);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+.contact-page-link i {
+    color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+/* Mobile responsive untuk static pages */
+@media (max-width: 640px) {
+    .static-card {
+        padding: 1.25rem 1rem;
+    }
+    .static-section {
+        margin-top: 1.25rem;
+        padding-top: 1rem;
+    }
+    .contact-links-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 400px) {
+    .contact-links-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+
 
