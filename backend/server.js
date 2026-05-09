@@ -2075,6 +2075,110 @@ app.get('/api/public/bot-games', async (req, res) => {
     }
 });
 
+// === PUBLIC CEK TRANSAKSI ENDPOINTS ===
+
+// Helper: status label publik
+function publicStatusLabel(status) {
+    const s = String(status || '').toLowerCase();
+    if (s === 'success') return 'Berhasil';
+    if (s === 'failed') return 'Gagal';
+    if (s === 'refunded') return 'Refund';
+    if (s === 'partial refund') return 'Perlu Review Admin';
+    return 'Pending';
+}
+
+// Helper: mask invoice ID — TRX-17781619937353 => TRX-1778****7353
+function maskInvoiceId(invoiceId) {
+    if (!invoiceId || invoiceId.length <= 8) return invoiceId;
+    // Cari prefix (misal TRX-)
+    const dashIdx = invoiceId.indexOf('-');
+    if (dashIdx !== -1 && dashIdx <= 6) {
+        const prefix = invoiceId.slice(0, dashIdx + 1);    // "TRX-"
+        const num = invoiceId.slice(dashIdx + 1);          // "17781619937353"
+        if (num.length <= 8) return invoiceId;
+        const visible_start = num.slice(0, 4);
+        const visible_end = num.slice(-4);
+        return `${prefix}${visible_start}****${visible_end}`;
+    }
+    // Fallback: tampilkan 4 karakter awal + **** + 4 karakter akhir
+    const start = invoiceId.slice(0, 4);
+    const end = invoiceId.slice(-4);
+    return `${start}****${end}`;
+}
+
+// GET /api/public/transaction/:invoiceId — cek satu transaksi (publik, tanpa login)
+app.get('/api/public/transaction/:invoiceId', async (req, res) => {
+    try {
+        const rawId = String(req.params.invoiceId || '').trim().slice(0, 64);
+        // Hanya izinkan karakter aman: huruf, angka, underscore, dash
+        if (!rawId || !/^[A-Za-z0-9_-]+$/.test(rawId)) {
+            return res.status(400).json({ message: 'Format invoice tidak valid.' });
+        }
+
+        const sql = `
+            SELECT t.invoice_id, t.status, t.price, t.created_at, t.updated_at,
+                   p.name AS product_name,
+                   g.name AS game_name
+            FROM transactions t
+            JOIN products p ON t.product_id = p.id
+            JOIN games g ON p.game_id = g.id
+            WHERE t.invoice_id = $1
+            LIMIT 1
+        `;
+        const { rows } = await pool.query(sql, [rawId]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Transaksi tidak ditemukan.' });
+        }
+        const tx = rows[0];
+
+        return res.json({
+            invoice_id:   tx.invoice_id,
+            status:       tx.status,
+            status_label: publicStatusLabel(tx.status),
+            game_name:    tx.game_name,
+            product_name: tx.product_name,
+            price:        Number(tx.price),
+            created_at:   tx.created_at,
+            updated_at:   tx.updated_at
+        });
+    } catch (error) {
+        logSafeError('[public/transaction] Error:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan saat mengambil data transaksi.' });
+    }
+});
+
+// GET /api/public/recent-transactions — 10 transaksi terbaru (invoice tersamarkan)
+app.get('/api/public/recent-transactions', async (req, res) => {
+    try {
+        const sql = `
+            SELECT t.invoice_id, t.status, t.created_at,
+                   p.name AS product_name,
+                   g.name AS game_name
+            FROM transactions t
+            JOIN products p ON t.product_id = p.id
+            JOIN games g ON p.game_id = g.id
+            ORDER BY t.created_at DESC
+            LIMIT 10
+        `;
+        const { rows } = await pool.query(sql);
+
+        const result = rows.map(tx => ({
+            invoice_masked: maskInvoiceId(tx.invoice_id),
+            status:         tx.status,
+            status_label:   publicStatusLabel(tx.status),
+            game_name:      tx.game_name,
+            product_name:   tx.product_name,
+            created_at:     tx.created_at
+        }));
+
+        return res.json(result);
+    } catch (error) {
+        logSafeError('[public/recent-transactions] Error:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan saat mengambil data transaksi.' });
+    }
+});
+
 // === ORDER & H2H ENDPOINTS ===
 app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
