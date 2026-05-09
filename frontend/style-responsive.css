@@ -114,8 +114,8 @@ header {
   border-radius: 0; /* Card wrapper yang punya border-radius */
 }
 
-/* Overlay span: pastikan font size proporsional di tiap ukuran */
-.product-card span {
+/* Overlay: font size proporsional di tiap ukuran */
+.product-card-title-text {
   font-size: clamp(0.72rem, 1.8vw, 0.85rem);
 }
 
@@ -1542,70 +1542,74 @@ table th {
 }
 
 /* ============================================================
-   PHASE 3C-2 — Homepage Game Card: Marquee Overlay
-   CSS-only. script.js tidak disentuh sama sekali.
+   PHASE 3C-2 — Homepage Game Card: Marquee Overlay (FIXED)
+   Hanya .product-card-title-track yang bergerak.
+   .product-card-overlay tetap diam dan full lebar.
    ============================================================ */
 
-/* Keyframe: scroll nama dari kanan ke kiri */
+/* Keyframe: gerakkan track dari posisi 0 ke kiri */
 @keyframes marquee-scroll {
     0%   { transform: translateX(0); }
-    100% { transform: translateX(-60%); }
+    100% { transform: translateX(-50%); }
+    /* -50% karena track = teks + clone, masing-masing 50% total width */
 }
 
-/* Inner wrapper teks — paused by default, running saat hover */
-.product-card span {
-    /* Bungkus teks dalam block yang bisa di-animate */
-    display: inline-block;
-    /* Animasi siap tapi dihentikan sampai hover */
-    animation: marquee-scroll 5s linear infinite;
+/* DESKTOP: has-long-title — animasi paused, running saat hover */
+.product-card.has-long-title .product-card-title-track {
+    animation: marquee-scroll 7s linear infinite;
     animation-play-state: paused;
-    /* Pastikan teks tidak wrap */
-    white-space: nowrap;
-    /* Min-width agar teks tidak collapse */
-    min-width: 100%;
 }
-
-/* Aktifkan marquee saat card di-hover */
-.product-card:hover span {
+.product-card.has-long-title:hover .product-card-title-track {
     animation-play-state: running;
 }
 
-/* Nama pendek (tidak overflow): animasi tidak bergerak karena
-   translateX(-60%) pada konten yang pas = tidak terlihat bergerak.
-   Nama panjang: scroll tampak jelas. */
+/* Nama pendek: tidak ada animasi sama sekali */
+.product-card:not(.has-long-title) .product-card-title-track {
+    animation: none;
+    transform: none;
+}
 
-/* Respect prefers-reduced-motion: matikan animasi */
+/* prefers-reduced-motion: matikan semua animasi card */
 @media (prefers-reduced-motion: reduce) {
-    .product-card span {
+    .product-card .product-card-title-track {
         animation: none !important;
+        transform: none !important;
     }
 }
 
-/* Mobile: marquee tetap aktif tapi durasi sedikit lebih cepat */
+/* MOBILE (<=768px): has-long-title auto-play tanpa hover */
 @media (max-width: 768px) {
-    .product-card span {
-        /* Mobile: auto-play tanpa perlu hover
-           karena tidak ada hover state di touchscreen */
+    .product-card.has-long-title .product-card-title-track {
         animation-play-state: running;
-        animation-duration: 6s;
+        animation-duration: 8s;
+    }
+    /* Font overlay sedikit lebih kecil */
+    .product-card-title-text {
         font-size: 0.75rem;
-        padding: 0.45rem 0.5rem 0.4rem;
+    }
+    .product-card-overlay {
+        padding: 0.4rem 0.5rem 0.35rem;
     }
     @media (prefers-reduced-motion: reduce) {
-        .product-card span {
+        .product-card .product-card-title-track {
             animation: none !important;
         }
     }
 }
 
-/* ≤480px: card lebih kecil, overlay lebih compact */
+/* <=480px: overlay lebih compact */
 @media (max-width: 480px) {
-    .product-card span {
+    .product-card-title-text {
         font-size: 0.7rem;
-        padding: 0.4rem 0.45rem 0.35rem;
-        animation-duration: 5s;
+    }
+    .product-card-overlay {
+        padding: 0.35rem 0.45rem 0.3rem;
+    }
+    .product-card.has-long-title .product-card-title-track {
+        animation-duration: 6s;
     }
 }
+
 
 
 

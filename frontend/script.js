@@ -101,6 +101,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    /** Escape HTML agar nama game aman dimasukkan ke innerHTML */
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function renderGameGrid(games, containerId) {
         const gridContainer = document.getElementById(containerId);
         if (!gridContainer) return;
@@ -113,9 +123,21 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         games.forEach(game => {
             const card = document.createElement('a');
-            card.href = `product.html?gameId=${game.id}`;
-            card.className = 'product-card';
-            card.innerHTML = `<img src="${game.image_url || 'https://via.placeholder.com/150'}" alt="${game.name}"><span>${game.name}</span>`;
+            card.href = 'product.html?gameId=' + game.id;
+            const isLong = game.name.length > 16;
+            card.className = 'product-card' + (isLong ? ' has-long-title' : '');
+            const safeName = escapeHtml(game.name);
+            const imgSrc  = escapeHtml(game.image_url || 'https://via.placeholder.com/150');
+            const cloneSpan = isLong
+                ? '<span class="product-card-title-text" aria-hidden="true">' + safeName + '</span>'
+                : '';
+            card.innerHTML =
+                '<img src="' + imgSrc + '" alt="' + safeName + '"'+ '>'
+                + '<span class="product-card-overlay" aria-label="' + safeName + '">' 
+                + '<span class="product-card-title-track">'
+                + '<span class="product-card-title-text">' + safeName + '</span>'
+                + cloneSpan
+                + '</span></span>';
             gridContainer.appendChild(card);
         });
     }
