@@ -1004,29 +1004,47 @@ table th {
 /* ===================================================================
    PHASE 2B — PHONE INPUT GROUP (Country Code Picker + Local Number)
    Tampil konsisten di mobile dan desktop, di dalam modal register.
+   Semua nilai padding/border/radius/background diselaraskan dengan
+   .modal-content input di style.css (padding:0.8rem, bg:--bg-dark,
+   border-radius:5px, border:1px solid --border-color).
 =================================================================== */
 
 .phone-input-group {
   display: flex;
   gap: 0.5rem;
-  align-items: stretch;
+  align-items: center; /* center agar tidak ada satu sisi lebih tinggi */
   width: 100%;
+  margin-bottom: 1rem; /* sama seperti input modal yang punya margin-bottom */
 }
 
-/* Dropdown kode negara */
+/* Wrapper ini menggantikan margin-bottom bawaan input di dalam grup */
+.phone-input-group input.phone-local-input {
+  margin-bottom: 0; /* hapus margin dari aturan .modal-content input */
+}
+
+/* Dropdown kode negara — identik dengan input modal */
 .phone-country-code {
-  flex: 0 0 auto;
-  width: 100px;
-  min-width: 90px;
-  padding: 0.65rem 0.5rem;
-  border-radius: var(--radius-sm, 8px);
-  border: 1px solid var(--border-color, rgba(255,255,255,0.15));
-  background-color: var(--bg-surface, #1e1e2e);
-  color: var(--text-color, #eee);
+  flex: 0 0 115px;      /* lebar tetap: cukup untuk "+62" + flag emoji */
+  width: 115px;
+  min-width: 100px;
+  max-width: 130px;
+  /* Padding identik dengan .modal-content input */
+  padding: 0.8rem 0.5rem;
+  /* Border identik */
+  border: 1px solid var(--border-color, #4B5563);
+  border-radius: 5px;   /* sama dengan input modal di style.css */
+  /* Background identik dengan input modal */
+  background-color: var(--bg-dark, #1F2937);
+  color: var(--text-color, #F3F4F6);
+  /* Font identik */
   font-size: 0.9rem;
+  font-family: inherit;
+  /* Tinggi & box-sizing */
+  min-height: 42px;     /* sama dengan section 17 di style-responsive.css */
+  box-sizing: border-box;
   cursor: pointer;
-  appearance: auto; /* Tampilkan native dropdown arrow */
-  /* Tidak ada overflow tersembunyi agar emoji flag muncul */
+  appearance: auto;     /* tampilkan panah dropdown native */
+  line-height: 1.4;
 }
 
 .phone-country-code:focus {
@@ -1034,17 +1052,30 @@ table th {
   outline-offset: 1px;
 }
 
-/* Input nomor lokal */
+/* Input nomor lokal — ambil sisa lebar */
 .phone-local-input {
-  flex: 1;
-  min-width: 0; /* Mencegah overflow flex */
+  flex: 1 1 0%;
+  min-width: 0;         /* cegah overflow flex */
+  /* margin-bottom sudah dioverride di atas */
 }
 
-/* Mobile: stack menjadi baris lebih sempit */
-@media (max-width: 400px) {
+/* ── Mobile ≤480px: perkecil sedikit dropdown ── */
+@media (max-width: 480px) {
   .phone-country-code {
-    width: 82px;
-    min-width: 80px;
-    font-size: 0.82rem;
+    flex: 0 0 110px;
+    width: 110px;
+    min-width: 100px;
+    font-size: 0.85rem;
+    padding: 0.8rem 0.35rem;
+  }
+}
+
+/* ── Very small ≤360px ── */
+@media (max-width: 360px) {
+  .phone-country-code {
+    flex: 0 0 95px;
+    width: 95px;
+    min-width: 88px;
+    font-size: 0.8rem;
   }
 }
