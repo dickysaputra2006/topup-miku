@@ -316,6 +316,7 @@ if (dropdownLoginBtn) {
                 fullName: registerForm.querySelector('input[name="fullName"]').value,
                 username: registerForm.querySelector('input[name="username"]').value,
                 email: registerForm.querySelector('input[name="email"]').value,
+                countryCode: registerForm.querySelector('select[name="countryCode"]').value,
                 nomorWa: registerForm.querySelector('input[name="nomorWa"]').value,
                 password: passwordInput.value
             };

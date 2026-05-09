@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -127,7 +127,18 @@
                     <input name="fullName" type="text" placeholder="Nama Lengkap (Contoh: John Doe)" required>
                     <input name="username" type="text" placeholder="Username (untuk login)" required>
                     <input name="email" type="email" placeholder="Email" required>
-                    <input name="nomorWa" type="text" placeholder="Nomor Telepon (Contoh: 62812...)" required>
+                    <div class="phone-input-group">
+                        <select name="countryCode" class="phone-country-code" title="Kode Negara">
+                            <option value="+62">🇮🇩 +62</option>
+                            <option value="+60">🇲🇾 +60</option>
+                            <option value="+65">🇸🇬 +65</option>
+                            <option value="+63">🇵🇭 +63</option>
+                            <option value="+66">🇹🇭 +66</option>
+                            <option value="+84">🇻🇳 +84</option>
+                            <option value="+1">🇺🇸 +1</option>
+                        </select>
+                        <input name="nomorWa" type="tel" placeholder="81234567890" class="phone-local-input" required>
+                    </div>
                     <div class="password-wrapper">
                         <input name="password" type="password" placeholder="Password" required>
                         <i class="fas fa-eye-slash toggle-password"></i>
