@@ -1610,8 +1610,59 @@ table th {
     }
 }
 
+/* ============================================================
+   PHASE 4A — Manual Deposit CSS
+   Semua class unik dengan prefix .deposit-
+   Tidak mengganggu halaman lain.
+   ============================================================ */
 
+/* Card deposit: sedikit lebih lega dari card biasa */
+.deposit-card {
+    border-left: 3px solid var(--primary-color);
+}
 
+/* Grid metode pembayaran: 2 kolom di desktop */
+.deposit-method-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+}
 
+.deposit-method-item {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm, 8px);
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.deposit-method-label {
+    font-weight: 700;
+    font-size: 0.92rem;
+    color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.deposit-method-number {
+    font-size: 0.82rem;
+    color: var(--text-muted, #aaa);
+    word-break: break-all;
+}
+
+/* Mobile: 1 kolom */
+@media (max-width: 600px) {
+    .deposit-method-grid {
+        grid-template-columns: 1fr;
+        gap: 0.6rem;
+    }
+    .deposit-method-item {
+        padding: 0.6rem 0.75rem;
+    }
+}
 
 

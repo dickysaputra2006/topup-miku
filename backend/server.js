@@ -924,32 +924,57 @@ app.put('/api/user/whitelisted-ips', protect, async (req, res) => {
 
 // === DEPOSIT ENDPOINTS ===
 app.post('/api/deposit/request', protect, async (req, res) => {
-    const client = await pool.connect(); // Menggunakan client dari pool untuk transaksi
+    // Validasi amount dulu sebelum ambil koneksi DB
+    const { amount } = req.body;
+    const userId = req.user.id;
+    if (!Number.isFinite(Number(amount)) || Number(amount) < 10000 || Number(amount) > 100000000) {
+        return res.status(400).json({ message: 'Jumlah deposit tidak valid. Minimum Rp 10.000, maksimum Rp 100.000.000.' });
+    }
+    const client = await pool.connect();
     try {
-        const { amount } = req.body;
-        const userId = req.user.id;
-        if (!Number.isFinite(Number(amount)) || Number(amount) < 10000 || Number(amount) > 100000000) {
-            return res.status(400).json({ message: 'Jumlah deposit tidak valid.' });
-        }
-        await client.query('BEGIN'); // Memulai transaksi
+        await client.query('BEGIN');
         const uniqueCode = Math.floor(Math.random() * 900) + 100;
         const totalAmount = parseInt(amount) + uniqueCode;
-        // PostgreSQL: RETURNING id untuk mendapatkan ID yang di-generate
-        const sql = 'INSERT INTO deposits (user_id, amount, unique_code, status) VALUES ($1, $2, $3, $4) RETURNING id';
+        const sql = 'INSERT INTO deposits (user_id, amount, unique_code, status) VALUES ($1, $2, $3, $4) RETURNING id, created_at';
         const { rows } = await client.query(sql, [userId, totalAmount, uniqueCode, 'Pending']);
-        const depositId = rows[0].id; // Ambil ID dari hasil RETURNING
-
-        await client.query('COMMIT'); // Commit transaksi
+        const depositId = rows[0].id;
+        const createdAt = rows[0].created_at;
+        await client.query('COMMIT');
+        const amountFormatted = new Intl.NumberFormat('id-ID').format(totalAmount);
         res.status(201).json({
-            message: 'Permintaan deposit berhasil dibuat.',
-            deposit: { id: depositId, amount: totalAmount, paymentInstructions: `Silakan transfer sejumlah Rp ${new Intl.NumberFormat('id-ID').format(totalAmount)} ke rekening Bank ABC 123-456-7890 a/n GameStore.` }
+            message: 'Permintaan deposit berhasil dibuat. Saldo akan masuk setelah admin memverifikasi pembayaran.',
+            deposit: {
+                id: depositId,
+                amount: totalAmount,
+                unique_code: uniqueCode,
+                status: 'Pending',
+                created_at: createdAt,
+                paymentInstructions: `Transfer sejumlah <strong>Rp ${amountFormatted}</strong> (termasuk kode unik <strong>${uniqueCode}</strong>) ke metode pembayaran yang diinformasikan admin MIKU Store. Sertakan nomor deposit <strong>#${depositId}</strong> di keterangan transfer.`
+            }
         });
     } catch (error) {
-        await client.query('ROLLBACK'); // Rollback transaksi jika ada error
+        await client.query('ROLLBACK');
         console.error('Error creating deposit request:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server saat membuat permintaan deposit.' });
     } finally {
-        client.release(); // Pastikan koneksi dikembalikan ke pool
+        client.release();
+    }
+});
+
+// GET riwayat deposit user sendiri (max 20 terbaru)
+app.get('/api/user/deposits', protect, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const sql = `SELECT id, amount, unique_code, status, created_at
+                     FROM deposits
+                     WHERE user_id = $1
+                     ORDER BY created_at DESC
+                     LIMIT 20`;
+        const { rows } = await pool.query(sql, [userId]);
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching user deposits:', error);
+        res.status(500).json({ message: 'Gagal mengambil riwayat deposit.' });
     }
 });
 

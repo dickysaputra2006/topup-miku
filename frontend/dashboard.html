@@ -108,22 +108,79 @@
             </section>
 
             <section id="deposit-tab" class="dashboard-section hidden">
-                    <div class="card">
-                        <h3>Deposit Saldo</h3>
-                        <form id="deposit-form">
-                            <label for="amount">Masukan Jumlah Deposit</label>
-                            <div class="form-row-container">
-                                <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" required class="dashboard-input">
-                                <button type="submit" class="btn-submit-deposit">Buat Permintaan</button>
-                            </div>
-                            <p class="form-description deposit-note">Minimum deposit adalah Rp 10.000.</p>
-                        </form>
+
+                <!-- Card instruksi metode pembayaran -->
+                <div class="card deposit-card">
+                    <h3><i class="fas fa-info-circle"></i> Cara Deposit Saldo</h3>
+                    <p class="form-description" style="text-align:left;">Transfer ke salah satu metode di bawah, lalu ajukan request dengan nominal yang sesuai. Saldo masuk setelah admin verifikasi.</p>
+                    <div class="deposit-method-grid">
+                        <div class="deposit-method-item">
+                            <span class="deposit-method-label"><i class="fas fa-money-bill-wave"></i> GoPay</span>
+                            <span class="deposit-method-number">Nomor akan diinformasikan oleh admin MIKU Store.</span>
+                        </div>
+                        <div class="deposit-method-item">
+                            <span class="deposit-method-label"><i class="fas fa-wallet"></i> DANA</span>
+                            <span class="deposit-method-number">Nomor akan diinformasikan oleh admin MIKU Store.</span>
+                        </div>
+                        <div class="deposit-method-item">
+                            <span class="deposit-method-label"><i class="fas fa-shopping-bag"></i> ShopeePay</span>
+                            <span class="deposit-method-number">Nomor akan diinformasikan oleh admin MIKU Store.</span>
+                        </div>
+                        <div class="deposit-method-item">
+                            <span class="deposit-method-label"><i class="fas fa-university"></i> SeaBank</span>
+                            <span class="deposit-method-number">Nomor akan diinformasikan oleh admin MIKU Store.</span>
+                        </div>
                     </div>
-                    <div id="payment-instructions" class="card payment-instructions-section hidden">
-                        <h3>Instruksi Pembayaran</h3>
-                        <p id="instruction-text">Membuat permintaan...</p>
+                    <p class="form-description" style="text-align:left; margin-top:0.75rem; color:#ffc107;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Penting:</strong> Saldo tidak bertambah otomatis. Admin akan memverifikasi pembayaran dan menyetujui deposit.
+                    </p>
+                </div>
+
+                <!-- Card form request deposit -->
+                <div class="card deposit-card" style="margin-top:1.25rem;">
+                    <h3><i class="fas fa-plus-circle"></i> Ajukan Request Deposit</h3>
+                    <form id="deposit-form">
+                        <label for="amount">Jumlah Deposit (Rp)</label>
+                        <div class="form-row-container" style="margin-top:0.5rem;">
+                            <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" required class="dashboard-input">
+                            <button type="submit" class="btn-submit-deposit">Ajukan Deposit</button>
+                        </div>
+                        <p class="form-description deposit-note">Minimum deposit Rp 10.000. Nominal akhir akan ditambah kode unik 3 digit untuk memudahkan verifikasi.</p>
+                    </form>
+                </div>
+
+                <!-- Hasil instruksi setelah submit -->
+                <div id="payment-instructions" class="card deposit-card hidden" style="margin-top:1.25rem;">
+                    <h3><i class="fas fa-clipboard-list"></i> Instruksi Pembayaran</h3>
+                    <div id="instruction-text"></div>
+                    <p class="form-description" style="text-align:left; margin-top:0.75rem;">
+                        Setelah transfer, tunggu konfirmasi dari admin. Riwayat request terlihat di bawah.
+                    </p>
+                </div>
+
+                <!-- Riwayat deposit user -->
+                <div class="card deposit-card" style="margin-top:1.25rem;">
+                    <h3><i class="fas fa-history"></i> Riwayat Deposit</h3>
+                    <div class="table-container">
+                        <table id="deposit-history-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Tanggal</th>
+                                    <th>Nominal</th>
+                                    <th>Kode Unik</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deposit-history-body">
+                                <tr><td colspan="5" style="text-align:center;">Memuat riwayat...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
-                </section>
+                </div>
+
+            </section>
 
                 <section id="transaksi-tab" class="dashboard-section hidden">
                     <div class="card">
