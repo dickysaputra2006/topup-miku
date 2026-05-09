@@ -137,30 +137,42 @@ body {
     transform: scale(1.07);
 }
 
-/* Overlay gradient di bagian bawah */
-.product-card span {
+/* ── OVERLAY: diam, full lebar bawah card, tidak ikut bergerak ── */
+.product-card-overlay {
     position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    background: linear-gradient(transparent 0%, rgba(0,0,0,0.72) 40%, rgba(0,0,0,0.88) 100%);
+    width: 100%;
+    background: linear-gradient(transparent 0%, rgba(0,0,0,0.72) 40%, rgba(0,0,0,0.90) 100%);
+    padding: 0.5rem 0.6rem 0.45rem;
+    overflow: hidden;          /* Track bergerak di dalam overlay */
+    pointer-events: none;      /* Klik menembus ke card <a> di bawahnya */
+    transition: background 0.2s ease;
+    box-sizing: border-box;
+}
+
+.product-card:hover .product-card-overlay {
+    background: linear-gradient(transparent 0%, rgba(0,0,0,0.82) 30%, rgba(0,0,0,0.94) 100%);
+}
+
+/* ── TRACK: inline-flex, ini yang bergerak (bukan overlay) ── */
+.product-card-title-track {
+    display: inline-flex;
+    align-items: center;
+    gap: 2.5rem;               /* Jarak antara teks asli dan clone */
+    white-space: nowrap;
+    width: max-content;        /* Lebar menyesuaikan teks */
+    /* Animasi diset di selector has-long-title di bawah */
+}
+
+/* ── TEXT: tiap span teks ── */
+.product-card-title-text {
     color: #fff;
     font-size: 0.82rem;
     font-weight: 600;
-    padding: 0.55rem 0.6rem 0.5rem;
-    text-align: left;
-    /* Marquee: nama selalu dalam satu baris, clip di overflow */
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: clip; /* clip bukan ellipsis agar marquee bisa scroll */
-    /* Transisi overlay saat hover */
-    transition: background 0.2s ease, padding 0.2s ease;
-}
-
-/* Hover: overlay sedikit lebih tinggi/terang */
-.product-card:hover span {
-    background: linear-gradient(transparent 0%, rgba(0,0,0,0.82) 30%, rgba(0,0,0,0.93) 100%);
-    padding-bottom: 0.65rem;
+    flex-shrink: 0;
 }
 
 footer {
