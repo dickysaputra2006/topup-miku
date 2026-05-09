@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -10,97 +11,114 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
+
 <body class="static-page">
 
-<header>
-    <div class="header-container container">
-        <div class="header-left">
-            <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
+    <header>
+        <div class="header-container container">
+            <div class="header-left">
+                <a href="index.html" class="logo-link">
+                    <h1 class="logo">MIKU Store</h1>
+                </a>
+            </div>
+            <div class="header-right">
+                <a href="index.html" class="header-btn">Kembali ke Toko</a>
+            </div>
         </div>
-        <div class="header-right">
-            <a href="index.html" class="header-btn">Kembali ke Toko</a>
-        </div>
-    </div>
-</header>
+    </header>
 
-<main class="container static-main">
-    <div class="static-card">
-        <h2><i class="fas fa-undo-alt"></i> Kebijakan Refund</h2>
-        <p class="form-description">Terakhir diperbarui: Mei 2025</p>
+    <main class="container static-main">
+        <div class="static-card">
+            <h2><i class="fas fa-undo-alt"></i> Kebijakan Refund</h2>
+            <p class="form-description">Terakhir diperbarui: Mei 2025</p>
 
-        <div class="static-section">
-            <h3>1. Refund Saldo</h3>
-            <p>Pengembalian saldo (refund) ke akun MIKU Store hanya dilakukan apabila transaksi <strong>gagal diproses</strong> dan memenuhi syarat berikut:</p>
-            <ul>
-                <li>Produk tidak terkirim ke akun tujuan.</li>
-                <li>Transaksi berstatus <strong>Gagal</strong> setelah proses verifikasi oleh sistem dan provider.</li>
-                <li>Tidak terdapat indikasi kesalahan input data dari pengguna.</li>
-            </ul>
-        </div>
+            <div class="static-section">
+                <h3>1. Refund Saldo</h3>
+                <p>Pengembalian saldo (refund) ke akun MIKU Store hanya dilakukan apabila transaksi <strong>gagal
+                        diproses</strong> dan memenuhi syarat berikut:</p>
+                <ul>
+                    <li>Produk tidak terkirim ke akun tujuan.</li>
+                    <li>Transaksi berstatus <strong>Gagal</strong> setelah proses verifikasi oleh sistem dan provider.
+                    </li>
+                    <li>Tidak terdapat indikasi kesalahan input data dari pengguna.</li>
+                </ul>
+            </div>
 
-        <div class="static-section">
-            <h3>2. Status "Perlu Review Admin" (Partial Refund)</h3>
-            <p>Status <strong>Perlu Review Admin</strong> muncul ketika provider melaporkan transaksi dalam kondisi tidak lengkap atau sebagian. Status ini:</p>
-            <ul>
-                <li><strong>Tidak</strong> secara otomatis dianggap sebagai transaksi gagal.</li>
-                <li><strong>Tidak</strong> memicu refund saldo secara otomatis.</li>
-                <li>Memerlukan verifikasi manual oleh tim admin MIKU Store ke provider (Foxy).</li>
-            </ul>
-            <p>Proses review estimasi: <strong>1×24 jam kerja</strong>, atau lebih cepat tergantung respons dari provider.</p>
-        </div>
+            <div class="static-section">
+                <h3>2. Status "Perlu Review Admin" (Partial Refund)</h3>
+                <p>Status <strong>Perlu Review Admin</strong> muncul ketika provider melaporkan transaksi dalam kondisi
+                    tidak lengkap atau sebagian. Status ini:</p>
+                <ul>
+                    <li><strong>Tidak</strong> secara otomatis dianggap sebagai transaksi gagal.</li>
+                    <li><strong>Tidak</strong> memicu refund saldo secara otomatis.</li>
+                    <li>Memerlukan verifikasi manual oleh tim admin MIKU Store ke provider.</li>
+                </ul>
+                <p>Proses review estimasi: <strong>1×24 jam kerja</strong>, atau lebih cepat tergantung respons dari
+                    provider.</p>
+            </div>
 
-        <div class="static-section">
-            <h3>3. Proses Penyelesaian Admin</h3>
-            <p>Setelah proses pengecekan selesai, admin dapat mengambil salah satu tindakan berikut:</p>
-            <ul>
-                <li><strong>Menandai transaksi sebagai Berhasil</strong> — jika produk terbukti telah diterima oleh akun tujuan.</li>
-                <li><strong>Melakukan refund saldo</strong> — jika produk terbukti tidak terkirim dan tidak ada indikasi penyalahgunaan.</li>
-                <li><strong>Mempertahankan status Review</strong> — jika masih menunggu konfirmasi lebih lanjut dari provider.</li>
-            </ul>
-        </div>
+            <div class="static-section">
+                <h3>3. Proses Penyelesaian Admin</h3>
+                <p>Setelah proses pengecekan selesai, admin dapat mengambil salah satu tindakan berikut:</p>
+                <ul>
+                    <li><strong>Menandai transaksi sebagai Berhasil</strong> — jika produk terbukti telah diterima oleh
+                        akun tujuan.</li>
+                    <li><strong>Melakukan refund saldo</strong> — jika produk terbukti tidak terkirim dan tidak ada
+                        indikasi penyalahgunaan.</li>
+                    <li><strong>Mempertahankan status Review</strong> — jika masih menunggu konfirmasi lebih lanjut dari
+                        provider.</li>
+                </ul>
+            </div>
 
-        <div class="static-section">
-            <h3>4. Mengapa Refund Tidak Otomatis?</h3>
-            <p>Proses refund dilakukan secara manual oleh admin untuk mencegah risiko <strong>double refund</strong> — yaitu kondisi di mana saldo dikembalikan lebih dari satu kali untuk transaksi yang sama. Setiap keputusan refund dicatat dalam riwayat saldo akun.</p>
-        </div>
+            <div class="static-section">
+                <h3>4. Mengapa Refund Tidak Otomatis?</h3>
+                <p>Proses refund dilakukan secara manual oleh admin untuk mencegah risiko <strong>double refund</strong>
+                    — yaitu kondisi di mana saldo dikembalikan lebih dari satu kali untuk transaksi yang sama. Setiap
+                    keputusan refund dicatat dalam riwayat saldo akun.</p>
+            </div>
 
-        <div class="static-section">
-            <h3>5. Transaksi Berhasil</h3>
-            <p>Transaksi yang telah berstatus <strong>Berhasil</strong> <strong>tidak dapat</strong> direfund, kecuali terdapat bukti kesalahan yang jelas dari pihak provider atau sistem MIKU Store yang dapat diverifikasi.</p>
-        </div>
+            <div class="static-section">
+                <h3>5. Transaksi Berhasil</h3>
+                <p>Transaksi yang telah berstatus <strong>Berhasil</strong> <strong>tidak dapat</strong> direfund,
+                    kecuali terdapat bukti kesalahan yang jelas dari pihak provider atau sistem MIKU Store yang dapat
+                    diverifikasi.</p>
+            </div>
 
-        <div class="static-section">
-            <h3>6. Cara Mengajukan Klaim Refund</h3>
-            <ol>
-                <li>Siapkan <strong>nomor invoice</strong> transaksi Anda.</li>
-                <li>Hubungi admin MIKU Store melalui halaman <a href="kontak.html" class="static-link">Kontak Kami</a>.</li>
-                <li>Sertakan bukti dan penjelasan singkat mengenai kendala yang dialami.</li>
-                <li>Admin akan menindaklanjuti dalam 1×24 jam kerja.</li>
-            </ol>
-        </div>
+            <div class="static-section">
+                <h3>6. Cara Mengajukan Klaim Refund</h3>
+                <ol>
+                    <li>Siapkan <strong>nomor invoice</strong> transaksi Anda.</li>
+                    <li>Hubungi admin MIKU Store melalui halaman <a href="kontak.html" class="static-link">Kontak
+                            Kami</a>.</li>
+                    <li>Sertakan bukti dan penjelasan singkat mengenai kendala yang dialami.</li>
+                    <li>Admin akan menindaklanjuti dalam 1×24 jam kerja.</li>
+                </ol>
+            </div>
 
-        <div class="static-section">
-            <h3>7. Batasan Refund</h3>
-            <ul>
-                <li>Refund hanya dalam bentuk saldo akun MIKU Store, bukan transfer uang tunai.</li>
-                <li>Klaim refund wajib diajukan dalam waktu maksimal <strong>7 hari</strong> sejak tanggal transaksi.</li>
-                <li>MIKU Store berhak menolak klaim yang tidak memenuhi syarat atau tidak dapat diverifikasi.</li>
-            </ul>
+            <div class="static-section">
+                <h3>7. Batasan Refund</h3>
+                <ul>
+                    <li>Refund hanya dalam bentuk saldo akun MIKU Store, bukan transfer uang tunai.</li>
+                    <li>Klaim refund wajib diajukan dalam waktu maksimal <strong>7 hari</strong> sejak tanggal
+                        transaksi.</li>
+                    <li>MIKU Store berhak menolak klaim yang tidak memenuhi syarat atau tidak dapat diverifikasi.</li>
+                </ul>
+            </div>
         </div>
-    </div>
-</main>
+    </main>
 
-<footer>
-    <div class="container footer-content">
-        <div class="footer-links">
-            <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
-            <a href="/kebijakan-refund.html">Kebijakan Refund</a>
-            <a href="/kontak.html">Kontak Kami</a>
-            <a href="/cek-transaksi.html">Cek Transaksi</a>
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-links">
+                <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
+                <a href="/kebijakan-refund.html">Kebijakan Refund</a>
+                <a href="/kontak.html">Kontak Kami</a>
+                <a href="/cek-transaksi.html">Cek Transaksi</a>
+            </div>
+            <p>&copy; 2025 MIKU Store. Dibuat dengan ❤️</p>
         </div>
-        <p>&copy; 2025 MIKU Store. Dibuat dengan ❤️</p>
-    </div>
-</footer>
+    </footer>
 
 </body>
+
 </html>
