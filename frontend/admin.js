@@ -22,7 +22,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const productListTitle = document.getElementById('product-list-title');
 
     // Elemen untuk bagian lain
-    const pendingDepositsTableBody = document.querySelector("#pending-deposits-table tbody");
+    const adminDepositsTbody = document.getElementById('admin-deposits-tbody');
+    const depositStatusFilter = document.getElementById('deposit-status-filter');
+    const refreshDepositsBtn = document.getElementById('refresh-deposits-btn');
     const manualBalanceForm = document.getElementById('manual-balance-form');
     const addBalanceBtn = document.getElementById('add-balance-btn');
     const reduceBalanceBtn = document.getElementById('reduce-balance-btn');
@@ -194,38 +196,72 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 }
 
-    async function fetchPendingDeposits() {
-        if (!pendingDepositsTableBody) return;
-        pendingDepositsTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center;">Memuat data...</td></tr>`;
+    async function fetchAdminDeposits() {
+        if (!adminDepositsTbody) return;
+        adminDepositsTbody.innerHTML = `<tr><td colspan="8" style="text-align:center">Memuat data deposit...</td></tr>`;
         try {
-            const response = await fetch(`${ADMIN_API_URL}/deposits/pending`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const statusVal = depositStatusFilter ? depositStatusFilter.value : '';
+            const url = statusVal
+                ? `${ADMIN_API_URL}/deposits?status=${encodeURIComponent(statusVal)}`
+                : `${ADMIN_API_URL}/deposits`;
+            const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
             if (response.status === 403) throw new Error('Akses Ditolak: Anda bukan Admin.');
             if (!response.ok) throw new Error('Gagal mengambil data deposit.');
             const deposits = await response.json();
-            renderDepositsTable(deposits);
+            renderAdminDepositsTable(deposits);
         } catch (error) {
-            pendingDepositsTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red;">Error: ${error.message}</td></tr>`;
+            if (adminDepositsTbody) {
+                adminDepositsTbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--error-color)">Error: ${error.message}</td></tr>`;
+            }
         }
     }
 
-    function renderDepositsTable(deposits) {
-        if (!pendingDepositsTableBody) return;
-        pendingDepositsTableBody.innerHTML = '';
-        if (deposits.length === 0) {
-            pendingDepositsTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Tidak ada permintaan deposit pending.</td></tr>';
+    function renderAdminDepositsTable(deposits) {
+        if (!adminDepositsTbody) return;
+        adminDepositsTbody.innerHTML = '';
+        if (!deposits || deposits.length === 0) {
+            adminDepositsTbody.innerHTML = '<tr><td colspan="8" style="text-align:center">Tidak ada data deposit.</td></tr>';
             return;
         }
+        const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
         deposits.forEach(deposit => {
+            const nominal = Number(deposit.amount) - Number(deposit.unique_code);
+            const statusNorm = (deposit.status || '').toLowerCase();
+            let badgeClass = 'status-pending';
+            let badgeLabel = deposit.status || '-';
+            if (statusNorm === 'approved') { badgeClass = 'status-success'; badgeLabel = 'Approved'; }
+            else if (statusNorm === 'success') { badgeClass = 'status-success'; badgeLabel = 'Approved (Lama)'; }
+            else if (statusNorm === 'rejected') { badgeClass = 'status-failed'; badgeLabel = 'Rejected'; }
+            else if (statusNorm === 'pending') { badgeClass = 'status-pending'; badgeLabel = 'Pending'; }
+
+            let actionsHtml;
+            if (statusNorm === 'pending') {
+                actionsHtml = `
+                    <div class="admin-resolve-actions">
+                        <button class="resolve-btn resolve-btn-success deposit-approve-btn"
+                            data-id="${deposit.id}"
+                            title="Approve deposit ini. Saldo user akan bertambah.">✓ Approve</button>
+                        <button class="resolve-btn resolve-btn-refund deposit-reject-btn"
+                            data-id="${deposit.id}"
+                            title="Reject deposit ini. Saldo user TIDAK bertambah.">✗ Reject</button>
+                    </div>`;
+            } else {
+                actionsHtml = `<span class="status-badge ${badgeClass}" style="font-size:0.8rem;">Final</span>`;
+            }
+
             const row = document.createElement('tr');
-            row.setAttribute('id', `deposit-${deposit.id}`);
+            row.id = `admin-deposit-${deposit.id}`;
             row.innerHTML = `
-                <td>${deposit.id}</td>
-                <td>${deposit.username}</td>
-                <td>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(deposit.amount)}</td>
+                <td><strong>#${deposit.id}</strong></td>
+                <td>${deposit.username || '-'}</td>
+                <td>${fmt(nominal)}</td>
+                <td style="font-family:monospace;">${deposit.unique_code}</td>
+                <td><strong>${fmt(deposit.amount)}</strong></td>
+                <td><span class="status-badge ${badgeClass}">${badgeLabel}</span></td>
                 <td>${new Date(deposit.created_at).toLocaleString('id-ID')}</td>
-                <td><button class="approve-btn" data-id="${deposit.id}">Approve</button></td>
+                <td>${actionsHtml}</td>
             `;
-            pendingDepositsTableBody.appendChild(row);
+            adminDepositsTbody.appendChild(row);
         });
     }
 
@@ -706,14 +742,19 @@ if (promosTableBody) {
                     section.classList.toggle('hidden', section.id !== targetId);
                 });
 
-                 if (targetId === 'promo') {
-                fetchAndDisplayPromos();
-            }
+                if (targetId === 'promo') {
+                    fetchAndDisplayPromos();
+                }
                 if (targetId === 'flash-sale') {
-                    populateFlashSaleGameSelector(allGames); 
+                    populateFlashSaleGameSelector(allGames);
                     fetchAndDisplayFlashSales();
                 }
-                    
+                if (targetId === 'deposit') {
+                    fetchAdminDeposits();
+                }
+                if (targetId === 'transaksi') {
+                    fetchAdminTransactions();
+                }
             });
         });
     }
@@ -942,27 +983,50 @@ if (fsGameSelector) {
     if (addBalanceBtn) addBalanceBtn.addEventListener('click', () => handleManualBalance('add'));
     if (reduceBalanceBtn) reduceBalanceBtn.addEventListener('click', () => handleManualBalance('reduce'));
 
-    if (pendingDepositsTableBody) {
-        pendingDepositsTableBody.addEventListener('click', async function(e) {
-            if (e.target && e.target.classList.contains('approve-btn')) {
-                const depositId = e.target.dataset.id;
-                e.target.disabled = true;
-                e.target.textContent = 'Memproses...';
-                try {
-                    const response = await fetch(`${ADMIN_API_URL}/deposits/approve`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ depositId: depositId })
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.message);
-                    alert(result.message);
-                    document.getElementById(`deposit-${depositId}`).remove();
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                    e.target.disabled = false;
-                    e.target.textContent = 'Approve';
-                }
+    // === DEPOSIT: Filter & Refresh ===
+    if (depositStatusFilter) {
+        depositStatusFilter.addEventListener('change', () => fetchAdminDeposits());
+    }
+    if (refreshDepositsBtn) {
+        refreshDepositsBtn.addEventListener('click', () => fetchAdminDeposits());
+    }
+
+    // === DEPOSIT: Approve & Reject (event delegation) ===
+    if (adminDepositsTbody) {
+        adminDepositsTbody.addEventListener('click', async function(e) {
+            const btn = e.target.closest('.deposit-approve-btn, .deposit-reject-btn');
+            if (!btn) return;
+            const depositId = btn.dataset.id;
+            const isApprove = btn.classList.contains('deposit-approve-btn');
+
+            const confirmMsg = isApprove
+                ? `Yakin approve deposit #${depositId}?\nSaldo user AKAN bertambah sesuai jumlah deposit.`
+                : `Yakin reject deposit #${depositId}?\nSaldo user TIDAK akan bertambah.`;
+            if (!confirm(confirmMsg)) return;
+
+            btn.disabled = true;
+            const origText = btn.textContent;
+            btn.textContent = 'Memproses...';
+
+            const endpoint = isApprove
+                ? `${ADMIN_API_URL}/deposits/approve`
+                : `${ADMIN_API_URL}/deposits/reject`;
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ depositId })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                // Tampilkan pesan sukses singkat lalu reload tabel
+                alert(result.message);
+                await fetchAdminDeposits();
+            } catch (error) {
+                alert(`Gagal: ${error.message}`);
+                btn.disabled = false;
+                btn.textContent = origText;
             }
         });
     }
@@ -1158,7 +1222,7 @@ if (manualPriceForm) {
         await fetchAllValidatableGames();
         await fetchAdminGames();
         await fetchAdminProducts();
-        await fetchPendingDeposits();
+        await fetchAdminDeposits();
         await populateAddProductFormDropdown();
         await fetchAndDisplayMargins();
         await fetchAndDisplayPromos();

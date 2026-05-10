@@ -237,7 +237,7 @@ function forceLogout(message) {
                     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#aaa;">Belum ada riwayat deposit.</td></tr>';
                     return;
                 }
-                const statusClass = { 'Pending': 'status-pending', 'Success': 'status-success', 'Rejected': 'status-failed' };
+                const statusClass = { 'Pending': 'status-pending', 'Success': 'status-success', 'Approved': 'status-success', 'Rejected': 'status-failed' };
                 tbody.innerHTML = deposits.map(d => {
                     const tgl = new Date(d.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
                     const nominal = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(d.amount);
