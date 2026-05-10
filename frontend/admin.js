@@ -198,7 +198,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function fetchAdminDeposits() {
         if (!adminDepositsTbody) return;
-        adminDepositsTbody.innerHTML = `<tr><td colspan="8" style="text-align:center">Memuat data deposit...</td></tr>`;
+        adminDepositsTbody.innerHTML = `<tr><td colspan="10" style="text-align:center">Memuat data deposit...</td></tr>`;
         try {
             const statusVal = depositStatusFilter ? depositStatusFilter.value : '';
             const url = statusVal
@@ -211,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
             renderAdminDepositsTable(deposits);
         } catch (error) {
             if (adminDepositsTbody) {
-                adminDepositsTbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--error-color)">Error: ${error.message}</td></tr>`;
+                adminDepositsTbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--error-color)">Error: ${error.message}</td></tr>`;
             }
         }
     }
@@ -220,10 +220,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!adminDepositsTbody) return;
         adminDepositsTbody.innerHTML = '';
         if (!deposits || deposits.length === 0) {
-            adminDepositsTbody.innerHTML = '<tr><td colspan="8" style="text-align:center">Tidak ada data deposit.</td></tr>';
+            adminDepositsTbody.innerHTML = '<tr><td colspan="10" style="text-align:center">Tidak ada data deposit.</td></tr>';
             return;
         }
         const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+        const methodIcon = { GoPay: '🟢', DANA: '🟡', ShopeePay: '🟠', SeaBank: '🔵' };
         deposits.forEach(deposit => {
             const nominal = Number(deposit.amount) - Number(deposit.unique_code);
             const statusNorm = (deposit.status || '').toLowerCase();
@@ -249,6 +250,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 actionsHtml = `<span class="status-badge ${badgeClass}" style="font-size:0.8rem;">Final</span>`;
             }
 
+            // Method cell
+            const icon = methodIcon[deposit.method] || '';
+            const methodCell = deposit.method
+                ? `<span style="white-space:nowrap;">${icon} ${deposit.method}</span>`
+                : `<span style="color:#6b7280;">-</span>`;
+
+            // Note cell — truncate panjang, full text di title tooltip
+            const noteRaw = deposit.note || '';
+            const noteTruncated = noteRaw.length > 50 ? noteRaw.slice(0, 50) + '…' : noteRaw;
+            const noteCell = noteRaw
+                ? `<span title="${noteRaw.replace(/"/g, '&quot;')}" style="cursor:help;max-width:140px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;">${noteTruncated}</span>`
+                : `<span style="color:#6b7280;">-</span>`;
+
             const row = document.createElement('tr');
             row.id = `admin-deposit-${deposit.id}`;
             row.innerHTML = `
@@ -257,6 +271,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>${fmt(nominal)}</td>
                 <td style="font-family:monospace;">${deposit.unique_code}</td>
                 <td><strong>${fmt(deposit.amount)}</strong></td>
+                <td>${methodCell}</td>
+                <td>${noteCell}</td>
                 <td><span class="status-badge ${badgeClass}">${badgeLabel}</span></td>
                 <td>${new Date(deposit.created_at).toLocaleString('id-ID')}</td>
                 <td>${actionsHtml}</td>

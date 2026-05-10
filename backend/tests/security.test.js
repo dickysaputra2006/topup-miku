@@ -659,7 +659,7 @@ describe('Phase 4A: Deposit Endpoints', () => {
         const res = await fetch(`${baseUrl}/api/deposit/request`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: 50000 })
+            body: JSON.stringify({ amount: 50000, method: 'GoPay' })
         });
 
         assert.strictEqual(res.status, 201, 'Should return 201 Created');
@@ -699,7 +699,7 @@ describe('Phase 4A: Deposit Endpoints', () => {
         const res = await fetch(`${baseUrl}/api/deposit/request`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: 50000 })
+            body: JSON.stringify({ amount: 50000, method: 'GoPay' })
         });
         const body = await res.json();
         const instrText = body.deposit?.paymentInstructions || '';
@@ -1063,6 +1063,272 @@ describe('Phase 4B: Admin Deposit Approval', () => {
         const data = await res.json();
         assert.ok(data.message.includes('sudah diproses'), 'Error message must indicate already processed');
         assert.strictEqual(balanceUpdateCount, 0, 'CRITICAL: balance must NOT be updated for legacy Success deposit');
+
+        pool.query.mock.restore();
+        pool.connect.mock.restore();
+    });
+});
+
+// ============================================================
+// PHASE 4C — Deposit Method & Note Tests
+// ============================================================
+describe('Phase 4C: Deposit Method & Note', () => {
+    let server;
+    let baseUrl;
+    const JWT_SECRET = 'test-secret';
+    const jwt = require('jsonwebtoken');
+
+    function makeUserToken(userId = 55) {
+        return jwt.sign({ id: userId, username: 'testuser', role: 'BRONZE' }, JWT_SECRET, { expiresIn: '1h' });
+    }
+    function makeAdminToken() {
+        return jwt.sign({ id: 1, username: 'admin', role: 'Admin' }, JWT_SECRET, { expiresIn: '1h' });
+    }
+
+    before(() => {
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        try { pool.query.mock.restore(); } catch (_) {}
+        try { pool.connect.mock.restore(); } catch (_) {}
+        await new Promise(resolve => server.close(resolve));
+    });
+
+    // TEST 1: POST tanpa method → ditolak 400
+    test('POST /api/deposit/request — tanpa method ditolak 400', async () => {
+        const token = makeUserToken();
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT u.id, u.username')) return { rows: [{ id: 55, username: 'testuser', role_name: 'BRONZE' }] };
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 50000 })
+        });
+
+        assert.strictEqual(res.status, 400, 'Missing method must return 400');
+        const data = await res.json();
+        assert.ok(data.message.toLowerCase().includes('metode'), 'Error must mention metode');
+        pool.query.mock.restore();
+    });
+
+    // TEST 2: POST method invalid → ditolak 400
+    test('POST /api/deposit/request — method invalid ditolak 400', async () => {
+        const token = makeUserToken();
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT u.id, u.username')) return { rows: [{ id: 55, username: 'testuser', role_name: 'BRONZE' }] };
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 50000, method: 'BCA' })
+        });
+
+        assert.strictEqual(res.status, 400, 'Invalid method must return 400');
+        const data = await res.json();
+        assert.ok(data.message.toLowerCase().includes('tidak valid') || data.message.toLowerCase().includes('metode'), 'Error must mention invalid method');
+        pool.query.mock.restore();
+    });
+
+    // TEST 3: POST note >200 karakter → ditolak 400
+    test('POST /api/deposit/request — note >200 karakter ditolak 400', async () => {
+        const token = makeUserToken();
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT u.id, u.username')) return { rows: [{ id: 55, username: 'testuser', role_name: 'BRONZE' }] };
+            return { rows: [] };
+        });
+
+        const longNote = 'x'.repeat(201);
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 50000, method: 'GoPay', note: longNote })
+        });
+
+        assert.strictEqual(res.status, 400, 'Note >200 chars must return 400');
+        const data = await res.json();
+        assert.ok(data.message.toLowerCase().includes('catatan') || data.message.toLowerCase().includes('panjang'), 'Error must mention note length');
+        pool.query.mock.restore();
+    });
+
+    // TEST 4: POST valid dengan method dan note → tersimpan, status Pending, saldo tidak berubah
+    test('POST /api/deposit/request — valid method+note tersimpan, saldo tidak bertambah', async () => {
+        const token = makeUserToken();
+        let insertedMethod = null;
+        let insertedNote = null;
+        let balanceUpdated = false;
+        let balanceHistoryInserted = false;
+
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT u.id, u.username')) return { rows: [{ id: 55, username: 'testuser', role_name: 'BRONZE' }] };
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK') return {};
+                if (sql === 'COMMIT') return {};
+                if (sql.includes('INSERT INTO deposits')) {
+                    // params: [userId, totalAmount, uniqueCode, 'Pending', method, note]
+                    insertedMethod = params[4];
+                    insertedNote = params[5];
+                    return { rows: [{ id: 77, created_at: new Date() }] };
+                }
+                if (sql.includes('UPDATE users SET balance')) balanceUpdated = true;
+                if (sql.includes('INSERT INTO balance_history')) balanceHistoryInserted = true;
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 75000, method: 'ShopeePay', note: 'Transfer dari Dicky jam 14.00' })
+        });
+
+        assert.strictEqual(res.status, 201, 'Valid request must return 201');
+        const data = await res.json();
+        assert.ok(data.deposit, 'Response must have deposit object');
+        assert.strictEqual(data.deposit.method, 'ShopeePay', 'Response must include method');
+        assert.strictEqual(insertedMethod, 'ShopeePay', 'Method must be saved to DB');
+        assert.strictEqual(insertedNote, 'Transfer dari Dicky jam 14.00', 'Note must be saved to DB');
+        assert.strictEqual(balanceUpdated, false, 'CRITICAL: balance must NOT be updated on deposit request');
+        assert.strictEqual(balanceHistoryInserted, false, 'balance_history must NOT be inserted on deposit request');
+
+        pool.query.mock.restore();
+        pool.connect.mock.restore();
+    });
+
+    // TEST 5: POST valid tanpa note → note NULL di DB, tidak error
+    test('POST /api/deposit/request — tanpa note menyimpan NULL, tidak error', async () => {
+        const token = makeUserToken();
+        let insertedNote = 'SENTINEL'; // nilai awal untuk mendeteksi jika tidak diset
+
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT u.id, u.username')) return { rows: [{ id: 55, username: 'testuser', role_name: 'BRONZE' }] };
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK') return {};
+                if (sql === 'COMMIT') return {};
+                if (sql.includes('INSERT INTO deposits')) {
+                    insertedNote = params[5]; // null expected
+                    return { rows: [{ id: 78, created_at: new Date() }] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 25000, method: 'DANA' })
+        });
+
+        assert.strictEqual(res.status, 201, 'Request without note must return 201');
+        assert.strictEqual(insertedNote, null, 'Note must be NULL when not provided');
+
+        pool.query.mock.restore();
+        pool.connect.mock.restore();
+    });
+
+    // TEST 6: GET /api/user/deposits → mengembalikan method dan note
+    test('GET /api/user/deposits — return method dan note milik user', async () => {
+        const token = makeUserToken(55);
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT u.id, u.username')) return { rows: [{ id: 55, username: 'testuser', role_name: 'BRONZE' }] };
+            if (sql.includes('FROM deposits')) {
+                return { rows: [
+                    { id: 77, amount: 75350, unique_code: 350, status: 'Pending', method: 'ShopeePay', note: 'Transfer jam 14.00', created_at: new Date() },
+                    { id: 78, amount: 25123, unique_code: 123, status: 'Approved', method: 'DANA', note: null, created_at: new Date() }
+                ]};
+            }
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/user/deposits`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        assert.strictEqual(res.status, 200);
+        const deposits = await res.json();
+        assert.ok(Array.isArray(deposits), 'Must return array');
+        assert.strictEqual(deposits[0].method, 'ShopeePay', 'method must be returned');
+        assert.strictEqual(deposits[0].note, 'Transfer jam 14.00', 'note must be returned');
+        assert.strictEqual(deposits[1].method, 'DANA');
+        assert.strictEqual(deposits[1].note, null, 'null note must be returned as null');
+
+        pool.query.mock.restore();
+    });
+
+    // TEST 7: GET /api/admin/deposits → mengembalikan method dan note
+    test('GET /api/admin/deposits — admin dapat melihat method dan note', async () => {
+        const token = makeAdminToken();
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            if (sql.includes('FROM deposits d')) {
+                return { rows: [
+                    { id: 77, user_id: 55, username: 'testuser', email: 't@t.com', nomor_wa: '+628x', amount: 75350, unique_code: 350, status: 'Pending', method: 'ShopeePay', note: 'Transfer jam 14.00', created_at: new Date(), updated_at: new Date() }
+                ]};
+            }
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/admin/deposits`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        assert.strictEqual(res.status, 200);
+        const deposits = await res.json();
+        assert.ok(Array.isArray(deposits));
+        assert.strictEqual(deposits[0].method, 'ShopeePay', 'admin must see method');
+        assert.strictEqual(deposits[0].note, 'Transfer jam 14.00', 'admin must see note');
+        assert.ok(!('password_hash' in deposits[0]), 'password_hash must not be exposed');
+
+        pool.query.mock.restore();
+    });
+
+    // TEST 8: approve/reject existing tidak terpengaruh oleh kolom baru
+    test('POST /api/admin/deposits/approve — masih berjalan dengan kolom method/note baru', async () => {
+        const token = makeAdminToken();
+        let balanceUpdated = false;
+
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK') return {};
+                if (sql === 'COMMIT') return {};
+                if (sql.includes('FROM deposits WHERE id = $1 FOR UPDATE')) {
+                    return { rows: [{ id: 77, user_id: 55, amount: 75350, unique_code: 350, status: 'Pending', method: 'ShopeePay', note: 'Test' }] };
+                }
+                if (sql.includes('UPDATE users SET balance = balance + $1')) balanceUpdated = true;
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(`${baseUrl}/api/admin/deposits/approve`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ depositId: 77 })
+        });
+
+        assert.strictEqual(res.status, 200, 'Approve must still work with method/note columns');
+        assert.ok(balanceUpdated, 'Balance must still be updated on approve');
 
         pool.query.mock.restore();
         pool.connect.mock.restore();
