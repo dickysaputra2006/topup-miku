@@ -1831,5 +1831,65 @@ table th {
     .stat-item {
         min-width: 60px;
     }
+    }
 }
 
+/* ============================================================
+   PHASE 4C-UI — Deposit Method Card: Label, Nomor, Copy Button
+   Class unik, tidak mengganggu halaman lain.
+   ============================================================ */
+
+/* Label kecil di atas nama metode (E-Wallet / Bank Transfer • A/N) */
+.deposit-method-type-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 0.3rem;
+    letter-spacing: 0.01em;
+}
+
+/* Override .deposit-method-number dari Phase 4A agar tampil sebagai nomor tegas */
+.deposit-method-number {
+    margin: 0.4rem 0 0.7rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    word-break: break-word;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+/* Tombol Copy Nomor */
+.copy-deposit-number-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: none;
+    border-radius: 8px;
+    padding: 0.5rem 0.85rem;
+    background: var(--primary-color);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: opacity 0.15s, background 0.15s;
+    width: fit-content;
+    min-height: 36px;
+}
+
+.copy-deposit-number-btn:hover {
+    opacity: 0.88;
+}
+
+.copy-deposit-number-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Mobile: tombol full width agar mudah ditekan */
+@media (max-width: 640px) {
+    .copy-deposit-number-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // --- KODE UNTUK MENU HAMBURGER DI DASHBOARD ---
     const sidebar = document.querySelector('.sidebar');
     document.querySelectorAll('#menu-toggle-btn, .menu-toggle-btn').forEach(btn => {
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeEditModalBtn = document.getElementById('close-edit-modal-btn');
     const editProfileForm = document.getElementById('edit-profile-form');
     const changePasswordForm = document.getElementById('change-password-form');
-    
+
     const tabLinks = document.querySelectorAll('.tab-link');
     const tabContents = document.querySelectorAll('.tab-content');
 
@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const hasilCekPesanan = document.getElementById('hasil-cek-pesanan');
     const whitelistIpForm = document.getElementById('whitelist-ip-form');
     const currentIpsList = document.getElementById('current-ips-list');
-    
+
     let apiKeyFetched = false;
     let mutasiLoaded = false;
     let transaksiLoaded = false;
@@ -52,118 +52,118 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-// Fungsi untuk menampilkan notifikasi melayang
-function showToast(message) {
-    const toast = document.getElementById('toast-notification');
-    if (!toast) return;
+    // Fungsi untuk menampilkan notifikasi melayang
+    function showToast(message) {
+        const toast = document.getElementById('toast-notification');
+        if (!toast) return;
 
-    toast.textContent = message;
-    toast.classList.remove('hidden');
-    toast.classList.add('show');
+        toast.textContent = message;
+        toast.classList.remove('hidden');
+        toast.classList.add('show');
 
-    // Sembunyikan notifikasi setelah 5 detik
-    setTimeout(() => {
-        toast.classList.remove('show');
-        // Tambahkan sedikit jeda sebelum menyembunyikan total agar transisi selesai
-        setTimeout(() => toast.classList.add('hidden'), 300);
-    }, 5000);
-}
+        // Sembunyikan notifikasi setelah 5 detik
+        setTimeout(() => {
+            toast.classList.remove('show');
+            // Tambahkan sedikit jeda sebelum menyembunyikan total agar transisi selesai
+            setTimeout(() => toast.classList.add('hidden'), 300);
+        }, 5000);
+    }
 
-function tableState(colspan, message, type = 'loading') {
-    const rowClass = type === 'error' ? 'table-error-row' : type === 'empty' ? 'table-empty-row' : 'table-loading-row';
-    return `<tr class="${rowClass}"><td colspan="${colspan}"><div class="ui-state ${type}">${message}</div></td></tr>`;
-}
+    function tableState(colspan, message, type = 'loading') {
+        const rowClass = type === 'error' ? 'table-error-row' : type === 'empty' ? 'table-empty-row' : 'table-loading-row';
+        return `<tr class="${rowClass}"><td colspan="${colspan}"><div class="ui-state ${type}">${message}</div></td></tr>`;
+    }
 
-function statusClass(status) {
-    return `status-${String(status || 'pending').toLowerCase().replace(/\s+/g, '-')}`;
-}
+    function statusClass(status) {
+        return `status-${String(status || 'pending').toLowerCase().replace(/\s+/g, '-')}`;
+    }
 
-function statusLabel(status) {
-    const normalized = String(status || 'Pending').toLowerCase();
-    if (normalized === 'success') return 'Berhasil';
-    if (normalized === 'failed') return 'Gagal';
-    if (normalized === 'refunded') return 'Refund';
-    if (normalized === 'partial refund') return 'Perlu Review';
-    return 'Pending';
-}
+    function statusLabel(status) {
+        const normalized = String(status || 'Pending').toLowerCase();
+        if (normalized === 'success') return 'Berhasil';
+        if (normalized === 'failed') return 'Gagal';
+        if (normalized === 'refunded') return 'Refund';
+        if (normalized === 'partial refund') return 'Perlu Review';
+        return 'Pending';
+    }
 
-// Fungsi untuk melakukan logout
-function forceLogout(message) {
-    localStorage.removeItem('authToken'); // Hapus token yang tidak valid
-    // Simpan pesan di sessionStorage untuk ditampilkan di halaman utama
-    sessionStorage.setItem('logoutMessage', message);
-    window.location.href = 'index.html'; // Arahkan ke halaman utama
-}
+    // Fungsi untuk melakukan logout
+    function forceLogout(message) {
+        localStorage.removeItem('authToken'); // Hapus token yang tidak valid
+        // Simpan pesan di sessionStorage untuk ditampilkan di halaman utama
+        sessionStorage.setItem('logoutMessage', message);
+        window.location.href = 'index.html'; // Arahkan ke halaman utama
+    }
 
     async function fetchProfileData() {
-    try {
-        const response = await fetch(`${API_URL}/profile`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        try {
+            const response = await fetch(`${API_URL}/profile`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
 
-        // --- INI BAGIAN PENTINGNYA ---
-        if (response.status === 401) {
-            // Jika token tidak valid/kadaluarsa (unauthorized)
-            forceLogout('Sesi Anda telah berakhir, silakan login kembali.');
-            return; // Hentikan eksekusi
+            // --- INI BAGIAN PENTINGNYA ---
+            if (response.status === 401) {
+                // Jika token tidak valid/kadaluarsa (unauthorized)
+                forceLogout('Sesi Anda telah berakhir, silakan login kembali.');
+                return; // Hentikan eksekusi
+            }
+
+            if (!response.ok) throw new Error('Gagal memuat data profil.');
+
+            const data = await response.json();
+            updateDashboardUI(data);
+        } catch (error) {
+            // Jika error bukan karena token, tampilkan di console
+            console.error('Error fetching profile data:', error);
         }
-
-        if (!response.ok) throw new Error('Gagal memuat data profil.');
-
-        const data = await response.json();
-        updateDashboardUI(data);
-    } catch (error) {
-        // Jika error bukan karena token, tampilkan di console
-        console.error('Error fetching profile data:', error);
     }
-}
 
     async function fetchTransactionSummary() {
-    try {
-        const response = await fetch(`${API_URL}/transaction-summary`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) return; // Jangan lakukan apa-apa jika gagal
-        const summary = await response.json();
+        try {
+            const response = await fetch(`${API_URL}/transaction-summary`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) return; // Jangan lakukan apa-apa jika gagal
+            const summary = await response.json();
 
-        document.getElementById('count-berhasil').textContent = summary.berhasil;
-        document.getElementById('count-pending').textContent = summary.pending;
-        document.getElementById('count-gagal').textContent = summary.gagal;
-        const reviewEl = document.getElementById('count-review');
-        if (reviewEl) reviewEl.textContent = summary.review || 0;
-    } catch (error) {
-        console.error('Gagal memuat ringkasan transaksi:', error);
-    }
-}
-
-        // Fungsi dari transaksi.js
-        async function fetchTransactions() {
-            const tableBody = document.querySelector("#transactions-table tbody");
-            if (!tableBody) return;
-            tableBody.innerHTML = tableState(6, 'Memuat riwayat transaksi...', 'loading');
-            try {
-                const response = await fetch(`${API_URL}/transactions`, { headers: { 'Authorization': `Bearer ${token}` } });
-                if (!response.ok) throw new Error('Gagal mengambil data transaksi.');
-                const transactions = await response.json();
-                renderTransactionsTable(transactions, tableBody);
-                transaksiLoaded = true;
-            } catch (error) {
-                tableBody.innerHTML = tableState(6, error.message, 'error');
-            }
+            document.getElementById('count-berhasil').textContent = summary.berhasil;
+            document.getElementById('count-pending').textContent = summary.pending;
+            document.getElementById('count-gagal').textContent = summary.gagal;
+            const reviewEl = document.getElementById('count-review');
+            if (reviewEl) reviewEl.textContent = summary.review || 0;
+        } catch (error) {
+            console.error('Gagal memuat ringkasan transaksi:', error);
         }
+    }
 
-        // Fungsi dari transaksi.js
-        function renderTransactionsTable(transactions, tableBody) {
-            if (!tableBody) return;
-            tableBody.innerHTML = '';
-            if (transactions.length === 0) {
-                tableBody.innerHTML = tableState(6, 'Belum ada transaksi. Pesanan baru akan muncul di sini.', 'empty');
-                return;
-            }
-            transactions.forEach(tx => {
-                const row = document.createElement('tr');
-                const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.price);
-                row.innerHTML = `
+    // Fungsi dari transaksi.js
+    async function fetchTransactions() {
+        const tableBody = document.querySelector("#transactions-table tbody");
+        if (!tableBody) return;
+        tableBody.innerHTML = tableState(6, 'Memuat riwayat transaksi...', 'loading');
+        try {
+            const response = await fetch(`${API_URL}/transactions`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) throw new Error('Gagal mengambil data transaksi.');
+            const transactions = await response.json();
+            renderTransactionsTable(transactions, tableBody);
+            transaksiLoaded = true;
+        } catch (error) {
+            tableBody.innerHTML = tableState(6, error.message, 'error');
+        }
+    }
+
+    // Fungsi dari transaksi.js
+    function renderTransactionsTable(transactions, tableBody) {
+        if (!tableBody) return;
+        tableBody.innerHTML = '';
+        if (transactions.length === 0) {
+            tableBody.innerHTML = tableState(6, 'Belum ada transaksi. Pesanan baru akan muncul di sini.', 'empty');
+            return;
+        }
+        transactions.forEach(tx => {
+            const row = document.createElement('tr');
+            const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.price);
+            row.innerHTML = `
                     <td><a href="invoice.html?id=${tx.invoice_id}" class="history-link">${tx.invoice_id}</a></td>
                     <td>${new Date(tx.created_at).toLocaleString('id-ID')}</td>
                     <td>${tx.product_name}</td>
@@ -171,120 +171,120 @@ function forceLogout(message) {
                     <td>${formattedPrice}</td>
                     <td><span class="status-badge ${statusClass(tx.status)}">${statusLabel(tx.status)}</span></td>
                 `;
-                tableBody.appendChild(row);
+            tableBody.appendChild(row);
+        });
+    }
+
+    // Fungsi deposit tab
+    function setupDepositForm() {
+        const depositForm = document.getElementById('deposit-form');
+        const paymentInstructionsSection = document.getElementById('payment-instructions');
+        const instructionText = document.getElementById('instruction-text');
+        if (!depositForm) return;
+
+        // Load riwayat deposit saat tab dibuka
+        loadDepositHistory();
+
+        // Tampilkan info metode saat select berubah
+        const methodSelect = document.getElementById('deposit-method');
+        const methodInfo = document.getElementById('deposit-method-info');
+        const METHOD_HINTS = {
+            GoPay:     '🟢 GoPay • A/N Dicky Saputra. Silakan salin nomor pada kartu instruksi di atas.',
+            DANA:      '🟡 DANA • A/N Dicky Saputra. Silakan salin nomor pada kartu instruksi di atas.',
+            ShopeePay: '🟠 ShopeePay • A/N Dicky Saputra. Silakan salin nomor pada kartu instruksi di atas.',
+            SeaBank:   '🔵 SeaBank • A/N Dicky Saputra. Silakan salin nomor rekening pada kartu instruksi di atas.',
+        };
+        if (methodSelect && methodInfo) {
+            methodSelect.addEventListener('change', () => {
+                const hint = METHOD_HINTS[methodSelect.value];
+                if (hint) {
+                    methodInfo.textContent = hint;
+                    methodInfo.style.display = 'block';
+                } else {
+                    methodInfo.style.display = 'none';
+                }
             });
         }
 
-        // Fungsi deposit tab
-        function setupDepositForm() {
-            const depositForm = document.getElementById('deposit-form');
-            const paymentInstructionsSection = document.getElementById('payment-instructions');
-            const instructionText = document.getElementById('instruction-text');
-            if (!depositForm) return;
+        depositForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const amount = this.querySelector('input[name="amount"]').value;
+            const methodEl = this.querySelector('select[name="method"]');
+            const noteEl = this.querySelector('textarea[name="note"]');
+            const method = methodEl ? methodEl.value : '';
+            const note = noteEl ? noteEl.value.trim() : '';
+            const submitButton = this.querySelector('button[type="submit"]');
 
-            // Load riwayat deposit saat tab dibuka
-            loadDepositHistory();
-
-            // Tampilkan info metode saat select berubah
-            const methodSelect = document.getElementById('deposit-method');
-            const methodInfo = document.getElementById('deposit-method-info');
-            const METHOD_HINTS = {
-                GoPay:     '🟢 GoPay: Nomor tujuan akan diinformasikan oleh admin MIKU Store.',
-                DANA:      '🟡 DANA: Nomor tujuan akan diinformasikan oleh admin MIKU Store.',
-                ShopeePay: '🟠 ShopeePay: Nomor tujuan akan diinformasikan oleh admin MIKU Store.',
-                SeaBank:   '🔵 SeaBank: Nomor rekening akan diinformasikan oleh admin MIKU Store.',
-            };
-            if (methodSelect && methodInfo) {
-                methodSelect.addEventListener('change', () => {
-                    const hint = METHOD_HINTS[methodSelect.value];
-                    if (hint) {
-                        methodInfo.textContent = hint;
-                        methodInfo.style.display = 'block';
-                    } else {
-                        methodInfo.style.display = 'none';
-                    }
-                });
+            // Validasi frontend ringan
+            if (!method) {
+                alert('Silakan pilih metode pembayaran terlebih dahulu.');
+                return;
+            }
+            if (note.length > 200) {
+                alert('Catatan terlalu panjang (maks 200 karakter).');
+                return;
             }
 
-            depositForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                const amount = this.querySelector('input[name="amount"]').value;
-                const methodEl = this.querySelector('select[name="method"]');
-                const noteEl = this.querySelector('textarea[name="note"]');
-                const method = methodEl ? methodEl.value : '';
-                const note = noteEl ? noteEl.value.trim() : '';
-                const submitButton = this.querySelector('button[type="submit"]');
-
-                // Validasi frontend ringan
-                if (!method) {
-                    alert('Silakan pilih metode pembayaran terlebih dahulu.');
-                    return;
-                }
-                if (note.length > 200) {
-                    alert('Catatan terlalu panjang (maks 200 karakter).');
-                    return;
-                }
-
-                paymentInstructionsSection.classList.remove('hidden');
-                instructionText.innerHTML = '<div class="ui-state loading">Memproses permintaan deposit...</div>';
-                if (submitButton) {
-                    submitButton.disabled = true;
-                    submitButton.textContent = 'Memproses...';
-                }
-                try {
-                    const body = { amount: parseInt(amount), method };
-                    if (note) body.note = note;
-                    const response = await fetch('/api/deposit/request', {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.message);
-                    instructionText.innerHTML = `<div class="ui-state success">
+            paymentInstructionsSection.classList.remove('hidden');
+            instructionText.innerHTML = '<div class="ui-state loading">Memproses permintaan deposit...</div>';
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = 'Memproses...';
+            }
+            try {
+                const body = { amount: parseInt(amount), method };
+                if (note) body.note = note;
+                const response = await fetch('/api/deposit/request', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message);
+                instructionText.innerHTML = `<div class="ui-state success">
                         <p><strong>Request #${result.deposit.id} berhasil dibuat!</strong></p>
                         <p style="margin-top:0.5rem;">${result.deposit.paymentInstructions}</p>
                         <p style="margin-top:0.5rem; color:#ffc107;"><i class="fas fa-clock"></i> Saldo akan masuk setelah admin memverifikasi pembayaran Anda.</p>
                     </div>`;
-                    depositForm.reset();
-                    if (methodInfo) methodInfo.style.display = 'none';
-                    setTimeout(loadDepositHistory, 500);
-                } catch (error) {
-                    instructionText.innerHTML = `<div class="ui-state error"><strong>Error:</strong> ${error.message}</div>`;
-                } finally {
-                    if (submitButton) {
-                        submitButton.disabled = false;
-                        submitButton.textContent = 'Ajukan Deposit';
-                    }
+                depositForm.reset();
+                if (methodInfo) methodInfo.style.display = 'none';
+                setTimeout(loadDepositHistory, 500);
+            } catch (error) {
+                instructionText.innerHTML = `<div class="ui-state error"><strong>Error:</strong> ${error.message}</div>`;
+            } finally {
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = 'Ajukan Deposit';
                 }
-            });
-            depositFormSetup = true;
-        }
+            }
+        });
+        depositFormSetup = true;
+    }
 
-        // Fetch dan render riwayat deposit user
-        async function loadDepositHistory() {
-            const tbody = document.getElementById('deposit-history-body');
-            if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Memuat...</td></tr>';
-            try {
-                const response = await fetch('/api/user/deposits', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (!response.ok) throw new Error('Gagal memuat riwayat');
-                const deposits = await response.json();
-                if (deposits.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#aaa;">Belum ada riwayat deposit.</td></tr>';
-                    return;
-                }
-                const statusClassMap = { 'Pending': 'status-pending', 'Success': 'status-success', 'Approved': 'status-success', 'Rejected': 'status-failed' };
-                const methodIcon = { GoPay: '🟢', DANA: '🟡', ShopeePay: '🟠', SeaBank: '🔵' };
-                tbody.innerHTML = deposits.map(d => {
-                    const tgl = new Date(d.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
-                    const nominal = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(d.amount);
-                    const cls = statusClassMap[d.status] || 'status-pending';
-                    const icon = methodIcon[d.method] || '';
-                    const methodCell = d.method ? `${icon} ${d.method}` : '<span style="color:#6b7280;">-</span>';
-                    return `<tr>
+    // Fetch dan render riwayat deposit user
+    async function loadDepositHistory() {
+        const tbody = document.getElementById('deposit-history-body');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Memuat...</td></tr>';
+        try {
+            const response = await fetch('/api/user/deposits', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) throw new Error('Gagal memuat riwayat');
+            const deposits = await response.json();
+            if (deposits.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#aaa;">Belum ada riwayat deposit.</td></tr>';
+                return;
+            }
+            const statusClassMap = { 'Pending': 'status-pending', 'Success': 'status-success', 'Approved': 'status-success', 'Rejected': 'status-failed' };
+            const methodIcon = { GoPay: '🟢', DANA: '🟡', ShopeePay: '🟠', SeaBank: '🔵' };
+            tbody.innerHTML = deposits.map(d => {
+                const tgl = new Date(d.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
+                const nominal = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(d.amount);
+                const cls = statusClassMap[d.status] || 'status-pending';
+                const icon = methodIcon[d.method] || '';
+                const methodCell = d.method ? `${icon} ${d.method}` : '<span style="color:#6b7280;">-</span>';
+                return `<tr>
                         <td>${d.id}</td>
                         <td>${tgl}</td>
                         <td>${nominal}</td>
@@ -292,11 +292,11 @@ function forceLogout(message) {
                         <td style="white-space:nowrap;">${methodCell}</td>
                         <td><span class="badge ${cls}">${d.status}</span></td>
                     </tr>`;
-                }).join('');
-            } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#f87171;">Gagal memuat riwayat deposit.</td></tr>`;
-            }
+            }).join('');
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#f87171;">Gagal memuat riwayat deposit.</td></tr>`;
         }
+    }
 
     function updateDashboardUI(data) {
         document.getElementById('profile-fullname').textContent = data.full_name;
@@ -305,7 +305,7 @@ function forceLogout(message) {
         document.getElementById('profile-nomorwa').textContent = data.nomor_wa;
         document.getElementById('profile-role').textContent = data.role;
         document.getElementById('profile-balance').textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(data.balance);
-        
+
         if (editProfileForm) {
             editProfileForm.querySelector('[name="fullName"]').value = data.full_name;
             editProfileForm.querySelector('[name="email"]').value = data.email;
@@ -314,77 +314,77 @@ function forceLogout(message) {
     }
 
     async function fetchApiKey() {
-    if (!apiKeyDisplay) return;
-    
-    // Deklarasi elemen baru
-    const toggleBtn = document.getElementById('toggle-apikey-btn');
-    const copyBtn = document.getElementById('copy-apikey-btn');
-    let fullApiKey = '';
-    let isKeyVisible = false;
+        if (!apiKeyDisplay) return;
 
-    apiKeyDisplay.textContent = 'Memuat...';
+        // Deklarasi elemen baru
+        const toggleBtn = document.getElementById('toggle-apikey-btn');
+        const copyBtn = document.getElementById('copy-apikey-btn');
+        let fullApiKey = '';
+        let isKeyVisible = false;
 
-    // Fungsi untuk update tampilan key (bintang-bintang atau teks asli)
-    function updateKeyVisibility() {
-        if (isKeyVisible) {
-            apiKeyDisplay.textContent = fullApiKey;
-            toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
-        } else {
-            apiKeyDisplay.textContent = 'â€¢'.repeat(fullApiKey.length > 0 ? 32 : 0);
-            toggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
+        apiKeyDisplay.textContent = 'Memuat...';
+
+        // Fungsi untuk update tampilan key (bintang-bintang atau teks asli)
+        function updateKeyVisibility() {
+            if (isKeyVisible) {
+                apiKeyDisplay.textContent = fullApiKey;
+                toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+            } else {
+                apiKeyDisplay.textContent = 'â€¢'.repeat(fullApiKey.length > 0 ? 32 : 0);
+                toggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
+            }
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/apikey`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) throw new Error('Gagal mengambil API Key.');
+            const data = await response.json();
+
+            fullApiKey = data.apiKey || 'Belum ada. Klik tombol untuk membuat.';
+            apiKeyFetched = true;
+            updateKeyVisibility(); // Tampilkan key dalam bentuk tersembunyi
+
+        } catch (error) {
+            console.error(error);
+            apiKeyDisplay.textContent = 'Gagal memuat API Key.';
+        }
+
+        // Event listener untuk tombol hide/view
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                isKeyVisible = !isKeyVisible;
+                updateKeyVisibility();
+            });
+        }
+
+        // Event listener untuk tombol copy
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                if (fullApiKey && !fullApiKey.startsWith('Belum ada')) {
+                    navigator.clipboard.writeText(fullApiKey).then(() => {
+                        copyBtn.innerHTML = '<i class="fas fa-check"></i>';
+                        setTimeout(() => {
+                            copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                        }, 2000);
+                    });
+                }
+            });
         }
     }
 
-    try {
-        const response = await fetch(`${API_URL}/apikey`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!response.ok) throw new Error('Gagal mengambil API Key.');
-        const data = await response.json();
-        
-        fullApiKey = data.apiKey || 'Belum ada. Klik tombol untuk membuat.';
-        apiKeyFetched = true;
-        updateKeyVisibility(); // Tampilkan key dalam bentuk tersembunyi
-
-    } catch (error) {
-        console.error(error);
-        apiKeyDisplay.textContent = 'Gagal memuat API Key.';
-    }
-
-    // Event listener untuk tombol hide/view
-    if (toggleBtn) {
-        toggleBtn.addEventListener('click', () => {
-            isKeyVisible = !isKeyVisible;
-            updateKeyVisibility();
-        });
-    }
-
-    // Event listener untuk tombol copy
-    if (copyBtn) {
-        copyBtn.addEventListener('click', () => {
-            if (fullApiKey && !fullApiKey.startsWith('Belum ada')) {
-                navigator.clipboard.writeText(fullApiKey).then(() => {
-                    copyBtn.innerHTML = '<i class="fas fa-check"></i>';
-                    setTimeout(() => {
-                        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
-                    }, 2000);
-                });
-            }
-        });
-    }
-    }
-
     async function fetchBalanceHistory() {
-    const tableBody = document.querySelector("#mutasi-table tbody");
-    if (!tableBody) return;
-    tableBody.innerHTML = tableState(4, 'Memuat riwayat mutasi saldo...', 'loading');
-    try {
-        const response = await fetch(`${API_URL}/balance-history`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!response.ok) throw new Error('Gagal mengambil data mutasi.');
-        const history = await response.json();
-        renderMutasiTable(history, tableBody);
-        mutasiLoaded = true;
-    } catch (error) {
-        tableBody.innerHTML = tableState(4, error.message, 'error');
-    }
+        const tableBody = document.querySelector("#mutasi-table tbody");
+        if (!tableBody) return;
+        tableBody.innerHTML = tableState(4, 'Memuat riwayat mutasi saldo...', 'loading');
+        try {
+            const response = await fetch(`${API_URL}/balance-history`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) throw new Error('Gagal mengambil data mutasi.');
+            const history = await response.json();
+            renderMutasiTable(history, tableBody);
+            mutasiLoaded = true;
+        } catch (error) {
+            tableBody.innerHTML = tableState(4, error.message, 'error');
+        }
     }
 
     function renderMutasiTable(history, tableBody) {
@@ -409,35 +409,35 @@ function forceLogout(message) {
     }
 
     async function fetchAndDisplayWhitelistedIPs() {
-    const ipListContainer = document.getElementById('current-ips-list');
-    const ipInput = document.getElementById('whitelist-ip-input');
-    if (!ipListContainer || !ipInput) return;
+        const ipListContainer = document.getElementById('current-ips-list');
+        const ipInput = document.getElementById('whitelist-ip-input');
+        if (!ipListContainer || !ipInput) return;
 
-    try {
-        const response = await fetch(`${API_URL}/whitelisted-ips`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (!response.ok) throw new Error('Gagal memuat IP.');
-        const ips = await response.json();
+        try {
+            const response = await fetch(`${API_URL}/whitelisted-ips`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!response.ok) throw new Error('Gagal memuat IP.');
+            const ips = await response.json();
 
-        // ipInput.value = ips.join(', ');
-        ipListContainer.innerHTML = '';
-        if (ips.length > 0) {
-            ips.forEach(ip => {
-                const ipTag = document.createElement('div');
-                ipTag.className = 'ip-tag';
-                ipTag.innerHTML = `
+            // ipInput.value = ips.join(', ');
+            ipListContainer.innerHTML = '';
+            if (ips.length > 0) {
+                ips.forEach(ip => {
+                    const ipTag = document.createElement('div');
+                    ipTag.className = 'ip-tag';
+                    ipTag.innerHTML = `
                     <span>${ip}</span>
                     <button class="ip-tag-delete" data-ip="${ip}" title="Hapus IP">&times;</button>
                 `;
-                ipListContainer.appendChild(ipTag);
-            });
-        } else {
-            ipListContainer.innerHTML = '<p style="color: #aaa;">Belum ada IP yang didaftarkan.</p>';
+                    ipListContainer.appendChild(ipTag);
+                });
+            } else {
+                ipListContainer.innerHTML = '<p style="color: #aaa;">Belum ada IP yang didaftarkan.</p>';
+            }
+        } catch (error) {
+            console.error(error);
+            ipListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
         }
-    } catch (error) {
-        console.error(error);
-        ipListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
     }
-}
 
 
 
@@ -458,14 +458,14 @@ function forceLogout(message) {
 
                 dashboardSections.forEach(section => {
                     if (section) {
-                       section.classList.toggle('hidden', section.id !== targetId);
+                        section.classList.toggle('hidden', section.id !== targetId);
                     }
                 });
 
                 if (targetId === 'integrasi' && !apiKeyFetched) {
                     fetchApiKey();
                     fetchAndDisplayWhitelistedIPs();
-                }  
+                }
 
                 if (targetId === 'mutasi-saldo' && !mutasiLoaded) {
                     fetchBalanceHistory();
@@ -578,73 +578,73 @@ function forceLogout(message) {
             }
         });
     }
-    
+
     if (whitelistIpForm) {
-    whitelistIpForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const input = document.getElementById('whitelist-ip-input');
-        
-        // Ambil daftar IP yang sudah ada dari tampilan tag
-        const existingIpTags = document.querySelectorAll('#current-ips-list .ip-tag span');
-        const existingIps = Array.from(existingIpTags).map(tag => tag.textContent);
+        whitelistIpForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const input = document.getElementById('whitelist-ip-input');
 
-        // Ambil IP baru dari input, bersihkan, dan gabungkan dengan yang lama (hindari duplikat)
-        const newIpsFromInput = input.value.split(',').map(ip => ip.trim()).filter(ip => ip);
-        const combinedIps = [...new Set([...existingIps, ...newIpsFromInput])];
+            // Ambil daftar IP yang sudah ada dari tampilan tag
+            const existingIpTags = document.querySelectorAll('#current-ips-list .ip-tag span');
+            const existingIps = Array.from(existingIpTags).map(tag => tag.textContent);
 
-        try {
-            const response = await fetch(`${API_URL}/whitelisted-ips`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ips: combinedIps })
-            });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.message);
-            
-            alert(result.message);
-            fetchAndDisplayWhitelistedIPs(); // Muat ulang daftar IP
-            input.value = '';
-        } catch (error) {
-            alert(`Error: ${error.message}`);
-        }
-    });
-}
-
-    if (currentIpsList) {
-    currentIpsList.addEventListener('click', async (e) => {
-        // Pastikan yang diklik adalah tombol hapus
-        if (e.target.matches('.ip-tag-delete, .ip-tag-delete *')) {
-            const button = e.target.closest('.ip-tag-delete');
-            const ipToDelete = button.dataset.ip;
-            
-            if (!confirm(`Anda yakin ingin menghapus IP "${ipToDelete}" dari whitelist?`)) {
-                return;
-            }
-
-            // Ambil semua IP yang ada SAAT INI dari tampilan tag
-            const currentIpTags = document.querySelectorAll('#current-ips-list .ip-tag span');
-            const currentIps = Array.from(currentIpTags).map(tag => tag.textContent);
-            
-            // Buat array baru TANPA IP yang ingin dihapus
-            const newIps = currentIps.filter(ip => ip !== ipToDelete);
+            // Ambil IP baru dari input, bersihkan, dan gabungkan dengan yang lama (hindari duplikat)
+            const newIpsFromInput = input.value.split(',').map(ip => ip.trim()).filter(ip => ip);
+            const combinedIps = [...new Set([...existingIps, ...newIpsFromInput])];
 
             try {
                 const response = await fetch(`${API_URL}/whitelisted-ips`, {
                     method: 'PUT',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ips: newIps }) // Kirim array yang sudah diperbarui
+                    body: JSON.stringify({ ips: combinedIps })
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
 
                 alert(result.message);
                 fetchAndDisplayWhitelistedIPs(); // Muat ulang daftar IP
+                input.value = '';
             } catch (error) {
                 alert(`Error: ${error.message}`);
             }
-        }
-    });
-}
+        });
+    }
+
+    if (currentIpsList) {
+        currentIpsList.addEventListener('click', async (e) => {
+            // Pastikan yang diklik adalah tombol hapus
+            if (e.target.matches('.ip-tag-delete, .ip-tag-delete *')) {
+                const button = e.target.closest('.ip-tag-delete');
+                const ipToDelete = button.dataset.ip;
+
+                if (!confirm(`Anda yakin ingin menghapus IP "${ipToDelete}" dari whitelist?`)) {
+                    return;
+                }
+
+                // Ambil semua IP yang ada SAAT INI dari tampilan tag
+                const currentIpTags = document.querySelectorAll('#current-ips-list .ip-tag span');
+                const currentIps = Array.from(currentIpTags).map(tag => tag.textContent);
+
+                // Buat array baru TANPA IP yang ingin dihapus
+                const newIps = currentIps.filter(ip => ip !== ipToDelete);
+
+                try {
+                    const response = await fetch(`${API_URL}/whitelisted-ips`, {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ips: newIps }) // Kirim array yang sudah diperbarui
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+
+                    alert(result.message);
+                    fetchAndDisplayWhitelistedIPs(); // Muat ulang daftar IP
+                } catch (error) {
+                    alert(`Error: ${error.message}`);
+                }
+            }
+        });
+    }
 
     if (cekPesananForm) {
         cekPesananForm.addEventListener('submit', async (e) => {
@@ -690,7 +690,7 @@ function forceLogout(message) {
         const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(tx.price);
         const formattedDate = new Date(tx.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' });
 
-       hasilCekPesanan.innerHTML = `
+        hasilCekPesanan.innerHTML = `
         <h4>Detail Transaksi</h4>
             <div class="table-container">
                 <table style="white-space: nowrap;">
@@ -720,5 +720,43 @@ function forceLogout(message) {
             this.classList.toggle('fa-eye', !isPassword);
             this.classList.toggle('fa-eye-slash', isPassword);
         });
+    });
+
+    // Copy nomor deposit — event delegation untuk .copy-deposit-number-btn
+    document.addEventListener('click', async function (event) {
+        const button = event.target.closest('.copy-deposit-number-btn');
+        if (!button) return;
+
+        const number = button.dataset.number || '';
+        if (!number || number.startsWith('ISI_NOMOR_')) {
+            alert('Nomor pembayaran belum diisi admin.');
+            return;
+        }
+
+        const originalHTML = button.innerHTML;
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(number);
+            } else {
+                // Fallback untuk HTTP / browser lama
+                const textarea = document.createElement('textarea');
+                textarea.value = number;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+            }
+            button.innerHTML = '<i class="fas fa-check"></i> Tersalin!';
+            button.disabled = true;
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.disabled = false;
+            }, 1500);
+        } catch (err) {
+            alert('Gagal menyalin nomor. Silakan salin manual.');
+        }
     });
 });
