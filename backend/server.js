@@ -923,20 +923,39 @@ app.put('/api/user/whitelisted-ips', protect, async (req, res) => {
 });
 
 // === DEPOSIT ENDPOINTS ===
+const VALID_DEPOSIT_METHODS = ['GoPay', 'DANA', 'ShopeePay', 'SeaBank'];
+
 app.post('/api/deposit/request', protect, async (req, res) => {
-    // Validasi amount dulu sebelum ambil koneksi DB
-    const { amount } = req.body;
+    const { amount, method, note } = req.body;
     const userId = req.user.id;
+
+    // Validasi amount
     if (!Number.isFinite(Number(amount)) || Number(amount) < 10000 || Number(amount) > 100000000) {
         return res.status(400).json({ message: 'Jumlah deposit tidak valid. Minimum Rp 10.000, maksimum Rp 100.000.000.' });
     }
+
+    // Validasi method — wajib dan harus dari daftar yang diizinkan
+    const trimmedMethod = (method || '').trim();
+    if (!trimmedMethod) {
+        return res.status(400).json({ message: 'Metode pembayaran wajib dipilih.' });
+    }
+    if (!VALID_DEPOSIT_METHODS.includes(trimmedMethod)) {
+        return res.status(400).json({ message: `Metode tidak valid. Pilih salah satu: ${VALID_DEPOSIT_METHODS.join(', ')}.` });
+    }
+
+    // Validasi note — opsional, max 200 karakter
+    const trimmedNote = (note || '').trim();
+    if (trimmedNote.length > 200) {
+        return res.status(400).json({ message: 'Catatan terlalu panjang. Maksimum 200 karakter.' });
+    }
+
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
         const uniqueCode = Math.floor(Math.random() * 900) + 100;
         const totalAmount = parseInt(amount) + uniqueCode;
-        const sql = 'INSERT INTO deposits (user_id, amount, unique_code, status) VALUES ($1, $2, $3, $4) RETURNING id, created_at';
-        const { rows } = await client.query(sql, [userId, totalAmount, uniqueCode, 'Pending']);
+        const sql = 'INSERT INTO deposits (user_id, amount, unique_code, status, method, note) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at';
+        const { rows } = await client.query(sql, [userId, totalAmount, uniqueCode, 'Pending', trimmedMethod, trimmedNote || null]);
         const depositId = rows[0].id;
         const createdAt = rows[0].created_at;
         await client.query('COMMIT');
@@ -947,9 +966,10 @@ app.post('/api/deposit/request', protect, async (req, res) => {
                 id: depositId,
                 amount: totalAmount,
                 unique_code: uniqueCode,
+                method: trimmedMethod,
                 status: 'Pending',
                 created_at: createdAt,
-                paymentInstructions: `Transfer sejumlah <strong>Rp ${amountFormatted}</strong> (termasuk kode unik <strong>${uniqueCode}</strong>) ke metode pembayaran yang diinformasikan admin MIKU Store. Sertakan nomor deposit <strong>#${depositId}</strong> di keterangan transfer.`
+                paymentInstructions: `Transfer sejumlah <strong>Rp ${amountFormatted}</strong> (termasuk kode unik <strong>${uniqueCode}</strong>) via <strong>${trimmedMethod}</strong> ke nomor tujuan yang akan diinformasikan oleh admin MIKU Store. Sertakan nomor deposit <strong>#${depositId}</strong> di keterangan transfer.`
             }
         });
     } catch (error) {
@@ -965,7 +985,7 @@ app.post('/api/deposit/request', protect, async (req, res) => {
 app.get('/api/user/deposits', protect, async (req, res) => {
     try {
         const userId = req.user.id;
-        const sql = `SELECT id, amount, unique_code, status, created_at
+        const sql = `SELECT id, amount, unique_code, status, method, note, created_at
                      FROM deposits
                      WHERE user_id = $1
                      ORDER BY created_at DESC
@@ -988,7 +1008,8 @@ app.get('/api/admin/deposits', protectAdmin, async (req, res) => {
         let params = [];
         if (statusFilter && ALLOWED_STATUSES.includes(statusFilter)) {
             sql = `SELECT d.id, d.user_id, u.username, u.email, u.nomor_wa,
-                          d.amount, d.unique_code, d.status, d.created_at, d.updated_at
+                          d.amount, d.unique_code, d.status, d.method, d.note,
+                          d.created_at, d.updated_at
                    FROM deposits d
                    JOIN users u ON d.user_id = u.id
                    WHERE d.status = $1
@@ -997,7 +1018,8 @@ app.get('/api/admin/deposits', protectAdmin, async (req, res) => {
             params = [statusFilter];
         } else {
             sql = `SELECT d.id, d.user_id, u.username, u.email, u.nomor_wa,
-                          d.amount, d.unique_code, d.status, d.created_at, d.updated_at
+                          d.amount, d.unique_code, d.status, d.method, d.note,
+                          d.created_at, d.updated_at
                    FROM deposits d
                    JOIN users u ON d.user_id = u.id
                    ORDER BY d.created_at DESC

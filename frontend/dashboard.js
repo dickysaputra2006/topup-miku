@@ -185,10 +185,46 @@ function forceLogout(message) {
             // Load riwayat deposit saat tab dibuka
             loadDepositHistory();
 
+            // Tampilkan info metode saat select berubah
+            const methodSelect = document.getElementById('deposit-method');
+            const methodInfo = document.getElementById('deposit-method-info');
+            const METHOD_HINTS = {
+                GoPay:     '🟢 GoPay: Nomor tujuan akan diinformasikan oleh admin MIKU Store.',
+                DANA:      '🟡 DANA: Nomor tujuan akan diinformasikan oleh admin MIKU Store.',
+                ShopeePay: '🟠 ShopeePay: Nomor tujuan akan diinformasikan oleh admin MIKU Store.',
+                SeaBank:   '🔵 SeaBank: Nomor rekening akan diinformasikan oleh admin MIKU Store.',
+            };
+            if (methodSelect && methodInfo) {
+                methodSelect.addEventListener('change', () => {
+                    const hint = METHOD_HINTS[methodSelect.value];
+                    if (hint) {
+                        methodInfo.textContent = hint;
+                        methodInfo.style.display = 'block';
+                    } else {
+                        methodInfo.style.display = 'none';
+                    }
+                });
+            }
+
             depositForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const amount = this.querySelector('input[name="amount"]').value;
+                const methodEl = this.querySelector('select[name="method"]');
+                const noteEl = this.querySelector('textarea[name="note"]');
+                const method = methodEl ? methodEl.value : '';
+                const note = noteEl ? noteEl.value.trim() : '';
                 const submitButton = this.querySelector('button[type="submit"]');
+
+                // Validasi frontend ringan
+                if (!method) {
+                    alert('Silakan pilih metode pembayaran terlebih dahulu.');
+                    return;
+                }
+                if (note.length > 200) {
+                    alert('Catatan terlalu panjang (maks 200 karakter).');
+                    return;
+                }
+
                 paymentInstructionsSection.classList.remove('hidden');
                 instructionText.innerHTML = '<div class="ui-state loading">Memproses permintaan deposit...</div>';
                 if (submitButton) {
@@ -196,10 +232,12 @@ function forceLogout(message) {
                     submitButton.textContent = 'Memproses...';
                 }
                 try {
+                    const body = { amount: parseInt(amount), method };
+                    if (note) body.note = note;
                     const response = await fetch('/api/deposit/request', {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ amount: parseInt(amount) })
+                        body: JSON.stringify(body)
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);
@@ -209,6 +247,7 @@ function forceLogout(message) {
                         <p style="margin-top:0.5rem; color:#ffc107;"><i class="fas fa-clock"></i> Saldo akan masuk setelah admin memverifikasi pembayaran Anda.</p>
                     </div>`;
                     depositForm.reset();
+                    if (methodInfo) methodInfo.style.display = 'none';
                     setTimeout(loadDepositHistory, 500);
                 } catch (error) {
                     instructionText.innerHTML = `<div class="ui-state error"><strong>Error:</strong> ${error.message}</div>`;
@@ -226,7 +265,7 @@ function forceLogout(message) {
         async function loadDepositHistory() {
             const tbody = document.getElementById('deposit-history-body');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Memuat...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Memuat...</td></tr>';
             try {
                 const response = await fetch('/api/user/deposits', {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -234,24 +273,28 @@ function forceLogout(message) {
                 if (!response.ok) throw new Error('Gagal memuat riwayat');
                 const deposits = await response.json();
                 if (deposits.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#aaa;">Belum ada riwayat deposit.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#aaa;">Belum ada riwayat deposit.</td></tr>';
                     return;
                 }
-                const statusClass = { 'Pending': 'status-pending', 'Success': 'status-success', 'Approved': 'status-success', 'Rejected': 'status-failed' };
+                const statusClassMap = { 'Pending': 'status-pending', 'Success': 'status-success', 'Approved': 'status-success', 'Rejected': 'status-failed' };
+                const methodIcon = { GoPay: '🟢', DANA: '🟡', ShopeePay: '🟠', SeaBank: '🔵' };
                 tbody.innerHTML = deposits.map(d => {
                     const tgl = new Date(d.created_at).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
                     const nominal = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(d.amount);
-                    const cls = statusClass[d.status] || 'status-pending';
+                    const cls = statusClassMap[d.status] || 'status-pending';
+                    const icon = methodIcon[d.method] || '';
+                    const methodCell = d.method ? `${icon} ${d.method}` : '<span style="color:#6b7280;">-</span>';
                     return `<tr>
                         <td>${d.id}</td>
                         <td>${tgl}</td>
                         <td>${nominal}</td>
                         <td>+${d.unique_code}</td>
+                        <td style="white-space:nowrap;">${methodCell}</td>
                         <td><span class="badge ${cls}">${d.status}</span></td>
                     </tr>`;
                 }).join('');
             } catch (err) {
-                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#f87171;">Gagal memuat riwayat deposit.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#f87171;">Gagal memuat riwayat deposit.</td></tr>`;
             }
         }
 

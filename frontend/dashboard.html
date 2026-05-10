@@ -141,12 +141,25 @@
                 <div class="card deposit-card" style="margin-top:1.25rem;">
                     <h3><i class="fas fa-plus-circle"></i> Ajukan Request Deposit</h3>
                     <form id="deposit-form">
+                        <label for="deposit-method">Metode Pembayaran</label>
+                        <select id="deposit-method" name="method" required class="dashboard-input" style="margin-top:0.5rem;margin-bottom:0.75rem;">
+                            <option value="">-- Pilih Metode --</option>
+                            <option value="GoPay">GoPay</option>
+                            <option value="DANA">DANA</option>
+                            <option value="ShopeePay">ShopeePay</option>
+                            <option value="SeaBank">SeaBank</option>
+                        </select>
+                        <div id="deposit-method-info" class="form-description deposit-note" style="display:none;margin-bottom:0.75rem;color:#a78bfa;"></div>
                         <label for="amount">Jumlah Deposit (Rp)</label>
                         <div class="form-row-container" style="margin-top:0.5rem;">
                             <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" required class="dashboard-input">
                             <button type="submit" class="btn-submit-deposit">Ajukan Deposit</button>
                         </div>
                         <p class="form-description deposit-note">Minimum deposit Rp 10.000. Nominal akhir akan ditambah kode unik 3 digit untuk memudahkan verifikasi.</p>
+                        <label for="deposit-note" style="margin-top:0.75rem;display:block;">Catatan <span style="font-weight:400;color:#9ca3af;">(opsional, max 200 karakter)</span></label>
+                        <textarea id="deposit-note" name="note" maxlength="200" rows="2"
+                            placeholder="Opsional: nama pengirim / jam transfer / catatan lain"
+                            class="dashboard-input" style="margin-top:0.4rem;resize:vertical;"></textarea>
                     </form>
                 </div>
 
@@ -170,11 +183,12 @@
                                     <th>Tanggal</th>
                                     <th>Nominal</th>
                                     <th>Kode Unik</th>
+                                    <th>Metode</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody id="deposit-history-body">
-                                <tr><td colspan="5" style="text-align:center;">Memuat riwayat...</td></tr>
+                                <tr><td colspan="6" style="text-align:center;">Memuat riwayat...</td></tr>
                             </tbody>
                         </table>
                     </div>
