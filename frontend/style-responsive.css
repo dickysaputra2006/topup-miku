@@ -1665,4 +1665,171 @@ table th {
     }
 }
 
+/* ============================================================
+   PHASE 4A-1 — Dashboard Mobile Responsive Fix
+   Target: Deposit, Riwayat Transaksi, Mutasi Saldo
+   Metode: scroll internal di .table-container, CSS-only.
+   Tidak mengubah backend, dashboard.js, atau layout PC.
+   ============================================================ */
+
+/* ── 1. DASHBOARD TABLE SCROLL BOX ──────────────────────────
+   Semua .table-container di dalam dashboard-content:
+   - Tidak overflow ke luar card/viewport
+   - Isi bisa digeser kiri-kanan di dalam box
+   - Tabel punya min-width agar kolom tidak gepeng
+*/
+.dashboard-content .table-container {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) rgba(255,255,255,0.06);
+    border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
+}
+
+/* Scrollbar tipis WebKit */
+.dashboard-content .table-container::-webkit-scrollbar {
+    height: 5px;
+}
+.dashboard-content .table-container::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.04);
+    border-radius: 4px;
+}
+.dashboard-content .table-container::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+}
+
+/* Tabel di dalam dashboard: min-width agar tidak gepeng */
+.dashboard-content .table-container table {
+    min-width: 580px;
+    width: 100%;
+    white-space: nowrap;
+}
+
+/* Riwayat Transaksi: lebih banyak kolom */
+#transaksi-tab .table-container table {
+    min-width: 680px;
+}
+
+/* Mutasi Saldo: 4 kolom */
+#mutasi-saldo .table-container table {
+    min-width: 540px;
+}
+
+/* Deposit history: 5 kolom compact */
+#deposit-history-table {
+    min-width: 480px;
+}
+
+/* ── 2. MOBILE <=768px ─────────────────────────────────────── */
+@media (max-width: 768px) {
+
+    /* Dashboard content: tidak overflow horizontal */
+    .dashboard-content {
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .dashboard-section {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .dashboard-content .card {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* Deposit form: column stack */
+    #deposit-form .form-row-container {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.6rem;
+    }
+
+    #deposit-form .form-row-container .dashboard-input {
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+    }
+
+    #deposit-form .form-row-container .btn-submit-deposit {
+        width: 100%;
+    }
+
+    /* Instruksi pembayaran: tidak overflow */
+    #instruction-text {
+        word-break: break-word;
+        overflow-wrap: break-word;
+    }
+
+    /* Metode 1 kolom di mobile */
+    .deposit-method-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .deposit-note {
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    /* Table container display block untuk scroll aktif */
+    .dashboard-content .table-container {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    /* Badge status tidak gepeng */
+    .dashboard-content .badge,
+    .dashboard-content .status-badge,
+    .dashboard-content .status-pending,
+    .dashboard-content .status-success,
+    .dashboard-content .status-failed {
+        white-space: nowrap;
+        display: inline-block;
+    }
+}
+
+/* ── 3. <=480px: extra compact ─────────────────────────────── */
+@media (max-width: 480px) {
+
+    #payment-instructions.deposit-card {
+        padding: 1rem;
+    }
+
+    .deposit-method-item {
+        padding: 0.5rem 0.65rem;
+    }
+
+    .deposit-method-number {
+        white-space: normal;
+        word-break: break-word;
+    }
+
+    .dashboard-content .table-container table {
+        min-width: 500px;
+    }
+
+    #transaksi-tab .table-container table {
+        min-width: 560px;
+    }
+
+    #deposit-history-table {
+        min-width: 360px;
+    }
+
+    .order-stats {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .stat-item {
+        min-width: 60px;
+    }
+}
 
