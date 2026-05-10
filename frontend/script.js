@@ -288,13 +288,27 @@ document.addEventListener('DOMContentLoaded', function () {
 }
 
     if (notificationContainer) {
-        notificationContainer.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isHidden = notificationPanel.classList.toggle('hidden');
-            if (!isHidden) { // Jika panel baru saja ditampilkan
-                showNotifications();
-            }
-        });
+        const trigger = notificationContainer.querySelector('.notification-trigger');
+        if (trigger) {
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = notificationPanel.classList.toggle('hidden');
+                if (!isHidden) { // Jika panel baru saja ditampilkan
+                    showNotifications();
+                }
+            });
+
+            trigger.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const isHidden = notificationPanel.classList.toggle('hidden');
+                    if (!isHidden) {
+                        showNotifications();
+                    }
+                }
+            });
+        }
     }
     // Sembunyikan panel jika klik di luar
     window.addEventListener('click', (e) => {
