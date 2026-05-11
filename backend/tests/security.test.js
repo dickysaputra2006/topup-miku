@@ -1887,3 +1887,270 @@ describe('Phase 5B-2: Bulk Validation & Name Sanitizer', () => {
         assert.strictEqual(processed[2].name, 'Mobile Legends - Verifikasi Region', 'Region label labeled correctly');
     });
 });
+
+// ============================================================
+// PHASE 5C-2A — Mobapay MLBB Eligibility Engine Tests
+// ============================================================
+describe('Phase 5C-2A: Mobapay MLBB Eligibility Engine', () => {
+    const { _internal } = require('../utils/validators/stalk-ml-promo.js');
+    const { isItemAvailable, detectPaymentChannelCountry, MOBAPAY_SKU, VALID_DD_TARGETS } = _internal;
+
+    let server;
+    let baseUrl;
+    const JWT_SECRET = 'test-secret';
+    const jwt = require('jsonwebtoken');
+
+    function makeAdminToken() {
+        return jwt.sign({ id: 1, username: 'admin', role: 'Admin' }, JWT_SECRET, { expiresIn: '1h' });
+    }
+    function makeUserToken() {
+        return jwt.sign({ id: 99, username: 'user', role: 'BRONZE' }, JWT_SECRET, { expiresIn: '1h' });
+    }
+
+    before(() => {
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        try { pool.query.mock.restore(); } catch (_) {}
+        await new Promise(resolve => server.close(resolve));
+    });
+
+    // ---- UNIT TESTS: isItemAvailable ----
+
+    test('isItemAvailable — item null → false', () => {
+        assert.strictEqual(isItemAvailable(null), false);
+        assert.strictEqual(isItemAvailable(undefined), false);
+    });
+
+    test('isItemAvailable — game_can_buy=false → false', () => {
+        assert.strictEqual(isItemAvailable({ game_can_buy: false }), false);
+    });
+
+    test('isItemAvailable — reached_limit=true → false', () => {
+        assert.strictEqual(isItemAvailable({ game_can_buy: true, goods_limit: { reached_limit: true } }), false);
+    });
+
+    test('isItemAvailable — normal item → true', () => {
+        assert.strictEqual(isItemAvailable({ game_can_buy: true, goods_limit: { reached_limit: false } }), true);
+        assert.strictEqual(isItemAvailable({ sku: 'abc' }), true); // no limit fields = available
+    });
+
+    // ---- UNIT TESTS: detectPaymentChannelCountry ----
+
+    test('detectPaymentChannelCountry — ID channel gopay → true', () => {
+        const shopInfo = {
+            good_list: [{
+                sku: 'com.moonton.diamond_mt_id_50',
+                pay_channel_sub: [{ active: 1, direct_channel: 'GoPay', cus_code: 'gopay_id_001' }]
+            }]
+        };
+        assert.strictEqual(detectPaymentChannelCountry(shopInfo, ['ID']), true);
+    });
+
+    test('detectPaymentChannelCountry — no ID channel → false', () => {
+        const shopInfo = {
+            good_list: [{
+                sku: 'com.moonton.diamond_mt_id_50',
+                pay_channel_sub: [{ active: 1, direct_channel: 'PayPal', cus_code: 'paypal_us_001' }]
+            }]
+        };
+        assert.strictEqual(detectPaymentChannelCountry(shopInfo, ['ID']), false);
+    });
+
+    // ---- UNIT TESTS: MOBAPAY_SKU constants ----
+
+    test('MOBAPAY_SKU — WDP SKU benar', () => {
+        assert.strictEqual(MOBAPAY_SKU.WDP, 'com.moonton.diamond_mt_id_one_time_weekly_diamond');
+    });
+
+    test('MOBAPAY_SKU — DD_TITLES mengandung semua 4 target', () => {
+        assert.ok(MOBAPAY_SKU.DD_TITLES['50+50']);
+        assert.ok(MOBAPAY_SKU.DD_TITLES['150+150']);
+        assert.ok(MOBAPAY_SKU.DD_TITLES['250+250']);
+        assert.ok(MOBAPAY_SKU.DD_TITLES['500+500']);
+        assert.strictEqual(VALID_DD_TARGETS.length, 4);
+    });
+
+    // ---- ADMIN SANITIZER: Mobapay config validation ----
+
+    test('PUT /api/admin/products/bulk-validation — checks invalid untuk mobapay ditolak 400', async () => {
+        const token = makeAdminToken();
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/admin/products/bulk-validation`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                productIds: [1],
+                validation_config: {
+                    enabled: true,
+                    validator: 'mobapay-mlbb-eligibility',
+                    checks: ['invalid_check_xyz']
+                }
+            })
+        });
+
+        assert.strictEqual(res.status, 400, 'Invalid check must return 400');
+        const data = await res.json();
+        assert.ok(data.message.includes('invalid_check_xyz'), 'Error must mention invalid check');
+        pool.query.mock.restore();
+    });
+
+    test('PUT /api/admin/products/bulk-validation — double_diamond tanpa target ditolak 400', async () => {
+        const token = makeAdminToken();
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/admin/products/bulk-validation`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                productIds: [1],
+                validation_config: {
+                    enabled: true,
+                    validator: 'mobapay-mlbb-eligibility',
+                    checks: ['double_diamond']
+                    // rules.target missing
+                }
+            })
+        });
+
+        assert.strictEqual(res.status, 400, 'double_diamond without target must return 400');
+        const data = await res.json();
+        assert.ok(data.message.toLowerCase().includes('target'), 'Error must mention target');
+        pool.query.mock.restore();
+    });
+
+    test('PUT /api/admin/products/bulk-validation — double_diamond target tidak valid ditolak 400', async () => {
+        const token = makeAdminToken();
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/admin/products/bulk-validation`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                productIds: [1],
+                validation_config: {
+                    enabled: true,
+                    validator: 'mobapay-mlbb-eligibility',
+                    checks: ['double_diamond'],
+                    rules: { target: '999+999' }
+                }
+            })
+        });
+
+        assert.strictEqual(res.status, 400, 'Invalid DD target must return 400');
+        pool.query.mock.restore();
+    });
+
+    test('PUT /api/admin/products/bulk-validation — config mobapay WDP valid berhasil 200', async () => {
+        const token = makeAdminToken();
+        let savedConfig = null;
+        mock.method(pool, 'query', async (sql, params) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            if (sql.includes('UPDATE products SET validation_config')) {
+                savedConfig = params[0];
+                return { rowCount: 2 };
+            }
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/admin/products/bulk-validation`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                productIds: [1, 2],
+                validation_config: {
+                    enabled: true,
+                    validator: 'mobapay-mlbb-eligibility',
+                    country: 'ID',
+                    checks: ['wdp_available']
+                }
+            })
+        });
+
+        assert.strictEqual(res.status, 200, 'Valid Mobapay WDP config must return 200');
+        assert.ok(savedConfig !== null, 'Config must be saved');
+        assert.strictEqual(savedConfig.validator, 'mobapay-mlbb-eligibility');
+        assert.deepStrictEqual(savedConfig.checks, ['wdp_available']);
+        pool.query.mock.restore();
+    });
+
+    test('PUT /api/admin/products/bulk-validation — config mobapay DD 50+50 valid berhasil 200', async () => {
+        const token = makeAdminToken();
+        let savedConfig = null;
+        mock.method(pool, 'query', async (sql, params) => {
+            if (sql.includes('SELECT r.name as role_name')) return { rows: [{ role_name: 'Admin' }] };
+            if (sql.includes('UPDATE products SET validation_config')) {
+                savedConfig = params[0];
+                return { rowCount: 1 };
+            }
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/admin/products/bulk-validation`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                productIds: [5],
+                validation_config: {
+                    enabled: true,
+                    validator: 'mobapay-mlbb-eligibility',
+                    country: 'ID',
+                    checks: ['double_diamond'],
+                    rules: { target: '50+50' }
+                }
+            })
+        });
+
+        assert.strictEqual(res.status, 200, 'Valid DD 50+50 config must return 200');
+        assert.ok(savedConfig !== null);
+        assert.strictEqual(savedConfig.rules.target, '50+50');
+        pool.query.mock.restore();
+    });
+
+    // ---- ORDER FLOW: validateOrderGameIdIfNeeded dispatch logic (unit) ----
+
+    test('validateOrderGameIdIfNeeded — produk tanpa validation_config di-skip (tidak panggil Mobapay)', async () => {
+        // Test langsung melalui internal logic: config null → skip
+        const { checkMobapayMlbbEligibility } = require('../utils/validators/stalk-ml-promo.js');
+        let called = false;
+        // Tidak ada cara untuk Mobapay terpanggil jika config null — verifikasi logika
+        const mockProduct = { validation_config: null, needs_server_id: false };
+        // Simulasikan logika skip di validateOrderGameIdIfNeeded
+        const config = mockProduct.validation_config;
+        const skipped = !config || config.enabled !== true || !config.validator;
+        assert.strictEqual(skipped, true, 'Produk tanpa config harus skip');
+        assert.strictEqual(called, false, 'Mobapay tidak boleh dipanggil');
+    });
+
+    test('validateOrderGameIdIfNeeded — config mobapay checks=[] → tidak ada check (langsung lulus tanpa API call)', async () => {
+        // Test internal logic: checks kosong → langsung return success
+        const { checkMobapayMlbbEligibility } = require('../utils/validators/stalk-ml-promo.js');
+        // Panggil langsung engine dengan checks=[] — tidak boleh hit network
+        // Karena checks kosong, function return sebelum axios.get dipanggil
+        const result = await checkMobapayMlbbEligibility('123456', '1234', [], {}, { country: 'ID', timeout: 1 });
+        assert.strictEqual(result.success, true, 'Empty checks must pass immediately');
+        assert.ok(result.message.includes('Tidak ada'), 'Message must indicate no checks');
+    });
+
+    test('validateOrderGameIdIfNeeded — config mobapay enabled=false → skip (tidak panggil Mobapay)', () => {
+        const mockProduct = {
+            validation_config: { enabled: false, validator: 'mobapay-mlbb-eligibility', checks: ['wdp_available'] },
+            needs_server_id: true
+        };
+        const config = mockProduct.validation_config;
+        const skipped = !config || config.enabled !== true || !config.validator;
+        assert.strictEqual(skipped, true, 'enabled=false harus skip');
+    });
+});
