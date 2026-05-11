@@ -215,7 +215,9 @@ function getSafeOrderErrorMessage(error, fallback) {
         'Anda sudah mencapai batas maksimal',
         'Promo ini hanya berlaku',
         'Promo ini tidak berlaku',
-        'Nilai diskon promo tidak valid.'
+        'Nilai diskon promo tidak valid.',
+        'Validasi ID sedang tidak tersedia',
+        'ID game tidak valid',
     ];
     return allowedMessages.some(allowed => message.startsWith(allowed)) ? message : fallback;
 }
@@ -234,6 +236,46 @@ async function findRecentPendingDuplicate(client, userId, productId, targetGameI
         [userId, productId, targetGameId, DUPLICATE_ORDER_WINDOW_SECONDS]
     );
     return rows[0] || null;
+}
+
+/**
+ * Jalankan validasi ID game jika product.validation_config aktif.
+ * Dipanggil SEBELUM saldo dipotong.
+ * @param {object} product - Baris produk dari DB (harus punya validation_config & needs_server_id)
+ * @param {string} targetGameId - User ID game dari request
+ * @param {string|null} targetServerId - Server ID dari request (bisa null)
+ * @returns {{ skipped: true } | { validated: true }}
+ * @throws {Error} Jika validasi gagal atau validator error
+ */
+async function validateOrderGameIdIfNeeded(product, targetGameId, targetServerId) {
+    const config = product.validation_config;
+    // Skip jika config tidak ada, enabled !== true, atau validator kosong
+    if (!config || config.enabled !== true || !config.validator ||
+        typeof config.validator !== 'string' || !config.validator.trim()) {
+        return { skipped: true };
+    }
+
+    const zoneId = product.needs_server_id ? (targetServerId || null) : null;
+    let result;
+    try {
+        result = await validateGameId(
+            config.validator.trim(),
+            targetGameId,
+            zoneId,
+            config.rules || {}
+        );
+    } catch (valErr) {
+        console.warn('[validateOrderGameId] Validator error:', valErr && valErr.message);
+        throw new Error('Validasi ID sedang tidak tersedia, coba lagi nanti.');
+    }
+
+    if (!result.success) {
+        const safeMsg = typeof result.message === 'string' && result.message.length > 0
+            ? result.message
+            : 'ID game tidak valid.';
+        throw new Error(safeMsg);
+    }
+    return { validated: true };
 }
 
 // === KONFIGURASI FOXY API ===
@@ -1526,11 +1568,63 @@ app.put('/api/admin/games/:id/needs-server', protectAdmin, async (req, res) => {
         res.status(500).json({ message: 'Gagal memperbarui pengaturan game.' });
     }
 });
+/**
+ * Validasi dan sanitasi objek validation_config sebelum disimpan ke DB.
+ * @param {*} validation_config - Input dari request body
+ * @returns {{ error: string } | { safe: object|null }} error string jika tidak valid, atau safe config
+ */
+function sanitizeValidationConfig(validation_config) {
+    // null / undefined → simpan null (hapus config)
+    if (validation_config === null || validation_config === undefined) {
+        return { safe: null };
+    }
+    if (typeof validation_config !== 'object' || Array.isArray(validation_config)) {
+        return { error: 'validation_config harus berupa object atau null.' };
+    }
+    if (validation_config.enabled === true) {
+        const validator = validation_config.validator;
+        if (!validator || typeof validator !== 'string' || !validator.trim()) {
+            return { error: 'validator wajib diisi jika enabled=true.' };
+        }
+        if (!/^[a-zA-Z0-9_\-]{1,80}$/.test(validator.trim())) {
+            return { error: 'validator hanya boleh berisi huruf, angka, dash, underscore (maks. 80 karakter).' };
+        }
+        if (validation_config.rules !== undefined && validation_config.rules !== null) {
+            if (typeof validation_config.rules !== 'object' || Array.isArray(validation_config.rules)) {
+                return { error: 'rules harus berupa object.' };
+            }
+            const safeRegion = /^[a-zA-Z0-9_\-]{1,10}$/;
+            for (const field of ['allowedRegions', 'disallowedRegions']) {
+                const val = validation_config.rules[field];
+                if (val !== undefined && val !== null) {
+                    if (!Array.isArray(val)) {
+                        return { error: `rules.${field} harus berupa array string.` };
+                    }
+                    for (const region of val) {
+                        if (typeof region !== 'string' || !safeRegion.test(region)) {
+                            return { error: `rules.${field} mengandung nilai tidak valid: "${region}".` };
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // enabled=false atau tidak ada enabled: simpan apa adanya
+    return { safe: validation_config };
+}
+
 app.put('/api/admin/products/:id/validation', protectAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { validation_config } = req.body;
-        const { rowCount } = await pool.query('UPDATE products SET validation_config = $1 WHERE id = $2', [validation_config, id]);
+
+        const { error, safe: safeConfig } = sanitizeValidationConfig(validation_config);
+        if (error) return res.status(400).json({ message: error });
+
+        const { rowCount } = await pool.query(
+            'UPDATE products SET validation_config = $1 WHERE id = $2',
+            [safeConfig, id]
+        );
         if (rowCount === 0) return res.status(404).json({ message: 'Produk tidak ditemukan.' });
         res.json({ message: 'Pengaturan validasi produk berhasil diperbarui.' });
     } catch (error) {
@@ -1545,13 +1639,22 @@ app.put('/api/admin/products/bulk-validation', protectAdmin, async (req, res) =>
         if (!Array.isArray(productIds) || productIds.length === 0) {
             return res.status(400).json({ message: 'productIds harus berupa array dan tidak boleh kosong.' });
         }
+        if (productIds.length > 500) {
+            return res.status(400).json({ message: 'Maksimal 500 produk dalam satu batch.' });
+        }
+        // Pastikan setiap productId adalah angka positif
+        const safeIds = productIds.map(id => Number(id));
+        if (safeIds.some(id => !Number.isInteger(id) || id <= 0)) {
+            return res.status(400).json({ message: 'Setiap productId harus berupa angka positif.' });
+        }
 
-        // Menggunakan query builder dari 'pg' untuk menangani array
+        const { error, safe: safeConfig } = sanitizeValidationConfig(validation_config);
+        if (error) return res.status(400).json({ message: error });
+
         const { rowCount } = await pool.query(
             'UPDATE products SET validation_config = $1 WHERE id = ANY($2::int[])',
-            [validation_config, productIds]
+            [safeConfig, safeIds]
         );
-
         res.json({ message: `Pengaturan validasi berhasil diperbarui untuk ${rowCount} produk.` });
     } catch (error) {
         console.error('Error updating bulk product validation:', error);
@@ -1755,16 +1858,35 @@ app.get('/api/games', async (req, res) => {
     }
 });
 
+/**
+ * Bersihkan nama game dari suffix provider internal.
+ * Game code TIDAK diubah — hanya label tampil yang disanitasi.
+ * @param {string} name - Nama game dari data_cekid.json
+ * @returns {string} Nama yang sudah dibersihkan
+ */
+function sanitizeValidationServiceName(name) {
+    if (!name || typeof name !== 'string') return name || '';
+    let clean = name.trim();
+    // Khusus: Mobile Legends With Region → label deskriptif
+    if (/mobile.?legends.?with.?region/i.test(clean)) {
+        return 'Mobile Legends - Verifikasi Region';
+    }
+    // Hapus suffix provider dalam tanda kurung: (Mobapay), (DG), (HK), (FAST), (WORK, FAST), dll.
+    clean = clean.replace(/\s*\([^)]*\)\s*$/i, '').trim();
+    // Hapus suffix tanpa kurung: Work Fast, FAST di akhir
+    clean = clean.replace(/\s+(Work\s+Fast|FAST|WORK)\s*$/i, '').trim();
+    return clean || name.trim();
+}
+
 app.get('/api/games/validatable', async (req, res) => {
     try {
-        // PERBAIKAN FINAL: Membuat path absolut yang pasti benar
         const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
 
-        const finalResult = cekIdGames.filter(game => game.name).map((game, index) => ({
+        const finalResult = cekIdGames.filter(game => game.name).map(game => ({
             id: game.name,
-            name: game.name,
+            name: sanitizeValidationServiceName(game.name),
             gameCode: game.game,
             hasZoneIdForValidation: game.hasZoneId
         }));
@@ -1773,6 +1895,33 @@ app.get('/api/games/validatable', async (req, res) => {
     } catch (error) {
         console.error("Error fetching validatable games from JSON:", error);
         res.status(500).json({ message: 'Server error saat mengambil data game dari file.' });
+    }
+});
+
+// === ADMIN: Preview daftar service PGS terbaru (tidak menulis file) ===
+app.get('/api/admin/validation-services/pgs-preview', protectAdmin, async (req, res) => {
+    const pgsKey = process.env.PGS_KEY;
+    const pgsApiKey = process.env.PGS_API_KEY;
+    if (!pgsKey || !pgsApiKey) {
+        return res.status(503).json({ message: 'PGS API Key belum dikonfigurasi di server.' });
+    }
+    try {
+        const response = await axios.post(
+            'https://pgscode.id/api/tools/run',
+            { key: pgsKey, api_key: pgsApiKey, action: 'get-service' },
+            { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+        );
+        const rawData = response.data;
+        // Jangan forward key/api_key ke frontend — hanya kirim data service
+        const services = rawData && rawData.data ? rawData.data : rawData;
+        res.json({
+            message: 'Preview daftar service PGS berhasil diambil. Data ini hanya untuk referensi, tidak disimpan otomatis.',
+            count: Array.isArray(services) ? services.length : null,
+            data: services
+        });
+    } catch (err) {
+        console.warn('[pgs-preview] Gagal mengambil service PGS:', err && err.message);
+        res.status(502).json({ message: 'Gagal mengambil data dari PGS. Coba lagi nanti.' });
     }
 });
 
@@ -2356,7 +2505,7 @@ app.post('/api/order', protect, async (req, res) => {
 
         if (!Number.isInteger(productId) || productId <= 0 || !targetGameId) throw new Error('Produk dan ID Game wajib diisi.');
 
-        // Ambil detail produk LENGKAP (termasuk join ke game_margins)
+        // Ambil detail produk LENGKAP (termasuk join ke game_margins & validation_config)
         const productQuery = `
                 SELECT p.*, g.id as game_id, g.needs_server_id,
                     gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
@@ -2443,6 +2592,10 @@ app.post('/api/order', protect, async (req, res) => {
         // --- AKHIR PRICE GUARD ---
 
         if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
+
+        // === PHASE 5B: VALIDASI ID GAME (opt-in per produk, sebelum saldo dipotong) ===
+        await validateOrderGameIdIfNeeded(product, targetGameId, targetServerId);
+        // === AKHIR PHASE 5B ===
         
         // --- PROMO CODE ENFORCEMENT ---
         let appliedPromoId = null;
@@ -2636,7 +2789,7 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             throw new Error('productId dan targetGameId wajib diisi.');
         }
 
-        // 1. Ambil detail produk LENGKAP (termasuk join ke game_margins)
+        // 1. Ambil detail produk LENGKAP (termasuk join ke game_margins & validation_config)
         const productQuery = `
             SELECT p.*, g.id as game_id, g.needs_server_id,
                    gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
@@ -2653,6 +2806,10 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         if (product.needs_server_id && !targetServerId) {
             throw new Error('Server ID wajib diisi untuk game ini.');
         }
+
+        // === PHASE 5B: VALIDASI ID GAME H2H (opt-in per produk, sebelum saldo dipotong) ===
+        await validateOrderGameIdIfNeeded(product, targetGameId, targetServerId);
+        // === AKHIR PHASE 5B ===
 
         // 2. Ambil User H2H
         const { rows: users } = await client.query('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE', [h2hUser.id]);
