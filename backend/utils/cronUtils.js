@@ -317,8 +317,7 @@ async function syncProductsWithFoxy() {
             categoryIds: [],
             names: [],
             skus: [],
-            prices: [],
-            statuses: []
+            prices: []
         };
 
         // 3. Loop produk dari Foxy untuk kumpulkan data batch
@@ -357,10 +356,12 @@ async function syncProductsWithFoxy() {
             productBatch.names.push(productName);
             productBatch.skus.push(productCode);
             productBatch.prices.push(basePriceFoxy);
-            productBatch.statuses.push('Active');
         }
 
         // 4. Jalankan UPSERT batch
+        // CATATAN PENTING: DO UPDATE tidak mengubah status.
+        // Admin bisa set produk Inactive manual — sync Foxy tidak boleh menimpa kembali ke Active.
+        // Status hanya di-set saat INSERT baru (default 'Active').
         if (productBatch.skus.length > 0) {
             await client.query(`
                 INSERT INTO products (game_id, category_id, name, provider_sku, price, status)
@@ -370,7 +371,6 @@ async function syncProductsWithFoxy() {
                     category_id = EXCLUDED.category_id,
                     name = EXCLUDED.name,
                     price = EXCLUDED.price,
-                    status = EXCLUDED.status,
                     updated_at = NOW()
             `, [
                 productBatch.gameIds,
@@ -378,7 +378,7 @@ async function syncProductsWithFoxy() {
                 productBatch.names,
                 productBatch.skus,
                 productBatch.prices,
-                productBatch.statuses
+                productBatch.skus.map(() => 'Active')  // Hanya untuk INSERT baru
             ]);
             console.log(`[cron][sync] Upserted ${productBatch.skus.length} product(s).`);
         }
