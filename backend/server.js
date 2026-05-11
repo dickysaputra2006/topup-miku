@@ -12,7 +12,7 @@ const net = require('net');
 const { sendPasswordResetEmail } = require('./utils/mailer.js');
 const { syncProductsWithFoxy } = require('./utils/cronUtils.js');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
-const { checkAllMobapayPromosML } = require('./utils/validators/stalk-ml-promo.js');
+const { checkAllMobapayPromosML, checkMobapayMlbbEligibility } = require('./utils/validators/stalk-ml-promo.js');
 const { cekPromoMcggMobapay } = require('./utils/validators/stalk-mcgg.js');
 const path = require('path');
 
@@ -218,6 +218,16 @@ function getSafeOrderErrorMessage(error, fallback) {
         'Nilai diskon promo tidak valid.',
         'Validasi ID sedang tidak tersedia',
         'ID game tidak valid',
+        // Phase 5C-2A — Mobapay Eligibility
+        'User ID atau Zone ID tidak valid.',
+        'WDP untuk ID ini sudah penuh atau tidak tersedia.',
+        'Promo Double Diamond untuk ID ini sudah tidak tersedia.',
+        'Bundle Weekly Elite tidak tersedia untuk ID ini.',
+        'Bundle Monthly Epic tidak tersedia untuk ID ini.',
+        'Pengecekan promo sedang tidak tersedia, coba lagi nanti.',
+        'Produk tidak tersedia untuk ID ini.',
+        'Metode pembayaran akun tidak sesuai untuk produk ini.',
+        'Konfigurasi Double Diamond tidak valid',
     ];
     return allowedMessages.some(allowed => message.startsWith(allowed)) ? message : fallback;
 }
@@ -255,11 +265,39 @@ async function validateOrderGameIdIfNeeded(product, targetGameId, targetServerId
         return { skipped: true };
     }
 
+    const validatorName = config.validator.trim();
     const zoneId = product.needs_server_id ? (targetServerId || null) : null;
+
+    // === Phase 5C-2A: Mobapay MLBB Eligibility ===
+    if (validatorName === 'mobapay-mlbb-eligibility') {
+        let mobapayResult;
+        try {
+            mobapayResult = await checkMobapayMlbbEligibility(
+                targetGameId,
+                zoneId,
+                config.checks || [],
+                config.rules || {},
+                { country: config.country || 'ID', timeout: 10000 }
+            );
+        } catch (mobErr) {
+            // Network/API fatal — fail-closed: tolak order, saldo tidak dipotong
+            console.warn('[validateOrderGameId] Mobapay network error:', mobErr && mobErr.message);
+            throw new Error('Pengecekan promo sedang tidak tersedia, coba lagi nanti.');
+        }
+        if (!mobapayResult.success) {
+            const safeMsg = typeof mobapayResult.message === 'string' && mobapayResult.message.length > 0
+                ? mobapayResult.message
+                : 'Produk tidak tersedia untuk ID ini.';
+            throw new Error(safeMsg);
+        }
+        return { validated: true };
+    }
+
+    // === PGS Validator (existing) ===
     let result;
     try {
         result = await validateGameId(
-            config.validator.trim(),
+            validatorName,
             targetGameId,
             zoneId,
             config.rules || {}
@@ -1589,20 +1627,64 @@ function sanitizeValidationConfig(validation_config) {
         if (!/^[a-zA-Z0-9_\-]{1,80}$/.test(validator.trim())) {
             return { error: 'validator hanya boleh berisi huruf, angka, dash, underscore (maks. 80 karakter).' };
         }
-        if (validation_config.rules !== undefined && validation_config.rules !== null) {
-            if (typeof validation_config.rules !== 'object' || Array.isArray(validation_config.rules)) {
-                return { error: 'rules harus berupa object.' };
+
+        // === Validasi khusus Mobapay Eligibility ===
+        if (validator.trim() === 'mobapay-mlbb-eligibility') {
+            // country: opsional, jika ada harus 2–5 huruf
+            if (validation_config.country !== undefined && validation_config.country !== null) {
+                if (typeof validation_config.country !== 'string' || !/^[A-Za-z]{2,5}$/.test(validation_config.country)) {
+                    return { error: 'country harus string kode negara 2–5 huruf (contoh: ID).' };
+                }
             }
-            const safeRegion = /^[a-zA-Z0-9_\-]{1,10}$/;
-            for (const field of ['allowedRegions', 'disallowedRegions']) {
-                const val = validation_config.rules[field];
-                if (val !== undefined && val !== null) {
-                    if (!Array.isArray(val)) {
-                        return { error: `rules.${field} harus berupa array string.` };
+            // checks: opsional array string
+            const VALID_MOBAPAY_CHECKS = ['wdp_available', 'double_diamond', 'weekly_elite', 'monthly_epic', 'payment_channel', 'region_id'];
+            if (validation_config.checks !== undefined && validation_config.checks !== null) {
+                if (!Array.isArray(validation_config.checks)) {
+                    return { error: 'checks harus berupa array string.' };
+                }
+                for (const c of validation_config.checks) {
+                    if (typeof c !== 'string' || !VALID_MOBAPAY_CHECKS.includes(c)) {
+                        return { error: `checks mengandung nilai tidak valid: "${c}". Nilai yang diizinkan: ${VALID_MOBAPAY_CHECKS.join(', ')}.` };
                     }
-                    for (const region of val) {
-                        if (typeof region !== 'string' || !safeRegion.test(region)) {
-                            return { error: `rules.${field} mengandung nilai tidak valid: "${region}".` };
+                }
+                // double_diamond wajib ada rules.target
+                if (validation_config.checks.includes('double_diamond')) {
+                    const target = validation_config.rules && validation_config.rules.target;
+                    const VALID_DD = ['50+50', '150+150', '250+250', '500+500'];
+                    if (!target || !VALID_DD.includes(target)) {
+                        return { error: `double_diamond memerlukan rules.target yang valid. Nilai yang diizinkan: ${VALID_DD.join(', ')}.` };
+                    }
+                }
+            }
+            // rules.allowedPaymentCountries: jika ada harus array string country code
+            if (validation_config.rules && validation_config.rules.allowedPaymentCountries !== undefined) {
+                const apc = validation_config.rules.allowedPaymentCountries;
+                if (!Array.isArray(apc)) {
+                    return { error: 'rules.allowedPaymentCountries harus berupa array string.' };
+                }
+                for (const cc of apc) {
+                    if (typeof cc !== 'string' || !/^[A-Za-z]{2,5}$/.test(cc)) {
+                        return { error: `rules.allowedPaymentCountries mengandung nilai tidak valid: "${cc}".` };
+                    }
+                }
+            }
+        } else {
+            // === Validasi PGS / validator lain (existing behavior) ===
+            if (validation_config.rules !== undefined && validation_config.rules !== null) {
+                if (typeof validation_config.rules !== 'object' || Array.isArray(validation_config.rules)) {
+                    return { error: 'rules harus berupa object.' };
+                }
+                const safeRegion = /^[a-zA-Z0-9_\-]{1,10}$/;
+                for (const field of ['allowedRegions', 'disallowedRegions']) {
+                    const val = validation_config.rules[field];
+                    if (val !== undefined && val !== null) {
+                        if (!Array.isArray(val)) {
+                            return { error: `rules.${field} harus berupa array string.` };
+                        }
+                        for (const region of val) {
+                            if (typeof region !== 'string' || !safeRegion.test(region)) {
+                                return { error: `rules.${field} mengandung nilai tidak valid: "${region}".` };
+                            }
                         }
                     }
                 }
