@@ -1,0 +1,4 @@
+## 2025-05-11 - SSRF DNS Rebinding Bypass in H2H Callbacks
+**Vulnerability:** The application was vulnerable to SSRF (Server-Side Request Forgery) in the H2H callback webhook mechanism (`isValidHttpsCallbackUrl`). Attackers could use custom domains (e.g., `ssrf.attacker.com`) that resolve to private IPs (like `127.0.0.1` or `169.254.169.254`). Because `isPrivateHostname` only checked if the string literal could parse as an IP using `net.isIP(hostname)`, custom domains bypassed the check.
+**Learning:** Node.js's `new URL(str).hostname` extracts the string literal and does *not* perform DNS resolution. Security checks that parse string literals for IPs will be bypassed if the string is a valid DNS name that resolves to a restricted IP.
+**Prevention:** Always perform an asynchronous DNS resolution using `dns.promises.lookup` and validate the resulting IP address against private/local network ranges before allowing an outbound request.

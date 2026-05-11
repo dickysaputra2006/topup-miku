@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
 const net = require('net');
+const dnsPromises = require('dns').promises;
 const { sendPasswordResetEmail } = require('./utils/mailer.js');
 const { syncProductsWithFoxy } = require('./utils/cronUtils.js');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
@@ -172,7 +173,8 @@ function isPrivateHostname(hostname) {
             parts[0] === 127 ||
             (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
             (parts[0] === 192 && parts[1] === 168) ||
-            (parts[0] === 169 && parts[1] === 254);
+            (parts[0] === 169 && parts[1] === 254) ||
+            parts[0] === 0;
     }
     if (net.isIP(lower) === 6) {
         return lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80');
@@ -180,10 +182,17 @@ function isPrivateHostname(hostname) {
     return false;
 }
 
-function isValidHttpsCallbackUrl(value) {
+async function isValidHttpsCallbackUrl(value) {
     try {
         const parsed = new URL(value);
-        return parsed.protocol === 'https:' && !parsed.username && !parsed.password && !isPrivateHostname(parsed.hostname);
+        if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return false;
+        if (isPrivateHostname(parsed.hostname)) return false;
+
+        // Resolve DNS to check if it points to a private IP (SSRF protection)
+        const { address } = await dnsPromises.lookup(parsed.hostname);
+        if (isPrivateHostname(address)) return false;
+
+        return true;
     } catch (error) {
         return false;
     }
@@ -3127,7 +3136,8 @@ app.put('/h2h/profile/callback', protectH2H, async (req, res) => {
     try {
         const callback_url = normalizeString(req.body.callback_url, 2048);
         // Validasi URL sederhana
-        if (!callback_url || !isValidHttpsCallbackUrl(callback_url)) {
+        const isValid = await isValidHttpsCallbackUrl(callback_url);
+        if (!callback_url || !isValid) {
             return res.status(400).json({ success: false, message: 'URL callback tidak valid.' });
         }
         
