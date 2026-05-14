@@ -444,8 +444,22 @@ if (dropdownLoginBtn) {
         });
     });
 
+    // ⚡ Bolt Performance Optimization:
+    // Added a local debounce utility to prevent synchronous main-thread blocking when filtering the games array.
+    // This reduces the number of filter operations and DOM updates on every keystroke, improving input responsiveness.
+    function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    }
+
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
+        const debouncedSearch = debounce((value) => handleSearch(value), 300);
+        searchInput.addEventListener('input', () => debouncedSearch(searchInput.value));
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 
