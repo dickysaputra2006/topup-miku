@@ -2007,20 +2007,67 @@ app.get('/api/admin/validation-services/pgs-preview', protectAdmin, async (req, 
     }
 });
 
-// Endpoint baru untuk validasi di halaman produk
+// Endpoint pre-validasi di halaman produk
+// Phase 5C-2A HOTFIX: dispatch ke Mobapay eligibility engine jika validatornya bukan PGS
 app.post('/api/products/:productId/validate', async (req, res) => {
     const { productId } = req.params;
     const { userId, zoneId } = req.body;
     if (!userId) return res.status(400).json({ success: false, message: 'User ID wajib diisi.' });
     try {
-        const { rows } = await pool.query('SELECT validation_config FROM products WHERE id = $1', [productId]);
+        const { rows } = await pool.query('SELECT validation_config, needs_server_id FROM products WHERE id = $1', [productId]);
         if (rows.length === 0) return res.status(404).json({ success: false, message: 'Produk tidak ditemukan.' });
         const config = rows[0].validation_config;
-        if (!config || !config.validator) return res.json({ success: true, message: 'Produk ini tidak memerlukan validasi.' });
-        const result = await validateGameId(config.validator, userId, zoneId, config.rules || {});
+
+        // Tidak ada config atau config tidak aktif → tidak perlu validasi
+        if (!config || config.enabled !== true || !config.validator) {
+            return res.json({ success: true, message: 'Produk ini tidak memerlukan validasi.' });
+        }
+
+        const validatorName = String(config.validator).trim();
+        const effectiveZoneId = rows[0].needs_server_id ? (zoneId || null) : null;
+
+        // === Phase 5C-2A: Mobapay MLBB Eligibility ===
+        if (validatorName === 'mobapay-mlbb-eligibility') {
+            let mobapayResult;
+            try {
+                mobapayResult = await checkMobapayMlbbEligibility(
+                    userId,
+                    effectiveZoneId,
+                    config.checks || [],
+                    config.rules || {},
+                    { country: config.country || 'ID', timeout: 10000 }
+                );
+            } catch (mobErr) {
+                // Network/API fatal — kembalikan pesan aman
+                console.warn('[pre-validate] Mobapay network error:', mobErr && mobErr.message);
+                return res.status(503).json({
+                    success: false,
+                    message: 'Pengecekan promo sedang tidak tersedia, coba lagi nanti.'
+                });
+            }
+
+            if (!mobapayResult.success) {
+                const safeMsg = typeof mobapayResult.message === 'string' && mobapayResult.message.length > 0
+                    ? mobapayResult.message
+                    : 'Produk tidak tersedia untuk ID ini.';
+                return res.status(400).json({ success: false, message: safeMsg });
+            }
+
+            // Sukses — kembalikan pesan aman; frontend akan tampilkan di blok "tidak memerlukan validasi"
+            return res.json({
+                success: true,
+                message: 'ID valid dan produk tersedia untuk ID ini.',
+                data: { mobapay: true }
+            });
+        }
+
+        // === PGS Validator (existing behaviour) ===
+        const result = await validateGameId(validatorName, userId, effectiveZoneId, config.rules || {});
         if (result.success) res.json(result);
         else res.status(400).json({ success: false, message: result.message });
+
     } catch (error) {
+        logSafeError('[pre-validate] Error:', error);
         res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
     }
 });

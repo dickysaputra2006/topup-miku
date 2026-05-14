@@ -244,6 +244,15 @@
                 return;
             }
 
+
+            // Tampilan sukses Mobapay (tidak ada username, hanya message konfirmasi)
+            if (result.success && result.data && result.data.mobapay === true) {
+                resultContainer.innerHTML = `<div class="validation-result-inline success">
+                    <i class="fas fa-check-circle"></i> ${result.message}
+                </div>`;
+                isValidationSuccess = true;
+                return;
+            }
             // Tampilan jika validasi sukses
            let message = `<div class="validation-result-inline success">
                         <p><i class="fas fa-check-circle"></i> Nickname: <strong>${result.data.username}</strong></p>`;
