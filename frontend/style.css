@@ -300,6 +300,11 @@ footer {
     transform: translateY(-75%);
     cursor: pointer;
 }
+.toggle-password:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
 .forgot-password {
     display: block;
     text-align: right;
