@@ -2156,12 +2156,57 @@ describe('Phase 5C-2A: Mobapay MLBB Eligibility Engine', () => {
 
     // ---- PRE-VALIDATE ENDPOINT: POST /api/products/:productId/validate ----
 
-    test('POST /api/products/:id/validate — mobapay DD unavailable → 400 dengan pesan Promo Double Diamond', async () => {
-        // Mock pool.query: kembalikan produk dengan validation_config mobapay DD
+    // HOTFIX REGRESSION: Verifikasi query JOIN — tidak boleh query p.needs_server_id
+    test('POST /api/products/:id/validate — HOTFIX: query harus JOIN ke games untuk needs_server_id', async () => {
+        let capturedSql = null;
         mock.method(pool, 'query', async (sql) => {
-            if (sql.includes('SELECT validation_config')) {
+            // Tangkap SQL yang digunakan oleh endpoint pre-validate
+            if (sql.includes('FROM products') && sql.includes('validation_config')) {
+                capturedSql = sql;
+                // Simulasikan produk tanpa validation_config
+                return { rows: [{ id: 999, name: 'Test', validation_config: null, game_id: 1, needs_server_id: false }] };
+            }
+            return { rows: [] };
+        });
+
+        try {
+            const res = await fetch(`${baseUrl}/api/products/999/validate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: '609923809', zoneId: '8430' })
+            });
+            // Harus tidak 500 (root bug)
+            assert.ok(res.status !== 500, `Must not return 500; got ${res.status}`);
+            // Pastikan SQL yang dipakai mengandung JOIN ke games
+            assert.ok(capturedSql !== null, 'Query harus dieksekusi');
+            assert.ok(
+                capturedSql.includes('LEFT JOIN games'),
+                `Query harus mengandung LEFT JOIN games, tapi dapat: ${capturedSql}`
+            );
+            // Pastikan TIDAK query p.needs_server_id (kolom yang tidak ada di products)
+            assert.ok(
+                !capturedSql.includes('p.needs_server_id'),
+                'Query tidak boleh mengakses p.needs_server_id (kolom ada di games, bukan products)'
+            );
+            // Pastikan pakai COALESCE dari games
+            assert.ok(
+                capturedSql.includes('COALESCE(g.needs_server_id'),
+                'Query harus pakai COALESCE(g.needs_server_id) dari tabel games'
+            );
+        } finally {
+            pool.query.mock.restore();
+        }
+    });
+
+    // HOTFIX REGRESSION: Simulasi produk 217 (mobapay, no 500)
+    test('POST /api/products/217/validate — HOTFIX: mobapay config tidak menghasilkan 500 karena needs_server_id', async () => {
+        // Mock produk 217: validation_config mobapay aktif, needs_server_id berasal dari games JOIN
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('FROM products') && sql.includes('validation_config')) {
                 return {
                     rows: [{
+                        id: 217,
+                        name: 'Test Product 217',
                         validation_config: {
                             enabled: true,
                             validator: 'mobapay-mlbb-eligibility',
@@ -2169,7 +2214,77 @@ describe('Phase 5C-2A: Mobapay MLBB Eligibility Engine', () => {
                             checks: ['double_diamond'],
                             rules: { target: '50+50' }
                         },
-                        needs_server_id: true
+                        game_id: 1,
+                        needs_server_id: false  // berasal dari COALESCE(g.needs_server_id, false)
+                    }]
+                };
+            }
+            return { rows: [] };
+        });
+
+        // Mock axios.get — simulasikan Mobapay merespons DD available
+        const axios = require('axios');
+        const origGet = axios.get;
+        axios.get = async () => ({
+            status: 200,
+            data: {
+                code: 0,
+                data: {
+                    user_info: { code: 0, user_name: 'TestUser' },
+                    shop_info: {
+                        good_list: [
+                            { sku: 'com.moonton.diamond_mt_id_50', pay_channel_sub: [{ active: 1, direct_channel: 'GoPay' }] }
+                        ],
+                        shelf_location: [{
+                            title: 'Double Diamonds on First Recharge',
+                            goods: [
+                                { title: '50+50', game_can_buy: true, goods_limit: { reached_limit: false } }
+                            ]
+                        }]
+                    }
+                }
+            }
+        });
+
+        try {
+            const res = await fetch(`${baseUrl}/api/products/217/validate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: '609923809', zoneId: '8430' })
+            });
+            // ROOT BUG: sebelum fix ini → 500. Setelah fix → tidak boleh 500
+            assert.ok(
+                res.status !== 500,
+                `[HOTFIX REGRESSION] Produk 217 tidak boleh return 500. Status: ${res.status}`
+            );
+            const data = await res.json();
+            assert.ok(
+                data.success !== undefined,
+                'Response harus punya field success'
+            );
+        } finally {
+            axios.get = origGet;
+            pool.query.mock.restore();
+        }
+    });
+
+    test('POST /api/products/:id/validate — mobapay DD unavailable → 400 dengan pesan Promo Double Diamond', async () => {
+        // Mock pool.query: kembalikan produk dengan validation_config mobapay DD
+        mock.method(pool, 'query', async (sql) => {
+            if (sql.includes('FROM products') && sql.includes('validation_config')) {
+                return {
+                    rows: [{
+                        id: 217,
+                        name: 'Test Product DD',
+                        validation_config: {
+                            enabled: true,
+                            validator: 'mobapay-mlbb-eligibility',
+                            country: 'ID',
+                            checks: ['double_diamond'],
+                            rules: { target: '50+50' }
+                        },
+                        game_id: 1,
+                        needs_server_id: true  // dari COALESCE(g.needs_server_id, false)
                     }]
                 };
             }
@@ -2221,9 +2336,11 @@ describe('Phase 5C-2A: Mobapay MLBB Eligibility Engine', () => {
 
     test('POST /api/products/:id/validate — mobapay WDP available → 200 success', async () => {
         mock.method(pool, 'query', async (sql) => {
-            if (sql.includes('SELECT validation_config')) {
+            if (sql.includes('FROM products') && sql.includes('validation_config')) {
                 return {
                     rows: [{
+                        id: 218,
+                        name: 'Test Product WDP',
                         validation_config: {
                             enabled: true,
                             validator: 'mobapay-mlbb-eligibility',
@@ -2231,6 +2348,7 @@ describe('Phase 5C-2A: Mobapay MLBB Eligibility Engine', () => {
                             checks: ['wdp_available'],
                             rules: {}
                         },
+                        game_id: 1,
                         needs_server_id: true
                     }]
                 };
@@ -2284,15 +2402,18 @@ describe('Phase 5C-2A: Mobapay MLBB Eligibility Engine', () => {
 
     test('POST /api/products/:id/validate — validator PGS existing tidak rusak (tetap panggil validateGameId)', async () => {
         mock.method(pool, 'query', async (sql) => {
-            if (sql.includes('SELECT validation_config')) {
+            if (sql.includes('FROM products') && sql.includes('validation_config')) {
                 return {
                     rows: [{
+                        id: 100,
+                        name: 'Test PGS Product',
                         validation_config: {
                             enabled: true,
                             validator: 'mobile-legends-region',
                             rules: {}
                         },
-                        needs_server_id: true
+                        game_id: 1,
+                        needs_server_id: true  // dari COALESCE(g.needs_server_id, false)
                     }]
                 };
             }
@@ -2315,8 +2436,8 @@ describe('Phase 5C-2A: Mobapay MLBB Eligibility Engine', () => {
 
     test('POST /api/products/:id/validate — produk tanpa validation_config → success "tidak memerlukan validasi"', async () => {
         mock.method(pool, 'query', async (sql) => {
-            if (sql.includes('SELECT validation_config')) {
-                return { rows: [{ validation_config: null, needs_server_id: false }] };
+            if (sql.includes('FROM products') && sql.includes('validation_config')) {
+                return { rows: [{ id: 999, name: 'No Config Product', validation_config: null, game_id: 1, needs_server_id: false }] };
             }
             return { rows: [] };
         });

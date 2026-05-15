@@ -2014,7 +2014,20 @@ app.post('/api/products/:productId/validate', async (req, res) => {
     const { userId, zoneId } = req.body;
     if (!userId) return res.status(400).json({ success: false, message: 'User ID wajib diisi.' });
     try {
-        const { rows } = await pool.query('SELECT validation_config, needs_server_id FROM products WHERE id = $1', [productId]);
+        // HOTFIX: needs_server_id is on the games table, not products.
+        // Use a LEFT JOIN so we never query a non-existent column on products.
+        const { rows } = await pool.query(
+            `SELECT
+                p.id,
+                p.name,
+                p.validation_config,
+                p.game_id,
+                COALESCE(g.needs_server_id, false) AS needs_server_id
+             FROM products p
+             LEFT JOIN games g ON g.id = p.game_id
+             WHERE p.id = $1`,
+            [productId]
+        );
         if (rows.length === 0) return res.status(404).json({ success: false, message: 'Produk tidak ditemukan.' });
         const config = rows[0].validation_config;
 
