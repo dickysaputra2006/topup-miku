@@ -5,6 +5,19 @@ let allRolesData = [];
 let displayRoles = [];
 
 document.addEventListener('DOMContentLoaded', function () {
+    // ⚡ Bolt: Utility fungsi untuk mengurangi beban pencarian/filtering array pada input
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     const PUBLIC_API_URL = '/api';
 
     const gameSelectorDropdown = document.getElementById('game-selector-dropdown');
@@ -131,13 +144,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        // ⚡ Bolt: Menerapkan debounce 300ms untuk menunda pencarian (mencegah blok main thread)
+        const debouncedGameSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGamesData.filter(game =>
                 game.name.toLowerCase().includes(searchTerm)
             );
             renderGamesDropdown(filteredGames, displayRoles);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedGameSearch);
     }
 
     
