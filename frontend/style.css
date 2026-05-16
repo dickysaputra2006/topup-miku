@@ -1566,17 +1566,21 @@ html, body {
 }
 /* Perbaikan untuk hasil validasi di halaman produk */
 .validation-result-inline {
-    margin-top: 0.5rem; /* Mengurangi jarak dari atas */
+    margin-top: 0.5rem;
     padding: 0.8rem 1rem;
     border-radius: 5px;
     font-size: 0.9rem;
-    display: flex; /* Menggunakan flexbox */
-    flex-direction: column; /* Menyusun konten dari atas ke bawah */
-    align-items: flex-start; /* Rata kiri */
-    grid-column: 1 / -1; /* Membuat div ini mengambil 2 kolom grid */
+    display: flex;
+    flex-direction: row;       /* icon + teks sejajar horizontal */
+    align-items: flex-start;  /* teks panjang wrap ke bawah, icon tetap di atas */
+    gap: 0.55rem;             /* jarak antara icon dan teks */
+    grid-column: 1 / -1;
+    line-height: 1.5;
+    word-break: break-word;   /* cegah overflow teks panjang di HP */
 }
 .validation-result-inline p {
-    margin: 0; /* Hapus margin default dari paragraf */
+    margin: 0;
+    flex: 1;                  /* teks mengisi sisa lebar */
 }
 .validation-result-inline.success {
     background-color: #1a3a32;
@@ -1589,7 +1593,9 @@ html, body {
     color: var(--danger-color);
 }
 .validation-result-inline i {
-    margin-right: 0.5rem;
+    flex-shrink: 0;           /* icon tidak menyusut / turun baris */
+    margin-top: 0.1rem;       /* sejajarkan dengan cap-height teks */
+    margin-right: 0;          /* gap sudah menangani jarak */
 }
 /* Styling untuk Modal Konfirmasi Pesanan */
 .confirmation-details h4 {
