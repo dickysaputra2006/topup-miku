@@ -2620,3 +2620,204 @@ describe('Phase 6A: Public Leaderboard', () => {
         pool.query.mock.restore();
     });
 });
+
+// ============================================================
+// PHASE 7A — WA Bot Admin Deposit Read-Only API Tests
+// ============================================================
+describe('Phase 7A: WA Bot Admin Deposit Read-Only API', () => {
+    let server;
+    let baseUrl;
+
+    const VALID_BOT_TOKEN = 'test-wa-bot-token-phase7a-secure-xyz';
+
+    before(() => {
+        // Set test token before starting server so middleware sees it
+        process.env.WA_BOT_ADMIN_TOKEN = VALID_BOT_TOKEN;
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        delete process.env.WA_BOT_ADMIN_TOKEN;
+        try { pool.query.mock.restore(); } catch (_) {}
+        await new Promise(resolve => server.close(resolve));
+    });
+
+    // ── Helper: mock query for deposit list ───────────────────
+    function mockDepositQuery(rows) {
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM deposits d')) {
+                return { rows };
+            }
+            return { rows: [] };
+        });
+    }
+
+    const sampleDeposit = {
+        id:          42,
+        username:    'buyer99',
+        amount:      '50500',
+        unique_code: 500,
+        method:      'GoPay',
+        note:        null,
+        status:      'Pending',
+        created_at:  new Date().toISOString(),
+        updated_at:  new Date().toISOString()
+    };
+
+    // ── TEST 1: tanpa token → 401 ─────────────────────────────
+    test('GET /api/bot/admin/deposits/pending — tanpa token ditolak 401', async () => {
+        const res = await fetch(`${baseUrl}/api/bot/admin/deposits/pending`);
+        assert.strictEqual(res.status, 401, 'No token must return 401');
+        // Auth rejected before any DB call — no mock to restore
+    });
+
+    // ── TEST 2: token salah → 403 ─────────────────────────────
+    test('GET /api/bot/admin/deposits/pending — token salah ditolak 403', async () => {
+        const res = await fetch(`${baseUrl}/api/bot/admin/deposits/pending`, {
+            headers: { 'Authorization': 'Bearer wrong-token-xyz' }
+        });
+        assert.strictEqual(res.status, 403, 'Wrong token must return 403');
+    });
+
+    // ── TEST 3: env token kosong → 503 ───────────────────────
+    test('GET /api/bot/admin/deposits/pending — env kosong → 503 aman', async () => {
+        // Temporarily hide the env token
+        const savedToken = process.env.WA_BOT_ADMIN_TOKEN;
+        delete process.env.WA_BOT_ADMIN_TOKEN;
+
+        const res = await fetch(`${baseUrl}/api/bot/admin/deposits/pending`, {
+            headers: { 'Authorization': `Bearer ${savedToken}` }
+        });
+        assert.strictEqual(res.status, 503, 'Unconfigured env must return 503');
+        const data = await res.json();
+        assert.ok(data.message.includes('dikonfigurasi'), 'Message should mention configuration');
+
+        process.env.WA_BOT_ADMIN_TOKEN = savedToken;
+    });
+
+    // ── TEST 4: token benar → list pending sukses ─────────────
+    test('GET /api/bot/admin/deposits/pending — token benar → 200 dengan daftar deposit', async () => {
+        mockDepositQuery([sampleDeposit]);
+
+        const res = await fetch(`${baseUrl}/api/bot/admin/deposits/pending`, {
+            headers: { 'Authorization': `Bearer ${VALID_BOT_TOKEN}` }
+        });
+        assert.strictEqual(res.status, 200, 'Valid token must return 200');
+        const data = await res.json();
+        assert.ok(Array.isArray(data.deposits), 'Response must have deposits array');
+        assert.ok(data.deposits.length > 0, 'Should have deposits');
+        assert.ok('count'        in data, 'Response must have count');
+        assert.ok('generated_at' in data, 'Response must have generated_at');
+
+        pool.query.mock.restore();
+    });
+
+    // ── TEST 5: hanya status Pending dikembalikan ─────────────
+    test('GET /api/bot/admin/deposits/pending — SQL harus filter status Pending', async () => {
+        let capturedSql = '';
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string') capturedSql = sql;
+            return { rows: [] };
+        });
+
+        await fetch(`${baseUrl}/api/bot/admin/deposits/pending`, {
+            headers: { 'Authorization': `Bearer ${VALID_BOT_TOKEN}` }
+        });
+
+        assert.ok(capturedSql.includes("status = 'Pending'"), "SQL must filter by status = 'Pending'");
+        assert.ok(!capturedSql.includes("'Approved'"), 'SQL must not include Approved');
+        assert.ok(!capturedSql.includes("'Rejected'"), 'SQL must not include Rejected');
+        pool.query.mock.restore();
+    });
+
+    // ── TEST 6: limit max dibatasi 50 ────────────────────────
+    test('GET /api/bot/admin/deposits/pending?limit=999 — limit capped at 50', async () => {
+        mockDepositQuery([]);
+        const res = await fetch(`${baseUrl}/api/bot/admin/deposits/pending?limit=999`, {
+            headers: { 'Authorization': `Bearer ${VALID_BOT_TOKEN}` }
+        });
+        assert.strictEqual(res.status, 200, 'Oversized limit must not error');
+        const data = await res.json();
+        assert.ok(Array.isArray(data.deposits), 'Must return deposits array');
+        pool.query.mock.restore();
+    });
+
+    // ── TEST 7: tidak expose password/email/nomor_wa ──────────
+    test('GET /api/bot/admin/deposits/pending — tidak expose field sensitif', async () => {
+        mockDepositQuery([sampleDeposit]);
+
+        const res = await fetch(`${baseUrl}/api/bot/admin/deposits/pending`, {
+            headers: { 'Authorization': `Bearer ${VALID_BOT_TOKEN}` }
+        });
+        const data = await res.json();
+        const raw = JSON.stringify(data);
+
+        assert.ok(!raw.includes('"password"'), 'password must not be exposed');
+        assert.ok(!raw.includes('"email"'),    'email must not be exposed');
+        assert.ok(!raw.includes('"nomor_wa"'), 'nomor_wa must not be exposed');
+        assert.ok(!raw.includes('"user_id"'),  'user_id must not be exposed');
+        assert.ok(!raw.includes('"api_key"'),  'api_key must not be exposed');
+
+        pool.query.mock.restore();
+    });
+
+    // ── TEST 8: detail deposit dengan token benar → 200 ───────
+    test('GET /api/bot/admin/deposits/:id — token benar → 200 detail deposit', async () => {
+        mockDepositQuery([sampleDeposit]);
+
+        const res = await fetch(`${baseUrl}/api/bot/admin/deposits/42`, {
+            headers: { 'Authorization': `Bearer ${VALID_BOT_TOKEN}` }
+        });
+        assert.strictEqual(res.status, 200, 'Valid token + valid id must return 200');
+        const data = await res.json();
+
+        // Cek field yang diharapkan ada
+        assert.ok('id'           in data, 'id must be present');
+        assert.ok('username'     in data, 'username must be present');
+        assert.ok('amount'       in data, 'amount must be present');
+        assert.ok('method'       in data, 'method must be present');
+        assert.ok('status'       in data, 'status must be present');
+        assert.ok('summary_text' in data, 'summary_text must be present for WA bot');
+
+        // summary_text harus mengandung info berguna, bukan data sensitif
+        assert.ok(data.summary_text.includes('Deposit'), 'summary_text must mention Deposit');
+        assert.ok(!data.summary_text.includes('@'), 'summary_text must not contain email');
+
+        pool.query.mock.restore();
+    });
+
+    // ── TEST 9: detail deposit tidak ditemukan → 404 ──────────
+    test('GET /api/bot/admin/deposits/:id — tidak ditemukan → 404', async () => {
+        mockDepositQuery([]); // empty = not found
+
+        const res = await fetch(`${baseUrl}/api/bot/admin/deposits/9999`, {
+            headers: { 'Authorization': `Bearer ${VALID_BOT_TOKEN}` }
+        });
+        assert.strictEqual(res.status, 404, 'Missing deposit must return 404');
+        const data = await res.json();
+        assert.ok(data.message, 'Must return a message');
+
+        pool.query.mock.restore();
+    });
+
+    // ── TEST 10: endpoint read-only — tidak ada UPDATE/INSERT ──
+    test('GET /api/bot/admin/deposits/pending — tidak ada UPDATE/INSERT di DB (read-only)', async () => {
+        const executedStatements = [];
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string') executedStatements.push(sql.trim().toUpperCase().slice(0, 6));
+            return { rows: [] };
+        });
+
+        await fetch(`${baseUrl}/api/bot/admin/deposits/pending`, {
+            headers: { 'Authorization': `Bearer ${VALID_BOT_TOKEN}` }
+        });
+
+        // Hanya SELECT yang boleh dieksekusi
+        assert.ok(!executedStatements.includes('UPDATE'), 'Must not execute UPDATE');
+        assert.ok(!executedStatements.includes('INSERT'), 'Must not execute INSERT');
+        assert.ok(!executedStatements.includes('DELETE'), 'Must not execute DELETE');
+
+        pool.query.mock.restore();
+    });
+});
