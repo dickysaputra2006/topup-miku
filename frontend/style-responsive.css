@@ -1892,3 +1892,16 @@ table th {
         justify-content: center;
     }
 }
+
+/* === Phase 6A: LEADERBOARD BUTTON — mobile hide ===
+   Desktop header button (#leaderboard-nav-btn) disembunyikan di mobile.
+   Pola ini konsisten dengan .pricelist-btn dan .validate-btn yang sudah
+   hidden di style.css line 1182.
+   Link Leaderboard di #dropdown-menu (hamburger) TIDAK terpengaruh karena
+   berada di struktur HTML yang berbeda (.header-left bukan .header-right).
+*/
+@media (max-width: 768px) {
+    #leaderboard-nav-btn {
+        display: none !important;
+    }
+}
