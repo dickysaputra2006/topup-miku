@@ -2724,6 +2724,171 @@ app.get('/api/public/leaderboard', async (req, res) => {
     }
 });
 
+// === PHASE 7A: WA BOT ADMIN READ-ONLY API ===
+
+/**
+ * Middleware: requireWaBotAdminToken
+ *
+ * Memeriksa header Authorization: Bearer <WA_BOT_ADMIN_TOKEN>.
+ * - Jika env WA_BOT_ADMIN_TOKEN tidak dikonfigurasi → 503 (aman, tidak bocor info).
+ * - Jika token tidak ada → 401.
+ * - Jika token salah → 403 (constant-time compare untuk mencegah timing attack).
+ * - Token tidak pernah dilog.
+ */
+function requireWaBotAdminToken(req, res, next) {
+    const configuredToken = process.env.WA_BOT_ADMIN_TOKEN;
+
+    // Jika env belum dikonfigurasi, endpoint tidak bisa dipakai (fail-safe)
+    if (!configuredToken || configuredToken.trim().length === 0) {
+        return res.status(503).json({ message: 'Bot admin token belum dikonfigurasi.' });
+    }
+
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: 'Token bot diperlukan.' });
+    }
+
+    const providedToken = authHeader.slice(7); // strip "Bearer "
+
+    // Constant-time compare — cegah timing attack
+    const configBuf = Buffer.from(configuredToken);
+    const providedBuf = Buffer.from(providedToken);
+
+    // Panjang berbeda = langsung tolak (setelah alloc buffer kosong untuk timing)
+    const lenOk = configBuf.length === providedBuf.length;
+    // timingSafeEqual butuh panjang sama, pakai dummy jika beda panjang
+    const cmpBuf = lenOk ? providedBuf : Buffer.alloc(configBuf.length);
+    let tokensMatch = false;
+    try {
+        tokensMatch = crypto.timingSafeEqual(configBuf, cmpBuf);
+    } catch (_) {
+        tokensMatch = false;
+    }
+
+    if (!lenOk || !tokensMatch) {
+        return res.status(403).json({ message: 'Token bot tidak valid.' });
+    }
+
+    next();
+}
+
+/**
+ * Format angka ke Rupiah untuk summary_text WA-friendly.
+ * Tidak digunakan di logika bisnis, hanya presentasi teks.
+ */
+function formatRupiahBot(amount) {
+    return 'Rp ' + Number(amount).toLocaleString('id-ID');
+}
+
+// GET /api/bot/admin/deposits/pending — daftar deposit Pending (read-only)
+// Auth: Authorization: Bearer <WA_BOT_ADMIN_TOKEN>
+// Query: ?limit=10 (default 10, max 50)
+app.get('/api/bot/admin/deposits/pending', requireWaBotAdminToken, async (req, res) => {
+    try {
+        // Limit: default 10, max 50
+        const rawLimit = parseInt(req.query.limit, 10);
+        const limit = (Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= 50) ? rawLimit : 10;
+
+        // READ-ONLY: hanya SELECT, tidak ada UPDATE/INSERT/DELETE
+        const sql = `
+            SELECT
+                d.id,
+                u.username,
+                d.amount,
+                d.unique_code,
+                d.method,
+                d.note,
+                d.status,
+                d.created_at
+            FROM deposits d
+            JOIN users u ON d.user_id = u.id
+            WHERE d.status = 'Pending'
+            ORDER BY d.created_at ASC
+            LIMIT $1
+        `;
+        const { rows } = await pool.query(sql, [limit]);
+
+        const deposits = rows.map(d => {
+            const amountNum = Number(d.amount) || 0;
+            const summaryText = `Deposit #${d.id} dari ${d.username} sebesar ${formatRupiahBot(amountNum)} via ${d.method || '-'}. Status: Pending.`;
+            return {
+                id:           d.id,
+                username:     d.username,
+                amount:       amountNum,
+                unique_code:  d.unique_code,
+                method:       d.method   || null,
+                note:         d.note     || null,
+                status:       d.status,
+                created_at:   d.created_at,
+                summary_text: summaryText
+            };
+        });
+
+        return res.json({
+            deposits,
+            count:        deposits.length,
+            generated_at: new Date().toISOString()
+        });
+    } catch (error) {
+        logSafeError('[bot/admin/deposits/pending] Error:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan saat mengambil data deposit.' });
+    }
+});
+
+// GET /api/bot/admin/deposits/:id — detail satu deposit (read-only)
+// Auth: Authorization: Bearer <WA_BOT_ADMIN_TOKEN>
+app.get('/api/bot/admin/deposits/:id', requireWaBotAdminToken, async (req, res) => {
+    try {
+        const depositId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(depositId) || depositId <= 0) {
+            return res.status(400).json({ message: 'ID deposit tidak valid.' });
+        }
+
+        // READ-ONLY: hanya SELECT, tidak ada UPDATE/INSERT/DELETE
+        const sql = `
+            SELECT
+                d.id,
+                u.username,
+                d.amount,
+                d.unique_code,
+                d.method,
+                d.note,
+                d.status,
+                d.created_at,
+                d.updated_at
+            FROM deposits d
+            JOIN users u ON d.user_id = u.id
+            WHERE d.id = $1
+            LIMIT 1
+        `;
+        const { rows } = await pool.query(sql, [depositId]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: 'Deposit tidak ditemukan.' });
+        }
+
+        const d = rows[0];
+        const amountNum = Number(d.amount) || 0;
+        const summaryText = `Deposit #${d.id} dari ${d.username} sebesar ${formatRupiahBot(amountNum)} via ${d.method || '-'}. Status: ${d.status}.`;
+
+        return res.json({
+            id:           d.id,
+            username:     d.username,
+            amount:       amountNum,
+            unique_code:  d.unique_code,
+            method:       d.method   || null,
+            note:         d.note     || null,
+            status:       d.status,
+            created_at:   d.created_at,
+            updated_at:   d.updated_at || null,
+            summary_text: summaryText
+        });
+    } catch (error) {
+        logSafeError('[bot/admin/deposits/:id] Error:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan saat mengambil data deposit.' });
+    }
+});
+
 // === ORDER & H2H ENDPOINTS ===
 app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
