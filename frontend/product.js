@@ -1,4 +1,4 @@
-﻿document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function() {
     // === Bagian 1: Deklarasi Variabel & Elemen ===
     const AUTH_API_URL = '/api/auth';
     const PUBLIC_API_URL = '/api';
@@ -43,6 +43,7 @@
     let selectedProductId = null;
     let isValidationSuccess = false;
     let isOrderSubmitting = false;
+    let lastValidationErrorMessage = ''; // simpan pesan error validasi terbaru
 
     // === Bagian 2: Definisi Semua Fungsi ===
 
@@ -183,6 +184,7 @@
             appliedPromo = null; // Reset promo saat produk baru dipilih
             promoCodeInput.value = '';
             isValidationSuccess = false;
+            lastValidationErrorMessage = ''; // reset pesan error saat ganti produk
             validationResultEl.innerHTML = uiState('Isi User ID lalu keluar dari kolom untuk validasi otomatis.', 'loading');
             updatePrice(); // Panggil fungsi ini, bukan set textContent langsung
             submitOrderBtn.disabled = false;
@@ -202,6 +204,7 @@
     // Fungsi inti yang akan menjalankan validasi
    const handleValidation = async () => {
         isValidationSuccess = false; // Reset status setiap kali validasi baru dimulai
+        lastValidationErrorMessage = ''; // reset pesan error lama
         if (!currentSelectedProductId) {
             resultContainer.innerHTML = '';
             return;
@@ -238,12 +241,13 @@
 
             // Tampilan jika validasi gagal
             if (!response.ok) {
+                const errMsg = result.message || 'Validasi gagal.';
+                lastValidationErrorMessage = errMsg; // simpan untuk alert Beli Sekarang
                 resultContainer.innerHTML = `<div class="validation-result-inline error">
-                    <i class="fas fa-times-circle"></i> ${result.message}
+                    <i class="fas fa-times-circle"></i><span>${errMsg}</span>
                 </div>`;
                 return;
             }
-
 
             // Tampilan sukses Mobapay (tidak ada username, hanya message konfirmasi)
             if (result.success && result.data && result.data.mobapay === true) {
@@ -271,8 +275,10 @@
             isValidationSuccess = true;
 
         } catch (error) {
+            const errMsg = error.message || 'Terjadi kesalahan koneksi.';
+            lastValidationErrorMessage = errMsg;
             resultContainer.innerHTML = `<div class="validation-result-inline error">
-                <i class="fas fa-times-circle"></i> ${error.message}
+                <i class="fas fa-times-circle"></i><span>${errMsg}</span>
             </div>`;
             isValidationSuccess = false;
         }
@@ -446,7 +452,10 @@ function applyFlashSaleSelection() {
     // Event listener untuk tombol "Beli Sekarang" utama
     submitOrderBtn.addEventListener('click', () => {
         if (!isValidationSuccess) {
-            alert('Validasi ID gagal atau region tidak sesuai. Harap periksa kembali User ID Anda atau pilih produk lain yang sesuai.');
+            const errMsg = lastValidationErrorMessage
+                ? `Validasi ID gagal: ${lastValidationErrorMessage}\n\nHarap periksa kembali User ID Anda atau pilih produk lain.`
+                : 'Validasi ID belum selesai atau gagal. Pastikan User ID sudah diisi dan valid, lalu coba lagi.';
+            alert(errMsg);
             return;
         }
         if (!token) {
