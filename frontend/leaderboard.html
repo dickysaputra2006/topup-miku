@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Leaderboard Top Buyer - MIKU Store</title>
+    <meta name="description" content="Lihat ranking top buyer MIKU Store. Siapa yang paling banyak topup? Cek leaderboard sekarang!">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-responsive.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <style>
+        /* ===== LEADERBOARD PAGE STYLES ===== */
+        .leaderboard-page-header {
+            text-align: center;
+            padding: 2.5rem 0 1.5rem;
+        }
+        .leaderboard-page-header h2 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #a78bfa, #ec4899, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+        .leaderboard-page-header p {
+            color: var(--muted-color, #9ca3af);
+            font-size: 0.95rem;
+        }
+
+        /* Period Tabs */
+        .period-tabs {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            margin: 1.25rem 0 2rem;
+            flex-wrap: wrap;
+        }
+        .period-tab {
+            padding: 0.45rem 1.25rem;
+            border-radius: 999px;
+            border: 1.5px solid rgba(167, 139, 250, 0.3);
+            background: transparent;
+            color: var(--muted-color, #9ca3af);
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .period-tab:hover {
+            border-color: rgba(167, 139, 250, 0.6);
+            color: #c4b5fd;
+        }
+        .period-tab.active {
+            background: linear-gradient(135deg, #7c3aed, #a21caf);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 0 16px rgba(124, 58, 237, 0.4);
+        }
+
+        /* Leaderboard List */
+        .leaderboard-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-width: 680px;
+            margin: 0 auto;
+        }
+
+        /* Each entry card */
+        .lb-entry {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-radius: 14px;
+            background: var(--card-bg, #1e1b4b22);
+            border: 1.5px solid rgba(255,255,255,0.06);
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .lb-entry:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        }
+
+        /* Top 3 glow accents */
+        .lb-entry.rank-1 {
+            border-color: rgba(251, 191, 36, 0.45);
+            background: linear-gradient(135deg, rgba(251,191,36,0.07), rgba(30,27,75,0.4));
+        }
+        .lb-entry.rank-2 {
+            border-color: rgba(203,213,225,0.4);
+            background: linear-gradient(135deg, rgba(203,213,225,0.07), rgba(30,27,75,0.3));
+        }
+        .lb-entry.rank-3 {
+            border-color: rgba(234,88,12,0.4);
+            background: linear-gradient(135deg, rgba(234,88,12,0.07), rgba(30,27,75,0.3));
+        }
+
+        /* Rank badge */
+        .lb-rank-badge {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 800;
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.07);
+            color: var(--muted-color, #9ca3af);
+        }
+        .lb-rank-badge.gold   { background: linear-gradient(135deg,#fbbf24,#b45309); color:#fff; box-shadow:0 0 12px rgba(251,191,36,0.45); font-size:1.3rem; }
+        .lb-rank-badge.silver { background: linear-gradient(135deg,#cbd5e1,#64748b); color:#fff; box-shadow:0 0 10px rgba(148,163,184,0.35); font-size:1.25rem; }
+        .lb-rank-badge.bronze { background: linear-gradient(135deg,#f97316,#92400e); color:#fff; box-shadow:0 0 10px rgba(249,115,22,0.35); font-size:1.2rem; }
+
+        /* Info column */
+        .lb-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .lb-name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: #f1f5f9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .lb-meta {
+            font-size: 0.8rem;
+            color: var(--muted-color, #9ca3af);
+            margin-top: 0.2rem;
+        }
+
+        /* Stats column */
+        .lb-stats {
+            text-align: right;
+            flex-shrink: 0;
+        }
+        .lb-spent {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #a78bfa;
+        }
+        .lb-orders {
+            font-size: 0.78rem;
+            color: var(--muted-color, #9ca3af);
+            margin-top: 0.15rem;
+        }
+
+        /* Rank label badge */
+        .lb-rank-label {
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-top: 0.3rem;
+        }
+        .label-legend   { background: linear-gradient(135deg,#a78bfa,#ec4899); color:#fff; }
+        .label-diamond  { background: linear-gradient(135deg,#38bdf8,#6366f1); color:#fff; }
+        .label-platinum { background: linear-gradient(135deg,#94a3b8,#475569); color:#fff; }
+        .label-gold     { background: linear-gradient(135deg,#fbbf24,#d97706); color:#fff; }
+        .label-silver   { background: linear-gradient(135deg,#cbd5e1,#64748b); color:#1e293b; }
+        .label-bronze   { background: linear-gradient(135deg,#f97316,#92400e); color:#fff; }
+
+        /* State cards */
+        .lb-state {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--muted-color, #9ca3af);
+            font-size: 0.95rem;
+        }
+        .lb-state .lb-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+            display: block;
+            opacity: 0.5;
+        }
+
+        /* Disclaimer */
+        .lb-disclaimer {
+            text-align: center;
+            margin: 1.75rem auto 0;
+            max-width: 480px;
+            font-size: 0.78rem;
+            color: var(--muted-color, #9ca3af);
+            line-height: 1.6;
+        }
+
+        /* Mobile tweaks */
+        @media (max-width: 480px) {
+            .lb-entry { padding: 0.85rem 1rem; gap: 0.75rem; }
+            .lb-rank-badge { width: 36px; height: 36px; font-size: 0.95rem; }
+            .lb-spent { font-size: 0.9rem; }
+            .leaderboard-page-header h2 { font-size: 1.55rem; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-container container">
+        <div class="header-left">
+            <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
+        </div>
+        <div class="header-right">
+            <a href="index.html" class="header-btn">Kembali ke Toko</a>
+        </div>
+    </div>
+</header>
+
+<main class="container" style="padding-bottom: 3rem;">
+
+    <div class="leaderboard-page-header">
+        <h2><i class="fas fa-trophy"></i> Leaderboard Top Buyer</h2>
+        <p>Ranking buyer terbaik MIKU Store berdasarkan total pembelian berhasil.</p>
+    </div>
+
+    <!-- Period tabs -->
+    <div class="period-tabs" role="tablist" aria-label="Filter periode leaderboard">
+        <button class="period-tab active" id="tab-all-time" data-period="all_time" role="tab" aria-selected="true">
+            <i class="fas fa-infinity"></i> All Time
+        </button>
+        <button class="period-tab" id="tab-monthly" data-period="monthly" role="tab" aria-selected="false">
+            <i class="fas fa-calendar-alt"></i> Bulan Ini
+        </button>
+        <button class="period-tab" id="tab-weekly" data-period="weekly" role="tab" aria-selected="false">
+            <i class="fas fa-calendar-week"></i> 7 Hari Terakhir
+        </button>
+    </div>
+
+    <!-- Leaderboard list container -->
+    <div id="leaderboard-container" aria-live="polite">
+        <div class="lb-state">
+            <span class="lb-icon"><i class="fas fa-spinner fa-spin"></i></span>
+            Memuat leaderboard...
+        </div>
+    </div>
+
+    <p class="lb-disclaimer">
+        <i class="fas fa-shield-alt"></i>
+        Username disamarkan untuk privasi pengguna.
+        Hanya transaksi dengan status <strong>Berhasil</strong> yang dihitung.
+    </p>
+
+</main>
+
+<footer>
+    <div class="container footer-content">
+        <div class="footer-links">
+            <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
+            <a href="/kebijakan-refund.html">Kebijakan Refund</a>
+            <a href="/kontak.html">Kontak Kami</a>
+            <a href="/cek-transaksi.html">Cek Transaksi</a>
+            <a href="/leaderboard.html">Leaderboard</a>
+        </div>
+        <p>&copy; 2025 MIKU Store. Dibuat dengan ❤️</p>
+    </div>
+</footer>
+
+<script src="leaderboard.js"></script>
+</body>
+</html>

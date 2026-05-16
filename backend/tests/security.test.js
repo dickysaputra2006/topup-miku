@@ -2457,3 +2457,166 @@ describe('Phase 5C-2A: Mobapay MLBB Eligibility Engine', () => {
         pool.query.mock.restore();
     });
 });
+
+// ============================================================
+// PHASE 6A — Public Leaderboard Tests
+// ============================================================
+describe('Phase 6A: Public Leaderboard', () => {
+    let server;
+    let baseUrl;
+
+    before(() => {
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        try { pool.query.mock.restore(); } catch (_) {}
+        await new Promise(resolve => server.close(resolve));
+    });
+
+    // Helper: mock pool.query for leaderboard SQL
+    function mockLeaderboardQuery(rows) {
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes("status = 'Success'") && sql.includes('GROUP BY')) {
+                return { rows };
+            }
+            return { rows: [] };
+        });
+    }
+
+    test('GET /api/public/leaderboard — accessible without authentication', async () => {
+        mockLeaderboardQuery([]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard`);
+        assert.strictEqual(res.status, 200, 'Leaderboard must be public (200 without auth)');
+        const data = await res.json();
+        assert.ok(Array.isArray(data.leaderboard), 'Response must have leaderboard array');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard — returns required fields', async () => {
+        mockLeaderboardQuery([{
+            username: 'testuser123',
+            total_success_orders: 7,
+            total_spent: '350000',
+            last_order_at: new Date().toISOString()
+        }]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard`);
+        assert.strictEqual(res.status, 200);
+        const data = await res.json();
+        assert.ok(data.leaderboard.length > 0, 'Should have entries');
+        const entry = data.leaderboard[0];
+        assert.ok('rank'                 in entry, 'rank must be present');
+        assert.ok('display_name'         in entry, 'display_name must be present');
+        assert.ok('total_success_orders' in entry, 'total_success_orders must be present');
+        assert.ok('total_spent'          in entry, 'total_spent must be present');
+        assert.ok('rank_label'           in entry, 'rank_label must be present');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard — username is masked', async () => {
+        mockLeaderboardQuery([{
+            username: 'storemiku99',
+            total_success_orders: 5,
+            total_spent: '200000',
+            last_order_at: null
+        }]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard`);
+        const data = await res.json();
+        const entry = data.leaderboard[0];
+        assert.ok(!entry.display_name.includes('storemiku99'), 'Full username must not appear in display_name');
+        assert.ok(entry.display_name.includes('***'), 'display_name must be masked with ***');
+        assert.ok(entry.display_name.startsWith('sto'), 'First 3 chars of username must be visible');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard — email, nomor_wa, user_id never returned', async () => {
+        mockLeaderboardQuery([{
+            username: 'buyer01',
+            total_success_orders: 3,
+            total_spent: '150000',
+            last_order_at: null
+        }]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard`);
+        const data = await res.json();
+        const raw = JSON.stringify(data);
+        assert.ok(!raw.includes('"email"'),    'email must not be in leaderboard response');
+        assert.ok(!raw.includes('"nomor_wa"'), 'nomor_wa must not be in leaderboard response');
+        assert.ok(!raw.includes('"user_id"'),  'user_id must not be in leaderboard response');
+        assert.ok(!raw.includes('"username"'), 'raw username key must not be in leaderboard response');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard — empty returns array, not error', async () => {
+        mockLeaderboardQuery([]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard`);
+        assert.strictEqual(res.status, 200, 'Empty leaderboard must still return 200');
+        const data = await res.json();
+        assert.ok(Array.isArray(data.leaderboard), 'leaderboard must be array');
+        assert.strictEqual(data.leaderboard.length, 0, 'Empty leaderboard must return empty array');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard?limit=999 — limit capped at 50', async () => {
+        mockLeaderboardQuery([]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard?limit=999`);
+        assert.strictEqual(res.status, 200, 'Oversized limit must not error');
+        const data = await res.json();
+        assert.ok(Array.isArray(data.leaderboard), 'Must return leaderboard array');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard?period=monthly — monthly period accepted', async () => {
+        mockLeaderboardQuery([]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard?period=monthly`);
+        assert.strictEqual(res.status, 200);
+        const data = await res.json();
+        assert.strictEqual(data.period, 'monthly', 'Response must echo back period=monthly');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard?period=weekly — weekly period accepted', async () => {
+        mockLeaderboardQuery([]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard?period=weekly`);
+        assert.strictEqual(res.status, 200);
+        const data = await res.json();
+        assert.strictEqual(data.period, 'weekly', 'Response must echo back period=weekly');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard?period=invalid — falls back to all_time', async () => {
+        mockLeaderboardQuery([]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard?period=hacked`);
+        assert.strictEqual(res.status, 200);
+        const data = await res.json();
+        assert.strictEqual(data.period, 'all_time', 'Invalid period must default to all_time');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard — SQL filters only Success status', async () => {
+        let capturedSql = '';
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string') capturedSql = sql;
+            return { rows: [] };
+        });
+        await fetch(`${baseUrl}/api/public/leaderboard`);
+        assert.ok(capturedSql.includes("status = 'Success'"), "SQL must filter by status = 'Success'");
+        assert.ok(!capturedSql.includes("'Pending'"),         'SQL must not include Pending');
+        assert.ok(!capturedSql.includes("'Failed'"),          'SQL must not include Failed');
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/public/leaderboard — rank_label Legend for high spender (>=5jt)', async () => {
+        mockLeaderboardQuery([{
+            username: 'legend01',
+            total_success_orders: 20,
+            total_spent: '5000000',
+            last_order_at: new Date().toISOString()
+        }]);
+        const res = await fetch(`${baseUrl}/api/public/leaderboard`);
+        const data = await res.json();
+        const entry = data.leaderboard[0];
+        assert.strictEqual(entry.rank_label, 'Legend', 'User with 5jt+ must have Legend rank_label');
+        pool.query.mock.restore();
+    });
+});
