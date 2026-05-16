@@ -2634,6 +2634,96 @@ app.get('/api/public/recent-transactions', async (req, res) => {
     }
 });
 
+// === LEADERBOARD ENDPOINTS ===
+
+/**
+ * Mask username untuk leaderboard publik.
+ * - Kosong/null: "User***"
+ * - Panjang <= 3: huruf pertama + "***"
+ * - Panjang > 3: 3 huruf awal + "***" + 2 huruf akhir
+ * Email/phone tidak pernah diproses di sini — hanya username.
+ */
+function maskLeaderboardName(username) {
+    if (!username || typeof username !== 'string' || username.trim().length === 0) {
+        return 'User***';
+    }
+    const u = username.trim();
+    if (u.length <= 3) {
+        return u.charAt(0) + '***';
+    }
+    return u.slice(0, 3) + '***' + u.slice(-2);
+}
+
+/**
+ * Tentukan label rank berdasarkan total belanja (IDR).
+ */
+function leaderboardRankLabel(totalSpent) {
+    const s = Number(totalSpent) || 0;
+    if (s >= 5000000) return 'Legend';
+    if (s >= 2000000) return 'Diamond';
+    if (s >= 1000000) return 'Platinum';
+    if (s >= 500000)  return 'Gold';
+    if (s >= 200000)  return 'Silver';
+    return 'Bronze';
+}
+
+// GET /api/public/leaderboard — top buyer publik (read-only)
+app.get('/api/public/leaderboard', async (req, res) => {
+    try {
+        // Limit: default 10, max 50
+        const rawLimit = parseInt(req.query.limit, 10);
+        const limit = (Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= 50) ? rawLimit : 10;
+
+        // Period: all_time (default), monthly, weekly
+        const period = String(req.query.period || 'all_time').toLowerCase();
+        const VALID_PERIODS = ['all_time', 'monthly', 'weekly'];
+        const safePeriod = VALID_PERIODS.includes(period) ? period : 'all_time';
+
+        let periodClause = '';
+        if (safePeriod === 'monthly') {
+            periodClause = "AND t.created_at >= DATE_TRUNC('month', NOW())";
+        } else if (safePeriod === 'weekly') {
+            periodClause = "AND t.created_at >= NOW() - INTERVAL '7 days'";
+        }
+        // all_time: no extra clause
+
+        const sql = `
+            SELECT
+                u.username,
+                COUNT(t.id)::int          AS total_success_orders,
+                SUM(t.price)::numeric      AS total_spent,
+                MAX(t.created_at)          AS last_order_at
+            FROM transactions t
+            JOIN users u ON t.user_id = u.id
+            WHERE t.status = 'Success'
+            ${periodClause}
+            GROUP BY u.id, u.username
+            ORDER BY total_spent DESC, total_success_orders DESC
+            LIMIT $1
+        `;
+
+        const { rows } = await pool.query(sql, [limit]);
+
+        const leaderboard = rows.map((row, idx) => ({
+            rank:                 idx + 1,
+            display_name:         maskLeaderboardName(row.username),
+            total_success_orders: row.total_success_orders,
+            total_spent:          Number(row.total_spent) || 0,
+            last_order_at:        row.last_order_at || null,
+            rank_label:           leaderboardRankLabel(row.total_spent)
+        }));
+
+        return res.json({
+            leaderboard,
+            period:    safePeriod,
+            generated_at: new Date().toISOString()
+        });
+    } catch (error) {
+        logSafeError('[public/leaderboard] Error:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan saat mengambil data leaderboard.' });
+    }
+});
+
 // === ORDER & H2H ENDPOINTS ===
 app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
