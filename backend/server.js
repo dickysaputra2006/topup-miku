@@ -1245,7 +1245,7 @@ app.post('/api/admin/balance/add', protectAdmin, async (req, res) => {
         const user = rows[0];
         await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [parseInt(amount), user.id]);
         const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
-        await client.query(historySql, [user.id, parseInt(amount), 'Deposit', description, `ADMIN_ADD-${Date.now()}`]);
+        await client.query(historySql, [user.id, parseInt(amount), 'Deposit', description, `ADMIN_ADD-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`]);
         await client.query('COMMIT');
         res.json({ message: `Saldo sebesar ${amount} berhasil ditambahkan ke akun ${username}.` });
     } catch (error) {
@@ -1268,7 +1268,7 @@ app.post('/api/admin/balance/reduce', protectAdmin, async (req, res) => {
         if (user.balance < amount) throw new Error('Saldo pengguna tidak mencukupi untuk dikurangi.');
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [amount, user.id]);
         const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
-        await client.query(historySql, [user.id, -amount, 'Refund', description, `ADMIN_REDUCE-${Date.now()}`]);
+        await client.query(historySql, [user.id, -amount, 'Refund', description, `ADMIN_REDUCE-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`]);
         await client.query('COMMIT');
         res.json({ message: `Saldo akun ${username} berhasil dikurangi sebesar ${amount}.` });
     } catch (error) {
@@ -3058,8 +3058,8 @@ app.post('/api/order', protect, async (req, res) => {
         
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, userId]);
         
-        const invoiceId = `TRX-${Date.now()}${userId}`;
-        const trx_id_provider = `WEB-${Date.now()}`;
+        const invoiceId = `TRX-${Date.now()}${userId}-${crypto.randomBytes(8).toString('hex')}`;
+        const trx_id_provider = `WEB-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
         const { rows: txInsertRows } = await client.query('INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
         const newTransactionId = txInsertRows[0].id;
         const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
@@ -3284,8 +3284,8 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         
         await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, h2hUser.id]);
 
-        const invoiceId = `H2H-${Date.now()}${h2hUser.id}`;
-        const trx_id_provider = `H2H-PROVIDER-${Date.now()}`;
+        const invoiceId = `H2H-${Date.now()}${h2hUser.id}-${crypto.randomBytes(8).toString('hex')}`;
+        const trx_id_provider = `H2H-PROVIDER-${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
 
         await client.query('INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
 
