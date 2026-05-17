@@ -45,6 +45,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // === 2. DEFINISI SEMUA FUNGSI ===
 
+    function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    }
+
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
 
@@ -445,7 +455,8 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
+        const debouncedHandleSearch = debounce((value) => handleSearch(value), 300);
+        searchInput.addEventListener('input', () => debouncedHandleSearch(searchInput.value));
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 
