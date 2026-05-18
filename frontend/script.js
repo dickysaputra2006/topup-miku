@@ -444,9 +444,21 @@ if (dropdownLoginBtn) {
         });
     });
 
+    // Custom debounce utility
+    function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    }
+
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
-        searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
+        const debouncedSearch = debounce((value) => handleSearch(value), 300);
+        searchInput.addEventListener('input', (e) => debouncedSearch(e.target.value));
+        searchInput.addEventListener('focus', (e) => debouncedSearch(e.target.value));
     }
 
     if (headerRight) {
