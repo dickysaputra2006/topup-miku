@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 const axios = require('axios');
+const safeAxios = require('./safeAxios.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -256,7 +257,7 @@ async function checkPendingTransactions() {
                 serial_number: serialNumber,
                 timestamp: new Date().toISOString()
             };
-            axios.post(tx.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
+            safeAxios.post(tx.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
                 .catch(err => console.error(
                     `[cron][pending] Webhook failed for invoice ${tx.invoice_id}:`,
                     safeAxiosError(err, 'H2H Webhook')

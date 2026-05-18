@@ -1,0 +1,6 @@
+## 2025-05-12 - Prevent SSRF via DNS Rebinding and Execution Time Resolution
+**Vulnerability:** Server-Side Request Forgery (SSRF) bypass through DNS Rebinding. The application verified webhook callback URLs at registration time (PUT /h2h/profile/callback) rather than execution time. Even with asynchronous DNS resolution during registration, an attacker could change their DNS record after registration to point to an internal IP (like 127.0.0.1) before the webhook is executed.
+**Learning:** Checking the IP resolution of a domain solely at registration is vulnerable to DNS Rebinding TOCTOU (Time-Of-Check to Time-Of-Use) attacks. Moreover, changing shared validation functions to `async` can lead to failing open (silent regressions) if existing synchronous call sites are not updated to `await`.
+**Prevention:**
+1. Perform the DNS lookup and IP validation at the exact time the outbound request is executed (e.g., inside an HTTP agent or request interceptor), or manually resolve the IP immediately prior to sending the webhook and direct the request to the resolved IP (with appropriate host headers).
+2. For registration checks, continue to validate format and basic obvious private IPs/hostnames to fail fast and provide good UX, but do not rely on it as the sole security boundary for SSRF.
