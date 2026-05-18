@@ -1032,7 +1032,7 @@ app.post('/api/deposit/request', protect, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const uniqueCode = Math.floor(Math.random() * 900) + 100;
+        const uniqueCode = crypto.randomInt(100, 1000);
         const totalAmount = parseInt(amount) + uniqueCode;
         const sql = 'INSERT INTO deposits (user_id, amount, unique_code, status, method, note) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at';
         const { rows } = await client.query(sql, [userId, totalAmount, uniqueCode, 'Pending', trimmedMethod, trimmedNote || null]);
