@@ -5,6 +5,17 @@ document.addEventListener('DOMContentLoaded', function () {
         alert(logoutMessage);
         sessionStorage.removeItem('logoutMessage'); // Hapus pesan agar tidak muncul lagi
     }
+    // === 0. UTILITY FUNCTIONS ===
+    function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    }
+
     // === 1. DEKLARASI KONSTANTA & ELEMEN ===
     const API_URL_AUTH = '/api/auth';
     const API_URL = '/api';
@@ -445,7 +456,8 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
+        const debouncedHandleSearch = debounce(() => handleSearch(searchInput.value), 300);
+        searchInput.addEventListener('input', debouncedHandleSearch);
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 
