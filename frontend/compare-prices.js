@@ -7,6 +7,19 @@ let displayRoles = [];
 document.addEventListener('DOMContentLoaded', function () {
     const PUBLIC_API_URL = '/api';
 
+    // Utility: Debounce function to prevent main-thread blocking
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     const gameSelectorDropdown = document.getElementById('game-selector-dropdown');
     const compareProductListTitle = document.getElementById('compare-product-list-title');
     const compareTableBody = document.querySelector("#compare-prices-table tbody");
@@ -131,13 +144,14 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        const debouncedGameSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGamesData.filter(game =>
                 game.name.toLowerCase().includes(searchTerm)
             );
             renderGamesDropdown(filteredGames, displayRoles);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedGameSearch);
     }
 
     
