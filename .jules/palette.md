@@ -1,0 +1,3 @@
+## 2025-02-28 - Dynamic ARIA labels on non-native icon-only toggle buttons
+**Learning:** When using non-native interactive elements (like `<i>` tags for FontAwesome icons) as toggle buttons (e.g., password visibility toggle), assigning `role="button"`, `tabindex="0"`, and custom `keydown` events is essential for keyboard accessibility. Furthermore, the `aria-label` must dynamically update alongside the visual state (e.g., changing from "Tampilkan password" to "Sembunyikan password") to ensure screen readers provide accurate feedback on the current interaction context.
+**Action:** Always implement a JavaScript listener to dynamically update the `aria-label` attribute on non-native icon-only toggle buttons, matching the visual state changes.
