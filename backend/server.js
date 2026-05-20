@@ -168,7 +168,8 @@ function isPrivateHostname(hostname) {
     if (lower === 'localhost' || lower.endsWith('.local')) return true;
     if (net.isIP(lower) === 4) {
         const parts = lower.split('.').map(Number);
-        return parts[0] === 10 ||
+        return parts[0] === 0 || // Prevent SSRF bypass via 0.0.0.0/8
+            parts[0] === 10 ||
             parts[0] === 127 ||
             (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
             (parts[0] === 192 && parts[1] === 168) ||
