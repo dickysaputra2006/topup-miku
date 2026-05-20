@@ -45,6 +45,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // === 2. DEFINISI SEMUA FUNGSI ===
 
+    /**
+     * Debounce utility function to limit the rate at which a function is executed.
+     * Useful for search inputs to reduce DOM manipulations and potential API calls.
+     */
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
 
@@ -445,8 +461,11 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
-        searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
+        // Optimize search input by wrapping handleSearch in a debounce function
+        // This prevents excessive filtering of allGamesData and DOM updates on every keystroke
+        const debouncedSearch = debounce((val) => handleSearch(val), 300);
+        searchInput.addEventListener('input', () => debouncedSearch(searchInput.value));
+        searchInput.addEventListener('focus', () => debouncedSearch(searchInput.value));
     }
 
     if (headerRight) {
