@@ -1,0 +1,3 @@
+## 2024-06-25 - Frontend Search Event Listeners
+**Learning:** Adding a basic debounce to search input event listeners on a vanilla JS frontend requires duplicating the utility function across files, but it significantly reduces main-thread blocking by batching rapid keystrokes instead of filtering on every single input event. Lockfiles generated during test runs (like `pnpm-lock.yaml`) must be discarded to keep PRs under the 50-line limit for micro-optimizations.
+**Action:** When adding local utility functions to avoid architectural changes in a vanilla codebase, ensure they are defined within the `DOMContentLoaded` scope to avoid polluting the global namespace. Always discard automatically generated lockfiles unless specifically requested.

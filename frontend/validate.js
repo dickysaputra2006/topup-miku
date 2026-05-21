@@ -8,6 +8,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // DIUBAH: Menunjuk ke dropdown, bukan list container
     const gameSelectorDropdown = document.getElementById('game-selector-dropdown');
 
+
+    // Debounce function to limit how often a function executes
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     let allValidatableGames = [];
 
     async function fetchValidatableGames() {
@@ -128,11 +138,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Pencarian sekarang memfilter dropdown
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        gameSearchInput.addEventListener('input', debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allValidatableGames.filter(game => game.name && game.name.toLowerCase().includes(searchTerm));
             renderGamesDropdown(filteredGames);
-        });
+        }, 300));
     }
 
     fetchValidatableGames();

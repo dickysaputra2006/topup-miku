@@ -43,6 +43,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let allGamesData = [];
 
+    // Debounce function to limit how often a function executes
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
+
     // === 2. DEFINISI SEMUA FUNGSI ===
 
     function showModal() { if (modal) modal.classList.remove('hidden'); }
@@ -445,7 +455,7 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
+        searchInput.addEventListener('input', debounce(() => handleSearch(searchInput.value), 300));
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 
