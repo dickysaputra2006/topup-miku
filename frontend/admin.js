@@ -10,6 +10,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const validationRulesContainer = document.getElementById('validation-rules-container');
     const allowedRegionsInput = document.getElementById('allowed-regions-input');
     const disallowedRegionsInput = document.getElementById('disallowed-regions-input');
+
+    // Debounce function to limit how often a function executes
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     let allValidatableGamesData = [];
     let selectedProductIdForValidation = null;
 
@@ -657,7 +667,7 @@ if (marginForm) {
     }
 
     if (validatorSearchInput) {
-    validatorSearchInput.addEventListener('input', () => {
+    validatorSearchInput.addEventListener('input', debounce(() => {
         const searchTerm = validatorSearchInput.value.toLowerCase();
         const currentSelectedValue = validationSelector.value; // Simpan nilai yang sedang dipilih
 
@@ -680,7 +690,7 @@ if (marginForm) {
         if (filteredGames.some(g => g.gameCode === currentSelectedValue)) {
             validationSelector.value = currentSelectedValue;
         }
-    });
+    }, 300));
 }
             }
 
@@ -776,11 +786,11 @@ if (promosTableBody) {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        gameSearchInput.addEventListener('input', debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGames.filter(game => game.name.toLowerCase().includes(searchTerm));
             populateGameSelectorDropdown(filteredGames);
-        });
+        }, 300));
     }
 
    if (gameSelectorDropdown) {
@@ -978,11 +988,11 @@ if (flashSalesTableBody) {
 }
 
 if (fsGameSearch) {
-    fsGameSearch.addEventListener('input', () => {
+    fsGameSearch.addEventListener('input', debounce(() => {
         const searchTerm = fsGameSearch.value.toLowerCase();
         const filteredGames = allGames.filter(g => g.name.toLowerCase().includes(searchTerm));
         populateFlashSaleGameSelector(filteredGames);
-    });
+    }, 300));
 }
 
 if (fsGameSelector) {
