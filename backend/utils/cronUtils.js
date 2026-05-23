@@ -1,6 +1,10 @@
 require('dotenv').config();
 const { Pool } = require('pg');
 const axios = require('axios');
+const { Agent: HttpAgent } = require('http');
+const { Agent: HttpsAgent } = require('https');
+const dns = require('dns');
+const net = require('net');
 const fs = require('fs');
 const path = require('path');
 
@@ -28,6 +32,50 @@ const pool = new Pool(dbConfig);
 const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
 const PROVIDER_TIMEOUT_MS = 15000; // 15 detik
+
+function isPrivateIp(ip) {
+    if (net.isIP(ip) === 4) {
+        const parts = ip.split('.').map(Number);
+        return parts[0] === 0 ||
+            parts[0] === 10 ||
+            parts[0] === 127 ||
+            (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+            (parts[0] === 192 && parts[1] === 168) ||
+            (parts[0] === 169 && parts[1] === 254);
+    }
+    if (net.isIP(ip) === 6) {
+        return ip === '::1' || ip.startsWith('fc') || ip.startsWith('fd') || ip.startsWith('fe80');
+    }
+    return false;
+}
+
+function safeLookup(hostname, options, callback) {
+    const cb = typeof options === 'function' ? options : callback;
+    dns.lookup(hostname, options, (err, address, family) => {
+        if (err) return cb(err);
+
+        let addresses = address;
+        if (!Array.isArray(address)) {
+            addresses = [{ address, family }];
+        }
+
+        for (const addr of addresses) {
+            if (isPrivateIp(addr.address)) {
+                return cb(new Error(`DNS resolution to private IP ${addr.address} is not allowed to prevent SSRF`));
+            }
+        }
+        cb(null, address, family);
+    });
+}
+
+const safeHttpAgent = new HttpAgent({ lookup: safeLookup });
+const safeHttpsAgent = new HttpsAgent({ lookup: safeLookup });
+
+const safeAxios = axios.create({
+    httpAgent: safeHttpAgent,
+    httpsAgent: safeHttpsAgent
+});
+
 
 const foxyApiHeaders = {
     'Authorization': FOXY_API_KEY,
@@ -256,7 +304,7 @@ async function checkPendingTransactions() {
                 serial_number: serialNumber,
                 timestamp: new Date().toISOString()
             };
-            axios.post(tx.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
+            safeAxios.post(tx.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
                 .catch(err => console.error(
                     `[cron][pending] Webhook failed for invoice ${tx.invoice_id}:`,
                     safeAxiosError(err, 'H2H Webhook')

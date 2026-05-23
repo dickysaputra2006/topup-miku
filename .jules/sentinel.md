@@ -1,0 +1,4 @@
+## 2024-05-31 - [SSRF via DNS Rebinding]
+**Vulnerability:** The backend `axios` webhook implementation did not securely restrict resolutions of target URLs to private/internal loops or instances, relying on an easily bypassed Time-Of-Check to Time-Of-Use (TOCTOU) hostname validation.
+**Learning:** Checking hostnames directly against standard private IP lists is insufficient to prevent DNS rebinding attacks. A malicious URL that passes preliminary tests could be quickly remapped to loopback or private ranges (e.g., `127.0.0.1`, `::1`, `169.254.169.254`) before the request evaluates.
+**Prevention:** Implement SSRF protections for HTTP outbound requests by overriding the `dns.lookup` functions in `http.Agent` and `https.Agent`, which directly verifies the exact IP during socket connection and inherently blocks DNS Rebinding. Account for IPv4 loopbacks, RFC1918 blocks, cloud metadata IP, and critical IPv6 edge cases (`::`, `::1`, and IPv4-mapped `::ffff:*`).
