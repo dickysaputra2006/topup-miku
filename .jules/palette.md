@@ -1,0 +1,3 @@
+## 2024-05-23 - Accessible Icon-only Password Toggle
+ **Learning:** When making non-native icon-only toggle buttons accessible (e.g., a password visibility toggle), applying `role="button"` and `tabindex="0"` is necessary but not sufficient. We must also implement a JavaScript listener to dynamically update the `aria-label` attribute alongside the visual state (e.g., 'Tampilkan password' to 'Sembunyikan password') to ensure accurate screen reader announcements. Keyboard events (Enter/Space) must also be handled manually since it's not a native `<button>`.
+ **Action:** Apply this pattern to all non-native interactive icons going forward, ensuring that the ARIA label stays perfectly synced with the visual state in JS and keyboard triggers are explicitly defined.
