@@ -288,13 +288,18 @@ document.addEventListener('DOMContentLoaded', function () {
 }
 
     if (notificationContainer) {
-        notificationContainer.addEventListener('click', (e) => {
+        const trigger = notificationContainer.querySelector('.notification-trigger') || notificationContainer;
+        const toggleNotif = (e) => {
+            if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.type === 'keydown') e.preventDefault();
             e.stopPropagation();
             const isHidden = notificationPanel.classList.toggle('hidden');
             if (!isHidden) { // Jika panel baru saja ditampilkan
                 showNotifications();
             }
-        });
+        };
+        trigger.addEventListener('click', toggleNotif);
+        trigger.addEventListener('keydown', toggleNotif);
     }
     // Sembunyikan panel jika klik di luar
     window.addEventListener('click', (e) => {
@@ -435,13 +440,17 @@ if (dropdownLoginBtn) {
     });
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
+        const toggle = function (e) {
+            if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.type === 'keydown') e.preventDefault();
             const input = this.parentElement.querySelector('input');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
-        });
+            const isPwd = input.type === 'password';
+            input.type = isPwd ? 'text' : 'password';
+            this.className = `fas ${isPwd ? 'fa-eye' : 'fa-eye-slash'} toggle-password`;
+            this.setAttribute('aria-label', isPwd ? 'Sembunyikan password' : 'Tampilkan password');
+        };
+        icon.addEventListener('click', toggle);
+        icon.addEventListener('keydown', toggle);
     });
 
     if (searchInput) {
