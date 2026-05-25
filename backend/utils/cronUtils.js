@@ -3,6 +3,54 @@ const { Pool } = require('pg');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const dns = require('dns');
+const net = require('net');
+const http = require('http');
+const https = require('https');
+
+// ============================================================
+// === SSRF PROTECTION: DNS REBINDING & PRIVATE IP VALIDATION ===
+// Mitigates SSRF via DNS Rebinding by validating the resolved
+// IP address at the exact time of socket connection.
+// ============================================================
+function isPrivateIp(ip) {
+    const lower = String(ip).toLowerCase();
+    // Block IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1)
+    if (lower.startsWith('::ffff:')) return true;
+    if (net.isIP(lower) === 4) {
+        const parts = lower.split('.').map(Number);
+        return parts[0] === 0 || // Block 0.0.0.0/8
+               parts[0] === 10 ||
+               parts[0] === 127 ||
+               (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
+               (parts[0] === 192 && parts[1] === 168) ||
+               (parts[0] === 169 && parts[1] === 254);
+    }
+    if (net.isIP(lower) === 6) {
+        return lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80');
+    }
+    return false;
+}
+
+const safeLookup = (hostname, options, callback) => {
+    dns.lookup(hostname, options, (err, address, family) => {
+        if (err) return callback(err);
+
+        // Handle autoSelectFamily which can return an array
+        const addresses = Array.isArray(address) ? address : [{ address, family }];
+
+        for (const addr of addresses) {
+            if (isPrivateIp(addr.address)) {
+                return callback(new Error(`SSRF Blocked: DNS lookup resolved to private IP: ${addr.address}`));
+            }
+        }
+
+        callback(null, address, family);
+    });
+};
+
+const safeHttpAgent = new http.Agent({ lookup: safeLookup });
+const safeHttpsAgent = new https.Agent({ lookup: safeLookup });
 
 // ============================================================
 // === KONFIGURASI DATABASE ===
@@ -256,11 +304,15 @@ async function checkPendingTransactions() {
                 serial_number: serialNumber,
                 timestamp: new Date().toISOString()
             };
-            axios.post(tx.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
-                .catch(err => console.error(
-                    `[cron][pending] Webhook failed for invoice ${tx.invoice_id}:`,
-                    safeAxiosError(err, 'H2H Webhook')
-                ));
+            // Use safe agents to prevent SSRF and DNS Rebinding when sending webhook
+            axios.post(tx.h2h_callback_url, webhookPayload, {
+                timeout: PROVIDER_TIMEOUT_MS,
+                httpAgent: safeHttpAgent,
+                httpsAgent: safeHttpsAgent
+            }).catch(err => console.error(
+                `[cron][pending] Webhook failed for invoice ${tx.invoice_id}:`,
+                safeAxiosError(err, 'H2H Webhook')
+            ));
         }
     }
 

@@ -166,9 +166,12 @@ function isValidIpOrCidr(value) {
 function isPrivateHostname(hostname) {
     const lower = hostname.toLowerCase();
     if (lower === 'localhost' || lower.endsWith('.local')) return true;
+    // Prevent IPv4-mapped IPv6 bypass (SSRF protection)
+    if (lower.startsWith('::ffff:')) return true;
     if (net.isIP(lower) === 4) {
         const parts = lower.split('.').map(Number);
-        return parts[0] === 10 ||
+        return parts[0] === 0 || // Block 0.0.0.0/8 (SSRF protection)
+            parts[0] === 10 ||
             parts[0] === 127 ||
             (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
             (parts[0] === 192 && parts[1] === 168) ||
