@@ -435,12 +435,17 @@ if (dropdownLoginBtn) {
     });
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
-            const input = this.parentElement.querySelector('input');
+        const togglePassword = () => {
+            const input = icon.parentElement.querySelector('input');
             const isPassword = input.type === 'password';
             input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
+            icon.classList.toggle('fa-eye', !isPassword);
+            icon.classList.toggle('fa-eye-slash', isPassword);
+            icon.setAttribute('aria-label', isPassword ? 'Sembunyikan password' : 'Tampilkan password');
+        };
+        icon.addEventListener('click', togglePassword);
+        icon.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePassword(); }
         });
     });
 

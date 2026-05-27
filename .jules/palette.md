@@ -1,0 +1,3 @@
+## 2025-02-23 - Dynamic ARIA Label & Keyboard Support for Password Visibility Toggle
+**Learning:** Icon-only toggle buttons for password visibility lack adequate accessibility when they don't dynamically update their \`aria-label\` alongside the visual state (e.g., 'Sembunyikan password' vs 'Tampilkan password') and lack keyboard support (Enter/Space) and roles/tabindex.
+**Action:** When adding non-native buttons like \`<i class="fas ...">\`, always apply \`role="button"\` and \`tabindex="0"\`, and implement a keydown listener. For toggles, ensure the JS updates the \`aria-label\` when the state changes.
