@@ -2889,6 +2889,195 @@ app.get('/api/bot/admin/deposits/:id', requireWaBotAdminToken, async (req, res) 
     }
 });
 
+// === PHASE 7B: WA BOT ADMIN DEPOSIT APPROVE/REJECT API ===
+
+// POST /api/bot/admin/deposits/:id/approve — approve deposit Pending via WA bot
+// Auth: Authorization: Bearer <WA_BOT_ADMIN_TOKEN>
+// Body (optional): { "note": "catatan admin" }
+app.post('/api/bot/admin/deposits/:id/approve', requireWaBotAdminToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const depositId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(depositId) || depositId <= 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'ID deposit tidak valid.' });
+        }
+
+        // Lock baris — cegah double approve (FOR UPDATE)
+        const { rows: allRows } = await client.query(
+            `SELECT d.id, d.user_id, d.amount, d.unique_code, d.method, d.note, d.status, d.created_at,
+                    u.username
+             FROM deposits d
+             JOIN users u ON d.user_id = u.id
+             WHERE d.id = $1
+             FOR UPDATE OF d`,
+            [depositId]
+        );
+
+        if (allRows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Deposit tidak ditemukan.' });
+        }
+
+        const deposit = allRows[0];
+
+        // Hanya Pending yang bisa di-approve
+        if (deposit.status !== 'Pending') {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                message: `Deposit ini sudah diproses (status: ${deposit.status}). Tidak bisa approve ulang.`
+            });
+        }
+
+        // Guard tambahan: cek apakah balance_history sudah pernah dikreditkan
+        const referenceId = `DEPOSIT-${deposit.id}`;
+        const { rows: existingCredit } = await client.query(
+            "SELECT id FROM balance_history WHERE reference_id = $1 AND type = 'Deposit' LIMIT 1",
+            [referenceId]
+        );
+        if (existingCredit.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                message: 'Deposit ini sudah pernah dikreditkan.'
+            });
+        }
+
+        // Update status deposit
+        await client.query(
+            "UPDATE deposits SET status = 'Approved', updated_at = NOW() WHERE id = $1",
+            [depositId]
+        );
+
+        // Tambah saldo user
+        await client.query(
+            'UPDATE users SET balance = balance + $1 WHERE id = $2',
+            [deposit.amount, deposit.user_id]
+        );
+
+        // Insert balance_history
+        const historyDesc = `Deposit #${deposit.id} disetujui via WA bot`;
+        await client.query(
+            'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
+            [deposit.user_id, deposit.amount, 'Deposit', historyDesc, referenceId]
+        );
+
+        await client.query('COMMIT');
+
+        // Notifikasi async — tidak blok response
+        const amountNum = Number(deposit.amount) || 0;
+        createNotification(
+            deposit.user_id,
+            `Deposit #${deposit.id} sebesar ${formatRupiahBot(amountNum)} telah disetujui dan masuk ke saldo.`
+        ).catch(err => console.error('Notifikasi bot approve deposit gagal:', err));
+
+        const summaryText = `✅ Deposit #${deposit.id} dari ${deposit.username} sebesar ${formatRupiahBot(amountNum)} via ${deposit.method || '-'} berhasil di-approve. Saldo user sudah ditambahkan.`;
+
+        return res.json({
+            success: true,
+            message: `Deposit #${deposit.id} berhasil di-approve.`,
+            deposit: {
+                id:       deposit.id,
+                username: deposit.username,
+                amount:   amountNum,
+                method:   deposit.method || null,
+                status:   'Approved'
+            },
+            summary_text: summaryText
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        logSafeError('[bot/admin/deposits/:id/approve] Error:', error);
+        res.status(500).json({ success: false, message: 'Gagal menyetujui deposit.' });
+    } finally {
+        client.release();
+    }
+});
+
+// POST /api/bot/admin/deposits/:id/reject — reject deposit Pending via WA bot
+// Auth: Authorization: Bearer <WA_BOT_ADMIN_TOKEN>
+// Body (optional): { "reason": "alasan reject" }
+app.post('/api/bot/admin/deposits/:id/reject', requireWaBotAdminToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const depositId = parseInt(req.params.id, 10);
+        if (!Number.isFinite(depositId) || depositId <= 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, message: 'ID deposit tidak valid.' });
+        }
+
+        // Lock baris — cegah race condition
+        const { rows: allRows } = await client.query(
+            `SELECT d.id, d.user_id, d.amount, d.unique_code, d.method, d.note, d.status, d.created_at,
+                    u.username
+             FROM deposits d
+             JOIN users u ON d.user_id = u.id
+             WHERE d.id = $1
+             FOR UPDATE OF d`,
+            [depositId]
+        );
+
+        if (allRows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: 'Deposit tidak ditemukan.' });
+        }
+
+        const deposit = allRows[0];
+
+        // Hanya Pending yang bisa di-reject
+        if (deposit.status !== 'Pending') {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                success: false,
+                message: `Deposit ini sudah diproses (status: ${deposit.status}). Tidak bisa reject.`
+            });
+        }
+
+        // Update status deposit — TIDAK update balance, TIDAK insert balance_history
+        await client.query(
+            "UPDATE deposits SET status = 'Rejected', updated_at = NOW() WHERE id = $1",
+            [depositId]
+        );
+
+        await client.query('COMMIT');
+
+        // Notifikasi async — tidak blok response
+        const amountNum = Number(deposit.amount) || 0;
+        const reason = (req.body && req.body.reason) ? String(req.body.reason).slice(0, 200) : '';
+        const notifMessage = reason
+            ? `Deposit #${deposit.id} sebesar ${formatRupiahBot(amountNum)} ditolak. Alasan: ${reason}`
+            : `Deposit #${deposit.id} sebesar ${formatRupiahBot(amountNum)} ditolak. Hubungi admin untuk informasi lebih lanjut.`;
+        createNotification(deposit.user_id, notifMessage)
+            .catch(err => console.error('Notifikasi bot reject deposit gagal:', err));
+
+        const summaryText = `❌ Deposit #${deposit.id} dari ${deposit.username} sebesar ${formatRupiahBot(amountNum)} via ${deposit.method || '-'} ditolak.`;
+
+        return res.json({
+            success: true,
+            message: `Deposit #${deposit.id} berhasil ditolak.`,
+            deposit: {
+                id:       deposit.id,
+                username: deposit.username,
+                amount:   amountNum,
+                method:   deposit.method || null,
+                status:   'Rejected'
+            },
+            summary_text: summaryText
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        logSafeError('[bot/admin/deposits/:id/reject] Error:', error);
+        res.status(500).json({ success: false, message: 'Gagal menolak deposit.' });
+    } finally {
+        client.release();
+    }
+});
+
 // === ORDER & H2H ENDPOINTS ===
 app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
