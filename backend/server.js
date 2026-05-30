@@ -1960,8 +1960,17 @@ function sanitizeValidationServiceName(name) {
     return clean || name.trim();
 }
 
+// ⚡ Bolt Optimization: In-memory cache for validatable games
+// 💡 What: Cache the result of reading and parsing data_cekid.json.
+// 🎯 Why: Reading from disk and parsing JSON on every request is expensive and blocking.
+// 📊 Impact: Eliminates disk I/O and JSON parsing overhead, making the endpoint response significantly faster.
+let cachedValidatableGames = null;
 app.get('/api/games/validatable', async (req, res) => {
     try {
+        if (cachedValidatableGames) {
+            return res.json(cachedValidatableGames);
+        }
+
         const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
@@ -1973,6 +1982,7 @@ app.get('/api/games/validatable', async (req, res) => {
             hasZoneIdForValidation: game.hasZoneId
         }));
 
+        cachedValidatableGames = finalResult;
         res.json(finalResult);
     } catch (error) {
         console.error("Error fetching validatable games from JSON:", error);
