@@ -623,13 +623,25 @@ if (applyPromoBtn) {
 }
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function() {
+        // Initialize accessibility attributes
+        icon.setAttribute('role', 'button');
+        icon.setAttribute('tabindex', '0');
+        icon.setAttribute('aria-label', 'Tampilkan password');
+
+        const toggleVisibility = function(e) {
+            if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+            if (e.type === 'keydown' && e.key === ' ') e.preventDefault();
+
             const input = this.parentElement.querySelector('input');
             const isPassword = input.type === 'password';
             input.type = isPassword ? 'text' : 'password';
             this.classList.toggle('fa-eye', !isPassword);
             this.classList.toggle('fa-eye-slash', isPassword);
-        });
+            this.setAttribute('aria-label', isPassword ? 'Sembunyikan password' : 'Tampilkan password');
+        };
+
+        icon.addEventListener('click', toggleVisibility);
+        icon.addEventListener('keydown', toggleVisibility);
     });
 
     // === Bagian 4: Menjalankan Fungsi Awal ===
