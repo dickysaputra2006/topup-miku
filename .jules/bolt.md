@@ -1,0 +1,3 @@
+## 2024-06-01 - Cache Static JSON File Reads
+**Learning:** Reading and parsing a static JSON file (`data_cekid.json`) on every request in route handlers introduces significant file I/O and JSON parsing overhead, which can be a bottleneck under high load.
+**Action:** Implement an in-memory cache to store the parsed data or final processed result so that subsequent requests can be served instantly without touching the disk or re-parsing the JSON.
