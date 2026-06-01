@@ -50,13 +50,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Logika untuk toggle lihat password
+    function togglePasswordVisibility(icon) {
+        const input = icon.parentElement.querySelector('input');
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        icon.classList.toggle('fa-eye', !isPassword);
+        icon.classList.toggle('fa-eye-slash', isPassword);
+        icon.setAttribute('aria-label', isPassword ? 'Tampilkan password' : 'Sembunyikan password');
+    }
+
     document.querySelectorAll('.toggle-password').forEach(icon => {
         icon.addEventListener('click', function () {
-            const input = this.parentElement.querySelector('input');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
+            togglePasswordVisibility(this);
+        });
+        icon.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                if (e.key === ' ') e.preventDefault();
+                togglePasswordVisibility(this);
+            }
         });
     });
 });
