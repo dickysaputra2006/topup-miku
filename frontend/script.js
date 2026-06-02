@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const API_URL_AUTH = '/api/auth';
     const API_URL = '/api';
     const PUBLIC_API_URL = '/api';
-    const token = localStorage.getItem('authToken');
+    // Token dibaca fresh setiap kali diperlukan (bukan di-capture sebagai const global)
+    // agar setelah localStorage.removeItem('authToken') nilainya langsung terlihat kosong.
 
     // Elemen Header & Dropdown
     const header = document.querySelector('header');
@@ -43,6 +44,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let allGamesData = [];
 
+    // Guard: cegah concurrent / recursive call ke /api/user/profile
+    let isFetchingProfile = false;
+
     // === 2. DEFINISI SEMUA FUNGSI ===
 
     function showModal() { if (modal) modal.classList.remove('hidden'); }
@@ -50,54 +54,96 @@ document.addEventListener('DOMContentLoaded', function () {
 
    
 
-    async function updateAuthButton() {
+    /**
+     * Reset semua UI ke state logged-out.
+     * Hapus token dari storage dan update tombol — TANPA memanggil /api/user/profile lagi.
+     */
+    function setLoggedOutUI() {
+        localStorage.removeItem('authToken');
+        sessionStorage.removeItem('authToken'); // bersihkan juga sessionStorage jika ada
+
         const userAuthButton = document.getElementById('user-auth-button');
-        const dropdownAuthButton = document.getElementById('dropdown-auth-btn'); 
-        
+        const dropdownAuthButton = document.getElementById('dropdown-auth-btn');
 
-        if (!userAuthButton || !dropdownAuthButton) return; // Pastikan kedua tombol ada
-
-        if (token) {
-            try {
-                const response = await fetch(`${API_URL}/user/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
-                if (!response.ok) throw new Error('Sesi tidak valid.');
-                const user = await response.json();
-
-                // --- UPDATE KEDUA TOMBOL SAAT LOGIN ---
-                const loggedInHtml = `<i class="fas fa-user-circle"></i> ${user.username}`;
-                userAuthButton.innerHTML = loggedInHtml;
-                userAuthButton.href = 'dashboard.html';
-                userAuthButton.onclick = null;
-
-                dropdownAuthButton.textContent = 'Keluar'; // Ubah teks menjadi "Keluar"
-                dropdownAuthButton.href = '#';
-                dropdownAuthButton.onclick = (e) => { // Tambahkan fungsi logout
-                    e.preventDefault();
-                    localStorage.removeItem('authToken');
-                    window.location.reload();
-                };
-                // --------------------------------------
-
-            } catch (error) {
-                localStorage.removeItem('authToken');
-                updateAuthButton(); // Panggil ulang fungsi untuk reset
-            }
-        } else {
-            // --- UPDATE KEDUA TOMBOL SAAT LOGOUT ---
+        if (userAuthButton) {
             userAuthButton.textContent = 'Masuk';
             userAuthButton.href = '#';
-            userAuthButton.onclick = (e) => {
-                e.preventDefault();
-                showModal();
-            };
-
-            dropdownAuthButton.textContent = 'Masuk'; // Kembalikan teks menjadi "Masuk"
+            userAuthButton.onclick = (e) => { e.preventDefault(); showModal(); };
+        }
+        if (dropdownAuthButton) {
+            dropdownAuthButton.textContent = 'Masuk';
             dropdownAuthButton.href = '#';
-            dropdownAuthButton.onclick = (e) => { // Kembalikan fungsi untuk buka modal
+            dropdownAuthButton.onclick = (e) => { e.preventDefault(); showModal(); };
+        }
+        // Sembunyikan notification badge jika ada
+        if (notificationBadge) notificationBadge.classList.add('hidden');
+    }
+
+    async function updateAuthButton() {
+        // Baca token fresh setiap kali — agar removal di setLoggedOutUI langsung terlihat
+        const currentToken = localStorage.getItem('authToken');
+
+        const userAuthButton = document.getElementById('user-auth-button');
+        const dropdownAuthButton = document.getElementById('dropdown-auth-btn');
+
+        if (!userAuthButton || !dropdownAuthButton) return;
+
+        if (!currentToken) {
+            // Tidak ada token — langsung set logged-out UI, tidak perlu fetch
+            setLoggedOutUI();
+            return;
+        }
+
+        // Guard: hanya satu fetch /api/user/profile yang boleh berjalan sekaligus
+        if (isFetchingProfile) return;
+        isFetchingProfile = true;
+
+        try {
+            const response = await fetch(`${API_URL}/user/profile`, {
+                headers: { 'Authorization': `Bearer ${currentToken}` }
+            });
+
+            // Token expired / invalid — logout bersih, tidak retry
+            if (response.status === 401 || response.status === 403) {
+                setLoggedOutUI();
+                return;
+            }
+
+            // Rate-limited — diam saja, jangan retry
+            if (response.status === 429) {
+                console.warn('[auth] Rate limited saat cek profil. Tampilkan logged-out UI.');
+                setLoggedOutUI();
+                return;
+            }
+
+            if (!response.ok) {
+                // Error server lain — silent fail, jangan hapus token
+                console.warn('[auth] Profile fetch gagal:', response.status);
+                return;
+            }
+
+            const user = await response.json();
+
+            // --- UPDATE KEDUA TOMBOL SAAT LOGIN ---
+            const loggedInHtml = `<i class="fas fa-user-circle"></i> ${user.username}`;
+            userAuthButton.innerHTML = loggedInHtml;
+            userAuthButton.href = 'dashboard.html';
+            userAuthButton.onclick = null;
+
+            dropdownAuthButton.textContent = 'Keluar';
+            dropdownAuthButton.href = '#';
+            dropdownAuthButton.onclick = (e) => {
                 e.preventDefault();
-                showModal();
+                localStorage.removeItem('authToken');
+                window.location.reload();
             };
-            
+            // --------------------------------------
+
+        } catch (error) {
+            // Network error / fetch threw — silent fail, jangan hapus token, jangan retry
+            console.warn('[auth] Network error saat cek profil:', error.message);
+        } finally {
+            isFetchingProfile = false;
         }
     }
 
@@ -186,12 +232,16 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-     async function checkUnreadNotifications() {
-        if (!token) return; // Hanya jalankan jika user login
+    async function checkUnreadNotifications() {
+        const currentToken = localStorage.getItem('authToken');
+        if (!currentToken) return; // Hanya jalankan jika user login
         try {
             const response = await fetch(`${API_URL}/user/notifications/unread-count`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${currentToken}` }
             });
+            // Token invalid — tidak perlu update badge, cukup return
+            if (response.status === 401 || response.status === 403) return;
+            if (!response.ok) return;
             const data = await response.json();
             if (data.count > 0) {
                 notificationBadge.textContent = data.count;
@@ -205,12 +255,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function showNotifications() {
-        if (!token) return;
+        const currentToken = localStorage.getItem('authToken');
+        if (!currentToken) return;
         notificationList.innerHTML = '<p style="text-align: center; padding: 1rem;">Memuat...</p>';
         try {
             const response = await fetch(`${API_URL}/user/notifications`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${currentToken}` }
             });
+            if (response.status === 401 || response.status === 403) {
+                notificationList.innerHTML = '';
+                return;
+            }
             const notifications = await response.json();
             notificationList.innerHTML = ''; // Kosongkan
             if (notifications.length === 0) {
@@ -229,10 +284,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             }
             // Tandai sudah dibaca di backend
-            await fetch(`${API_URL}/user/notifications/mark-as-read`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const tokenForMark = localStorage.getItem('authToken');
+            if (tokenForMark) {
+                await fetch(`${API_URL}/user/notifications/mark-as-read`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${tokenForMark}` }
+                }).catch(() => {}); // silent fail
+            }
             notificationBadge.classList.add('hidden'); // Sembunyikan badge
         } catch (error) {
             notificationList.innerHTML = '<p style="text-align: center; padding: 1rem; color: red;">Gagal memuat.</p>';
