@@ -21,6 +21,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const productsTableBody = document.querySelector("#products-table tbody");
     const productListTitle = document.getElementById('product-list-title');
 
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     // Elemen untuk bagian lain
     const adminDepositsTbody = document.getElementById('admin-deposits-tbody');
     const depositStatusFilter = document.getElementById('deposit-status-filter');
@@ -657,7 +665,7 @@ if (marginForm) {
     }
 
     if (validatorSearchInput) {
-    validatorSearchInput.addEventListener('input', () => {
+    const debouncedValidatorSearch = debounce(() => {
         const searchTerm = validatorSearchInput.value.toLowerCase();
         const currentSelectedValue = validationSelector.value; // Simpan nilai yang sedang dipilih
 
@@ -680,7 +688,8 @@ if (marginForm) {
         if (filteredGames.some(g => g.gameCode === currentSelectedValue)) {
             validationSelector.value = currentSelectedValue;
         }
-    });
+    }, 300);
+    validatorSearchInput.addEventListener('input', debouncedValidatorSearch);
 }
             }
 
@@ -776,11 +785,12 @@ if (promosTableBody) {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        const debouncedGameSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGames.filter(game => game.name.toLowerCase().includes(searchTerm));
             populateGameSelectorDropdown(filteredGames);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedGameSearch);
     }
 
    if (gameSelectorDropdown) {
@@ -978,11 +988,12 @@ if (flashSalesTableBody) {
 }
 
 if (fsGameSearch) {
-    fsGameSearch.addEventListener('input', () => {
+    const debouncedFsGameSearch = debounce(() => {
         const searchTerm = fsGameSearch.value.toLowerCase();
         const filteredGames = allGames.filter(g => g.name.toLowerCase().includes(searchTerm));
         populateFlashSaleGameSelector(filteredGames);
-    });
+    }, 300);
+    fsGameSearch.addEventListener('input', debouncedFsGameSearch);
 }
 
 if (fsGameSelector) {

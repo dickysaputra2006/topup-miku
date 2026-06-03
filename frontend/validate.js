@@ -10,6 +10,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let allValidatableGames = [];
 
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+
     async function fetchValidatableGames() {
         try {
             const response = await fetch(`${PUBLIC_API_URL}/games/validatable`);
@@ -128,11 +136,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Pencarian sekarang memfilter dropdown
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        const debouncedGameSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allValidatableGames.filter(game => game.name && game.name.toLowerCase().includes(searchTerm));
             renderGamesDropdown(filteredGames);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedGameSearch);
     }
 
     fetchValidatableGames();
