@@ -1,0 +1,4 @@
+## 2025-05-10 - [CRITICAL] Predictable Transaction IDs in Orders
+**Vulnerability:** The system generated `provider_trx_id` values for transactions using `WEB-${Date.now()}` and `H2H-PROVIDER-${Date.now()}`. Because these IDs were predictable, an attacker could forge a callback to the provider callback endpoint (`/api/foxy/callback`), potentially bypassing the payment flow and falsely marking an order as SUCCESS.
+**Learning:** External-facing unique identifiers, especially those used in financial transaction callbacks, must be cryptographically secure and unguessable to prevent forgery attacks. Simple timestamp-based IDs are insufficient for transaction security.
+**Prevention:** Use a secure random generator (like `crypto.randomBytes(8).toString('hex')`) in addition to timestamps to generate highly unpredictable transaction identifiers.
