@@ -1,0 +1,3 @@
+## 2024-06-04 - Accessible Non-Native Toggle Buttons
+**Learning:** When non-native elements (like `<i>` icons) are used as interactive toggles (e.g., password visibility), simply adding `role="button"` and `tabindex="0"` is insufficient for screen readers. The `aria-label` must also be dynamically updated via JavaScript (e.g., 'Tampilkan password' to 'Sembunyikan password') alongside the visual state, and keyboard events (`Enter` and `Space`) must be manually handled (including `e.preventDefault()` for Space to prevent page scroll) to ensure full accessibility parity with native `<button>` elements.
+**Action:** Always implement dynamic `aria-label` updates and standard keyboard event listeners for non-native interactive components.
