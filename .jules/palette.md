@@ -1,0 +1,3 @@
+## 2025-02-24 - Interactive Icon-only Elements Accessibility
+**Learning:** Icon-only toggles (like password visibility) lacking semantic structure prevent screen reader users from understanding their state or purpose, and break keyboard navigation. Relying solely on `click` listeners excludes users who rely on keyboard interactions (Enter/Space).
+**Action:** When making non-native icon-only toggle buttons accessible, add `role="button"`, `tabindex="0"`, dynamic `aria-label` attribute updates alongside visual state changes, and implement custom `keydown` event listeners for `Enter` and `Space` keys to fully support keyboard navigation and screen readers.
