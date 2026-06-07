@@ -1,0 +1,3 @@
+## 2026-06-07 - Dynamic ARIA labels for non-native toggles
+**Learning:** When making non-native icon-only toggle buttons accessible (like `<i>` for password visibility), static `aria-label` is insufficient. The `aria-label` must be dynamically updated via JS (e.g., "Tampilkan password" to "Sembunyikan password") alongside visual changes for screen readers. Furthermore, non-native buttons require explicit `keydown` support for Enter/Space, including `e.preventDefault()` on Space to prevent page scrolling.
+**Action:** Always implement a custom `keydown` listener that handles Enter and Space (with preventDefault for Space) and dynamically updates `aria-label` for stateful non-native toggle buttons.
