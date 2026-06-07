@@ -1,0 +1,3 @@
+## 2025-02-18 - Accessible Icon-Only Toggle Buttons
+**Learning:** This application extensively uses font-awesome icons (`<i>`) as buttons without proper accessibility semantics, making them invisible or confusing to screen readers and unreachable via keyboard navigation.
+**Action:** When making non-native elements accessible with `role="button"`, always add `tabindex="0"`, a descriptive `aria-label`, and ensure `keydown` events (Enter and Space) are handled. For toggleable states (like password visibility), dynamically update the `aria-label` to reflect the new state (e.g., "Sembunyikan password").
