@@ -1,0 +1,3 @@
+## 2026-06-08 - Cache Statically Loaded JSON
+**Learning:** Reading statically loaded JSON files inside backend route handlers causes unnecessary disk I/O and JSON parsing overhead on every request.
+**Action:** Implement an in-memory cache (e.g., `let cache = null`) at the module level to store the parsed and mapped data after the first read, skipping the file system operation on subsequent requests.
