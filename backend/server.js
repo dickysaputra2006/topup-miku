@@ -1960,8 +1960,16 @@ function sanitizeValidationServiceName(name) {
     return clean || name.trim();
 }
 
+// Performance Optimization: Cache statically loaded JSON file to memory
+// Prevents unnecessary disk I/O and JSON parsing overhead on every request
+// Expected impact: Faster response times for /api/games/validatable
+let cachedValidatableGames = null;
 app.get('/api/games/validatable', async (req, res) => {
     try {
+        if (cachedValidatableGames) {
+            return res.json(cachedValidatableGames);
+        }
+
         const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
@@ -1973,6 +1981,7 @@ app.get('/api/games/validatable', async (req, res) => {
             hasZoneIdForValidation: game.hasZoneId
         }));
 
+        cachedValidatableGames = finalResult;
         res.json(finalResult);
     } catch (error) {
         console.error("Error fetching validatable games from JSON:", error);
