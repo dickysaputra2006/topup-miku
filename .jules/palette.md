@@ -1,0 +1,3 @@
+## 2024-05-18 - Non-native interactable elements accessibility
+**Learning:** Found multiple non-native interactive elements (like `<i>` tag for password toggle) lacking semantic meaning, `tabindex`, and proper keyboard interactions across the UI forms. This results in screen readers not announcing them correctly and keyboard-only users being unable to access or operate the show/hide functionality.
+**Action:** Always add `role="button"`, `tabindex="0"`, dynamic `aria-label`s, `focus-visible` styling, and explicitly handle "Enter" and "Space" keyboard events on non-native interactive elements. Ensure Space key handles `e.preventDefault()` to stop page scrolling.
