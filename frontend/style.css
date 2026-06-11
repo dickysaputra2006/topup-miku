@@ -2491,3 +2491,10 @@ button:disabled {
         margin-bottom: 1rem;
     }
 }
+
+/* Focus state untuk accessibility icon toggle password */
+.toggle-password:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
