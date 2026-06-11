@@ -712,14 +712,21 @@ document.addEventListener('DOMContentLoaded', function () {
     fetchProfileData();
     fetchTransactionSummary();
 
+    function togglePasswordVisibility(e) {
+        if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+        if (e.type === 'keydown') e.preventDefault();
+
+        const input = this.parentElement.querySelector('input');
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        this.classList.toggle('fa-eye', !isPassword);
+        this.classList.toggle('fa-eye-slash', isPassword);
+        this.setAttribute('aria-label', isPassword ? 'Sembunyikan password' : 'Tampilkan password');
+    }
+
     document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
-            const input = this.parentElement.querySelector('input');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
-        });
+        icon.addEventListener('click', togglePasswordVisibility);
+        icon.addEventListener('keydown', togglePasswordVisibility);
     });
 
     // Copy nomor deposit — event delegation untuk .copy-deposit-number-btn
