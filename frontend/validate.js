@@ -126,13 +126,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Fungsi debounce khusus
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     // Pencarian sekarang memfilter dropdown
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        const debouncedSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allValidatableGames.filter(game => game.name && game.name.toLowerCase().includes(searchTerm));
             renderGamesDropdown(filteredGames);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedSearch);
     }
 
     fetchValidatableGames();
