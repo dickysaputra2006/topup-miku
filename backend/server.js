@@ -1960,8 +1960,18 @@ function sanitizeValidationServiceName(name) {
     return clean || name.trim();
 }
 
+// Cache for the validatable games response
+// Optimizes performance by eliminating repeated disk reads and JSON parsing overhead
+// for a static configuration file (~27KB) on a high-traffic endpoint.
+let validatableGamesCache = null;
+
 app.get('/api/games/validatable', async (req, res) => {
     try {
+        // Return cached result if available
+        if (validatableGamesCache) {
+            return res.json(validatableGamesCache);
+        }
+
         const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
         const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
@@ -1973,7 +1983,8 @@ app.get('/api/games/validatable', async (req, res) => {
             hasZoneIdForValidation: game.hasZoneId
         }));
 
-        res.json(finalResult);
+        validatableGamesCache = finalResult;
+        res.json(validatableGamesCache);
     } catch (error) {
         console.error("Error fetching validatable games from JSON:", error);
         res.status(500).json({ message: 'Server error saat mengambil data game dari file.' });
