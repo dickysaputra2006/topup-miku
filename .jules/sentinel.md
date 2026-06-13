@@ -1,0 +1,4 @@
+## 2026-06-13 - Fix Callback Forgery via Predictable Transaction IDs
+**Vulnerability:** Transaction IDs (`provider_trx_id`, `invoiceId`) were predictably generated using only `Date.now()`. Since HMAC validation is currently a TODO in the webhook callback, an attacker could guess the provider transaction ID and trigger a fake success callback.
+**Learning:** Transaction IDs (e.g. `provider_trx_id`, `invoiceId`, `reference_id`) must append secure random generation (e.g. `crypto.randomBytes(4).toString('hex')`) to `Date.now()` rather than fully replacing it. This prevents callback forgery while preserving the chronological sorting properties of the timestamp.
+**Prevention:** Always combine timestamps with high-entropy randomness (`crypto.randomBytes`) when generating IDs used for callback verification, and implement provider signature validation.
