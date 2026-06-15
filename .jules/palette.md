@@ -1,0 +1,3 @@
+## 2026-06-15 - Dynamic ARIA Labels for Icon Toggles
+**Learning:** Icon-only toggles (like password visibility) need dynamic `aria-label` updates alongside their visual state changes (e.g., from 'Tampilkan password' to 'Sembunyikan password') to accurately inform screen reader users. They also require keyboard event listeners (`keydown` for Space/Enter) with `.call(this)` to preserve execution context, and `:focus-visible` styling for visual keyboard navigation feedback.
+**Action:** Always add keyboard event handlers and dynamic ARIA label updates when replacing native inputs with icon-based toggle buttons.
