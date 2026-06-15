@@ -299,6 +299,11 @@ footer {
     top: 50%;
     transform: translateY(-75%);
     cursor: pointer;
+    border-radius: 4px;
+}
+.toggle-password:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
 }
 .forgot-password {
     display: block;

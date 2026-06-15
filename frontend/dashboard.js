@@ -713,12 +713,25 @@ document.addEventListener('DOMContentLoaded', function () {
     fetchTransactionSummary();
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
+        icon.setAttribute('role', 'button');
+        icon.setAttribute('tabindex', '0');
+        icon.setAttribute('aria-label', 'Tampilkan password');
+
+        function togglePasswordState() {
             const input = this.parentElement.querySelector('input');
             const isPassword = input.type === 'password';
             input.type = isPassword ? 'text' : 'password';
             this.classList.toggle('fa-eye', !isPassword);
             this.classList.toggle('fa-eye-slash', isPassword);
+            this.setAttribute('aria-label', isPassword ? 'Sembunyikan password' : 'Tampilkan password');
+        }
+
+        icon.addEventListener('click', togglePasswordState);
+        icon.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                if (e.key === ' ') e.preventDefault();
+                togglePasswordState.call(this);
+            }
         });
     });
 
