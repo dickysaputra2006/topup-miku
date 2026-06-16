@@ -1,0 +1,3 @@
+## 2026-05-22 - Dynamic ARIA for Non-Native Toggles
+**Learning:** Adding `role="button"` and `tabindex="0"` to non-native elements (like FontAwesome icons) is insufficient for full accessibility if their state changes dynamically (like a password visibility toggle). Keyboard users need `keydown` support (Enter/Space), and screen readers require the `aria-label` to update synchronously with the visual state (e.g., "Show password" to "Hide password").
+**Action:** When implementing or fixing icon-only toggles, always extract the toggle logic into a reusable function that updates both the visual class and the `aria-label`, and ensure both `click` and `keydown` events are bound.
