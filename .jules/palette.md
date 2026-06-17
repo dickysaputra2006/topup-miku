@@ -1,0 +1,3 @@
+## 2024-05-18 - [Add aria-labels to toggle-password icons]
+**Learning:** When making non-native icon-only toggle buttons accessible (e.g., a password visibility toggle), implement a JavaScript listener to dynamically update the `aria-label` attribute alongside the visual state (e.g., "Show password" to "Hide password") to ensure accurate screen reader announcements. In addition, applying roles and keydown handlers dynamically through JS ensures legacy HTML templates remain clean while boosting a11y.
+**Action:** Always implement dynamic `aria-label` swaps when dealing with toggle states on non-native icon buttons.
