@@ -1,4 +1,17 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // ⚡ Bolt: Utility fungsi untuk mengurangi beban pencarian/filtering array pada input
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     // === DEKLARASI ELEMEN ===
     const navLinks = document.querySelectorAll('.admin-nav-link');
     const sections = document.querySelectorAll('.admin-section');
@@ -657,7 +670,8 @@ if (marginForm) {
     }
 
     if (validatorSearchInput) {
-    validatorSearchInput.addEventListener('input', () => {
+    // ⚡ Bolt: Menerapkan debounce 300ms untuk input event validator
+    const debouncedValidatorSearch = debounce(() => {
         const searchTerm = validatorSearchInput.value.toLowerCase();
         const currentSelectedValue = validationSelector.value; // Simpan nilai yang sedang dipilih
 
@@ -680,7 +694,8 @@ if (marginForm) {
         if (filteredGames.some(g => g.gameCode === currentSelectedValue)) {
             validationSelector.value = currentSelectedValue;
         }
-    });
+    }, 300);
+    validatorSearchInput.addEventListener('input', debouncedValidatorSearch);
 }
             }
 
@@ -776,11 +791,13 @@ if (promosTableBody) {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        // ⚡ Bolt: Menerapkan debounce 300ms untuk search games input event
+        const debouncedGameSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGames.filter(game => game.name.toLowerCase().includes(searchTerm));
             populateGameSelectorDropdown(filteredGames);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedGameSearch);
     }
 
    if (gameSelectorDropdown) {
@@ -978,11 +995,13 @@ if (flashSalesTableBody) {
 }
 
 if (fsGameSearch) {
-    fsGameSearch.addEventListener('input', () => {
+    // ⚡ Bolt: Menerapkan debounce 300ms untuk flash sale game search
+    const debouncedFsGameSearch = debounce(() => {
         const searchTerm = fsGameSearch.value.toLowerCase();
         const filteredGames = allGames.filter(g => g.name.toLowerCase().includes(searchTerm));
         populateFlashSaleGameSelector(filteredGames);
-    });
+    }, 300);
+    fsGameSearch.addEventListener('input', debouncedFsGameSearch);
 }
 
 if (fsGameSelector) {

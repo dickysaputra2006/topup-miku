@@ -1,4 +1,17 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // ⚡ Bolt: Utility fungsi untuk mengurangi beban pencarian/filtering array pada input
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     const PUBLIC_API_URL = '/api';
     const gameSearchInput = document.getElementById('game-validate-search-input');
     const validatorTitle = document.getElementById('validator-title');
@@ -128,11 +141,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Pencarian sekarang memfilter dropdown
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        // ⚡ Bolt: Menerapkan debounce 300ms untuk menunda pencarian
+        const debouncedGameSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allValidatableGames.filter(game => game.name && game.name.toLowerCase().includes(searchTerm));
             renderGamesDropdown(filteredGames);
-        });
+        }, 300);
+        gameSearchInput.addEventListener('input', debouncedGameSearch);
     }
 
     fetchValidatableGames();
