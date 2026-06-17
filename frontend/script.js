@@ -12,6 +12,19 @@ document.addEventListener('DOMContentLoaded', function () {
     // Token dibaca fresh setiap kali diperlukan (bukan di-capture sebagai const global)
     // agar setelah localStorage.removeItem('authToken') nilainya langsung terlihat kosong.
 
+    // Utility: Debounce untuk mencegah pemanggilan fungsi yang terlalu sering (Performance)
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
     // Elemen Header & Dropdown
     const header = document.querySelector('header');
     const hamburgerBtn = document.getElementById('hamburger-btn');
@@ -503,7 +516,8 @@ if (dropdownLoginBtn) {
     });
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
+        const debouncedSearch = debounce(() => handleSearch(searchInput.value), 300);
+        searchInput.addEventListener('input', debouncedSearch);
         searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
     }
 
