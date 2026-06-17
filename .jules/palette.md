@@ -1,0 +1,3 @@
+## 2024-06-17 - Dynamic ARIA Labels on Password Toggles
+**Learning:** When making icon-only toggle buttons accessible using non-native elements (like `<i>` with `role="button"`), ensuring keyboard support is not enough. The `aria-label` must also be dynamically updated via JavaScript (e.g., from 'Tampilkan password' to 'Sembunyikan password') to provide accurate screen reader announcements in the localized language alongside the visual state changes.
+**Action:** Always pair `role="button"` and `tabindex="0"` with keyboard event listeners (`keydown` for Enter/Space), prevent default scrolling on Space, and dynamically update `aria-label` text when toggling visual states on non-native interactive elements.
