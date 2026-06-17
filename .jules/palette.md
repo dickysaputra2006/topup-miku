@@ -1,0 +1,3 @@
+## 2024-05-08 - Accessible Non-Native Interactive Elements
+**Learning:** Using non-native interactive elements (like `<i>` or `<div>`) for actions like toggling password visibility lacks built-in keyboard support. They require explicit `role="button"`, `tabindex="0"`, `aria-label`, and custom `keydown` event listeners for `Enter` and `Space` keys to be fully accessible to keyboard and screen reader users.
+**Action:** Always verify that custom icon buttons have explicit ARIA labels, tab index, and keyboard event listeners to maintain accessibility.
