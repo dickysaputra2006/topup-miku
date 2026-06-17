@@ -5,6 +5,16 @@ let allRolesData = [];
 let displayRoles = [];
 
 document.addEventListener('DOMContentLoaded', function () {
+    function debounce(func, delay) {
+        let timeoutId;
+        return function (...args) {
+            clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    }
+
     const PUBLIC_API_URL = '/api';
 
     const gameSelectorDropdown = document.getElementById('game-selector-dropdown');
@@ -131,13 +141,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (gameSearchInput) {
-        gameSearchInput.addEventListener('input', () => {
+        const handleGameSearch = debounce(() => {
             const searchTerm = gameSearchInput.value.toLowerCase();
             const filteredGames = allGamesData.filter(game =>
                 game.name.toLowerCase().includes(searchTerm)
             );
             renderGamesDropdown(filteredGames, displayRoles);
-        });
+        }, 300);
+
+        gameSearchInput.addEventListener('input', handleGameSearch);
     }
 
     
