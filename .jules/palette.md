@@ -1,0 +1,3 @@
+## 2024-05-19 - Dynamic ARIA Labeling for Icon-only Toggle Buttons
+**Learning:** Screen readers and keyboard users struggle with non-native, icon-only toggle buttons (like password visibility icons using `<i>` tags) when their visual state changes (from `fa-eye` to `fa-eye-slash`) but their accessible name remains static or missing. The button needs `role="button"`, `tabindex="0"`, a `keydown` listener, and an `aria-label` that updates dynamically with the state change to accurately convey the action to the user.
+**Action:** When creating custom toggle buttons, always add keyboard support and dynamically update `aria-label` attribute values alongside visual state classes to maintain an accurate and accessible interface.
