@@ -1960,7 +1960,13 @@ function sanitizeValidationServiceName(name) {
     return clean || name.trim();
 }
 
+let validatableGamesCache = null;
+
 app.get('/api/games/validatable', async (req, res) => {
+    // Cache check to avoid redundant disk reads and JSON parsing
+    if (validatableGamesCache) {
+        return res.json(validatableGamesCache);
+    }
     try {
         const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
         const cekIdDataBuffer = await fs.readFile(filePath);
@@ -1973,6 +1979,7 @@ app.get('/api/games/validatable', async (req, res) => {
             hasZoneIdForValidation: game.hasZoneId
         }));
 
+        validatableGamesCache = finalResult;
         res.json(finalResult);
     } catch (error) {
         console.error("Error fetching validatable games from JSON:", error);
