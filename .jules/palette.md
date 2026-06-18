@@ -1,0 +1,3 @@
+## 2024-05-24 - Accessibility: Aria labels for dynamically updating interactive elements
+**Learning:** When making non-native icon-only toggle buttons accessible (e.g., a password visibility toggle), implement a JavaScript listener to dynamically update the `aria-label` attribute alongside the visual state (e.g., 'Tampilkan password' to 'Sembunyikan password') to ensure accurate screen reader announcements in the application's localized language.
+**Action:** When creating or modifying dynamic non-native icon-only buttons, I will ensure they use dynamically changing `aria-label` attributes to update screen readers, similar to their changing CSS classes.
