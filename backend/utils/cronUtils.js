@@ -2,6 +2,7 @@ require('dotenv').config();
 const { Pool } = require('pg');
 const axios = require('axios');
 const fs = require('fs');
+const { safeHttpAgent, safeHttpsAgent } = require('./ssrfAgent');
 const path = require('path');
 
 // ============================================================
@@ -256,7 +257,11 @@ async function checkPendingTransactions() {
                 serial_number: serialNumber,
                 timestamp: new Date().toISOString()
             };
-            axios.post(tx.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
+            axios.post(tx.h2h_callback_url, webhookPayload, {
+                timeout: PROVIDER_TIMEOUT_MS,
+                httpAgent: safeHttpAgent,
+                httpsAgent: safeHttpsAgent
+            })
                 .catch(err => console.error(
                     `[cron][pending] Webhook failed for invoice ${tx.invoice_id}:`,
                     safeAxiosError(err, 'H2H Webhook')
