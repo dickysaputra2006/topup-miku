@@ -294,11 +294,16 @@ footer {
     width: 100%;
 }
 .toggle-password {
+    padding: 5px;
     position: absolute;
     right: 15px;
     top: 50%;
     transform: translateY(-75%);
     cursor: pointer;
+}
+.toggle-password:focus-visible {
+    outline: 2px solid var(--primary-color);
+    border-radius: 4px;
 }
 .forgot-password {
     display: block;
@@ -1270,7 +1275,12 @@ html, body {
     overflow-x: auto; 
 }
 .toggle-password {
+    padding: 5px;
     color: var(--primary-color); /* Ubah warna ikon mata */
+}
+.toggle-password:focus-visible {
+    outline: 2px solid var(--primary-color);
+    border-radius: 4px;
 }
 
 
