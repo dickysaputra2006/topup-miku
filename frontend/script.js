@@ -227,7 +227,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const item = document.createElement('a');
             item.href = `product.html?gameId=${game.id}`;
             item.className = 'search-result-item';
-            item.innerHTML = `<img src="${game.image_url || 'https://via.placeholder.com/40'}" alt="${game.name}"><span>${game.name}</span>`;
+            const safeName = escapeHtml(game.name);
+            const safeImg = escapeHtml(game.image_url || 'https://via.placeholder.com/40');
+            item.innerHTML = `<img src="${safeImg}" alt="${safeName}"><span>${safeName}</span>`;
             searchResults.appendChild(item);
         });
     }
@@ -278,7 +280,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (!notif.is_read) {
                         notifLink.classList.add('unread');
                     }
-                    notifLink.innerHTML = `<p style="margin:0; font-size: 0.9rem;">${notif.message}</p>
+                    notifLink.innerHTML = `<p style="margin:0; font-size: 0.9rem;">${escapeHtml(notif.message)}</p>
                                            <small style="color: #a7a9be;">${new Date(notif.created_at).toLocaleString('id-ID')}</small>`;
                     notificationList.appendChild(notifLink);
                 });
@@ -314,11 +316,13 @@ document.addEventListener('DOMContentLoaded', function () {
         const createFlashSaleCard = (product) => {
             const card = document.createElement('div');
             card.className = 'flash-sale-card';
+            const safeProductName = escapeHtml(product.product_name);
+            const safeImg = escapeHtml(product.game_image_url);
             card.innerHTML = `
                 <a href="product.html?gameId=${product.game_id}&fsProductId=${product.product_id}&fsPrice=${product.discount_price}" style="text-decoration: none; color: inherit;">
-                    <img src="${product.game_image_url}" alt="${product.product_name}">
+                    <img src="${safeImg}" alt="${safeProductName}">
                     <div class="flash-sale-info">
-                        <span class="fs-product-name">${product.product_name}</span>
+                        <span class="fs-product-name">${safeProductName}</span>
                         <span class="fs-price-discounted">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.discount_price)}</span>
                         <span class="fs-price-original">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.original_price)}</span>
                     </div>
