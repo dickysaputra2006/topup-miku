@@ -1,0 +1,3 @@
+## 2025-06-20 - Toggle Password Visibility Accessibility
+**Learning:** Icon-only toggle buttons for password visibility (`<i class="fas fa-eye-slash toggle-password"></i>`) lack semantic roles, accessible labels (`aria-label`), keyboard focus styling (`:focus-visible`), and keyboard event handlers (`keydown`), making them inaccessible to screen reader and keyboard-only users. Furthermore, their accessibility labels need to be dynamic to match visual state changes.
+**Action:** Always add `role="button"`, `tabindex="0"`, and dynamic `aria-label`s to icon-only toggle buttons. Implement keyboard event listeners (Enter and Space) and apply clear `:focus-visible` outlines using existing design system tokens (e.g., `var(--primary-color)`).

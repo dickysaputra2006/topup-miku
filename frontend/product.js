@@ -622,13 +622,22 @@ if (applyPromoBtn) {
     }
 }
 
+    function togglePasswordState(icon) {
+        const input = icon.parentElement.querySelector('input');
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+        icon.classList.toggle('fa-eye', !isPassword);
+        icon.classList.toggle('fa-eye-slash', isPassword);
+        icon.setAttribute('aria-label', isPassword ? 'Sembunyikan password' : 'Tampilkan password');
+    }
+
     document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function() {
-            const input = this.parentElement.querySelector('input');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
+        icon.addEventListener('click', function() { togglePasswordState(this); });
+        icon.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                togglePasswordState(this);
+            }
         });
     });
 
