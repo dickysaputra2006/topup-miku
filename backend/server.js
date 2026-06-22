@@ -1333,17 +1333,16 @@ app.get('/api/admin/products', protectAdmin, async (req, res) => {
         const sqlRoles = `SELECT id, name, margin_percent FROM roles ORDER BY id ASC`;
         const { rows: roles } = await pool.query(sqlRoles);
 
-        const roleMargins = {};
-        roles.forEach(role => {
-            roleMargins[role.id] = parseFloat(role.margin_percent);
-        });
+        const roleConfigs = roles.map(role => ({
+            nameLower: `price_${role.name.toLowerCase()}`,
+            marginFraction: parseFloat(role.margin_percent) / 100
+        }));
 
         const productsWithRolePrices = products.map(product => {
             const productWithPrices = { ...product };
-            roles.forEach(role => {
-                const margin = roleMargins[role.id] || 0;
-                const sellingPrice = product.price * (1 + (margin / 100));
-                productWithPrices[`price_${role.name.toLowerCase()}`] = Math.ceil(sellingPrice);
+            const basePrice = product.price;
+            roleConfigs.forEach(role => {
+                productWithPrices[role.nameLower] = Math.ceil(basePrice * (1 + role.marginFraction));
             });
             return productWithPrices;
         });
@@ -2264,34 +2263,43 @@ app.get('/api/public/compare-prices', async (req, res) => {
         );
         const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, Number(fs.discount_price)]));
 
+        const roleConfigs = roles.map(role => ({
+            nameLower: role.name.toLowerCase(),
+            marginFraction: parseFloat(role.margin_percent) / 100
+        }));
+
         const productsWithRolePrices = products.map(product => {
             const productWithPrices = { 
                 id: product.id, game_name: product.game_name, product_name: product.name, 
                 provider_sku: product.provider_sku, base_price: product.price 
             }; 
             
-            roles.forEach(role => {
-                const roleNameLower = role.name.toLowerCase();
-                let finalPrice;
-                const manualPrice = product.manual_prices ? product.manual_prices[roleNameLower] : null;
+            const basePrice = product.price;
+            const useCustomMargin = product.use_custom_margin;
+            const useManualPrices = product.use_manual_prices;
+            const manualPrices = product.manual_prices;
+            const flashPrice = flashSaleMap.get(product.id);
 
-                if (product.use_manual_prices && manualPrice) {
-                    finalPrice = manualPrice;
+            roleConfigs.forEach(role => {
+                let finalPrice;
+                const roleName = role.nameLower;
+
+                if (useManualPrices && manualPrices && manualPrices[roleName]) {
+                    finalPrice = manualPrices[roleName];
                 } else {
-                    let finalMargin = role.margin_percent;
-                    if (product.use_custom_margin) {
-                        finalMargin = product[`${roleNameLower}_margin`] || role.margin_percent;
+                    let marginFrac = role.marginFraction;
+                    if (useCustomMargin) {
+                        const customMargin = product[`${roleName}_margin`];
+                        marginFrac = customMargin != null ? (parseFloat(customMargin) / 100) : role.marginFraction;
                     }
-                    finalPrice = Math.ceil(product.price * (1 + (finalMargin / 100)));
+                    finalPrice = Math.ceil(basePrice * (1 + marginFrac));
                 }
-                // Apply flash sale if active and lower than computed price
-                if (flashSaleMap.has(product.id)) {
-                    const flashPrice = flashSaleMap.get(product.id);
-                    if (flashPrice > 0 && flashPrice < finalPrice) {
-                        finalPrice = flashPrice;
-                    }
+
+                if (flashPrice > 0 && flashPrice < finalPrice) {
+                    finalPrice = flashPrice;
                 }
-                productWithPrices[`price_${roleNameLower}`] = finalPrice;
+
+                productWithPrices[`price_${roleName}`] = finalPrice;
             });
             return productWithPrices;
         });
