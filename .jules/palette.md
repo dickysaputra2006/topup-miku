@@ -1,0 +1,3 @@
+## 2026-06-23 - Accessible Password Toggles
+**Learning:** Found non-native icon-only toggle buttons (`.toggle-password`) missing keyboard accessibility and screen reader updates.
+**Action:** When making non-native icon-only toggle buttons accessible (e.g., a password visibility toggle), implement a JavaScript listener to dynamically update the `aria-label` attribute alongside the visual state (e.g., 'Tampilkan password' to 'Sembunyikan password') to ensure accurate screen reader announcements in the application's localized language. Added role="button", tabindex="0", default aria-label and keydown listener for the Space/Enter key.
