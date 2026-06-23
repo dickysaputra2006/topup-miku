@@ -1960,13 +1960,22 @@ function sanitizeValidationServiceName(name) {
     return clean || name.trim();
 }
 
+// ⚡ Bolt Performance Optimization:
+// Caching `data_cekid.json` in-memory.
+// Before: Every request to `/api/games/validatable` caused a disk read and JSON parsing overhead.
+// After: Disk read and parsing only happen on the first request. Subsequent requests use the cached memory.
+// Impact: Reduces disk I/O and CPU overhead, lowering latency on a frequently accessed public endpoint.
+let cachedCekIdGames = null;
+
 app.get('/api/games/validatable', async (req, res) => {
     try {
-        const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
-        const cekIdDataBuffer = await fs.readFile(filePath);
-        const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
+        if (!cachedCekIdGames) {
+            const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
+            const cekIdDataBuffer = await fs.readFile(filePath);
+            cachedCekIdGames = JSON.parse(cekIdDataBuffer.toString());
+        }
 
-        const finalResult = cekIdGames.filter(game => game.name).map(game => ({
+        const finalResult = cachedCekIdGames.filter(game => game.name).map(game => ({
             id: game.name,
             name: sanitizeValidationServiceName(game.name),
             gameCode: game.game,
