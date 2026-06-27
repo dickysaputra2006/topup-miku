@@ -719,6 +719,19 @@ document.addEventListener('DOMContentLoaded', function () {
             input.type = isPassword ? 'text' : 'password';
             this.classList.toggle('fa-eye', !isPassword);
             this.classList.toggle('fa-eye-slash', isPassword);
+            this.setAttribute('aria-label', isPassword ? 'Sembunyikan password' : 'Tampilkan password');
+        });
+
+        icon.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                const input = this.parentElement.querySelector('input');
+                const isPassword = input.type === 'password';
+                input.type = isPassword ? 'text' : 'password';
+                this.classList.toggle('fa-eye', !isPassword);
+                this.classList.toggle('fa-eye-slash', isPassword);
+                this.setAttribute('aria-label', isPassword ? 'Sembunyikan password' : 'Tampilkan password');
+            }
         });
     });
 
