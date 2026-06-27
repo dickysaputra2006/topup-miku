@@ -1960,13 +1960,17 @@ function sanitizeValidationServiceName(name) {
     return clean || name.trim();
 }
 
+let cachedCekIdGames = null;
+
 app.get('/api/games/validatable', async (req, res) => {
     try {
-        const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
-        const cekIdDataBuffer = await fs.readFile(filePath);
-        const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
+        if (!cachedCekIdGames) {
+            const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
+            const cekIdDataBuffer = await fs.readFile(filePath);
+            cachedCekIdGames = JSON.parse(cekIdDataBuffer.toString());
+        }
 
-        const finalResult = cekIdGames.filter(game => game.name).map(game => ({
+        const finalResult = cachedCekIdGames.filter(game => game.name).map(game => ({
             id: game.name,
             name: sanitizeValidationServiceName(game.name),
             gameCode: game.game,
