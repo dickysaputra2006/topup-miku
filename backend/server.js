@@ -1960,20 +1960,27 @@ function sanitizeValidationServiceName(name) {
     return clean || name.trim();
 }
 
+// ⚡ Bolt: Cache static JSON data in-memory to prevent repeated disk I/O and parsing overhead
+let cachedValidatableGames = null;
+
 app.get('/api/games/validatable', async (req, res) => {
     try {
-        const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
-        const cekIdDataBuffer = await fs.readFile(filePath);
-        const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
+        // ⚡ Bolt: Populate cache on first request
+        if (!cachedValidatableGames) {
+            const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
+            const cekIdDataBuffer = await fs.readFile(filePath);
+            const cekIdGames = JSON.parse(cekIdDataBuffer.toString());
 
-        const finalResult = cekIdGames.filter(game => game.name).map(game => ({
-            id: game.name,
-            name: sanitizeValidationServiceName(game.name),
-            gameCode: game.game,
-            hasZoneIdForValidation: game.hasZoneId
-        }));
+            cachedValidatableGames = cekIdGames.filter(game => game.name).map(game => ({
+                id: game.name,
+                name: sanitizeValidationServiceName(game.name),
+                gameCode: game.game,
+                hasZoneIdForValidation: game.hasZoneId
+            }));
+        }
 
-        res.json(finalResult);
+        // ⚡ Bolt: Serve from in-memory cache
+        res.json(cachedValidatableGames);
     } catch (error) {
         console.error("Error fetching validatable games from JSON:", error);
         res.status(500).json({ message: 'Server error saat mengambil data game dari file.' });
