@@ -1,0 +1,3 @@
+## 2026-07-03 - Make password visibility toggles accessible
+**Learning:** Icon-only password visibility toggles lack screen reader context and keyboard interaction, creating barriers for accessible login flows. A custom JavaScript interaction is required to sync dynamic `aria-label` text ("Tampilkan password" / "Sembunyikan password") based on boolean state to announce the toggle accurately. Adding `role="button"` and `tabindex="0"` alongside standard `click` and `keydown` event listeners creates keyboard parity without introducing complex custom ARIA setups.
+**Action:** Always add dynamic ARIA labels tied to state and support `Enter`/`Space` keys for non-native icon buttons in custom inputs.
