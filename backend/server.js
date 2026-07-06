@@ -3106,7 +3106,10 @@ app.post('/api/order', protect, async (req, res) => {
         const product = products[0];
 
         // --- LOGIKA HARGA FINAL TIGA LAPIS (YANG DISEMPURNAKAN) ---
-        const { rows: users } = await client.query('SELECT balance, role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE', [userId]);
+        // ⚡ Bolt: Fetch margin_percent along with the user in a single query to reduce DB round-trips during high-volume transactions
+        // Note: Used 'FOR UPDATE OF u' to avoid locking the shared 'roles' table.
+        const { rows: users } = await client.query('SELECT balance, role_id, r.name as role_name, r.margin_percent FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE OF u', [userId]);
+        if (users.length === 0) throw new Error('User atau harga produk tidak valid.');
         const user = users[0];
         const userRoleName = user.role_name.toLowerCase();
 
@@ -3116,9 +3119,7 @@ app.post('/api/order', protect, async (req, res) => {
         if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
             finalPrice = Number(manualPrice);
         } else {
-            const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [user.role_id]);
-            if (roleRows.length === 0) throw new Error('Harga produk tidak valid.');
-            let margin = Number(roleRows[0].margin_percent); // Default: margin global
+            let margin = Number(user.margin_percent); // Default: margin global
             
             if (product.use_custom_margin) {
                 const customMargin = product[`${userRoleName}_margin`];
@@ -3398,7 +3399,10 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         // === AKHIR PHASE 5B ===
 
         // 2. Ambil User H2H
-        const { rows: users } = await client.query('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE', [h2hUser.id]);
+        // ⚡ Bolt: Fetch margin_percent along with the user in a single query to reduce DB round-trips during high-volume transactions
+        // Note: Used 'FOR UPDATE OF u' to avoid locking the shared 'roles' table.
+        const { rows: users } = await client.query('SELECT u.balance, u.role_id, r.margin_percent FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE OF u', [h2hUser.id]);
+        if (users.length === 0) throw new Error('User atau harga produk tidak valid.');
         const userForTx = users[0];
         const userRoleName = h2hUser.role_name.toLowerCase();
 
@@ -3408,9 +3412,7 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
             finalPrice = Number(manualPrice);
         } else {
-            const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [userForTx.role_id]);
-            if (roleRows.length === 0) throw new Error('Harga produk tidak valid.');
-            let margin = Number(roleRows[0].margin_percent);
+            let margin = Number(userForTx.margin_percent);
             if (product.use_custom_margin) {
                 const customMargin = product[`${userRoleName}_margin`];
                 if (customMargin !== null && customMargin !== undefined) {
