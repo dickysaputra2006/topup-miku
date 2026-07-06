@@ -1,0 +1,3 @@
+## 2026-07-06 - Dynamic ARIA Label for non-native icon toggles
+**Learning:** For non-native icon-only toggles (like password visibility), setting a static aria-label is insufficient. The label must dynamically update in sync with the visual state changes so screen readers accurately announce the current functionality in the app's localized language.
+**Action:** When creating or modifying non-native toggle buttons, extract the toggle logic into a shared function and explicitly update both the visual classes and the aria-label/title attributes together. Also, always add keyboard support (Enter/Space) and ensure the element can receive focus.
