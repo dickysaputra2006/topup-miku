@@ -11,6 +11,13 @@
     --text-color: #F3F4F6;
     --border-color: #4B5563;
 }
+
+/* === ACCESSIBILITY === */
+:focus-visible {
+    outline: 2px solid var(--primary-color) !important;
+    outline-offset: 2px !important;
+}
+
 body {
     background-color: var(--bg-dark);
     color: var(--text-color);
