@@ -63,13 +63,53 @@
 <main class="container">
 
     <section class="hero-section">
-    <div class="hero-placeholder" style="padding: 0; overflow: hidden;">
-            <img src="https://images.pexels.com/photos/3165335/pexels-photo-3165335.jpeg" alt="MIKU Store Banner" style="width: 100%; height: 100%; object-fit: cover;">
+        <div class="hero-placeholder miku-hero-banner">
+            <div class="miku-hero-bg-glow" aria-hidden="true"></div>
+            <div class="miku-hero-content">
+                <div class="miku-hero-badges">
+                    <span class="miku-badge miku-badge-primary"><i class="fas fa-bolt"></i> Top Up Game Instan 24 Jam</span>
+                    <span class="miku-badge miku-badge-outline"><i class="fas fa-shield-halved"></i> Harga Termurah &amp; Otomatis</span>
+                </div>
+                <h2 class="miku-hero-title">Top Up Game Favoritmu dalam Hitungan Detik</h2>
+                <p class="miku-hero-subtitle">Proses otomatis 24/7, harga reseller kompetitif, dan jaminan keamanan transaksi di MIKU Store.</p>
+            </div>
+            <div class="miku-hero-visual" aria-hidden="true">
+                <svg viewBox="0 0 120 120" class="miku-hero-svg" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="60" cy="60" r="52" stroke="url(#mikuGrad)" stroke-width="2.5" stroke-dasharray="6 6" opacity="0.55"/>
+                    <circle cx="60" cy="60" r="38" fill="url(#mikuGlow)" opacity="0.25"/>
+                    <path d="M40 48H80C86.6274 48 92 53.3726 92 60V70C92 76.6274 86.6274 82 80 82H73L66 73H54L47 82H40C33.3726 82 28 76.6274 28 70V60C28 53.3726 33.3726 48 40 48Z" stroke="url(#mikuGrad)" stroke-width="3.5" stroke-linejoin="round"/>
+                    <path d="M44 59V69M39 64H49" stroke="#06b6d4" stroke-width="3.5" stroke-linecap="round"/>
+                    <circle cx="74" cy="61" r="2.8" fill="#3b82f6"/>
+                    <circle cx="81" cy="67" r="2.8" fill="#06b6d4"/>
+                    <defs>
+                        <linearGradient id="mikuGrad" x1="20" y1="20" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#06b6d4"/>
+                            <stop offset="1" stop-color="#3b82f6"/>
+                        </linearGradient>
+                        <radialGradient id="mikuGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(60 60) scale(42)">
+                            <stop stop-color="#06b6d4"/>
+                            <stop offset="1" stop-color="#3b82f6" stop-opacity="0"/>
+                        </radialGradient>
+                    </defs>
+                </svg>
+            </div>
         </div>
     </section>
 
-         <section class="content-section">
-        <h2><i class="fas fa-bolt"></i> Flash Sale</h2>
+    <section class="content-section">
+        <div class="flash-sale-header">
+            <h2><i class="fas fa-bolt"></i> Flash Sale</h2>
+            <div id="flash-sale-countdown" class="flash-sale-countdown hidden" aria-live="polite">
+                <span class="countdown-label"><i class="far fa-clock"></i> Berakhir dalam</span>
+                <div class="countdown-boxes">
+                    <span id="fs-hours" class="countdown-unit">00</span>
+                    <span class="countdown-sep">:</span>
+                    <span id="fs-minutes" class="countdown-unit">00</span>
+                    <span class="countdown-sep">:</span>
+                    <span id="fs-seconds" class="countdown-unit">00</span>
+                </div>
+            </div>
+        </div>
         <div class="flash-sale-container">
             <div class="flash-sale-track">
                 </div>
@@ -105,7 +145,7 @@
             <a href="/cek-transaksi.html">Cek Transaksi</a>
             <a href="/leaderboard.html">Leaderboard</a>
         </div>
-        <p>&copy; 2025 MIKU Store. Dibuat dengan ❤️</p>
+        <p>&copy; 2026 MIKU Store. Dibuat dengan ❤️</p>
     </div>
 </footer>
 
@@ -155,7 +195,7 @@
                     </div>
                     <div class="terms">
                         <input type="checkbox" id="terms" name="terms" required>
-                        <label for="terms">Dengan mendaftar, Anda setuju dengan <a href="#">syarat dan ketentuan</a> kami.</label>
+                        <label for="terms">Dengan mendaftar, Anda setuju dengan <a href="/syarat-ketentuan.html" target="_blank" rel="noopener">syarat dan ketentuan</a> kami.</label>
                     </div>
                     <button type="submit">Daftar</button>
                 </form>

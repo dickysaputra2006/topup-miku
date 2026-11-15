@@ -297,6 +297,62 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    let flashSaleTimerInterval = null;
+
+    function startFlashSaleCountdown(flashSales) {
+        if (flashSaleTimerInterval) {
+            clearInterval(flashSaleTimerInterval);
+            flashSaleTimerInterval = null;
+        }
+
+        const countdownEl = document.getElementById('flash-sale-countdown');
+        const hoursEl = document.getElementById('fs-hours');
+        const minutesEl = document.getElementById('fs-minutes');
+        const secondsEl = document.getElementById('fs-seconds');
+        if (!countdownEl || !hoursEl || !minutesEl || !secondsEl) return;
+
+        const now = Date.now();
+        const futureEndTimes = Array.isArray(flashSales)
+            ? flashSales
+                .map(sale => Date.parse(sale.end_time || sale.end_at || ''))
+                .filter(ts => Number.isFinite(ts) && ts > now)
+            : [];
+
+        if (futureEndTimes.length === 0) {
+            countdownEl.classList.add('hidden');
+            return;
+        }
+
+        const nearestEndTime = Math.min(...futureEndTimes);
+        countdownEl.classList.remove('hidden');
+
+        const updateCountdown = () => {
+            const diff = nearestEndTime - Date.now();
+            if (diff <= 0) {
+                clearInterval(flashSaleTimerInterval);
+                flashSaleTimerInterval = null;
+                hoursEl.textContent = '00';
+                minutesEl.textContent = '00';
+                secondsEl.textContent = '00';
+                const section = countdownEl.closest('.content-section');
+                if (section) section.classList.add('hidden');
+                return;
+            }
+
+            const totalSeconds = Math.floor(diff / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            hoursEl.textContent = String(hours).padStart(2, '0');
+            minutesEl.textContent = String(minutes).padStart(2, '0');
+            secondsEl.textContent = String(seconds).padStart(2, '0');
+        };
+
+        updateCountdown();
+        flashSaleTimerInterval = setInterval(updateCountdown, 1000);
+    }
+
     async function displayFlashSales() {
     const flashSaleTrack = document.querySelector('.flash-sale-track');
     if (!flashSaleTrack) return;
@@ -306,10 +362,14 @@ document.addEventListener('DOMContentLoaded', function () {
         const flashSales = await response.json();
         
         flashSaleTrack.innerHTML = ''; // Kosongkan placeholder
-        if (flashSales.length === 0) {
+        if (!Array.isArray(flashSales) || flashSales.length === 0) {
+            startFlashSaleCountdown([]);
             flashSaleTrack.closest('.content-section').classList.add('hidden'); // Sembunyikan section jika tidak ada FS
             return;
         }
+
+        flashSaleTrack.closest('.content-section').classList.remove('hidden');
+        startFlashSaleCountdown(flashSales);
 
         const createFlashSaleCard = (product) => {
             const card = document.createElement('div');

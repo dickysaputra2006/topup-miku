@@ -12,7 +12,7 @@
 </head>
 
 <body>
-    <header>
+    <header class="dashboard-header">
         <div class="header-container container">
             <div class="header-left">
                 <button id="menu-toggle-btn" class="header-icon-btn" aria-label="Toggle menu">
@@ -21,86 +21,171 @@
                 <a href="index.html" class="logo-link">
                     <h1 class="logo">MIKU Store</h1>
                 </a>
+                <a href="index.html" class="header-back-home">
+                    <i class="fas fa-store"></i>
+                    <span>Kembali ke Toko</span>
+                </a>
             </div>
             <div class="header-right">
-                <a href="compare-prices.html" class="header-btn pricelist-btn">Harga Reseller</a>
-                <a href="index.html" class="header-btn">Kembali ke Toko</a>
+                <a href="compare-prices.html" class="header-btn pricelist-btn"><i class="fas fa-tags"></i> Harga Reseller</a>
+                <a href="#" class="header-user-chip dashboard-nav-link" data-target="dashboard-main" title="Ringkasan Akun">
+                    <span class="user-avatar-circle" id="header-user-initials">--</span>
+                    <span class="header-user-meta">
+                        <small>Member</small>
+                        <strong id="header-user-name">Akun</strong>
+                    </span>
+                </a>
             </div>
         </div>
     </header>
 
     <div class="dashboard-container container">
         <aside class="sidebar" id="dashboard-sidebar">
-            <button class="menu-toggle-btn header-icon-btn" aria-label="Toggle menu">
-                <i class="fas fa-bars"></i>
-            </button>
+            <div class="sidebar-top-header">
+                <span class="sidebar-portal-badge"><i class="fas fa-shield-halved"></i> AREA MEMBER</span>
+                <button class="menu-toggle-btn header-icon-btn" aria-label="Tutup menu">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
             <nav class="sidebar-nav">
+                <span class="sidebar-group-title">Navigasi Utama</span>
+                <a href="index.html" class="sidebar-store-link"><i class="fas fa-store"></i> Kembali ke Toko</a>
                 <a href="#" class="dashboard-nav-link active" data-target="dashboard-main"><i
-                        class="fas fa-tachometer-alt"></i> Dashboard</a>
-                <a href="#" class="dashboard-nav-link" data-target="deposit-tab"><i class="fas fa-wallet"></i>
-                    Deposit</a>
+                        class="fas fa-th-large"></i> Dashboard</a>
+
+                <span class="sidebar-group-title">Transaksi</span>
+                <a href="#" class="dashboard-nav-link" data-target="transaksi-tab"><i class="fas fa-history"></i>
+                    Riwayat Transaksi</a>
                 <a href="#" class="dashboard-nav-link" data-target="cek-pesanan"><i class="fas fa-receipt"></i> Cek
                     Pesanan</a>
-                <a href="#" class="dashboard-nav-link" data-target="transaksi-tab"><i class="fas fa-history"></i>
-                    Transaksi</a>
                 <a href="#" class="dashboard-nav-link" data-target="mutasi-saldo"><i class="fas fa-chart-line"></i>
                     Mutasi Saldo</a>
-                <a href="#" class="dashboard-nav-link" data-target="integrasi"><i class="fas fa-cogs"></i> Integrasi</a>
-                <a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Keluar/Log Out</a>
+
+                <span class="sidebar-group-title">Kredit &amp; API</span>
+                <a href="#" class="dashboard-nav-link" data-target="deposit-tab"><i class="fas fa-wallet"></i>
+                    Isi Saldo / Deposit</a>
+                <a href="#" class="dashboard-nav-link" data-target="integrasi"><i class="fas fa-cogs"></i> Integrasi H2H</a>
             </nav>
+
+            <div class="sidebar-member-card">
+                <div class="sidebar-member-row">
+                    <span class="user-avatar-circle" id="sidebar-user-initials">--</span>
+                    <div class="sidebar-member-info">
+                        <strong id="sidebar-user-name">Memuat...</strong>
+                        <span id="sidebar-user-role">Member</span>
+                    </div>
+                </div>
+                <a href="#" data-target="deposit-tab" class="sidebar-cta-btn dashboard-nav-link"><i class="fas fa-bolt"></i> Top Up Saldo</a>
+                <a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Keluar Akun</a>
+            </div>
         </aside>
 
         <main class="dashboard-content">
 
             <section id="dashboard-main" class="dashboard-section">
-                <div class="card profile-summary">
-                    <h3>Ringkasan Akun</h3>
-                    <div class="profile-details">
+                <div class="card transaction-overview dashboard-kpi-card">
+                    <div class="overview-header">
                         <div>
-                            <p>Nama Lengkap: <strong id="profile-fullname">Memuat...</strong></p>
-                            <p>Username: <strong id="profile-username">Memuat...</strong></p>
-                            <p>Email: <strong id="profile-email">Memuat...</strong></p>
-                            <p>WhatsApp: <strong id="profile-nomorwa">Memuat...</strong></p>
-                            <p>Role: <strong id="profile-role" style="color: var(--primary-color);">Memuat...</strong>
-                            </p>
+                            <span class="section-eyebrow">STATISTIK PESANAN</span>
+                            <h3>Ringkasan Transaksi</h3>
+                            <p class="overview-subtitle">Total <strong id="count-total-tx">0</strong> transaksi tercatat di akun Anda</p>
                         </div>
-                        <div>
-                            <button class="edit-btn">Edit Profil</button>
-                        </div>
+                        <a href="#" data-target="transaksi-tab" class="history-link dashboard-nav-link">Lihat Semua <i class="fas fa-arrow-up-right-from-square"></i></a>
                     </div>
-                </div>
-                <div class="card balance-summary">
-                    <h3>MIKU Store Credits</h3>
-                    <div class="balance-details">
-                        <p class="balance-amount" id="profile-balance">Memuat...</p>
-                        <a href="#" data-target="deposit-tab" class="topup-btn dashboard-nav-link"
-                            style="text-decoration:none;">Deposit</a>
-                    </div>
-                    <a href="#" data-target="mutasi-saldo" class="history-link dashboard-nav-link">Penggunaan Credits
-                        &rarr;</a>
-                </div>
-                <div class="card transaction-overview">
-                    <h3>Pesanan Saya</h3>
                     <div class="order-stats">
-                        <div class="stat-item">
-                            <span id="count-berhasil">0</span>
-                            <p>Berhasil</p>
+                        <div class="stat-item stat-success">
+                            <div class="stat-top">
+                                <span class="stat-icon"><i class="fas fa-check-circle"></i></span>
+                                <span class="stat-label">BERHASIL</span>
+                            </div>
+                            <span class="stat-value" id="count-berhasil">0</span>
                         </div>
-                        <div class="stat-item">
-                            <span id="count-pending">0</span>
-                            <p>Pending</p>
+                        <div class="stat-item stat-pending">
+                            <div class="stat-top">
+                                <span class="stat-icon"><i class="fas fa-clock"></i></span>
+                                <span class="stat-label">PENDING</span>
+                            </div>
+                            <span class="stat-value" id="count-pending">0</span>
                         </div>
-                        <div class="stat-item">
-                            <span id="count-gagal">0</span>
-                            <p>Gagal</p>
+                        <div class="stat-item stat-review">
+                            <div class="stat-top">
+                                <span class="stat-icon"><i class="fas fa-exclamation-circle"></i></span>
+                                <span class="stat-label">REVIEW</span>
+                            </div>
+                            <span class="stat-value" id="count-review">0</span>
                         </div>
-                        <div class="stat-item">
-                            <span id="count-review">0</span>
-                            <p>Review</p>
+                        <div class="stat-item stat-failed">
+                            <div class="stat-top">
+                                <span class="stat-icon"><i class="fas fa-times-circle"></i></span>
+                                <span class="stat-label">GAGAL</span>
+                            </div>
+                            <span class="stat-value" id="count-gagal">0</span>
                         </div>
                     </div>
-                    <a href="#" data-target="transaksi-tab" class="history-link dashboard-nav-link">Lihat Semua
-                        Transaksi &rarr;</a>
+                </div>
+
+                <div class="dashboard-split-grid">
+                    <div class="card profile-summary">
+                        <div class="card-head-row">
+                            <span class="section-eyebrow">INFORMASI AKUN</span>
+                            <button class="edit-btn edit-btn-compact"><i class="fas fa-pen"></i> Edit Profil</button>
+                        </div>
+                        <div class="profile-identity-head">
+                            <span class="profile-avatar-lg" id="profile-avatar-badge">--</span>
+                            <div class="profile-identity-meta">
+                                <strong id="profile-username">Memuat...</strong>
+                                <div class="profile-meta-sub">
+                                    <span id="profile-fullname">Memuat...</span>
+                                    <span class="role-pill" id="profile-role">Memuat...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="profile-contact-list">
+                            <div class="profile-contact-row">
+                                <div class="contact-field">
+                                    <span class="contact-label">EMAIL</span>
+                                    <strong id="profile-email">Memuat...</strong>
+                                </div>
+                                <span class="verified-chip"><i class="fas fa-check-circle"></i> Aktif</span>
+                            </div>
+                            <div class="profile-contact-row">
+                                <div class="contact-field">
+                                    <span class="contact-label">WHATSAPP</span>
+                                    <strong id="profile-nomorwa">Memuat...</strong>
+                                </div>
+                                <span class="verified-chip"><i class="fas fa-check-circle"></i> Terdaftar</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card balance-summary">
+                        <div class="credits-glow" aria-hidden="true"></div>
+                        <div class="card-head-row">
+                            <span class="section-eyebrow"><i class="fas fa-wallet"></i> MIKU STORE CREDITS</span>
+                            <a href="#" data-target="mutasi-saldo" class="history-link dashboard-nav-link" title="Mutasi Saldo"><i class="fas fa-arrow-up-right-from-square"></i></a>
+                        </div>
+                        <div class="balance-details">
+                            <p class="balance-amount" id="profile-balance">Memuat...</p>
+                            <p class="balance-helper">Saldo siap dipakai untuk top up instan &amp; API H2H 24 jam.</p>
+                        </div>
+                        <div class="balance-actions">
+                            <a href="#" data-target="deposit-tab" class="topup-btn dashboard-nav-link" style="text-decoration:none;"><i class="fas fa-gem"></i> Top Up Saldo</a>
+                            <a href="#" data-target="mutasi-saldo" class="history-link dashboard-nav-link">Riwayat Penggunaan Credits &rarr;</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card dashboard-quick-banner">
+                    <div class="quick-banner-copy">
+                        <span class="section-eyebrow">AKSES CEPAT MEMBER</span>
+                        <h3>Mutasi &amp; Alat Reseller</h3>
+                        <p>Pantau histori keluar-masuk saldo, lacak detail invoice, atau hubungkan API Key H2H Anda.</p>
+                    </div>
+                    <div class="quick-banner-actions">
+                        <a href="#" data-target="mutasi-saldo" class="quick-action-btn dashboard-nav-link"><i class="fas fa-chart-line"></i> Mutasi Saldo</a>
+                        <a href="#" data-target="cek-pesanan" class="quick-action-btn dashboard-nav-link"><i class="fas fa-search"></i> Cek Pesanan</a>
+                        <a href="#" data-target="integrasi" class="quick-action-btn dashboard-nav-link"><i class="fas fa-plug"></i> API H2H</a>
+                    </div>
                 </div>
             </section>
 
@@ -126,44 +211,13 @@
 
             <section id="deposit-tab" class="dashboard-section hidden">
 
-                <!-- Card instruksi metode pembayaran -->
+                <!-- Card instruksi metode pembayaran (dimuat dinamis dari GET /api/payment-methods) -->
                 <div class="card deposit-card">
                     <h3><i class="fas fa-info-circle"></i> Cara Deposit Saldo</h3>
-                    <p class="form-description" style="text-align:left;">Transfer ke salah satu metode di bawah, lalu
+                    <p class="form-description" style="text-align:left;">Pilih dan transfer ke salah satu metode aktif di bawah, lalu
                         ajukan request dengan nominal yang sesuai. Saldo masuk setelah admin verifikasi.</p>
-                    <div class="deposit-method-grid">
-                        <div class="deposit-method-item">
-                            <small class="deposit-method-type-label">E-Wallet &bull; A/N Dicky Saputra</small>
-                            <span class="deposit-method-label"><i class="fas fa-money-bill-wave"></i> GoPay</span>
-                            <p class="deposit-method-number">083140287964</p>
-                            <button type="button" class="copy-deposit-number-btn" data-number="083140287964">
-                                <i class="fas fa-copy"></i> Copy Nomor
-                            </button>
-                        </div>
-                        <div class="deposit-method-item">
-                            <small class="deposit-method-type-label">E-Wallet &bull; A/N Dicky Saputra</small>
-                            <span class="deposit-method-label"><i class="fas fa-wallet"></i> DANA</span>
-                            <p class="deposit-method-number">083140287964</p>
-                            <button type="button" class="copy-deposit-number-btn" data-number="083140287964">
-                                <i class="fas fa-copy"></i> Copy Nomor
-                            </button>
-                        </div>
-                        <div class="deposit-method-item">
-                            <small class="deposit-method-type-label">E-Wallet &bull; A/N Dicky Saputra</small>
-                            <span class="deposit-method-label"><i class="fas fa-shopping-bag"></i> ShopeePay</span>
-                            <p class="deposit-method-number">083140287964</p>
-                            <button type="button" class="copy-deposit-number-btn" data-number="083140287964">
-                                <i class="fas fa-copy"></i> Copy Nomor
-                            </button>
-                        </div>
-                        <div class="deposit-method-item">
-                            <small class="deposit-method-type-label">Bank Transfer &bull; A/N Dicky Saputra</small>
-                            <span class="deposit-method-label"><i class="fas fa-university"></i> SeaBank</span>
-                            <p class="deposit-method-number">901791622462</p>
-                            <button type="button" class="copy-deposit-number-btn" data-number="901791622462">
-                                <i class="fas fa-copy"></i> Copy Nomor
-                            </button>
-                        </div>
+                    <div id="deposit-methods-grid" class="deposit-method-grid" aria-live="polite">
+                        <div class="ui-state loading">Memuat metode pembayaran...</div>
                     </div>
                     <p class="form-description" style="text-align:left; margin-top:0.75rem; color:#ffc107;">
                         <i class="fas fa-exclamation-triangle"></i>
@@ -174,27 +228,25 @@
 
                 <!-- Card form request deposit -->
                 <div class="card deposit-card" style="margin-top:1.25rem;">
-                    <h3><i class="fas fa-plus-circle"></i> Ajukan Request Deposit</h3>
-                    <form id="deposit-form">
-                        <label for="deposit-method">Metode Pembayaran</label>
+                    <h3 id="deposit-form-heading"><i class="fas fa-plus-circle"></i> Ajukan Request Deposit</h3>
+                    <form id="deposit-form" aria-labelledby="deposit-form-heading">
+                        <label for="deposit-method">Metode Pembayaran <span aria-hidden="true">*</span></label>
                         <select id="deposit-method" name="method" required class="dashboard-input"
-                            style="margin-top:0.5rem;margin-bottom:0.75rem;">
-                            <option value="">-- Pilih Metode --</option>
-                            <option value="GoPay">GoPay</option>
-                            <option value="DANA">DANA</option>
-                            <option value="ShopeePay">ShopeePay</option>
-                            <option value="SeaBank">SeaBank</option>
+                            data-error="deposit-method-error"
+                            style="margin-top:0.5rem;margin-bottom:0.35rem;">
+                            <option value="" disabled selected>-- Memuat Metode Pembayaran... --</option>
                         </select>
-                        <div id="deposit-method-info" class="form-description deposit-note"
-                            style="display:none;margin-bottom:0.75rem;color:#a78bfa;"></div>
-                        <label for="amount">Jumlah Deposit (Rp)</label>
+                        <div id="deposit-method-error" class="form-field-error">Silakan pilih metode pembayaran terlebih dahulu.</div>
+                        <div id="deposit-method-info" class="deposit-selected-card hidden" aria-live="polite"></div>
+
+                        <label for="amount">Jumlah Deposit (Rp) <span aria-hidden="true">*</span></label>
                         <div class="form-row-container" style="margin-top:0.5rem;">
-                            <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000"
-                                required class="dashboard-input">
+                            <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" max="100000000"
+                                step="1000" inputmode="numeric" required class="dashboard-input">
                             <button type="submit" class="btn-submit-deposit">Ajukan Deposit</button>
                         </div>
-                        <p class="form-description deposit-note">Minimum deposit Rp 10.000. Nominal akhir akan ditambah
-                            kode unik 3 digit untuk memudahkan verifikasi.</p>
+                        <p id="deposit-amount-hint" class="form-description deposit-note">Minimum deposit Rp 10.000. Nominal akhir akan ditambah
+                            kode unik 3 digit (kecuali metode QRIS) untuk memudahkan verifikasi.</p>
                         <label for="deposit-note" style="margin-top:0.75rem;display:block;">Catatan <span
                                 style="font-weight:400;color:#9ca3af;">(opsional, max 200 karakter)</span></label>
                         <textarea id="deposit-note" name="note" maxlength="200" rows="2"
@@ -214,8 +266,8 @@
 
                 <!-- Riwayat deposit user -->
                 <div class="card deposit-card" style="margin-top:1.25rem;">
-                    <h3><i class="fas fa-history"></i> Riwayat Deposit</h3>
-                    <div class="table-container">
+                    <h3 id="deposit-history-heading"><i class="fas fa-history"></i> Riwayat Deposit</h3>
+                    <div tabindex="0" role="region" aria-labelledby="deposit-history-heading" class="table-container">
                         <table id="deposit-history-table">
                             <thead>
                                 <tr>
@@ -377,7 +429,7 @@
                 <a href="/kebijakan-refund.html">Kebijakan Refund</a>
                 <a href="/kontak.html">Kontak Kami</a>
             </div>
-            <p>&copy; 2025 MIKU Store. Dibuat dengan ❤️</p>
+            <p>&copy; 2026 MIKU Store. Dibuat dengan ❤️</p>
         </div>
     </footer>
 

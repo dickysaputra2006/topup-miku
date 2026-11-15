@@ -10,7 +10,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const net = require('net');
 const { sendPasswordResetEmail } = require('./utils/mailer.js');
-const { syncProductsWithFoxy } = require('./utils/cronUtils.js');
+const { syncProductsWithFoxy, rollbackTransactionResources } = require('./utils/cronUtils.js');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
 const { checkAllMobapayPromosML, checkMobapayMlbbEligibility } = require('./utils/validators/stalk-ml-promo.js');
 const { cekPromoMcggMobapay } = require('./utils/validators/stalk-mcgg.js');
@@ -39,13 +39,22 @@ const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || DEFAULT_ALLOWED_ORIGINS.joi
     .filter(Boolean);
 
 function validateEnvironment({ strict = false } = {}) {
-    const missingRequired = REQUIRED_ENV.filter(name => !process.env[name]);
+    const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+    const requiredVars = isProduction
+        ? [...REQUIRED_ENV, 'FOXY_CALLBACK_SECRET']
+        : REQUIRED_ENV;
+    const missingRequired = requiredVars.filter(name => !(process.env[name] || '').trim());
     const missingRecommended = RECOMMENDED_RUNTIME_ENV.filter(name => !process.env[name]);
 
     if (missingRequired.length > 0) {
         const message = `Missing required environment variables: ${missingRequired.join(', ')}`;
         if (strict) throw new Error(message);
         console.warn(`[env] ${message}`);
+    }
+
+    if (!isProduction && !(process.env.FOXY_CALLBACK_SECRET || '').trim() &&
+        String(process.env.ALLOW_INSECURE_CALLBACK || '').toLowerCase() !== 'true') {
+        console.warn('[env] FOXY_CALLBACK_SECRET is not set. /api/foxy/callback will reject callbacks (403) unless ALLOW_INSECURE_CALLBACK=true in non-production.');
     }
 
     if (missingRecommended.length > 0) {
@@ -57,12 +66,19 @@ function validateEnvironment({ strict = false } = {}) {
     }
 }
 
+function redactSensitiveText(value) {
+    if (value === undefined || value === null) return '';
+    return String(value)
+        .replace(/([?&](?:token|secret|api[_-]?key|apikey|authorization|password)=)[^&#\s]*/gi, '$1[REDACTED]')
+        .replace(/(api[_-]?key|authorization|password|token|secret)=([^\s,&]*)/gi, '$1=[REDACTED]');
+}
+
 function safeErrorDetail(error) {
     if (!error) return { message: 'Unknown error' };
     const detail = {};
     if (error.code) detail.code = error.code;
     if (error.response && error.response.status) detail.status = error.response.status;
-    if (error.message) detail.message = String(error.message).replace(/(api[_-]?key|authorization|password|token|secret)=?[^\s,]*/gi, '$1=[REDACTED]');
+    if (error.message) detail.message = redactSensitiveText(error.message);
     return detail;
 }
 
@@ -79,15 +95,14 @@ function safeAxiosError(error, providerName) {
     if (!error) return { provider: name, message: 'Unknown error' };
     const safe = { provider: name };
     if (error.message) {
-        safe.message = String(error.message)
-            .replace(/(api[_-]?key|authorization|password|token|secret)=?[^\s,]*/gi, '$1=[REDACTED]');
+        safe.message = redactSensitiveText(error.message);
     }
     if (error.response) {
         safe.status = error.response.status;
         safe.statusText = error.response.statusText;
         if (error.response.config) {
             safe.method = error.response.config.method ? error.response.config.method.toUpperCase() : undefined;
-            safe.url = error.response.config.url;
+            safe.url = error.response.config.url ? redactSensitiveText(error.response.config.url) : undefined;
         }
         const cfHeader = error.response.headers && error.response.headers['cf-mitigated'];
         const bodyStr = typeof error.response.data === 'string' ? error.response.data : '';
@@ -142,6 +157,35 @@ function normalizePhone(countryCode, localNumber) {
     // Reasonable length: 6-12 digits for local part
     if (local.length < 6 || local.length > 12) return null;
     return cc + local;
+}
+
+/**
+ * Normalize WhatsApp number from profile update payloads to E.164 using normalizePhone.
+ * Supports explicit countryCode+localNumber, standalone E.164 (+628...), or Indonesian formats (08.../628.../8...).
+ */
+function normalizeProfilePhone(rawNomorWa, rawCountryCode) {
+    if (typeof rawNomorWa !== 'string') return null;
+    if (typeof rawCountryCode === 'string' && rawCountryCode.trim() !== '') {
+        return normalizePhone(rawCountryCode, rawNomorWa);
+    }
+
+    const stripped = rawNomorWa.trim().replace(/[\s\-().]/g, '');
+    if (!stripped) return null;
+
+    if (stripped.startsWith('+')) {
+        const knownCodes = ['+62', '+60', '+65', '+63', '+66', '+84', '+1'];
+        const matchedCode = knownCodes.find(code => stripped.startsWith(code));
+        if (matchedCode) {
+            return normalizePhone(matchedCode, stripped.slice(matchedCode.length));
+        }
+        return /^\+[1-9][0-9]{7,14}$/.test(stripped) ? stripped : null;
+    }
+
+    if (/^62[0-9]{8,12}$/.test(stripped)) {
+        return normalizePhone('+62', stripped.slice(2));
+    }
+
+    return normalizePhone('+62', stripped);
 }
 
 function hashResetToken(token) {
@@ -201,6 +245,7 @@ function getSafeOrderErrorMessage(error, fallback) {
         'productId dan targetGameId wajib diisi.',
         'Produk tidak valid atau tidak aktif.',
         'Terjadi perubahan harga',
+        'Harga sedang diperbarui, coba lagi sebentar',
         'Harga produk sedang diperbarui',
         'Produk sedang tidak tersedia',
         'Server ID wajib diisi',
@@ -210,6 +255,7 @@ function getSafeOrderErrorMessage(error, fallback) {
         'Pesanan serupa masih pending',
         'Gagal mengirim pesanan ke provider.',
         'Kode promo tidak ditemukan',
+        'Kode promo tidak dapat digunakan',
         'Kode promo sudah kedaluwarsa.',
         'Kuota penggunaan promo',
         'Anda sudah mencapai batas maksimal',
@@ -326,6 +372,11 @@ let foxyProductCache = null;
 let foxyCacheTimestamp = null;
 const FOXY_CACHE_TTL = 5 * 60 * 1000; // 5 menit
 
+function invalidateFoxyProductCache() {
+    foxyProductCache = null;
+    foxyCacheTimestamp = null;
+}
+
 async function getFoxyProducts() {
     const now = Date.now();
     if (foxyProductCache && foxyCacheTimestamp && (now - foxyCacheTimestamp < FOXY_CACHE_TTL)) {
@@ -401,10 +452,10 @@ pool.on('connect', (client) => {
   client.query("SET TIME ZONE 'Asia/Jakarta'");
 });
 
-// Aturan ketat untuk endpoint login & lupa password
+// Aturan ketat untuk endpoint login, lupa password, dan bot admin
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 menit
-    max: 10, // Batasi setiap IP hanya 10 request per 15 menit
+    max: 30, // Batasi setiap IP maksimal 30 request per 15 menit
     message: 'Terlalu banyak percobaan login dari IP ini, silakan coba lagi setelah 15 menit.',
     standardHeaders: true, 
     legacyHeaders: false, 
@@ -450,6 +501,10 @@ app.use('/api/auth/forgot-password', authLimiter);
 app.use('/api/auth/reset-password', authLimiter);
 
 app.use('/api/user', apiLimiter);
+app.use('/api/deposit', apiLimiter);
+app.use('/api/payment-methods', apiLimiter);
+app.use('/api/bot', authLimiter);
+app.use('/api/foxy/callback', apiLimiter);
 app.use('/api/order', checkoutLimiter);
 app.use('/api/order', apiLimiter);
 app.use('/h2h', h2hLimiter);
@@ -792,14 +847,39 @@ app.get('/api/user/profile', protect, async (req, res) => {
 });
 app.put('/api/user/profile', protect, async (req, res) => {
     try {
-        const { fullName, email, nomorWa } = req.body;
-        if (!fullName || !email || !nomorWa) return res.status(400).json({ message: 'Semua kolom wajib diisi!' });
+        const fullName = normalizeString(req.body.fullName, 255);
+        const email = normalizeString(req.body.email, 255).toLowerCase();
+        const rawNomorWa = normalizeString(req.body.nomorWa, 30);
+        const rawCountryCode = req.body.countryCode !== undefined ? normalizeString(req.body.countryCode, 5) : '';
+
+        if (!fullName || !email || !rawNomorWa) {
+            return res.status(400).json({ message: 'Semua kolom wajib diisi!' });
+        }
+        if (!isValidEmail(email)) {
+            return res.status(400).json({ message: 'Format email tidak valid.' });
+        }
+
+        const normalizedPhone = normalizeProfilePhone(rawNomorWa, rawCountryCode);
+        if (!normalizedPhone) {
+            return res.status(400).json({ message: 'Nomor WhatsApp tidak valid. Gunakan format +628xxx atau 08xxx.' });
+        }
+
         const sql = 'UPDATE users SET full_name = $1, email = $2, nomor_wa = $3 WHERE id = $4';
-        await pool.query(sql, [fullName, email, nomorWa, req.user.id]);
+        await pool.query(sql, [fullName, email, normalizedPhone, req.user.id]);
         res.json({ message: 'Profil berhasil diperbarui.' });
     } catch (error) {
-        if (error.code === '23505') return res.status(409).json({ message: 'Email sudah digunakan oleh akun lain.' });
-        console.error('Error updating user profile:', error);
+        if (error.code === '23505') {
+            const constraint = String(error.constraint || '').toLowerCase();
+            const detail = String(error.detail || '').toLowerCase();
+            if (constraint.includes('nomor_wa') || detail.includes('nomor_wa')) {
+                return res.status(409).json({ message: 'Nomor WhatsApp sudah digunakan oleh akun lain.' });
+            }
+            if (constraint.includes('email') || detail.includes('email')) {
+                return res.status(409).json({ message: 'Email sudah digunakan oleh akun lain.' });
+            }
+            return res.status(409).json({ message: 'Email atau nomor WhatsApp sudah digunakan oleh akun lain.' });
+        }
+        logSafeError('Error updating user profile:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
 });
@@ -1002,54 +1082,285 @@ app.put('/api/user/whitelisted-ips', protect, async (req, res) => {
     }
 });
 
-// === DEPOSIT ENDPOINTS ===
-const VALID_DEPOSIT_METHODS = ['GoPay', 'DANA', 'ShopeePay', 'SeaBank'];
+// === DEPOSIT & PAYMENT METHOD ENDPOINTS ===
+const ALLOWED_PAYMENT_METHOD_TYPES = ['ewallet', 'bank', 'qris'];
+
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function isSafeAssetUrl(rawUrl) {
+    if (!rawUrl) return true;
+    if (rawUrl.startsWith('/') && !rawUrl.startsWith('//')) return true;
+    try {
+        const parsed = new URL(rawUrl);
+        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch (_) {
+        return false;
+    }
+}
+
+function parseOptionalBoolean(val, fallback) {
+    if (val === undefined) return fallback;
+    if (typeof val === 'boolean') return val;
+    if (val === 'true' || val === 1 || val === '1') return true;
+    if (val === 'false' || val === 0 || val === '0') return false;
+    return null;
+}
+
+function parseOptionalText(body, key, fallback, maxLen) {
+    const hasField = Object.prototype.hasOwnProperty.call(body, key);
+    const raw = hasField ? body[key] : fallback;
+    if (raw === null || raw === undefined) return { value: null };
+    if (typeof raw !== 'string') return { error: `${key} harus berupa teks.` };
+    const trimmed = raw.trim();
+    if (!trimmed) return { value: null };
+    if (trimmed.length > maxLen) return { error: `${key} maksimal ${maxLen} karakter.` };
+    return { value: trimmed };
+}
+
+function normalizePaymentMethodPayload(body, existing = null) {
+    const src = body && typeof body === 'object' ? body : {};
+    const hasProp = (k) => Object.prototype.hasOwnProperty.call(src, k);
+
+    const rawName = hasProp('name') ? src.name : existing?.name;
+    if (typeof rawName !== 'string' || !rawName.trim()) {
+        return { error: 'Nama metode pembayaran wajib diisi.' };
+    }
+    const name = rawName.trim();
+    if (name.length > 100) {
+        return { error: 'Nama metode pembayaran maksimal 100 karakter.' };
+    }
+
+    const rawCode = hasProp('code') ? src.code : existing?.code;
+    if (typeof rawCode !== 'string' || !rawCode.trim()) {
+        return { error: 'Kode metode pembayaran wajib diisi.' };
+    }
+    const code = rawCode.trim().toUpperCase();
+    if (!/^[A-Z0-9_-]{2,50}$/.test(code)) {
+        return { error: 'Kode metode harus 2-50 karakter (huruf, angka, _ atau -).' };
+    }
+
+    const rawType = hasProp('type') ? src.type : (existing?.type ?? 'ewallet');
+    const type = typeof rawType === 'string' ? rawType.trim().toLowerCase() : '';
+    if (!ALLOWED_PAYMENT_METHOD_TYPES.includes(type)) {
+        return { error: `Tipe metode harus salah satu dari: ${ALLOWED_PAYMENT_METHOD_TYPES.join(', ')}.` };
+    }
+
+    const acctNumRes = parseOptionalText(src, 'account_number', existing?.account_number ?? null, 100);
+    if (acctNumRes.error) return { error: 'Nomor rekening/HP ' + acctNumRes.error };
+
+    const acctNameRes = parseOptionalText(src, 'account_name', existing?.account_name ?? null, 150);
+    if (acctNameRes.error) return { error: 'Atas nama ' + acctNameRes.error };
+
+    const qrisUrlRes = parseOptionalText(src, 'qris_image_url', existing?.qris_image_url ?? null, 1000);
+    if (qrisUrlRes.error) return { error: 'URL gambar QRIS ' + qrisUrlRes.error };
+    if (qrisUrlRes.value && !isSafeAssetUrl(qrisUrlRes.value)) {
+        return { error: 'URL gambar QRIS tidak valid. Gunakan URL http(s):// atau path /...' };
+    }
+
+    const instrRes = parseOptionalText(src, 'instructions', existing?.instructions ?? null, 1000);
+    if (instrRes.error) return { error: 'Instruksi ' + instrRes.error };
+
+    const rawMin = hasProp('min_amount') && src.min_amount !== '' && src.min_amount !== null
+        ? src.min_amount
+        : (existing?.min_amount ?? 10000);
+    const minAmount = Number(rawMin);
+    if (!Number.isFinite(minAmount) || minAmount < 10000 || minAmount > 100000000) {
+        return { error: 'Minimal deposit harus antara Rp 10.000 hingga Rp 100.000.000.' };
+    }
+
+    const rawSort = hasProp('sort_order') && src.sort_order !== '' && src.sort_order !== null
+        ? src.sort_order
+        : (existing?.sort_order ?? 0);
+    const sortOrder = Number(rawSort);
+    if (!Number.isInteger(sortOrder) || sortOrder < -9999 || sortOrder > 9999) {
+        return { error: 'Urutan tampil harus berupa bilangan bulat (-9999 sampai 9999).' };
+    }
+
+    const parsedActive = hasProp('is_active')
+        ? parseOptionalBoolean(src.is_active, null)
+        : (existing ? Boolean(existing.is_active) : true);
+    if (parsedActive === null) {
+        return { error: 'Status aktif (is_active) tidak valid.' };
+    }
+
+    let isQris;
+    if (type === 'qris') {
+        isQris = true;
+    } else if (hasProp('is_qris')) {
+        const parsedQris = parseOptionalBoolean(src.is_qris, null);
+        if (parsedQris === null) return { error: 'Flag is_qris tidak valid.' };
+        isQris = parsedQris;
+    } else if (hasProp('type')) {
+        isQris = false;
+    } else {
+        isQris = existing ? Boolean(existing.is_qris) : false;
+    }
+
+    return {
+        data: {
+            code,
+            name,
+            type,
+            account_number: acctNumRes.value,
+            account_name: acctNameRes.value,
+            qris_image_url: qrisUrlRes.value,
+            instructions: instrRes.value,
+            is_qris: isQris,
+            min_amount: minAmount,
+            is_active: parsedActive,
+            sort_order: sortOrder
+        }
+    };
+}
+
+app.get('/api/payment-methods', protect, async (req, res) => {
+    try {
+        const sql = `SELECT id, code, name, type, account_number, account_name,
+                            qris_image_url, instructions, is_qris, min_amount, sort_order
+                     FROM payment_methods
+                     WHERE is_active = true
+                     ORDER BY sort_order ASC, id ASC`;
+        const { rows } = await pool.query(sql);
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching active payment methods:', error);
+        res.status(500).json({ message: 'Gagal memuat metode pembayaran.' });
+    }
+});
 
 app.post('/api/deposit/request', protect, async (req, res) => {
     const { amount, method, note } = req.body;
     const userId = req.user.id;
+    const parsedAmount = Number(amount);
 
-    // Validasi amount
-    if (!Number.isFinite(Number(amount)) || Number(amount) < 10000 || Number(amount) > 100000000) {
+    // Validasi amount global
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 10000 || parsedAmount > 100000000) {
         return res.status(400).json({ message: 'Jumlah deposit tidak valid. Minimum Rp 10.000, maksimum Rp 100.000.000.' });
     }
 
-    // Validasi method — wajib dan harus dari daftar yang diizinkan
-    const trimmedMethod = (method || '').trim();
+    // Validasi method — wajib dan aktif di tabel payment_methods
+    const trimmedMethod = typeof method === 'string' ? method.trim() : '';
     if (!trimmedMethod) {
         return res.status(400).json({ message: 'Metode pembayaran wajib dipilih.' });
     }
-    if (!VALID_DEPOSIT_METHODS.includes(trimmedMethod)) {
-        return res.status(400).json({ message: `Metode tidak valid. Pilih salah satu: ${VALID_DEPOSIT_METHODS.join(', ')}.` });
-    }
 
     // Validasi note — opsional, max 200 karakter
-    const trimmedNote = (note || '').trim();
+    const trimmedNote = typeof note === 'string' ? note.trim() : '';
     if (trimmedNote.length > 200) {
         return res.status(400).json({ message: 'Catatan terlalu panjang. Maksimum 200 karakter.' });
     }
 
+    let methodRow;
+    try {
+        const methodRes = await pool.query(
+            `SELECT id, code, name, type, account_number, account_name,
+                    qris_image_url, instructions, is_qris, min_amount
+             FROM payment_methods
+             WHERE (LOWER(code) = LOWER($1) OR LOWER(name) = LOWER($1))
+               AND is_active = true
+             LIMIT 1`,
+            [trimmedMethod]
+        );
+        if (!methodRes || !methodRes.rows || methodRes.rows.length === 0) {
+            return res.status(400).json({ message: 'Metode pembayaran tidak valid atau sedang tidak aktif.' });
+        }
+        methodRow = methodRes.rows[0];
+    } catch (error) {
+        console.error('Error validating deposit payment method:', error);
+        return res.status(500).json({ message: 'Terjadi kesalahan pada server saat memvalidasi metode pembayaran.' });
+    }
+
+    const baseAmount = Math.trunc(parsedAmount);
+    const methodMinAmount = Number(methodRow.min_amount) || 10000;
+    if (baseAmount < methodMinAmount) {
+        const minFormatted = new Intl.NumberFormat('id-ID').format(methodMinAmount);
+        return res.status(400).json({
+            message: `Minimum deposit untuk metode ${methodRow.name} adalah Rp ${minFormatted}.`
+        });
+    }
+
+    const useUniqueCode = !Boolean(methodRow.is_qris);
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        const uniqueCode = Math.floor(Math.random() * 900) + 100;
-        const totalAmount = parseInt(amount) + uniqueCode;
+        const pendingCheck = await client.query(
+            "SELECT COUNT(*) AS count FROM deposits WHERE user_id = $1 AND status = 'Pending'",
+            [userId]
+        );
+        const pendingCount = (pendingCheck && pendingCheck.rows && pendingCheck.rows[0] && pendingCheck.rows[0].count !== undefined)
+            ? parseInt(pendingCheck.rows[0].count, 10)
+            : 0;
+        if (pendingCount >= 2) {
+            await client.query('ROLLBACK');
+            return res.status(429).json({
+                message: 'Anda masih memiliki maksimal 2 permintaan deposit Pending. Selesaikan atau tunggu verifikasi terlebih dahulu.'
+            });
+        }
+
+        let uniqueCode = 0;
+        let totalAmount = baseAmount;
+        if (useUniqueCode) {
+            for (let attempt = 0; attempt < 10; attempt++) {
+                const candidateCode = Math.floor(Math.random() * 900) + 100;
+                const candidateTotal = baseAmount + candidateCode;
+                const collisionRes = await client.query(
+                    "SELECT 1 FROM deposits WHERE status = 'Pending' AND amount = $1 LIMIT 1",
+                    [candidateTotal]
+                );
+                if (!collisionRes || !collisionRes.rows || collisionRes.rows.length === 0) {
+                    uniqueCode = candidateCode;
+                    totalAmount = candidateTotal;
+                    break;
+                }
+            }
+            if (uniqueCode === 0) {
+                uniqueCode = Math.floor(Math.random() * 900) + 100;
+                totalAmount = baseAmount + uniqueCode;
+            }
+        }
+
         const sql = 'INSERT INTO deposits (user_id, amount, unique_code, status, method, note) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at';
-        const { rows } = await client.query(sql, [userId, totalAmount, uniqueCode, 'Pending', trimmedMethod, trimmedNote || null]);
+        const { rows } = await client.query(sql, [userId, totalAmount, uniqueCode, 'Pending', methodRow.name, trimmedNote || null]);
         const depositId = rows[0].id;
         const createdAt = rows[0].created_at;
         await client.query('COMMIT');
+
         const amountFormatted = new Intl.NumberFormat('id-ID').format(totalAmount);
+        const safeMethodName = escapeHtml(methodRow.name);
+        const safeAcctNumber = methodRow.account_number ? escapeHtml(methodRow.account_number) : '';
+        const safeAcctName = methodRow.account_name ? escapeHtml(methodRow.account_name) : '';
+        const targetLabel = safeAcctNumber
+            ? `ke tujuan <strong>${safeAcctNumber}</strong>${safeAcctName ? ` (a.n. <strong>${safeAcctName}</strong>)` : ''}`
+            : 'ke tujuan pembayaran resmi MIKU Store';
+
+        let paymentInstructions;
+        if (useUniqueCode) {
+            paymentInstructions = `Transfer sejumlah <strong>Rp ${amountFormatted}</strong> (termasuk kode unik <strong>${uniqueCode}</strong>) via <strong>${safeMethodName}</strong> ${targetLabel}. Sertakan nomor deposit <strong>#${depositId}</strong> di keterangan transfer.`;
+        } else {
+            paymentInstructions = `Transfer tepat sejumlah <strong>Rp ${amountFormatted}</strong> via <strong>${safeMethodName}</strong> (tanpa kode unik 3 digit)${safeAcctName ? ` a.n. <strong>${safeAcctName}</strong>` : ''}. Cantumkan nomor deposit <strong>#${depositId}</strong> saat konfirmasi pembayaran.`;
+        }
+        if (methodRow.instructions) {
+            paymentInstructions += ` <br><small>${escapeHtml(methodRow.instructions)}</small>`;
+        }
+
         res.status(201).json({
             message: 'Permintaan deposit berhasil dibuat. Saldo akan masuk setelah admin memverifikasi pembayaran.',
             deposit: {
                 id: depositId,
                 amount: totalAmount,
                 unique_code: uniqueCode,
-                method: trimmedMethod,
+                method: methodRow.name,
+                is_qris: Boolean(methodRow.is_qris),
                 status: 'Pending',
                 created_at: createdAt,
-                paymentInstructions: `Transfer sejumlah <strong>Rp ${amountFormatted}</strong> (termasuk kode unik <strong>${uniqueCode}</strong>) via <strong>${trimmedMethod}</strong> ke nomor tujuan yang akan diinformasikan oleh admin MIKU Store. Sertakan nomor deposit <strong>#${depositId}</strong> di keterangan transfer.`
+                paymentInstructions
             }
         });
     } catch (error) {
@@ -1158,6 +1469,18 @@ app.post('/api/admin/deposits/approve', protectAdmin, async (req, res) => {
                 message: `Deposit ini sudah diproses (status: ${deposit.status}). Tidak bisa approve ulang.`
             });
         }
+        // Guard tambahan: cegah double-credit di balance_history (konsisten dengan endpoint bot)
+        const referenceId = `DEPOSIT-${deposit.id}`;
+        const { rows: existingCredit } = await client.query(
+            "SELECT id FROM balance_history WHERE reference_id = $1 AND type = 'Deposit' LIMIT 1",
+            [referenceId]
+        );
+        if (existingCredit && existingCredit.length > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({
+                message: 'Deposit ini sudah pernah dikreditkan.'
+            });
+        }
         await client.query(
             "UPDATE deposits SET status = 'Approved', updated_at = NOW() WHERE id = $1",
             [depositId]
@@ -1169,7 +1492,7 @@ app.post('/api/admin/deposits/approve', protectAdmin, async (req, res) => {
         const historyDesc = `Deposit #${deposit.id} disetujui admin`;
         await client.query(
             'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
-            [deposit.user_id, deposit.amount, 'Deposit', historyDesc, `DEPOSIT-${deposit.id}`]
+            [deposit.user_id, deposit.amount, 'Deposit', historyDesc, referenceId]
         );
         await client.query('COMMIT');
         // Notifikasi async — tidak blok response
@@ -1234,6 +1557,125 @@ app.post('/api/admin/deposits/reject', protectAdmin, async (req, res) => {
         client.release();
     }
 });
+
+// === ADMIN PAYMENT METHODS CRUD ===
+app.get('/api/admin/payment-methods', protectAdmin, async (req, res) => {
+    try {
+        const sql = `SELECT id, code, name, type, account_number, account_name,
+                            qris_image_url, instructions, is_qris, min_amount,
+                            is_active, sort_order, created_at, updated_at
+                     FROM payment_methods
+                     ORDER BY sort_order ASC, id ASC`;
+        const { rows } = await pool.query(sql);
+        res.json(rows);
+    } catch (error) {
+        console.error('Error fetching admin payment methods:', error);
+        res.status(500).json({ message: 'Gagal memuat daftar metode pembayaran.' });
+    }
+});
+
+app.post('/api/admin/payment-methods', protectAdmin, async (req, res) => {
+    const validated = normalizePaymentMethodPayload(req.body);
+    if (validated.error) {
+        return res.status(400).json({ message: validated.error });
+    }
+    const pm = validated.data;
+    try {
+        const sql = `INSERT INTO payment_methods (
+                         code, name, type, account_number, account_name,
+                         qris_image_url, instructions, is_qris, min_amount,
+                         is_active, sort_order
+                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                     RETURNING id, code, name, type, account_number, account_name,
+                               qris_image_url, instructions, is_qris, min_amount,
+                               is_active, sort_order, created_at, updated_at`;
+        const params = [
+            pm.code, pm.name, pm.type, pm.account_number, pm.account_name,
+            pm.qris_image_url, pm.instructions, pm.is_qris, pm.min_amount,
+            pm.is_active, pm.sort_order
+        ];
+        const { rows } = await pool.query(sql, params);
+        res.status(201).json({
+            message: 'Metode pembayaran berhasil ditambahkan.',
+            paymentMethod: rows[0]
+        });
+    } catch (error) {
+        if (error && error.code === '23505') {
+            return res.status(409).json({ message: 'Kode metode pembayaran sudah digunakan.' });
+        }
+        console.error('Error creating payment method:', error);
+        res.status(500).json({ message: 'Gagal menambahkan metode pembayaran.' });
+    }
+});
+
+app.put('/api/admin/payment-methods/:id', protectAdmin, async (req, res) => {
+    const methodId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(methodId) || methodId <= 0) {
+        return res.status(400).json({ message: 'ID metode pembayaran tidak valid.' });
+    }
+    try {
+        const existingRes = await pool.query('SELECT * FROM payment_methods WHERE id = $1 LIMIT 1', [methodId]);
+        if (!existingRes || !existingRes.rows || existingRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Metode pembayaran tidak ditemukan.' });
+        }
+        const validated = normalizePaymentMethodPayload(req.body, existingRes.rows[0]);
+        if (validated.error) {
+            return res.status(400).json({ message: validated.error });
+        }
+        const pm = validated.data;
+        const sql = `UPDATE payment_methods
+                     SET code = $1,
+                         name = $2,
+                         type = $3,
+                         account_number = $4,
+                         account_name = $5,
+                         qris_image_url = $6,
+                         instructions = $7,
+                         is_qris = $8,
+                         min_amount = $9,
+                         is_active = $10,
+                         sort_order = $11,
+                         updated_at = NOW()
+                     WHERE id = $12
+                     RETURNING id, code, name, type, account_number, account_name,
+                               qris_image_url, instructions, is_qris, min_amount,
+                               is_active, sort_order, created_at, updated_at`;
+        const params = [
+            pm.code, pm.name, pm.type, pm.account_number, pm.account_name,
+            pm.qris_image_url, pm.instructions, pm.is_qris, pm.min_amount,
+            pm.is_active, pm.sort_order, methodId
+        ];
+        const { rows } = await pool.query(sql, params);
+        res.json({
+            message: 'Metode pembayaran berhasil diperbarui.',
+            paymentMethod: rows[0]
+        });
+    } catch (error) {
+        if (error && error.code === '23505') {
+            return res.status(409).json({ message: 'Kode metode pembayaran sudah digunakan.' });
+        }
+        console.error('Error updating payment method:', error);
+        res.status(500).json({ message: 'Gagal memperbarui metode pembayaran.' });
+    }
+});
+
+app.delete('/api/admin/payment-methods/:id', protectAdmin, async (req, res) => {
+    const methodId = parseInt(req.params.id, 10);
+    if (!Number.isInteger(methodId) || methodId <= 0) {
+        return res.status(400).json({ message: 'ID metode pembayaran tidak valid.' });
+    }
+    try {
+        const { rows } = await pool.query('DELETE FROM payment_methods WHERE id = $1 RETURNING id, name', [methodId]);
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ message: 'Metode pembayaran tidak ditemukan.' });
+        }
+        res.json({ message: `Metode pembayaran "${rows[0].name}" berhasil dihapus.` });
+    } catch (error) {
+        console.error('Error deleting payment method:', error);
+        res.status(500).json({ message: 'Gagal menghapus metode pembayaran.' });
+    }
+});
+
 app.post('/api/admin/balance/add', protectAdmin, async (req, res) => {
     const client = await pool.connect();
     try {
@@ -1261,16 +1703,17 @@ app.post('/api/admin/balance/reduce', protectAdmin, async (req, res) => {
     try {
         await client.query('BEGIN');
         const { username, amount, description } = req.body;
-        if (!username || !amount || !description || isNaN(amount) || amount <= 0) throw new Error('Input tidak valid.');
+        const numericAmount = Number(amount);
+        if (!username || !description || !Number.isFinite(numericAmount) || numericAmount <= 0) throw new Error('Input tidak valid.');
         const { rows } = await client.query('SELECT id, balance FROM users WHERE username = $1 OR email = $2 FOR UPDATE', [username, username]);
         if (rows.length === 0) throw new Error('Pengguna tidak ditemukan.');
         const user = rows[0];
-        if (user.balance < amount) throw new Error('Saldo pengguna tidak mencukupi untuk dikurangi.');
-        await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [amount, user.id]);
+        if (Number(user.balance) < numericAmount) throw new Error('Saldo pengguna tidak mencukupi untuk dikurangi.');
+        await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2 AND balance >= $1', [numericAmount, user.id]);
         const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
-        await client.query(historySql, [user.id, -amount, 'Refund', description, `ADMIN_REDUCE-${Date.now()}`]);
+        await client.query(historySql, [user.id, -numericAmount, 'Refund', description, `ADMIN_REDUCE-${Date.now()}`]);
         await client.query('COMMIT');
-        res.json({ message: `Saldo akun ${username} berhasil dikurangi sebesar ${amount}.` });
+        res.json({ message: `Saldo akun ${username} berhasil dikurangi sebesar ${numericAmount}.` });
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Error reducing balance manually:', error);
@@ -1324,7 +1767,7 @@ app.get('/api/admin/games', protectAdmin, async (req, res) => {
 });
 app.get('/api/admin/products', protectAdmin, async (req, res) => {
     try {
-         const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, g.name as game_name 
+         const sqlProducts = `SELECT p.id, p.game_id, p.name, p.provider_sku, p.price, p.status, p.validation_config, g.name as game_name 
                              FROM products p JOIN games g ON p.game_id = g.id 
                              ORDER BY g.name ASC, p.price ASC, p.name ASC`; 
         const { rows: products } = await pool.query(sqlProducts);
@@ -1383,16 +1826,35 @@ app.post('/api/admin/products', protectAdmin, async (req, res) => {
 });
 app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
     try {
-        const { margin_percent } = req.body; // Menerima margin dari frontend
-        if (margin_percent === undefined || isNaN(margin_percent)) {
-            return res.status(400).json({ message: 'Persentase margin tidak valid.' });
+        const activeFoxyKey = process.env.FOXY_API_KEY !== undefined ? process.env.FOXY_API_KEY : FOXY_API_KEY;
+        if (!activeFoxyKey || !String(activeFoxyKey).trim()) {
+            return res.status(400).json({
+                message: 'FOXY_API_KEY belum diatur di file .env. Isi API key Foxy atau gunakan data seeder lokal untuk pengujian.'
+            });
         }
-        
-        // Panggil fungsi sinkronisasi dari utilitas, teruskan margin
-        // Catatan: Fungsi syncProductsWithFoxy di utilitas perlu menerima margin_percent
-        await syncProductsWithFoxy(margin_percent); 
-        
-        res.json({ message: `Sinkronisasi produk berhasil dipicu dengan margin ${margin_percent}%.` });
+
+        const rawMargin = req.body ? req.body.margin_percent : undefined;
+        let effectiveMargin = null;
+
+        if (rawMargin !== undefined && rawMargin !== null && String(rawMargin).trim() !== '') {
+            const parsed = Number(rawMargin);
+            if (!Number.isFinite(parsed) || parsed < 0) {
+                return res.status(400).json({ message: 'Persentase margin tidak valid.' });
+            }
+            effectiveMargin = parsed;
+        } else {
+            const { rows: roleRows } = await pool.query(
+                "SELECT margin_percent FROM roles WHERE LOWER(name) = 'bronze' ORDER BY id ASC LIMIT 1"
+            );
+            effectiveMargin = roleRows.length > 0 && roleRows[0].margin_percent !== null
+                ? Number(roleRows[0].margin_percent)
+                : 10;
+        }
+
+        await syncProductsWithFoxy(effectiveMargin);
+        invalidateFoxyProductCache();
+
+        res.json({ message: `Sinkronisasi produk berhasil dipicu dengan margin ${effectiveMargin}%.` });
     } catch (error) {
         console.error('Manual sync trigger error:', error);
         res.status(500).json({ message: 'Gagal memicu sinkronisasi manual. Cek log server.' });
@@ -1470,29 +1932,15 @@ app.put('/api/admin/transactions/:invoiceId/resolve', protectAdmin, async (req, 
 
 
         } else if (action === 'refund') {
-            // DOUBLE REFUND GUARD: cek apakah sudah pernah ada refund
-            const { rows: existingRefunds } = await client.query(
-                "SELECT id FROM balance_history WHERE reference_id = $1 AND type = 'Refund' LIMIT 1",
-                [tx.invoice_id]
-            );
-            if (existingRefunds.length > 0) {
+            const histDesc = `Refund admin untuk invoice ${tx.invoice_id}`;
+            const rollbackResult = await rollbackTransactionResources(client, tx, {
+                refundDescription: histDesc,
+                abortIfAlreadyRefunded: true
+            });
+            if (rollbackResult.alreadyRefunded) {
                 await client.query('ROLLBACK');
                 return res.status(409).json({ message: 'Saldo untuk transaksi ini sudah pernah direfund sebelumnya.' });
             }
-
-            await client.query(
-                "UPDATE transactions SET status = 'Failed', updated_at = NOW() WHERE id = $1",
-                [tx.id]
-            );
-            await client.query(
-                'UPDATE users SET balance = balance + $1 WHERE id = $2',
-                [tx.price, tx.user_id]
-            );
-            const histDesc = `Refund admin untuk invoice ${tx.invoice_id}`;
-            await client.query(
-                "INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, 'Refund', $3, $4)",
-                [tx.user_id, tx.price, histDesc, tx.invoice_id]
-            );
             await createNotification(
                 tx.user_id,
                 `Pesanan ${tx.invoice_id} gagal. Saldo Rp ${Number(tx.price).toLocaleString('id-ID')} telah dikembalikan.`,
@@ -2329,11 +2777,11 @@ app.post('/api/promos/validate', protect, async (req, res) => {
 
         if (rules.max_uses_per_user) {
             const usageRes = await client.query(
-                'SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND customer_game_id = $2',
-                [promo.id, target_game_id]
+                'SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND (user_id = $2 OR customer_game_id = $3)',
+                [promo.id, client_user_id, target_game_id]
             );
             const userUsageCount = parseInt(usageRes.rows[0].count, 10);
-            if (userUsageCount >= rules.max_uses_per_user) {
+            if (userUsageCount >= Number(rules.max_uses_per_user)) {
                 return res.status(400).json({ valid: false, message: `Anda sudah mencapai batas maksimal penggunaan kode ini (${rules.max_uses_per_user}x).` });
             }
         }
@@ -2379,7 +2827,7 @@ app.post('/api/promos/validate', protect, async (req, res) => {
 
         // Flash sale override
         const { rows: fsRows } = await client.query(
-            `SELECT discount_price FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at LIMIT 1`,
+            `SELECT discount_price FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at AND (max_uses IS NULL OR uses_count < max_uses) LIMIT 1`,
             [product_id]
         );
         if (fsRows.length > 0) {
@@ -2403,6 +2851,9 @@ app.post('/api/promos/validate', protect, async (req, res) => {
         let discount = 0;
         if (promo.type === 'percentage') {
             discount = Math.floor(effectivePrice * Number(promo.value) / 100);
+            if (rules.max_discount_amount && Number(rules.max_discount_amount) > 0 && discount > Number(rules.max_discount_amount)) {
+                discount = Math.floor(Number(rules.max_discount_amount));
+            }
         } else if (promo.type === 'fixed') {
             discount = Math.floor(Number(promo.value));
         }
@@ -2412,6 +2863,26 @@ app.post('/api/promos/validate', protect, async (req, res) => {
         }
         if (discount < 0) discount = 0;
         const finalPrice = effectivePrice - discount;
+
+        // Konsisten dengan checkout (SEC-003): harga akhir setelah promo tidak boleh di bawah modal provider
+        let providerCost = Number(product.price) || 0;
+        try {
+            const providerProducts = await getFoxyProducts();
+            const currentFoxyProduct = providerProducts
+                ? providerProducts.find(p => p.product_code === product.provider_sku)
+                : null;
+            if (currentFoxyProduct && Number.isFinite(Number(currentFoxyProduct.product_price))) {
+                providerCost = Number(currentFoxyProduct.product_price);
+            }
+        } catch (_foxyErr) {
+            // Fallback ke product.price lokal jika Foxy tidak dapat diakses saat validasi promo
+        }
+        if (finalPrice < providerCost) {
+            return res.status(400).json({
+                valid: false,
+                message: 'Kode promo tidak dapat digunakan karena membuat harga akhir di bawah harga modal produk.'
+            });
+        }
 
         res.json({
             valid: true,
@@ -2438,6 +2909,8 @@ app.get('/api/public/flash-sales', async (req, res) => {
                 SELECT 
                     fs.id as flash_sale_id,
                     fs.discount_price,
+                    fs.end_at,
+                    fs.end_at as end_time,
                     p.id as product_id,
                     p.name as product_name,
                     CEIL(p.price * (1 + COALESCE(r.margin_percent, 0) / 100)) as original_price,
@@ -2738,9 +3211,9 @@ app.get('/api/public/leaderboard', async (req, res) => {
 function requireWaBotAdminToken(req, res, next) {
     const configuredToken = process.env.WA_BOT_ADMIN_TOKEN;
 
-    // Jika env belum dikonfigurasi, endpoint tidak bisa dipakai (fail-safe)
-    if (!configuredToken || configuredToken.trim().length === 0) {
-        return res.status(503).json({ message: 'Bot admin token belum dikonfigurasi.' });
+    // Jika env belum dikonfigurasi atau kurang dari 32 karakter, endpoint tidak bisa dipakai (fail-safe)
+    if (!configuredToken || configuredToken.trim().length < 32) {
+        return res.status(503).json({ message: 'Bot admin token belum dikonfigurasi dengan aman (minimal 32 karakter).' });
     }
 
     const authHeader = req.headers.authorization || '';
@@ -2958,8 +3431,11 @@ app.post('/api/bot/admin/deposits/:id/approve', requireWaBotAdminToken, async (r
             [deposit.amount, deposit.user_id]
         );
 
-        // Insert balance_history
-        const historyDesc = `Deposit #${deposit.id} disetujui via WA bot`;
+        // Insert balance_history (simpan req.body.note jika ada)
+        const adminNote = (req.body && typeof req.body.note === 'string') ? req.body.note.trim().slice(0, 200) : '';
+        const historyDesc = adminNote
+            ? `Deposit #${deposit.id} disetujui via WA bot (${adminNote})`
+            : `Deposit #${deposit.id} disetujui via WA bot`;
         await client.query(
             'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
             [deposit.user_id, deposit.amount, 'Deposit', historyDesc, referenceId]
@@ -3081,8 +3557,8 @@ app.post('/api/bot/admin/deposits/:id/reject', requireWaBotAdminToken, async (re
 // === ORDER & H2H ENDPOINTS ===
 app.post('/api/order', protect, async (req, res) => {
     const client = await pool.connect();
+    let inTransaction = false;
     try {
-        await client.query('BEGIN');
         const productId = Number(req.body.productId);
         const targetGameId = normalizeString(req.body.targetGameId, 80);
         const targetServerId = normalizeString(req.body.targetServerId, 80);
@@ -3091,11 +3567,11 @@ app.post('/api/order', protect, async (req, res) => {
 
         if (!Number.isInteger(productId) || productId <= 0 || !targetGameId) throw new Error('Produk dan ID Game wajib diisi.');
 
-        // Ambil detail produk LENGKAP (termasuk join ke game_margins & validation_config)
+        // Ambil detail produk LENGKAP di luar transaksi DB dan tanpa FOR UPDATE
         const productQuery = `
                 SELECT p.*, g.id as game_id, g.needs_server_id,
                     gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
-                FROM (SELECT * FROM products WHERE id = $1 AND status = 'Active' FOR UPDATE) AS p
+                FROM (SELECT * FROM products WHERE id = $1 AND status = 'Active') AS p
                 JOIN games g ON p.game_id = g.id
                 LEFT JOIN game_margins gm ON p.game_id = gm.game_id
                 WHERE g.status = 'Active'
@@ -3105,8 +3581,46 @@ app.post('/api/order', protect, async (req, res) => {
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
         const product = products[0];
 
-        // --- LOGIKA HARGA FINAL TIGA LAPIS (YANG DISEMPURNAKAN) ---
+        if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
+
+        // === PHASE 5B: VALIDASI ID GAME (di luar blok BEGIN...COMMIT agar tidak menahan DB lock) ===
+        await validateOrderGameIdIfNeeded(product, targetGameId, targetServerId);
+        // === AKHIR PHASE 5B ===
+
+        // --- PRICE GUARD FETCH: Ambil harga provider real-time di luar blok BEGIN...COMMIT ---
+        let currentProviderCost = 0;
+        try {
+            console.log('[order] Checking real-time price from Foxy...');
+            const providerProducts = await getFoxyProducts();
+            const currentFoxyProduct = providerProducts
+                ? providerProducts.find(p => p.product_code === product.provider_sku)
+                : null;
+
+            if (!currentFoxyProduct) {
+                console.warn(`[order] Product SKU ${product.provider_sku} not found in provider list.`);
+                throw new Error('Produk sedang tidak tersedia, silakan coba lagi nanti.');
+            }
+            currentProviderCost = Number(currentFoxyProduct.product_price);
+        } catch (priceGuardErr) {
+            if (priceGuardErr.message && (
+                priceGuardErr.message.startsWith('Harga sedang diperbarui') ||
+                priceGuardErr.message.startsWith('Harga produk sedang diperbarui') ||
+                priceGuardErr.message.startsWith('Produk sedang tidak tersedia') ||
+                priceGuardErr.message.startsWith('Terjadi perubahan harga')
+            )) {
+                throw priceGuardErr;
+            }
+            console.warn('[order] Provider check failed, blocking order:', safeAxiosError(priceGuardErr, 'Foxy'));
+            throw new Error('Harga sedang diperbarui, coba lagi sebentar');
+        }
+
+        // === FASE 1: RESERVASI ATOMIK DI DATABASE ===
+        await client.query('BEGIN');
+        inTransaction = true;
+
+        // --- LOGIKA HARGA FINAL TIGA LAPIS ---
         const { rows: users } = await client.query('SELECT balance, role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE', [userId]);
+        if (!users || users.length === 0) throw new Error('Pengguna tidak ditemukan.');
         const user = users[0];
         const userRoleName = user.role_name.toLowerCase();
 
@@ -3130,59 +3644,32 @@ app.post('/api/order', protect, async (req, res) => {
         }
         // --- AKHIR LOGIKA HARGA FINAL ---
 
-        // --- FLASH SALE OVERRIDE ---
+        // --- FLASH SALE OVERRIDE (dengan FOR UPDATE & kuota max_uses) ---
+        let appliedFlashSaleId = null;
         const { rows: flashSaleRows } = await client.query(
-            `SELECT discount_price FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at LIMIT 1`,
+            `SELECT id, discount_price FROM flash_sales
+             WHERE product_id = $1 AND is_active = true
+               AND NOW() BETWEEN start_at AND end_at
+               AND (max_uses IS NULL OR uses_count < max_uses)
+             LIMIT 1 FOR UPDATE`,
             [productId]
         );
         if (flashSaleRows.length > 0) {
             const flashPrice = Number(flashSaleRows[0].discount_price);
             if (flashPrice > 0 && flashPrice < finalPrice) {
                 finalPrice = flashPrice;
+                appliedFlashSaleId = flashSaleRows[0].id || null;
             }
         }
         // --- AKHIR FLASH SALE OVERRIDE ---
 
-        // --- PRICE GUARD: Cek harga provider real-time sebelum order ---
-        try {
-            console.log('[order] Checking real-time price from Foxy...');
-            const providerProducts = await getFoxyProducts();
-            const currentFoxyProduct = providerProducts
-                ? providerProducts.find(p => p.product_code === product.provider_sku)
-                : null;
-
-            if (!currentFoxyProduct) {
-                console.warn(`[order] Product SKU ${product.provider_sku} not found in provider list.`);
-                throw new Error('Produk sedang tidak tersedia, silakan coba lagi nanti.');
-            }
-
-            const currentProviderCost = Number(currentFoxyProduct.product_price);
-            // Blokir jika harga provider > finalPrice yang dikenakan ke user
-            if (currentProviderCost > finalPrice) {
-                console.warn(`[order] Price risk: Provider cost (${currentProviderCost}) > Final user price (${finalPrice}). SKU ${product.provider_sku}.`);
-                syncProductsWithFoxy().catch(err => console.error('[order] Auto-sync after price change failed:', safeAxiosError(err, 'Foxy')));
-                throw new Error('Harga produk sedang diperbarui, silakan coba beberapa saat lagi.');
-            }
-        } catch (priceGuardErr) {
-            // Jika provider error (403, timeout, network error), WAJIB block order
-            if (priceGuardErr.message && (
-                priceGuardErr.message.startsWith('Harga produk sedang diperbarui') ||
-                priceGuardErr.message.startsWith('Produk sedang tidak tersedia') ||
-                priceGuardErr.message.startsWith('Terjadi perubahan harga')
-            )) {
-                throw priceGuardErr;
-            }
-            console.warn('[order] Provider check failed, blocking order:', safeAxiosError(priceGuardErr, 'Foxy'));
-            throw new Error('Harga produk sedang diperbarui, silakan coba beberapa saat lagi.');
+        // Blokir jika harga prapromo sudah di bawah modal provider
+        if (currentProviderCost > finalPrice) {
+            console.warn(`[order] Price risk: Provider cost (${currentProviderCost}) > Final user price (${finalPrice}). SKU ${product.provider_sku}.`);
+            invalidateFoxyProductCache();
+            throw new Error('Harga sedang diperbarui, coba lagi sebentar');
         }
-        // --- AKHIR PRICE GUARD ---
 
-        if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
-
-        // === PHASE 5B: VALIDASI ID GAME (opt-in per produk, sebelum saldo dipotong) ===
-        await validateOrderGameIdIfNeeded(product, targetGameId, targetServerId);
-        // === AKHIR PHASE 5B ===
-        
         // --- PROMO CODE ENFORCEMENT ---
         let appliedPromoId = null;
         if (promoCode) {
@@ -3202,10 +3689,13 @@ app.post('/api/order', protect, async (req, res) => {
             }
             if (rules.max_uses_per_user) {
                 const { rows: usageRows } = await client.query(
-                    'SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND customer_game_id = $2',
-                    [promo.id, targetGameId]
+                    'SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND (user_id = $2 OR customer_game_id = $3)',
+                    [promo.id, userId, targetGameId]
                 );
-                if (parseInt(usageRows[0].count, 10) >= rules.max_uses_per_user) {
+                const usageCount = (usageRows && usageRows[0] && usageRows[0].count !== undefined)
+                    ? parseInt(usageRows[0].count, 10)
+                    : 0;
+                if (usageCount >= Number(rules.max_uses_per_user)) {
                     throw new Error(`Anda sudah mencapai batas maksimal penggunaan kode ini (${rules.max_uses_per_user}x).`);
                 }
             }
@@ -3222,6 +3712,9 @@ app.post('/api/order', protect, async (req, res) => {
             let discount = 0;
             if (promo.type === 'percentage') {
                 discount = Math.floor(finalPrice * Number(promo.value) / 100);
+                if (rules.max_discount_amount && Number(rules.max_discount_amount) > 0 && discount > Number(rules.max_discount_amount)) {
+                    discount = Math.floor(Number(rules.max_discount_amount));
+                }
             } else if (promo.type === 'fixed') {
                 discount = Math.floor(Number(promo.value));
             }
@@ -3238,21 +3731,50 @@ app.post('/api/order', protect, async (req, res) => {
         }
         // --- AKHIR PROMO CODE ENFORCEMENT ---
 
+        // SEC-003: Validasi ulang harga akhir terhadap modal provider SETELAH diskon promo dihitung
+        if (currentProviderCost > finalPrice) {
+            if (appliedPromoId) {
+                console.warn(`[order] Promo cost guard blocked order: Final price (${finalPrice}) < Provider cost (${currentProviderCost}). SKU ${product.provider_sku}.`);
+                throw new Error('Kode promo tidak dapat digunakan karena membuat harga akhir di bawah harga modal produk.');
+            }
+            invalidateFoxyProductCache();
+            throw new Error('Harga sedang diperbarui, coba lagi sebentar');
+        }
+
         if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const duplicate = await findRecentPendingDuplicate(client, userId, productId, finalTargetForDB);
         if (duplicate) throw new Error(`Pesanan serupa masih pending (${duplicate.invoice_id}). Mohon tunggu sebelum mencoba lagi.`);
 
-        if (user.balance < finalPrice) throw new Error('Saldo Anda tidak mencukupi.');
+        if (Number(user.balance) < finalPrice) throw new Error('Saldo Anda tidak mencukupi.');
         
-        await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, userId]);
+        const deductRes = await client.query(
+            'UPDATE users SET balance = balance - $1 WHERE id = $2 AND balance >= $1',
+            [finalPrice, userId]
+        );
+        if (deductRes && typeof deductRes.rowCount === 'number' && deductRes.rowCount === 0) {
+            throw new Error('Saldo Anda tidak mencukupi.');
+        }
         
         const invoiceId = `TRX-${Date.now()}${userId}`;
-        const trx_id_provider = `WEB-${Date.now()}`;
-        const { rows: txInsertRows } = await client.query('INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
-        const newTransactionId = txInsertRows[0].id;
+        const trx_id_provider = `WEB-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+        const { rows: txInsertRows } = await client.query(
+            'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id, flash_sale_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+            [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider, appliedFlashSaleId || null]
+        );
+        const newTransactionId = (txInsertRows && txInsertRows[0]) ? txInsertRows[0].id : null;
         const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
-        await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]);
+        await client.query(
+            'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
+            [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]
+        );
+
+        if (appliedFlashSaleId) {
+            await client.query(
+                'UPDATE flash_sales SET uses_count = uses_count + 1, updated_at = NOW() WHERE id = $1',
+                [appliedFlashSaleId]
+            );
+        }
 
         if (appliedPromoId) {
             await client.query('UPDATE promo_codes SET uses_count = uses_count + 1, updated_at = NOW() WHERE id = $1', [appliedPromoId]);
@@ -3261,28 +3783,91 @@ app.post('/api/order', protect, async (req, res) => {
                 [appliedPromoId, userId, productId, newTransactionId, targetGameId]
             );
         }
-        
+
+        // COMMIT fase reservasi saldo sebelum memanggil API Foxy
+        await client.query('COMMIT');
+        inTransaction = false;
+
+        // === FASE 2: DISPATCH PESANAN KE PROVIDER FOXY ===
         try {
-            await axios.post(
+            const foxyRes = await axios.post(
                 `${FOXY_BASE_URL}/v1/order`,
                 { product_code: product.provider_sku, user_id: targetGameId, server_id: targetServerId || '', trx_id: trx_id_provider, callback_url: FOXY_CALLBACK_URL },
                 { headers: { 'Authorization': FOXY_API_KEY, 'Content-Type': 'application/json' }, timeout: PROVIDER_TIMEOUT_MS }
             );
+            if (foxyRes && foxyRes.data && foxyRes.data.status === false) {
+                const rejectErr = new Error(foxyRes.data.message || 'Provider menolak pesanan.');
+                rejectErr.isExplicitRejection = true;
+                throw rejectErr;
+            }
         } catch (providerError) {
             console.error('[order] Foxy order submission failed:', safeAxiosError(providerError, 'Foxy'));
+            const httpStatus = providerError && providerError.response && providerError.response.status;
+            const errCode = providerError && providerError.code;
+            const isTimeoutOrAmbiguous = !providerError.isExplicitRejection && (
+                errCode === 'ECONNABORTED' ||
+                errCode === 'ETIMEDOUT' ||
+                errCode === 'ECONNRESET' ||
+                (providerError && providerError.message && /timeout/i.test(providerError.message)) ||
+                httpStatus === 502 ||
+                httpStatus === 503 ||
+                httpStatus === 504
+            );
+
+            // Jika timeout / network ambiguity, biarkan status tetap 'Pending' agar dicek cron
+            if (isTimeoutOrAmbiguous) {
+                console.warn(`[order] Timeout/ambiguous response for invoice ${invoiceId} (${trx_id_provider}). Keeping status Pending for cron reconciliation.`);
+                return res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
+            }
+
+            // Jika Foxy menolak secara eksplisit, jalankan transaksi kompensasi (refund + kembalikan kuota promo/flash sale)
+            let lockedTxStatus = null;
+            try {
+                await client.query('BEGIN');
+                inTransaction = true;
+                const { rows: lockedTxRows } = await client.query(
+                    'SELECT id, status, flash_sale_id, flash_sale_restored FROM transactions WHERE invoice_id = $1 FOR UPDATE',
+                    [invoiceId]
+                );
+                if (lockedTxRows && lockedTxRows.length === 1) {
+                    lockedTxStatus = lockedTxRows[0].status;
+                    if (['Pending', 'Processing'].includes(lockedTxStatus)) {
+                        await rollbackTransactionResources(client, {
+                            id: lockedTxRows[0].id || newTransactionId,
+                            invoice_id: invoiceId,
+                            user_id: userId,
+                            price: finalPrice,
+                            status: lockedTxStatus,
+                            flash_sale_id: lockedTxRows[0].flash_sale_id !== undefined ? lockedTxRows[0].flash_sale_id : appliedFlashSaleId,
+                            flash_sale_restored: lockedTxRows[0].flash_sale_restored
+                        }, {
+                            refundDescription: `Refund otomatis karena gagal kirim ke provider (${invoiceId})`
+                        });
+                    }
+                }
+                await client.query('COMMIT');
+                inTransaction = false;
+            } catch (compErr) {
+                if (inTransaction) {
+                    await client.query('ROLLBACK').catch(() => {});
+                    inTransaction = false;
+                }
+                console.error(`[CRITICAL] Compensating refund failed for invoice ${invoiceId}:`, safeErrorDetail(compErr));
+            }
+
+            if (lockedTxStatus === 'Success') {
+                return res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
+            }
+
             throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
         }
 
-        try {
-            await client.query('COMMIT');
-        } catch (commitError) {
-            console.error(`[CRITICAL] DB COMMIT FAILED AFTER PROVIDER SUCCESS! Invoice: ${invoiceId}, ProviderTrxId: ${trx_id_provider}, UserId: ${userId}`);
-            throw commitError;
-        }
         res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
 
     } catch (error) {
-        await client.query('ROLLBACK');
+        if (inTransaction) {
+            await client.query('ROLLBACK').catch(() => {});
+        }
         logSafeError("Order error:", error);
         res.status(400).json({ message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi.') });
     } finally {
@@ -3290,52 +3875,237 @@ app.post('/api/order', protect, async (req, res) => {
     }
 });
 
+const CALLBACK_VERIFY_COOLDOWN_MS = 5000;
+const CALLBACK_SUCCESS_RESPONSE = { message: 'Callback berhasil diproses.' };
+const callbackVerificationCooldown = new Map();
+const callbackClock = {
+    now: () => Date.now()
+};
+
+function clearCallbackCooldownCache() {
+    callbackVerificationCooldown.clear();
+}
+
+function timingSafeStringEqual(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string' || a.length === 0 || b.length === 0) {
+        return false;
+    }
+    const bufA = Buffer.from(a, 'utf8');
+    const bufB = Buffer.from(b, 'utf8');
+    if (bufA.length !== bufB.length) {
+        crypto.timingSafeEqual(bufB, bufB);
+        return false;
+    }
+    return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function extractCallbackToken(req) {
+    const headerToken = req.headers && req.headers['x-callback-token'];
+    if (typeof headerToken === 'string' && headerToken.trim()) {
+        return headerToken.trim();
+    }
+    const queryToken = req.query && req.query.token;
+    if (typeof queryToken === 'string' && queryToken.trim()) {
+        return queryToken.trim();
+    }
+    return '';
+}
+
+function verifyFoxyCallbackAuth(req) {
+    const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+    const currentSecret = (process.env.FOXY_CALLBACK_SECRET || '').trim();
+    const previousSecret = (process.env.FOXY_CALLBACK_SECRET_PREVIOUS || '').trim();
+    const allowInsecureLocal = !isProduction && String(process.env.ALLOW_INSECURE_CALLBACK || '').toLowerCase() === 'true';
+
+    if (!currentSecret) {
+        return allowInsecureLocal;
+    }
+
+    const providedToken = extractCallbackToken(req);
+    if (!providedToken) {
+        return false;
+    }
+
+    const matchCurrent = timingSafeStringEqual(providedToken, currentSecret);
+    const matchPrevious = previousSecret ? timingSafeStringEqual(providedToken, previousSecret) : false;
+    return matchCurrent || matchPrevious;
+}
+
+function checkAndMarkCallbackCooldown(trxId) {
+    const nowMs = callbackClock.now();
+    const lastVerifiedAt = callbackVerificationCooldown.get(trxId);
+    if (lastVerifiedAt !== undefined && (nowMs - lastVerifiedAt) < CALLBACK_VERIFY_COOLDOWN_MS) {
+        return false;
+    }
+    if (callbackVerificationCooldown.size > 1000) {
+        for (const [key, ts] of callbackVerificationCooldown.entries()) {
+            if ((nowMs - ts) >= CALLBACK_VERIFY_COOLDOWN_MS) {
+                callbackVerificationCooldown.delete(key);
+            }
+        }
+    }
+    callbackVerificationCooldown.set(trxId, nowMs);
+    return true;
+}
+
+function doesFoxyStatusMatchDb(foxyData, tx, preTx, productRow) {
+    const verifiedTrxId = foxyData && foxyData.trx_id != null ? String(foxyData.trx_id).trim() : '';
+    const expectedTrxId = tx && tx.provider_trx_id != null ? String(tx.provider_trx_id).trim() : '';
+    if (verifiedTrxId && expectedTrxId && verifiedTrxId !== expectedTrxId) {
+        return { ok: false, reason: 'trx_id mismatch' };
+    }
+
+    const verifiedSkuRaw = foxyData ? (foxyData.product_code ?? foxyData.sku ?? foxyData.code) : null;
+    const verifiedSku = verifiedSkuRaw != null && String(verifiedSkuRaw).trim() !== ''
+        ? String(verifiedSkuRaw).trim()
+        : null;
+    const expectedSku = (productRow && productRow.provider_sku) || (preTx && preTx.provider_sku) || null;
+    if (verifiedSku && expectedSku && verifiedSku !== String(expectedSku).trim()) {
+        return { ok: false, reason: 'SKU mismatch' };
+    }
+
+    // Catatan skema: kolom harga modal saat order dibuat belum ada di tabel `transactions`
+    // (`transactions.price` adalah harga jual ke user/reseller, bukan harga modal provider).
+    // Jangan membandingkan nominal terhadap `products.price` saat ini yang bisa berubah sewaktu-waktu.
+
+    return { ok: true };
+}
+
 app.post('/api/foxy/callback', async (req, res) => {
+    // Lapis 1: Fail-closed auth validation via ?token= or X-Callback-Token (supports secret rotation)
+    if (!verifyFoxyCallbackAuth(req)) {
+        return res.status(403).json({ message: 'Token callback tidak valid.' });
+    }
+
+    // Lapis 2: Zero-Trust Payload — hanya membaca trx_id dari req.body (abaikan status/sn/message dari body)
+    const trx_id = normalizeString(req.body && req.body.trx_id, 255);
+    const maskedTrx = trx_id ? `...${trx_id.slice(-8)}` : 'kosong';
+    console.log(`Callback Foxy diterima untuk trx_id: ${maskedTrx}`);
+
+    if (!trx_id) {
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+    }
+
+    // Pre-check non-locking sebelum memanggil Foxy agar transaksi final/tidak dikenal & cooldown tidak menghabiskan kuota API
+    let preTx = null;
+    try {
+        const preRes = await pool.query(
+            `SELECT t.id, t.status, t.price, t.product_id, t.provider_trx_id,
+                    p.provider_sku
+             FROM transactions t
+             LEFT JOIN products p ON p.id = t.product_id
+             WHERE t.provider_trx_id = $1`,
+            [trx_id]
+        );
+        preTx = preRes && preRes.rows && preRes.rows[0] ? preRes.rows[0] : null;
+    } catch (preCheckErr) {
+        logSafeError('[callback] Gagal melakukan pre-check transaksi:', preCheckErr);
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+    }
+
+    if (!preTx) {
+        console.log(`Callback untuk provider_trx_id ${maskedTrx} tidak ditemukan.`);
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+    }
+    if (!['Pending', 'Processing'].includes(preTx.status)) {
+        console.log(`Callback untuk provider_trx_id ${maskedTrx} diabaikan karena status sudah ${preTx.status}.`);
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+    }
+    if (!checkAndMarkCallbackCooldown(trx_id)) {
+        console.log(`[callback] Cooldown verifikasi aktif untuk trx_id ${maskedTrx}, panggilan ke Foxy dilewati.`);
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+    }
+
+    // Lapis 3: Zero-Trust re-verification ke GET /v1/status/:trx_id di luar DB lock
+    let foxyData = null;
+    try {
+        const foxyStatusRes = await axios.get(
+            `${FOXY_BASE_URL}/v1/status/${encodeURIComponent(trx_id)}`,
+            {
+                headers: {
+                    'Authorization': FOXY_API_KEY,
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+                    'Referer': 'https://www.foxygamestore.com/'
+                },
+                timeout: PROVIDER_TIMEOUT_MS
+            }
+        );
+        foxyData = foxyStatusRes && foxyStatusRes.data && foxyStatusRes.data.data;
+    } catch (verifyErr) {
+        console.error('[callback] Gagal re-verify status ke Foxy:', safeAxiosError(verifyErr, 'Foxy'));
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+    }
+
+    if (!foxyData || !foxyData.status) {
+        console.warn(`[callback] Respons status Foxy tidak lengkap untuk trx_id ${maskedTrx}.`);
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+    }
+
+    const verifiedStatus = String(foxyData.status).toUpperCase();
+    if (!['SUCCESS', 'FAILED', 'REFUNDED', 'PENDING', 'PARTIAL_REFUND'].includes(verifiedStatus)) {
+        console.warn(`[callback] Status provider tidak dikenal untuk trx_id ${maskedTrx}.`);
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+    }
+    if (verifiedStatus === 'PENDING') {
+        console.log(`Transaksi ${maskedTrx} masih pending dari verifikasi provider.`);
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+    }
+
+    const verifiedSn = normalizeString(String(foxyData.sn || foxyData.serial_number || foxyData.provider_sn || ''), 500) || null;
+    const verifiedMessage = normalizeString(String(foxyData.message || foxyData.note || ''), 300);
+
     const client = await pool.connect();
+    let committedStatus = null;
+    let tx = null;
+    let finalSerialNumber = null;
     try {
         await client.query('BEGIN');
-        const trx_id = normalizeString(req.body.trx_id, 255);
-        const status = normalizeString(req.body.status, 50);
-        const message = normalizeString(req.body.message, 500);
-        console.log(`Callback Foxy diterima untuk trx_id: ${trx_id ? `...${trx_id.slice(-8)}` : 'kosong'}`);
 
-        if (!trx_id || !status) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({ message: 'Parameter tidak lengkap.' });
-        }
-        const normalizedStatus = status.toUpperCase();
-        if (!['SUCCESS', 'FAILED', 'REFUNDED', 'PENDING', 'PARTIAL_REFUND'].includes(normalizedStatus)) {
-            await client.query('ROLLBACK');
-            return res.status(400).json({ message: 'Status tidak valid.' });
-        }
-        // TODO: Validate HMAC/Signature from provider (e.g., Foxy) to ensure authenticity of the callback.
-
-        const { rows: transactions } = await client.query('SELECT * FROM transactions WHERE provider_trx_id = $1 AND status = \'Pending\' FOR UPDATE', [trx_id]);
+        const { rows: transactions } = await client.query('SELECT * FROM transactions WHERE provider_trx_id = $1 FOR UPDATE', [trx_id]);
         if (transactions.length === 0) {
-            console.log(`Callback untuk provider_trx_id ${trx_id} tidak ditemukan atau sudah diproses.`);
-            await client.query('ROLLBACK'); // Rollback jika tidak ada transaksi yang cocok
-            return res.status(200).json({ message: 'OK' });
+            console.log(`Callback untuk provider_trx_id ${maskedTrx} tidak ditemukan saat lock.`);
+            await client.query('ROLLBACK');
+            return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
         }
-        const tx = transactions[0];
+        tx = transactions[0];
+        if (!['Pending', 'Processing'].includes(tx.status)) {
+            console.log(`Callback untuk provider_trx_id ${maskedTrx} diabaikan karena status sudah ${tx.status}.`);
+            await client.query('ROLLBACK');
+            return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+        }
 
-        if (normalizedStatus === 'SUCCESS') {
-            const providerSn = req.body.sn || req.body.serial_number || req.body.provider_sn;
+        let productRow = null;
+        if (tx.product_id) {
+            const prodRes = await client.query('SELECT provider_sku FROM products WHERE id = $1', [tx.product_id]);
+            productRow = prodRes && prodRes.rows && prodRes.rows[0] ? prodRes.rows[0] : null;
+        }
+        const crossCheck = doesFoxyStatusMatchDb(foxyData, tx, preTx, productRow);
+        if (!crossCheck.ok) {
+            console.warn(`[callback] Cross-check gagal: invoice=${tx.invoice_id || 'unknown'} reason=${crossCheck.reason}`);
+            await client.query('ROLLBACK');
+            return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
+        }
+
+        if (verifiedStatus === 'SUCCESS') {
+            committedStatus = 'Success';
+            const providerSn = verifiedSn;
+            finalSerialNumber = providerSn || 'Tidak ada SN';
             if (providerSn) {
                 await client.query('UPDATE transactions SET status = \'Success\', provider_sn = $1, updated_at = NOW() WHERE id = $2', [providerSn, tx.id]);
             } else {
                 await client.query('UPDATE transactions SET status = \'Success\', updated_at = NOW() WHERE id = $1', [tx.id]);
             }
-                 await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} telah berhasil diproses.`, `/invoice.html?id=${tx.invoice_id}`);
-        } else if (normalizedStatus === 'FAILED' || normalizedStatus === 'REFUNDED') {
-            await client.query('UPDATE transactions SET status = \'Failed\', updated_at = NOW() WHERE id = $1', [tx.id]);
-            await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [tx.price, tx.user_id]);
-
-            const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} karena: ${message || 'Transaksi gagal dari provider'}`;
-            await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]);
-                 await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} gagal. Saldo telah dikembalikan.`, `/invoice.html?id=${tx.invoice_id}`);
-        } else if (normalizedStatus === 'PENDING') {
-            console.log(`Transaksi ${trx_id} masih pending dari callback.`);
-        } else if (normalizedStatus === 'PARTIAL_REFUND') {
+            await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} telah berhasil diproses.`, `/invoice.html?id=${tx.invoice_id}`);
+        } else if (verifiedStatus === 'FAILED' || verifiedStatus === 'REFUNDED') {
+            committedStatus = 'Failed';
+            finalSerialNumber = 'Tidak ada SN';
+            await rollbackTransactionResources(client, tx, {
+                refundDescription: `Pengembalian dana untuk invoice ${tx.invoice_id} karena: ${verifiedMessage || 'Transaksi gagal dari provider'}`
+            });
+            await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} gagal. Saldo telah dikembalikan.`, `/invoice.html?id=${tx.invoice_id}`);
+        } else if (verifiedStatus === 'PARTIAL_REFUND') {
+            committedStatus = 'Partial Refund';
+            finalSerialNumber = 'Tidak ada SN';
             // Tidak auto-refund saldo, tidak mark Success/Failed — butuh review admin
             await client.query(
                 "UPDATE transactions SET status = 'Partial Refund', updated_at = NOW() WHERE id = $1",
@@ -3350,22 +4120,53 @@ app.post('/api/foxy/callback', async (req, res) => {
         }
         
         await client.query('COMMIT');
-        res.status(200).json({ message: 'Callback berhasil diproses.' });
 
     } catch (error) {
-        await client.query('ROLLBACK');
+        await client.query('ROLLBACK').catch(() => {});
         logSafeError('Callback error:', error);
-        res.status(500).json({ message: 'Gagal memproses callback.' });
+        return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
     } finally {
         client.release();
     }
+
+    // Teruskan webhook ke h2h_callback_url jika transaksi H2H selesai lewat callback (samakan dengan cronUtils.js)
+    if (committedStatus && tx) {
+        try {
+            const metaRes = await pool.query(
+                `SELECT u.h2h_callback_url, p.name AS product_name
+                 FROM users u
+                 LEFT JOIN products p ON p.id = $2
+                 WHERE u.id = $1`,
+                [tx.user_id, tx.product_id]
+            );
+            const meta = metaRes && metaRes.rows && metaRes.rows[0];
+            if (meta && meta.h2h_callback_url) {
+                const webhookPayload = {
+                    invoice_id: tx.invoice_id,
+                    status: committedStatus,
+                    product_name: meta.product_name || '',
+                    price: tx.price,
+                    serial_number: finalSerialNumber || 'Tidak ada SN',
+                    timestamp: new Date().toISOString()
+                };
+                axios.post(meta.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
+                    .catch(err => console.error(
+                        `[callback] Webhook failed for invoice ${tx.invoice_id}:`,
+                        safeAxiosError(err, 'H2H Webhook')
+                    ));
+            }
+        } catch (webhookErr) {
+            logSafeError('[callback] Error preparing H2H webhook:', webhookErr);
+        }
+    }
+
+    return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
 });
 
 app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
     const client = await pool.connect();
+    let inTransaction = false;
     try {
-        await client.query('BEGIN');
-        
         const productId = Number(req.body.productId);
         const targetGameId = normalizeString(req.body.targetGameId, 80);
         const targetServerId = normalizeString(req.body.targetServerId, 80);
@@ -3375,14 +4176,14 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             throw new Error('productId dan targetGameId wajib diisi.');
         }
 
-        // 1. Ambil detail produk LENGKAP (termasuk join ke game_margins & validation_config)
+        // 1. Ambil detail produk LENGKAP di luar transaksi DB dan tanpa FOR UPDATE
         const productQuery = `
             SELECT p.*, g.id as game_id, g.needs_server_id,
                    gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
             FROM products p 
             JOIN games g ON p.game_id = g.id
             LEFT JOIN game_margins gm ON p.game_id = gm.game_id
-            WHERE p.id = $1 AND p.status = 'Active' AND g.status = 'Active' FOR UPDATE
+            WHERE p.id = $1 AND p.status = 'Active' AND g.status = 'Active'
         `;
         const { rows: products } = await client.query(productQuery, [productId]);
 
@@ -3393,12 +4194,44 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             throw new Error('Server ID wajib diisi untuk game ini.');
         }
 
-        // === PHASE 5B: VALIDASI ID GAME H2H (opt-in per produk, sebelum saldo dipotong) ===
+        // === PHASE 5B: VALIDASI ID GAME H2H (di luar blok BEGIN...COMMIT agar tidak menahan DB lock) ===
         await validateOrderGameIdIfNeeded(product, targetGameId, targetServerId);
         // === AKHIR PHASE 5B ===
 
+        // --- PRICE GUARD H2H FETCH (di luar blok BEGIN...COMMIT) ---
+        let currentProviderCost = 0;
+        try {
+            console.log(`[h2h-order] Checking real-time price for SKU ${product.provider_sku}...`);
+            const providerProducts = await getFoxyProducts();
+            const currentFoxyProduct = providerProducts
+                ? providerProducts.find(p => p.product_code === product.provider_sku)
+                : null;
+            
+            if (!currentFoxyProduct) {
+                console.warn(`[h2h-order] Product SKU ${product.provider_sku} not found in provider list.`);
+                throw new Error('Produk sedang tidak tersedia, silakan coba lagi nanti.');
+            }
+            currentProviderCost = Number(currentFoxyProduct.product_price);
+        } catch (priceGuardErr) {
+            if (priceGuardErr.message && (
+                priceGuardErr.message.startsWith('Harga sedang diperbarui') ||
+                priceGuardErr.message.startsWith('Harga produk sedang diperbarui') ||
+                priceGuardErr.message.startsWith('Produk sedang tidak tersedia') ||
+                priceGuardErr.message.startsWith('Terjadi perubahan harga')
+            )) {
+                throw priceGuardErr;
+            }
+            console.warn('[h2h-order] Provider check failed, blocking order:', safeAxiosError(priceGuardErr, 'Foxy'));
+            throw new Error('Harga sedang diperbarui, coba lagi sebentar');
+        }
+
+        // === FASE 1: RESERVASI ATOMIK DI DATABASE ===
+        await client.query('BEGIN');
+        inTransaction = true;
+
         // 2. Ambil User H2H
         const { rows: users } = await client.query('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE', [h2hUser.id]);
+        if (!users || users.length === 0) throw new Error('Pengguna tidak ditemukan.');
         const userForTx = users[0];
         const userRoleName = h2hUser.role_name.toLowerCase();
 
@@ -3420,67 +4253,72 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             finalPrice = Math.ceil(Number(product.price) * (1 + (margin / 100)));
         }
         
-        // --- FLASH SALE OVERRIDE ---
+        // --- FLASH SALE OVERRIDE (dengan FOR UPDATE & kuota max_uses) ---
+        let appliedFlashSaleId = null;
         const { rows: h2hFlashSaleRows } = await client.query(
-            `SELECT discount_price FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at LIMIT 1`,
+            `SELECT id, discount_price FROM flash_sales
+             WHERE product_id = $1 AND is_active = true
+               AND NOW() BETWEEN start_at AND end_at
+               AND (max_uses IS NULL OR uses_count < max_uses)
+             LIMIT 1 FOR UPDATE`,
             [productId]
         );
         if (h2hFlashSaleRows.length > 0) {
             const flashPrice = Number(h2hFlashSaleRows[0].discount_price);
             if (flashPrice > 0 && flashPrice < finalPrice) {
                 finalPrice = flashPrice;
+                appliedFlashSaleId = h2hFlashSaleRows[0].id || null;
             }
         }
 
-        // --- PRICE GUARD H2H ---
-        try {
-            console.log(`[h2h-order] Checking real-time price for SKU ${product.provider_sku}...`);
-            const providerProducts = await getFoxyProducts();
-            const currentFoxyProduct = providerProducts
-                ? providerProducts.find(p => p.product_code === product.provider_sku)
-                : null;
-            
-            if (!currentFoxyProduct) {
-                console.warn(`[h2h-order] Product SKU ${product.provider_sku} not found in provider list.`);
-                throw new Error('Produk sedang tidak tersedia, silakan coba lagi nanti.');
-            }
-
-            const currentProviderCost = Number(currentFoxyProduct.product_price);
-            if (currentProviderCost > finalPrice) {
-                console.warn(`[h2h-order] Price risk: Cost (${currentProviderCost}) > Final price (${finalPrice}). SKU ${product.provider_sku}.`);
-                syncProductsWithFoxy().catch(err => console.error('[h2h-order] Auto-sync after price change failed:', safeAxiosError(err, 'Foxy')));
-                throw new Error('Harga produk sedang diperbarui, silakan coba beberapa saat lagi.');
-            }
-        } catch (priceGuardErr) {
-            if (priceGuardErr.message && (
-                priceGuardErr.message.startsWith('Harga produk sedang diperbarui') ||
-                priceGuardErr.message.startsWith('Produk sedang tidak tersedia') ||
-                priceGuardErr.message.startsWith('Terjadi perubahan harga')
-            )) {
-                throw priceGuardErr;
-            }
-            console.warn('[h2h-order] Provider check failed, blocking order:', safeAxiosError(priceGuardErr, 'Foxy'));
-            throw new Error('Harga produk sedang diperbarui, silakan coba beberapa saat lagi.');
+        if (currentProviderCost > finalPrice) {
+            console.warn(`[h2h-order] Price risk: Cost (${currentProviderCost}) > Final price (${finalPrice}). SKU ${product.provider_sku}.`);
+            invalidateFoxyProductCache();
+            throw new Error('Harga sedang diperbarui, coba lagi sebentar');
         }
-        // --- AKHIR PRICE GUARD H2H ---
 
         if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const duplicate = await findRecentPendingDuplicate(client, h2hUser.id, productId, finalTargetForDB);
         if (duplicate) throw new Error(`Pesanan serupa masih pending (${duplicate.invoice_id}). Mohon tunggu sebelum mencoba lagi.`);
 
-        if (userForTx.balance < finalPrice) throw new Error('Saldo H2H Anda tidak mencukupi.');
+        if (Number(userForTx.balance) < finalPrice) throw new Error('Saldo H2H Anda tidak mencukupi.');
         
-        await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2', [finalPrice, h2hUser.id]);
+        const deductRes = await client.query(
+            'UPDATE users SET balance = balance - $1 WHERE id = $2 AND balance >= $1',
+            [finalPrice, h2hUser.id]
+        );
+        if (deductRes && typeof deductRes.rowCount === 'number' && deductRes.rowCount === 0) {
+            throw new Error('Saldo H2H Anda tidak mencukupi.');
+        }
 
         const invoiceId = `H2H-${Date.now()}${h2hUser.id}`;
-        const trx_id_provider = `H2H-PROVIDER-${Date.now()}`;
+        const trx_id_provider = `H2H-PROVIDER-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
 
-        await client.query('INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id) VALUES ($1, $2, $3, $4, $5, $6, $7)', [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider]);
+        const { rows: h2hTxInsertRows } = await client.query(
+            'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id, flash_sale_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
+            [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider, appliedFlashSaleId || null]
+        );
+        const newH2hTransactionId = (h2hTxInsertRows && h2hTxInsertRows[0]) ? h2hTxInsertRows[0].id : null;
 
         const historyDesc = `Pembelian H2H: ${product.name} (${invoiceId})`;
-        await client.query('INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)', [h2hUser.id, -finalPrice, 'Purchase', historyDesc, invoiceId]);
+        await client.query(
+            'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
+            [h2hUser.id, -finalPrice, 'Purchase', historyDesc, invoiceId]
+        );
 
+        if (appliedFlashSaleId) {
+            await client.query(
+                'UPDATE flash_sales SET uses_count = uses_count + 1, updated_at = NOW() WHERE id = $1',
+                [appliedFlashSaleId]
+            );
+        }
+
+        // COMMIT fase reservasi saldo sebelum memanggil API Foxy
+        await client.query('COMMIT');
+        inTransaction = false;
+
+        // === FASE 2: DISPATCH PESANAN KE PROVIDER FOXY ===
         const foxyPayload = {
             product_code: product.provider_sku,
             user_id: targetGameId,
@@ -3498,17 +4336,90 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         };
 
         try {
-            await axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { ...foxyConfigHeaders, timeout: PROVIDER_TIMEOUT_MS });
+            const foxyRes = await axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { ...foxyConfigHeaders, timeout: PROVIDER_TIMEOUT_MS });
+            if (foxyRes && foxyRes.data && foxyRes.data.status === false) {
+                const rejectErr = new Error(foxyRes.data.message || 'Provider menolak pesanan.');
+                rejectErr.isExplicitRejection = true;
+                throw rejectErr;
+            }
         } catch (providerError) {
             console.error('[h2h-order] Foxy order submission failed:', safeAxiosError(providerError, 'Foxy'));
-            throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
-        }
+            const httpStatus = providerError && providerError.response && providerError.response.status;
+            const errCode = providerError && providerError.code;
+            const isTimeoutOrAmbiguous = !providerError.isExplicitRejection && (
+                errCode === 'ECONNABORTED' ||
+                errCode === 'ETIMEDOUT' ||
+                errCode === 'ECONNRESET' ||
+                (providerError && providerError.message && /timeout/i.test(providerError.message)) ||
+                httpStatus === 502 ||
+                httpStatus === 503 ||
+                httpStatus === 504
+            );
 
-        try {
-            await client.query('COMMIT');
-        } catch (commitError) {
-            console.error(`[CRITICAL] DB COMMIT FAILED AFTER PROVIDER SUCCESS! Invoice: ${invoiceId}, ProviderTrxId: ${trx_id_provider}, UserId: ${h2hUser.id}`);
-            throw commitError;
+            if (isTimeoutOrAmbiguous) {
+                console.warn(`[h2h-order] Timeout/ambiguous response for invoice ${invoiceId} (${trx_id_provider}). Keeping status Pending for cron reconciliation.`);
+                return res.status(201).json({
+                    success: true,
+                    message: 'Pesanan H2H Anda sedang diproses!',
+                    data: {
+                        invoiceId: invoiceId,
+                        status: 'Pending',
+                        productName: product.name,
+                        target: finalTargetForDB,
+                        price: finalPrice
+                    }
+                });
+            }
+
+            let lockedTxStatus = null;
+            try {
+                await client.query('BEGIN');
+                inTransaction = true;
+                const { rows: lockedTxRows } = await client.query(
+                    'SELECT id, status, flash_sale_id, flash_sale_restored FROM transactions WHERE invoice_id = $1 FOR UPDATE',
+                    [invoiceId]
+                );
+                if (lockedTxRows && lockedTxRows.length === 1) {
+                    lockedTxStatus = lockedTxRows[0].status;
+                    if (['Pending', 'Processing'].includes(lockedTxStatus)) {
+                        await rollbackTransactionResources(client, {
+                            id: lockedTxRows[0].id || newH2hTransactionId,
+                            invoice_id: invoiceId,
+                            user_id: h2hUser.id,
+                            price: finalPrice,
+                            status: lockedTxStatus,
+                            flash_sale_id: lockedTxRows[0].flash_sale_id !== undefined ? lockedTxRows[0].flash_sale_id : appliedFlashSaleId,
+                            flash_sale_restored: lockedTxRows[0].flash_sale_restored
+                        }, {
+                            refundDescription: `Refund otomatis karena gagal kirim ke provider (${invoiceId})`
+                        });
+                    }
+                }
+                await client.query('COMMIT');
+                inTransaction = false;
+            } catch (compErr) {
+                if (inTransaction) {
+                    await client.query('ROLLBACK').catch(() => {});
+                    inTransaction = false;
+                }
+                console.error(`[CRITICAL] Compensating refund failed for H2H invoice ${invoiceId}:`, safeErrorDetail(compErr));
+            }
+
+            if (lockedTxStatus === 'Success') {
+                return res.status(201).json({
+                    success: true,
+                    message: 'Pesanan H2H Anda sedang diproses!',
+                    data: {
+                        invoiceId: invoiceId,
+                        status: 'Success',
+                        productName: product.name,
+                        target: finalTargetForDB,
+                        price: finalPrice
+                    }
+                });
+            }
+
+            throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
         }
         
         res.status(201).json({ 
@@ -3524,7 +4435,9 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         });
 
     } catch (error) {
-        await client.query('ROLLBACK');
+        if (inTransaction) {
+            await client.query('ROLLBACK').catch(() => {});
+        }
         logSafeError("H2H Order error:", error);
         res.status(400).json({ success: false, message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi H2H.') });
     } finally {
@@ -3673,4 +4586,4 @@ if (require.main === module) {
     server = startServer();
 }
 
-module.exports = { app, pool, startServer, server, validateEnvironment };
+module.exports = { app, pool, startServer, server, validateEnvironment, invalidateFoxyProductCache, callbackClock, clearCallbackCooldownCache };
