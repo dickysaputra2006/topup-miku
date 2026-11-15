@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Pool } = require('pg');
+const { createPool } = require('../config/db.js');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
@@ -8,20 +8,7 @@ const { dispatchSafeH2HWebhook } = require('./webhookClient.js');
 // ============================================================
 // === KONFIGURASI DATABASE ===
 // ============================================================
-const dbSslEnabled = String(process.env.DB_SSL || '').toLowerCase() === 'true';
-
-const dbConfig = {
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: Number(process.env.DB_PORT || 5432)
-};
-
-if (dbSslEnabled) {
-    dbConfig.ssl = { rejectUnauthorized: false };
-}
-const pool = new Pool(dbConfig);
+const pool = createPool();
 
 // ============================================================
 // === KONFIGURASI FOXY API ===

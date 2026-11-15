@@ -1,9 +1,30 @@
-require('dotenv').config();
+const {
+    PORT,
+    JWT_SECRET,
+    ALLOWED_ORIGINS,
+    FOXY_API_KEY,
+    FOXY_CALLBACK_URL,
+    validateEnvironment,
+} = require('./config/env');
+const {
+    BOT_PRODUCT_BLACKLIST,
+    MAX_BODY_SIZE,
+    DUPLICATE_ORDER_WINDOW_SECONDS,
+    UUID_REGEX,
+    REF_ID_REGEX,
+    INVOICE_ID_REGEX,
+    FOXY_BASE_URL,
+    PROVIDER_TIMEOUT_MS,
+    FOXY_CACHE_TTL,
+    ALLOWED_PAYMENT_METHOD_TYPES,
+    CALLBACK_VERIFY_COOLDOWN_MS,
+    CALLBACK_SUCCESS_RESPONSE,
+} = require('./config/constants');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = rateLimit;
 const express = require('express');
 const fs = require('fs').promises;
-const { Pool } = require('pg');
+const { createPool } = require('./config/db');
 const bcrypt = require('bcryptjs');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -21,53 +42,6 @@ const path = require('path');
 
 const app = express();
 app.set('trust proxy', 1); // untuk mendapatkan IP asli di belakang proxy
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET;
-const REQUIRED_ENV = ['JWT_SECRET'];
-const RECOMMENDED_RUNTIME_ENV = ['DB_USER', 'DB_HOST', 'DB_NAME', 'DB_PASSWORD', 'DB_PORT', 'FOXY_API_KEY'];
-// Optional local/dev integrations: CORS_ORIGINS, APP_BASE_URL, BREVO_API_KEY, PGS_KEY, PGS_API_KEY.
-const BOT_PRODUCT_BLACKLIST = ['FXGT', 'Via Login', 'Gifts'];
-const MAX_BODY_SIZE = '100kb';
-const DUPLICATE_ORDER_WINDOW_SECONDS = 15;
-const DEFAULT_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001',
-    'https://mikutopup.my.id'
-];
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
-    .split(',')
-    .map(origin => origin.trim())
-    .filter(Boolean);
-
-function validateEnvironment({ strict = false } = {}) {
-    const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
-    const requiredVars = isProduction
-        ? [...REQUIRED_ENV, 'FOXY_CALLBACK_SECRET']
-        : REQUIRED_ENV;
-    const missingRequired = requiredVars.filter(name => !(process.env[name] || '').trim());
-    const missingRecommended = RECOMMENDED_RUNTIME_ENV.filter(name => !process.env[name]);
-
-    if (missingRequired.length > 0) {
-        const message = `Missing required environment variables: ${missingRequired.join(', ')}`;
-        if (strict) throw new Error(message);
-        console.warn(`[env] ${message}`);
-    }
-
-    if (!isProduction && !(process.env.FOXY_CALLBACK_SECRET || '').trim() &&
-        String(process.env.ALLOW_INSECURE_CALLBACK || '').toLowerCase() !== 'true') {
-        console.warn('[env] FOXY_CALLBACK_SECRET is not set. /api/foxy/callback will reject callbacks (403) unless ALLOW_INSECURE_CALLBACK=true in non-production.');
-    }
-
-    if (missingRecommended.length > 0) {
-        console.warn(`[env] Missing runtime environment variables: ${missingRecommended.join(', ')}`);
-    }
-
-    if (!process.env.FOXY_CALLBACK_URL) {
-        console.warn('[env] FOXY_CALLBACK_URL is not set. Using default: https://mikutopup.my.id/api/foxy/callback');
-    }
-}
 
 function redactSensitiveText(value) {
     if (value === undefined || value === null) return '';
@@ -269,9 +243,6 @@ function getSafeOrderErrorMessage(error, fallback) {
     return allowedMessages.some(allowed => message.startsWith(allowed)) ? message : fallback;
 }
 
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const REF_ID_REGEX = /^[A-Za-z0-9._:-]{1,100}$/;
-const INVOICE_ID_REGEX = /^[A-Za-z0-9_-]{3,64}$/;
 
 function generateInvoiceId(prefix) {
     return `${prefix}-${crypto.randomBytes(12).toString('hex').toUpperCase()}`;
@@ -567,15 +538,9 @@ async function validateOrderGameIdIfNeeded(product, targetGameId, targetServerId
     return { validated: true };
 }
 
-// === KONFIGURASI FOXY API ===
-const FOXY_BASE_URL = 'https://api.foxygamestore.com';
-const FOXY_API_KEY = process.env.FOXY_API_KEY;
-const FOXY_CALLBACK_URL = process.env.FOXY_CALLBACK_URL || 'https://mikutopup.my.id/api/foxy/callback';
-const PROVIDER_TIMEOUT_MS = 15000; // 15 detik untuk semua request ke provider
-
+// === CACHE PRODUK FOXY ===
 let foxyProductCache = null;
 let foxyCacheTimestamp = null;
-const FOXY_CACHE_TTL = 5 * 60 * 1000; // 5 menit
 
 function invalidateFoxyProductCache() {
     foxyProductCache = null;
@@ -638,20 +603,7 @@ app.get('/healthz', (req, res) => {
     res.json({ ok: true, service: 'topup-miku' });
 });
 
-const dbSslEnabled = String(process.env.DB_SSL || '').toLowerCase() === 'true';
-
-const dbConfig = {
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_NAME,
-    password: process.env.DB_PASSWORD,
-    port: Number(process.env.DB_PORT || 5432)
-};
-
-if (dbSslEnabled) {
-    dbConfig.ssl = { rejectUnauthorized: false };
-}
-const pool = new Pool(dbConfig);
+const pool = createPool();
 
 pool.on('connect', (client) => {
   client.query("SET TIME ZONE 'Asia/Jakarta'");
@@ -1442,7 +1394,6 @@ app.put('/api/user/whitelisted-ips', protect, async (req, res) => {
 });
 
 // === DEPOSIT & PAYMENT METHOD ENDPOINTS ===
-const ALLOWED_PAYMENT_METHOD_TYPES = ['ewallet', 'bank', 'qris'];
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -4359,8 +4310,6 @@ app.post('/api/order', protect, async (req, res) => {
     }
 });
 
-const CALLBACK_VERIFY_COOLDOWN_MS = 5000;
-const CALLBACK_SUCCESS_RESPONSE = { message: 'Callback berhasil diproses.' };
 const callbackVerificationCooldown = new Map();
 const callbackClock = {
     now: () => Date.now()
