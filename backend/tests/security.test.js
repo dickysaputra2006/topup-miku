@@ -5714,3 +5714,1071 @@ describe('SEC-001: Foxy Callback Security Hardening', () => {
         }
     });
 });
+
+describe('Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening', () => {
+    const crypto = require('crypto');
+    const http = require('http');
+    const jwt = require('jsonwebtoken');
+    const axios = require('axios');
+    const cronUtils = require('../utils/cronUtils');
+    const cronPool = cronUtils.pool;
+    const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+
+    let server;
+    let baseUrl;
+    let origPoolQuery;
+    let origPoolConnect;
+    let origCronQuery;
+    let origCronConnect;
+    let origAxiosGet;
+    let origAxiosPost;
+
+    function makeUserToken(id = 9001, role = 'PARTNER') {
+        return jwt.sign({ id, username: `reseller${id}`, role }, JWT_SECRET, { expiresIn: '1h' });
+    }
+
+    before(() => {
+        origPoolQuery = pool.query;
+        origPoolConnect = pool.connect;
+        origCronQuery = cronPool.query;
+        origCronConnect = cronPool.connect;
+        origAxiosGet = axios.get;
+        origAxiosPost = axios.post;
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        pool.query = origPoolQuery;
+        pool.connect = origPoolConnect;
+        cronPool.query = origCronQuery;
+        cronPool.connect = origCronConnect;
+        axios.get = origAxiosGet;
+        axios.post = origAxiosPost;
+        await new Promise(resolve => server.close(resolve));
+    });
+
+    test('SEC-004 (1): generate-apikey simpan SHA-256 hash & prefix saja, GET /api/user/apikey tidak return key utuh, regenerate & revoke bekerja', async () => {
+        const token = makeUserToken(9001);
+        const state = {
+            id: 9001,
+            api_key: null,
+            api_key_hash: null,
+            api_key_prefix: null,
+            h2h_webhook_secret: null
+        };
+
+        mock.method(pool, 'query', async (sql, params = []) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('UPDATE users') && sql.includes('api_key_hash') && !sql.includes('api_key_hash = NULL')) {
+                assert.ok(sql.includes('api_key = NULL'), 'Generate/Regenerate must explicitly clear plaintext api_key to NULL');
+                state.api_key = null;
+                state.api_key_hash = params[0];
+                state.api_key_prefix = params[1];
+                if (!state.h2h_webhook_secret && params[2]) state.h2h_webhook_secret = params[2];
+                return { rows: [{ api_key_prefix: state.api_key_prefix, webhook_secret_created: Boolean(params[2]) }] };
+            }
+            if (sql.includes('UPDATE users') && sql.includes('api_key_hash = NULL')) {
+                state.api_key = null;
+                state.api_key_hash = null;
+                state.api_key_prefix = null;
+                return { rows: [] };
+            }
+            if (sql.includes('FROM users') && sql.includes('api_key_prefix')) {
+                return { rows: [{ api_key_prefix: state.api_key_prefix, api_key_hash: state.api_key_hash, api_key: state.api_key }] };
+            }
+            if (sql.includes('FROM users u') && sql.includes('u.api_key = $1')) {
+                if (state.api_key_hash && params[1] === state.api_key_hash) {
+                    return { rows: [{ id: 9001, username: 'reseller9001', balance: 25000, role_id: 2, role_name: 'PARTNER', api_key: state.api_key, api_key_hash: state.api_key_hash, api_key_prefix: state.api_key_prefix, whitelisted_ips: [] }] };
+                }
+                return { rows: [] };
+            }
+            if (sql.includes('whitelisted_ips')) {
+                return { rows: [{ whitelisted_ips: [] }] };
+            }
+            if (sql.includes('SELECT h2h_webhook_secret FROM users')) {
+                return { rows: [{ h2h_webhook_secret: state.h2h_webhook_secret }] };
+            }
+            if (sql.includes('UPDATE users SET h2h_webhook_secret')) {
+                state.h2h_webhook_secret = params[0];
+                return { rows: [] };
+            }
+            return { rows: [] };
+        });
+
+        try {
+            const genRes = await fetch(`${baseUrl}/api/user/generate-apikey`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            assert.strictEqual(genRes.status, 200);
+            const genBody = await genRes.json();
+            assert.match(genBody.apiKey, /^[a-f0-9]{64}$/, 'New API key must be 32 random bytes (64 hex chars)');
+            assert.strictEqual(genBody.prefix, genBody.apiKey.slice(0, 8));
+            assert.strictEqual(state.api_key, null, 'Plaintext api_key must NOT be stored');
+            assert.strictEqual(
+                state.api_key_hash,
+                crypto.createHash('sha256').update(genBody.apiKey).digest('hex'),
+                'Stored api_key_hash must be SHA-256 of generated key'
+            );
+
+            // GET /api/user/apikey must NEVER return full key again
+            const getRes = await fetch(`${baseUrl}/api/user/apikey`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            assert.strictEqual(getRes.status, 200);
+            const getRaw = await getRes.text();
+            const getBody = JSON.parse(getRaw);
+            assert.strictEqual(getBody.apiKey, undefined, 'GET /api/user/apikey must not return full apiKey');
+            assert.ok(!getRaw.includes(genBody.apiKey), 'Full API key must not appear in GET response');
+            assert.strictEqual(getBody.hasApiKey, true);
+            assert.strictEqual(getBody.status, 'active');
+            assert.strictEqual(getBody.prefix, genBody.apiKey.slice(0, 8));
+
+            // Regenerate gives a new 64-hex key and invalidates previous key
+            const regenRes = await fetch(`${baseUrl}/api/user/apikey/regenerate`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            assert.strictEqual(regenRes.status, 200);
+            const regenBody = await regenRes.json();
+            assert.match(regenBody.apiKey, /^[a-f0-9]{64}$/);
+            assert.notStrictEqual(regenBody.apiKey, genBody.apiKey);
+
+            // Revoke clears key hash + prefix and blocks subsequent H2H usage
+            const revRes = await fetch(`${baseUrl}/api/user/apikey`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            assert.strictEqual(revRes.status, 200);
+            const revBody = await revRes.json();
+            assert.strictEqual(revBody.hasApiKey, false);
+            assert.strictEqual(revBody.status, 'inactive');
+
+            const getAfterRevoke = await fetch(`${baseUrl}/api/user/apikey`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const afterBody = await getAfterRevoke.json();
+            assert.strictEqual(afterBody.hasApiKey, false);
+            assert.strictEqual(afterBody.prefix, null);
+
+            const h2hRevokedRes = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': regenBody.apiKey }
+            });
+            assert.strictEqual(h2hRevokedRes.status, 403, 'Revoked API key must be rejected');
+
+            // Webhook secret status never returns full secret; rotate returns new secret once
+            const getWhRes = await fetch(`${baseUrl}/api/user/webhook-secret`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            assert.strictEqual(getWhRes.status, 200);
+            const getWhBody = await getWhRes.json();
+            assert.strictEqual(getWhBody.webhookSecret, undefined, 'GET /api/user/webhook-secret must not return full secret');
+            assert.strictEqual(getWhBody.hasWebhookSecret, true);
+
+            const rotWhRes = await fetch(`${baseUrl}/api/user/webhook-secret/rotate`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            assert.strictEqual(rotWhRes.status, 200);
+            const rotWhBody = await rotWhRes.json();
+            assert.match(rotWhBody.webhookSecret, /^[a-f0-9]{64}$/);
+            assert.strictEqual(rotWhBody.webhookSecret, state.h2h_webhook_secret);
+        } finally {
+            pool.query.mock.restore();
+        }
+    });
+
+    test('SEC-004 (2): legacy 48-hex API key tetap lolos dan lazy-migrate ke SHA-256 hash dengan api_key jadi NULL', async () => {
+        const legacyKey = 'c'.repeat(48);
+        const expectedHash = crypto.createHash('sha256').update(legacyKey).digest('hex');
+        const userRow = {
+            id: 9002,
+            username: 'legacy_reseller',
+            balance: 75000,
+            role_id: 2,
+            role_name: 'PARTNER',
+            api_key: legacyKey,
+            api_key_hash: null,
+            api_key_prefix: null,
+            h2h_callback_url: null,
+            whitelisted_ips: []
+        };
+        let lazyMigratedCount = 0;
+
+        mock.method(pool, 'query', async (sql, params = []) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('FROM users u') && sql.includes('u.api_key = $1')) {
+                const matchPlain = userRow.api_key !== null && params[0] === userRow.api_key;
+                const matchHash = userRow.api_key_hash !== null && params[1] === userRow.api_key_hash;
+                return (matchPlain || matchHash) ? { rows: [{ ...userRow }] } : { rows: [] };
+            }
+            if (sql.includes('UPDATE users') && sql.includes('SET api_key_hash') && sql.includes('api_key = NULL')) {
+                lazyMigratedCount += 1;
+                userRow.api_key_hash = params[0];
+                userRow.api_key_prefix = params[1];
+                userRow.api_key = null;
+                return { rows: [] };
+            }
+            if (sql.includes('whitelisted_ips')) {
+                return { rows: [{ whitelisted_ips: userRow.whitelisted_ips }] };
+            }
+            return { rows: [] };
+        });
+
+        try {
+            // Request 1: legacy plaintext key succeeds AND triggers lazy migration
+            const res1 = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': legacyKey }
+            });
+            assert.strictEqual(res1.status, 200, 'Legacy 48-char key must still authenticate');
+            assert.strictEqual(lazyMigratedCount, 1, 'First valid request must lazy-migrate legacy key');
+            assert.strictEqual(userRow.api_key, null, 'Plaintext api_key must be cleared to NULL after lazy migration');
+            assert.strictEqual(userRow.api_key_hash, expectedHash);
+            assert.strictEqual(userRow.api_key_prefix, legacyKey.slice(0, 8));
+
+            // Request 2: SAME legacy key still succeeds purely via api_key_hash without re-migrating
+            const res2 = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': legacyKey }
+            });
+            assert.strictEqual(res2.status, 200, 'Legacy key must continue working via hash after plaintext is NULL');
+            assert.strictEqual(lazyMigratedCount, 1, 'Lazy migration should only run once');
+
+            // Request 3: wrong key rejected
+            const resBad = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': 'd'.repeat(48) }
+            });
+            assert.strictEqual(resBad.status, 403);
+        } finally {
+            pool.query.mock.restore();
+        }
+    });
+
+    test('SEC-008 (1): protectH2HIp dukung CIDR IPv4/IPv6 & ::ffff:x.x.x.x, lindungi /h2h/profile & /h2h/profile/callback, blok loopback di production', async () => {
+        const apiKey = 'e'.repeat(64);
+        const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+        const origNodeEnv = process.env.NODE_ENV;
+        const userRow = {
+            id: 9003,
+            username: 'cidr_reseller',
+            balance: 50000,
+            role_id: 2,
+            role_name: 'PARTNER',
+            api_key: null,
+            api_key_hash: keyHash,
+            api_key_prefix: apiKey.slice(0, 8),
+            h2h_callback_url: null,
+            whitelisted_ips: ['203.0.113.0/24', '2001:db8:cafe::/48']
+        };
+
+        mock.method(pool, 'query', async (sql, params = []) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('whitelisted_ips') && !sql.includes('FROM users u')) {
+                if (params[1] === keyHash) {
+                    return { rows: [{ id: userRow.id, whitelisted_ips: userRow.whitelisted_ips, api_key: null, api_key_hash: keyHash }] };
+                }
+                return { rows: [] };
+            }
+            if (sql.includes('FROM users u') && sql.includes('u.api_key = $1')) {
+                return params[1] === keyHash ? { rows: [{ ...userRow }] } : { rows: [] };
+            }
+            return { rows: [] };
+        });
+
+        try {
+            process.env.NODE_ENV = 'test';
+
+            // Loopback allowed in non-production
+            const resDevLoop = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey }
+            });
+            assert.strictEqual(resDevLoop.status, 200, 'Loopback may pass in non-production');
+
+            // IPv4 matching CIDR /24
+            const resV4Match = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey, 'X-Forwarded-For': '203.0.113.77' }
+            });
+            assert.strictEqual(resV4Match.status, 200, 'IPv4 inside CIDR 203.0.113.0/24 must pass');
+
+            // IPv4-mapped IPv6 matching IPv4 CIDR /24
+            const resMappedMatch = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey, 'X-Forwarded-For': '::ffff:203.0.113.99' }
+            });
+            assert.strictEqual(resMappedMatch.status, 200, '::ffff:203.0.113.99 must normalize and match 203.0.113.0/24');
+
+            // IPv6 matching CIDR /48
+            const resV6Match = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey, 'X-Forwarded-For': '2001:db8:cafe:0001::42' }
+            });
+            assert.strictEqual(resV6Match.status, 200, 'IPv6 inside 2001:db8:cafe::/48 must pass');
+
+            // IPv4 outside CIDR rejected on /h2h/profile AND /h2h/profile/callback
+            const resV4Deny = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey, 'X-Forwarded-For': '203.0.114.77' }
+            });
+            assert.strictEqual(resV4Deny.status, 403, 'GET /h2h/profile outside whitelist must return 403');
+
+            const resCbDeny = await fetch(`${baseUrl}/h2h/profile/callback`, {
+                method: 'PUT',
+                headers: { 'X-API-Key': apiKey, 'X-Forwarded-For': '203.0.114.77', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ callback_url: 'https://93.184.216.34/webhook' })
+            });
+            assert.strictEqual(resCbDeny.status, 403, 'PUT /h2h/profile/callback outside whitelist must return 403');
+
+            // IPv4-mapped outside CIDR rejected
+            const resMappedDeny = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey, 'X-Forwarded-For': '::ffff:198.51.100.10' }
+            });
+            assert.strictEqual(resMappedDeny.status, 403, '::ffff:x.x.x.x outside whitelist must return 403');
+
+            // IPv6 outside CIDR rejected
+            const resV6Deny = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey, 'X-Forwarded-For': '2001:db8:beef::1' }
+            });
+            assert.strictEqual(resV6Deny.status, 403, 'IPv6 outside 2001:db8:cafe::/48 must return 403');
+
+            // NODE_ENV=production MUST NOT bypass loopback 127.0.0.1 / ::1
+            process.env.NODE_ENV = 'production';
+            const resProdLoopDirect = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey }
+            });
+            assert.strictEqual(resProdLoopDirect.status, 403, 'Direct loopback 127.0.0.1 must be blocked in production when not whitelisted');
+
+            const resProdLoopV6 = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey, 'X-Forwarded-For': '::1' }
+            });
+            assert.strictEqual(resProdLoopV6.status, 403, 'Loopback ::1 must be blocked in production when not whitelisted');
+
+            const resProdLoopV4Header = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': apiKey, 'X-Forwarded-For': '127.0.0.1' }
+            });
+            assert.strictEqual(resProdLoopV4Header.status, 403, 'Loopback 127.0.0.1 header must be blocked in production when not whitelisted');
+        } finally {
+            process.env.NODE_ENV = origNodeEnv;
+            pool.query.mock.restore();
+        }
+    });
+
+    test('SEC-008 (2): rate limit per user_id & API key memblokir meski IP berganti + kuota harian opsional via env', async () => {
+        const key1 = '1'.repeat(64);
+        const key2 = '2'.repeat(64);
+        const hash1 = crypto.createHash('sha256').update(key1).digest('hex');
+        const hash2 = crypto.createHash('sha256').update(key2).digest('hex');
+        let activeHash = hash1;
+        const origMaxOrdersEnv = process.env.H2H_DAILY_MAX_ORDERS;
+        const origMaxAmountEnv = process.env.H2H_DAILY_MAX_AMOUNT;
+        const origEnv = process.env.NODE_ENV;
+
+        mock.method(pool, 'query', async (sql, params = []) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('whitelisted_ips') && !sql.includes('FROM users u')) {
+                return { rows: [{ id: 9808, whitelisted_ips: [], api_key: null, api_key_hash: activeHash }] };
+            }
+            if (sql.includes('FROM users u') && sql.includes('u.api_key = $1')) {
+                if (params[1] === activeHash) {
+                    return {
+                        rows: [{
+                            id: 9808,
+                            username: 'ratelimit_reseller',
+                            balance: 500000,
+                            role_id: 2,
+                            role_name: 'PARTNER',
+                            api_key: null,
+                            api_key_hash: activeHash,
+                            api_key_prefix: key1.slice(0, 8),
+                            h2h_callback_url: null,
+                            whitelisted_ips: []
+                        }]
+                    };
+                }
+                return { rows: [] };
+            }
+            return { rows: [] };
+        });
+
+        try {
+            process.env.NODE_ENV = 'test';
+            for (let i = 1; i <= 60; i++) {
+                const resOk = await fetch(`${baseUrl}/h2h/profile`, {
+                    headers: { 'X-API-Key': key1, 'X-Forwarded-For': `198.51.100.${i}` }
+                });
+                assert.strictEqual(resOk.status, 200, `Request #${i} from distributed IP should pass under 60/min quota`);
+            }
+
+            // 61st request with SAME API key from a brand new IP must be 429
+            const resKeyBlocked = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': key1, 'X-Forwarded-For': '198.51.100.61' }
+            });
+            assert.strictEqual(resKeyBlocked.status, 429, '61st request with same API key across rotating IPs must be blocked with 429');
+
+            // Rotate to a NEW key for the SAME user_id (9808) from yet another new IP -> STILL blocked by per-user limiter!
+            activeHash = hash2;
+            const resUserBlocked = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': key2, 'X-Forwarded-For': '198.51.100.62' }
+            });
+            assert.strictEqual(resUserBlocked.status, 429, '62nd request for same user_id after rotating API key & IP must still be blocked with 429');
+
+            // Test optional daily quota H2H_DAILY_MAX_ORDERS using a fresh user (id: 9809)
+            const { invalidateFoxyProductCache } = require('../server');
+            invalidateFoxyProductCache();
+            const quotaKey = '3'.repeat(64);
+            const quotaHash = crypto.createHash('sha256').update(quotaKey).digest('hex');
+            activeHash = quotaHash;
+            process.env.H2H_DAILY_MAX_ORDERS = '2';
+
+            axios.get = async () => ({
+                data: { data: [{ product_code: 'ML-QUOTA', product_price: 10000 }] }
+            });
+            let balanceDeducted = false;
+            mock.method(pool, 'connect', async () => ({
+                query: async (sql) => {
+                    if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                    if (typeof sql === 'string' && sql.includes('JOIN games g')) {
+                        return {
+                            rows: [{
+                                id: 33, name: 'Quota Test Product', provider_sku: 'ML-QUOTA', price: 12000, status: 'Active',
+                                game_id: 1, needs_server_id: false, validation_config: null,
+                                use_manual_prices: false, manual_prices: {}, use_custom_margin: false
+                            }]
+                        };
+                    }
+                    if (typeof sql === 'string' && sql.includes('SELECT balance, role_id FROM users WHERE id')) {
+                        return { rows: [{ balance: 500000, role_id: 2 }] };
+                    }
+                    if (typeof sql === 'string' && sql.includes('FROM roles WHERE id')) {
+                        return { rows: [{ margin_percent: 10 }] };
+                    }
+                    if (typeof sql === 'string' && sql.includes('FROM flash_sales')) {
+                        return { rows: [] };
+                    }
+                    if (typeof sql === 'string' && sql.includes('order_count')) {
+                        return { rows: [{ order_count: 2, total_amount: 24000 }] };
+                    }
+                    if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance -')) {
+                        balanceDeducted = true;
+                        return { rowCount: 1 };
+                    }
+                    return { rows: [] };
+                },
+                release: () => {}
+            }));
+
+            // Use different user id 9809 via pool.query override
+            pool.query.mock.restore();
+            mock.method(pool, 'query', async (sql, params = []) => {
+                if (typeof sql !== 'string') return { rows: [] };
+                if (sql.includes('whitelisted_ips') && !sql.includes('FROM users u')) {
+                    return { rows: [{ id: 9809, whitelisted_ips: [], api_key: null, api_key_hash: quotaHash }] };
+                }
+                if (sql.includes('FROM users u') && sql.includes('u.api_key = $1')) {
+                    return { rows: [{ id: 9809, username: 'quota_reseller', balance: 500000, role_id: 2, role_name: 'PARTNER', api_key: null, api_key_hash: quotaHash, whitelisted_ips: [] }] };
+                }
+                return { rows: [] };
+            });
+
+            const resQuota = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': quotaKey, 'X-Forwarded-For': '198.51.100.63', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 33, targetGameId: '123456' })
+            });
+            assert.strictEqual(resQuota.status, 429, 'H2H order exceeding H2H_DAILY_MAX_ORDERS must be rejected with 429');
+            assert.strictEqual(balanceDeducted, false, 'Daily quota rejection must NOT deduct balance');
+
+            delete process.env.H2H_DAILY_MAX_ORDERS;
+            process.env.H2H_DAILY_MAX_AMOUNT = '30000';
+            const resAmountQuota = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': quotaKey, 'X-Forwarded-For': '198.51.100.64', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 33, targetGameId: '123456' })
+            });
+            assert.strictEqual(resAmountQuota.status, 429, 'H2H order exceeding H2H_DAILY_MAX_AMOUNT must be rejected with 429');
+            assert.strictEqual(balanceDeducted, false, 'Daily amount quota rejection must NOT deduct balance');
+            delete process.env.H2H_DAILY_MAX_AMOUNT;
+        } finally {
+            if (origMaxOrdersEnv === undefined) delete process.env.H2H_DAILY_MAX_ORDERS;
+            else process.env.H2H_DAILY_MAX_ORDERS = origMaxOrdersEnv;
+            if (origMaxAmountEnv === undefined) delete process.env.H2H_DAILY_MAX_AMOUNT;
+            else process.env.H2H_DAILY_MAX_AMOUNT = origMaxAmountEnv;
+            process.env.NODE_ENV = origEnv;
+            axios.get = origAxiosGet;
+            require('../server').invalidateFoxyProductCache();
+            if (pool.connect.mock) pool.connect.mock.restore();
+            if (pool.query.mock) pool.query.mock.restore();
+        }
+    });
+
+    test('SEC-007 (1): tolak webhook SSRF (127.0.0.1, 169.254.169.254, 100.64.x.x, 0.0.0.0, ::ffff:127.0.0.1, DNS private) & PUT /h2h/profile/callback', async () => {
+        const { sendH2HWebhook, validateWebhookUrl } = require('../utils/webhookClient');
+        const apiKey = '4'.repeat(64);
+        const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+        let dbUpdatedCallback = false;
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('whitelisted_ips') && !sql.includes('FROM users u')) {
+                return { rows: [{ id: 9004, whitelisted_ips: [], api_key: null, api_key_hash: keyHash }] };
+            }
+            if (sql.includes('FROM users u') && sql.includes('u.api_key = $1')) {
+                return { rows: [{ id: 9004, username: 'ssrf_tester', balance: 10000, role_id: 2, role_name: 'PARTNER', api_key: null, api_key_hash: keyHash, whitelisted_ips: [] }] };
+            }
+            if (sql.includes('SET h2h_callback_url')) {
+                dbUpdatedCallback = true;
+            }
+            return { rows: [] };
+        });
+
+        let outboundCalls = 0;
+        axios.post = async () => {
+            outboundCalls += 1;
+            return { status: 200, data: 'ok' };
+        };
+
+        try {
+            const badLiteralUrls = [
+                'https://127.0.0.1/cb',
+                'https://169.254.169.254/latest/meta-data/',
+                'https://100.64.5.10/cb',
+                'https://0.0.0.0/cb',
+                'https://[::ffff:127.0.0.1]/cb',
+                'https://[::ffff:169.254.169.254]/cb',
+                'https://[::1]/cb',
+                'https://[fe80::1]/cb',
+                'https://[fd00::1]/cb',
+                'http://93.184.216.34/cb'
+            ];
+
+            for (const badUrl of badLiteralUrls) {
+                await assert.rejects(
+                    () => sendH2HWebhook({ url: badUrl, payload: { invoice_id: 'T1' }, secret: 'sec' }),
+                    { message: /tidak diizinkan|tidak valid|HTTPS/i },
+                    `sendH2HWebhook must reject SSRF URL: ${badUrl}`
+                );
+
+                const resPut = await fetch(`${baseUrl}/h2h/profile/callback`, {
+                    method: 'PUT',
+                    headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ callback_url: badUrl })
+                });
+                assert.strictEqual(resPut.status, 400, `PUT /h2h/profile/callback must reject SSRF URL: ${badUrl}`);
+            }
+
+            // Domain resolving via DNS to private IP (single A or mixed public+private A/AAAA) MUST be rejected
+            await assert.rejects(
+                () => validateWebhookUrl('https://private-dns.reseller.example/cb', {
+                    dnsLookup: async () => [{ address: '10.0.0.8', family: 4 }]
+                }),
+                { message: /tidak diizinkan/i },
+                'Domain resolving to RFC1918 IP must be rejected'
+            );
+            await assert.rejects(
+                () => validateWebhookUrl('https://mixed-dns.reseller.example/cb', {
+                    dnsLookup: async () => [
+                        { address: '93.184.216.34', family: 4 },
+                        { address: '169.254.169.254', family: 4 }
+                    ]
+                }),
+                { message: /tidak diizinkan/i },
+                'Domain resolving with any private/link-local record must be rejected'
+            );
+            await assert.rejects(
+                () => validateWebhookUrl('https://cgnat-dns.reseller.example/cb', {
+                    dnsLookup: async () => [{ address: '100.127.255.250', family: 4 }]
+                }),
+                { message: /tidak diizinkan/i },
+                'Domain resolving to CGNAT 100.64.0.0/10 must be rejected'
+            );
+
+            // PUT /h2h/profile/callback must also run DNS resolution and reject domains resolving to private IPs
+            const { webhookDns } = require('../utils/webhookClient');
+            mock.method(webhookDns, 'lookup', async () => [{ address: '127.0.0.1', family: 4 }]);
+            try {
+                const resPutDnsPrivate = await fetch(`${baseUrl}/h2h/profile/callback`, {
+                    method: 'PUT',
+                    headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ callback_url: 'https://ssrf-rebind.reseller.example/cb' })
+                });
+                assert.strictEqual(resPutDnsPrivate.status, 400, 'PUT /h2h/profile/callback must reject domain resolving to loopback/private IP');
+            } finally {
+                if (webhookDns.lookup && webhookDns.lookup.mock) webhookDns.lookup.mock.restore();
+            }
+
+            assert.strictEqual(dbUpdatedCallback, false, 'None of the bad URLs should be saved to DB');
+            assert.strictEqual(outboundCalls, 0, 'SSRF checks must reject before calling axios.post');
+        } finally {
+            axios.post = origAxiosPost;
+            pool.query.mock.restore();
+        }
+    });
+
+    test('SEC-007 (2): redirect (302) tidak diikuti, DNS pinning mengikat IP, X-Signature & X-Timestamp valid di Foxy callback & cron', async () => {
+        const { webhookDns, buildSignedWebhookHeaders } = require('../utils/webhookClient');
+        const webhookSecret = 'whsec_test_' + 'a'.repeat(48);
+
+        // 1. Real HTTP redirect test proving maxRedirects: 0 blocks 302 redirect target
+        let targetHitCount = 0;
+        const targetServer = http.createServer((req, res) => {
+            targetHitCount += 1;
+            res.writeHead(200);
+            res.end('ok');
+        });
+        await new Promise(resolve => targetServer.listen(0, '127.0.0.1', resolve));
+        const targetPort = targetServer.address().port;
+
+        const redirectServer = http.createServer((req, res) => {
+            res.writeHead(302, { Location: `http://127.0.0.1:${targetPort}/internal` });
+            res.end();
+        });
+        await new Promise(resolve => redirectServer.listen(0, '127.0.0.1', resolve));
+        const redirectPort = redirectServer.address().port;
+
+        const { buildAxiosWebhookConfig } = require('../utils/webhookClient');
+        try {
+            const payload = { invoice_id: 'TRX-REDIR-1', status: 'Success' };
+            const rawBody = JSON.stringify(payload);
+            const signedHeaders = buildSignedWebhookHeaders(rawBody, webhookSecret, 1700000123);
+            const axiosConfig = buildAxiosWebhookConfig({ headers: signedHeaders });
+            assert.strictEqual(axiosConfig.maxRedirects, 0, 'Webhook config must force maxRedirects: 0');
+
+            await assert.rejects(
+                () => axios.post(`http://127.0.0.1:${redirectPort}/hook`, rawBody, axiosConfig),
+                /status code 302|maxRedirects|redirect/i,
+                '302 redirect must cause axios.post rejection and never follow Location'
+            );
+            assert.strictEqual(targetHitCount, 0, 'Redirect target MUST receive zero requests');
+
+            // 2. End-to-end callback (server.js) + cron (cronUtils.js) webhook dispatch
+            process.env.FOXY_CALLBACK_SECRET = 'sec7-foxy-secret';
+            let dnsReturnedIp = '93.184.216.34';
+            mock.method(webhookDns, 'lookup', async () => [{ address: dnsReturnedIp, family: 4 }]);
+
+            const capturedWebhooks = [];
+            axios.get = async (url) => {
+                if (url.includes('/v1/status')) {
+                    return { data: { status: true, data: { status: 'SUCCESS', sn: 'SN-SEC7-OK' } } };
+                }
+                return { data: { data: [] } };
+            };
+            axios.post = async (url, rawData, config) => {
+                capturedWebhooks.push({ url, rawData, config });
+                // Simulate DNS rebinding AFTER resolution to verify pinned agent lookup STILL returns initial validated IP!
+                dnsReturnedIp = '127.0.0.1';
+                const pinnedIps = await new Promise((resolve, reject) => {
+                    config.httpsAgent.options.lookup('webhook.reseller.example', { all: true }, (err, res) => (err ? reject(err) : resolve(res)));
+                });
+                assert.deepStrictEqual(pinnedIps, [{ address: '93.184.216.34', family: 4 }], 'Agent lookup must pin initial validated IP');
+                dnsReturnedIp = '93.184.216.34';
+                return { status: 200, data: 'ok' };
+            };
+
+            mock.method(pool, 'query', async (sql) => {
+                if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                    return { rows: [{ id: 9501, status: 'Pending', price: 15000, product_id: 1, provider_trx_id: 'TRX-SEC7-CB', cost_price: 12000 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('h2h_webhook_secret')) {
+                    return {
+                        rows: [{
+                            h2h_callback_url: 'https://webhook.reseller.example/h2h',
+                            h2h_webhook_secret: webhookSecret,
+                            product_name: 'Diamond SEC7'
+                        }]
+                    };
+                }
+                return { rows: [] };
+            });
+
+            mock.method(pool, 'connect', async () => ({
+                query: async (sql) => {
+                    if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+                    if (typeof sql === 'string' && sql.includes('FOR UPDATE') && sql.includes('transactions')) {
+                        return { rows: [{ id: 9501, invoice_id: 'INV-SEC7-CB', user_id: 9010, product_id: 1, price: 15000, status: 'Pending', provider_trx_id: 'TRX-SEC7-CB', flash_sale_id: null, flash_sale_restored: false }] };
+                    }
+                    return { rows: [] };
+                },
+                release: () => {}
+            }));
+
+            const cbRes = await fetch(`${baseUrl}/api/foxy/callback?token=sec7-foxy-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'TRX-SEC7-CB', status: 'SUCCESS', sn: 'SN-SEC7-OK' })
+            });
+            assert.strictEqual(cbRes.status, 200);
+            // Allow background webhook promise microtasks to flush
+            await new Promise(resolve => setImmediate(resolve));
+            await new Promise(resolve => setTimeout(resolve, 20));
+
+            // Now also test cronUtils.checkPendingTransactions() outbound webhook
+            mock.method(cronPool, 'query', async (sql) => {
+                if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                    return {
+                        rows: [{
+                            id: 9502,
+                            invoice_id: 'INV-SEC7-CRON',
+                            user_id: 9011,
+                            price: 20000,
+                            provider_trx_id: 'TRX-SEC7-CRON',
+                            check_attempts: 0,
+                            flash_sale_id: null,
+                            flash_sale_restored: false,
+                            product_name: 'Diamond Cron SEC7',
+                            h2h_callback_url: 'https://webhook.reseller.example/cron-h2h',
+                            h2h_webhook_secret: webhookSecret
+                        }]
+                    };
+                }
+                return { rows: [] };
+            });
+            mock.method(cronPool, 'connect', async () => ({
+                query: async (sql) => {
+                    if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+                    if (typeof sql === 'string' && sql.includes('FOR UPDATE')) {
+                        return { rows: [{ id: 9502, invoice_id: 'INV-SEC7-CRON', user_id: 9011, price: 20000, status: 'Pending', flash_sale_id: null, flash_sale_restored: false }] };
+                    }
+                    return { rows: [] };
+                },
+                release: () => {}
+            }));
+
+            await cronUtils.checkPendingTransactions();
+            await new Promise(resolve => setImmediate(resolve));
+            await new Promise(resolve => setTimeout(resolve, 20));
+
+            assert.strictEqual(capturedWebhooks.length, 2, 'Both callback and cron must dispatch signed SSRF-safe H2H webhooks');
+            for (const wh of capturedWebhooks) {
+                assert.strictEqual(typeof wh.rawData, 'string', 'Signed webhook must send deterministic JSON string body');
+                assert.strictEqual(wh.config.maxRedirects, 0);
+                assert.ok(wh.config.timeout > 0 && wh.config.timeout <= 5000, 'Strict webhook timeout must be <= 5000ms');
+                assert.ok(wh.config.maxContentLength > 0 && wh.config.maxBodyLength > 0, 'Response and body limits must be configured');
+                const ts = wh.config.headers['X-Timestamp'];
+                assert.ok(/^\d+$/.test(ts), 'X-Timestamp must be Unix epoch string');
+                const expectedSig = crypto
+                    .createHmac('sha256', webhookSecret)
+                    .update(`${ts}.${wh.rawData}`)
+                    .digest('hex');
+                assert.strictEqual(
+                    wh.config.headers['X-Signature'],
+                    expectedSig,
+                    'X-Signature must equal HMAC-SHA256 of `${X-Timestamp}.${rawBody}`'
+                );
+            }
+        } finally {
+            process.env.FOXY_CALLBACK_SECRET = '';
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+            if (webhookDns.lookup && webhookDns.lookup.mock) webhookDns.lookup.mock.restore();
+            if (pool.query.mock) pool.query.mock.restore();
+            if (pool.connect.mock) pool.connect.mock.restore();
+            if (cronPool.query.mock) cronPool.query.mock.restore();
+            if (cronPool.connect.mock) cronPool.connect.mock.restore();
+            await new Promise(resolve => redirectServer.close(resolve));
+            await new Promise(resolve => targetServer.close(resolve));
+        }
+    });
+
+    test('SEC-007 (3): reseller lama tanpa h2h_webhook_secret dibuatkan secret secara lazy agar X-Signature selalu ada', async () => {
+        const { webhookDns } = require('../utils/webhookClient');
+        const legacyKey = 'f'.repeat(48);
+        const userState = {
+            id: 9020,
+            username: 'legacy_no_whsec',
+            balance: 100000,
+            role_id: 2,
+            role_name: 'PARTNER',
+            api_key: legacyKey,
+            api_key_hash: null,
+            api_key_prefix: null,
+            h2h_callback_url: 'https://legacy-hook.reseller.example/cb',
+            h2h_webhook_secret: null,
+            whitelisted_ips: []
+        };
+
+        // 1. Lazy migration API key juga men-seed h2h_webhook_secret bila masih NULL
+        mock.method(pool, 'query', async (sql, params = []) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('FROM users u') && sql.includes('u.api_key = $1')) {
+                return params[0] === userState.api_key ? { rows: [{ ...userState }] } : { rows: [] };
+            }
+            if (sql.includes('UPDATE users') && sql.includes('SET api_key_hash') && sql.includes('h2h_webhook_secret')) {
+                userState.api_key_hash = params[0];
+                userState.api_key_prefix = params[1];
+                userState.api_key = null;
+                if (!userState.h2h_webhook_secret && params[3]) userState.h2h_webhook_secret = params[3];
+                return { rows: [] };
+            }
+            if (sql.includes('whitelisted_ips')) {
+                return { rows: [{ whitelisted_ips: [] }] };
+            }
+            return { rows: [] };
+        });
+
+        try {
+            const profRes = await fetch(`${baseUrl}/h2h/profile`, {
+                headers: { 'X-API-Key': legacyKey }
+            });
+            assert.strictEqual(profRes.status, 200);
+            assert.match(userState.h2h_webhook_secret || '', /^[a-f0-9]{64}$/, 'Lazy key migration must also provision h2h_webhook_secret when NULL');
+        } finally {
+            pool.query.mock.restore();
+        }
+
+        // 2. Jika user tetap tanpa h2h_webhook_secret saat webhook dikirim (callback & cron), secret dibuat lazily sebelum mengirim
+        const sentWebhooks = [];
+        let cbLazySecret = null;
+        let cronLazySecret = null;
+        process.env.FOXY_CALLBACK_SECRET = 'sec7-lazy-cb-secret';
+        mock.method(webhookDns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }]);
+
+        axios.get = async (url) => {
+            if (url.includes('/v1/status')) {
+                return { data: { status: true, data: { status: 'SUCCESS', sn: 'SN-LAZY-WHSEC' } } };
+            }
+            return { data: { data: [] } };
+        };
+        axios.post = async (url, rawData, config) => {
+            sentWebhooks.push({ url, rawData, config });
+            return { status: 200, data: 'ok' };
+        };
+
+        mock.method(pool, 'query', async (sql, params = []) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 9601, status: 'Pending', price: 15000, product_id: 1, provider_trx_id: 'TRX-LAZY-CB', cost_price: 12000 }] };
+            }
+            if (sql.includes('u.h2h_webhook_secret')) {
+                return { rows: [{ h2h_callback_url: 'https://legacy-cb.reseller.example/cb', h2h_webhook_secret: null, product_name: 'MLBB 50' }] };
+            }
+            if (sql.includes('UPDATE users') && sql.includes('SET h2h_webhook_secret = COALESCE')) {
+                cbLazySecret = params[0];
+                return { rows: [{ h2h_webhook_secret: cbLazySecret }] };
+            }
+            return { rows: [] };
+        });
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+                if (typeof sql === 'string' && sql.includes('FOR UPDATE')) {
+                    return { rows: [{ id: 9601, invoice_id: 'INV-LAZY-CB', user_id: 9021, product_id: 1, price: 15000, status: 'Pending', provider_trx_id: 'TRX-LAZY-CB', flash_sale_id: null, flash_sale_restored: false }] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        mock.method(cronPool, 'query', async (sql, params = []) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('FROM transactions t')) {
+                return {
+                    rows: [{
+                        id: 9602,
+                        invoice_id: 'INV-LAZY-CRON',
+                        user_id: 9022,
+                        price: 18000,
+                        provider_trx_id: 'TRX-LAZY-CRON',
+                        check_attempts: 0,
+                        flash_sale_id: null,
+                        flash_sale_restored: false,
+                        product_name: 'MLBB 86',
+                        h2h_callback_url: 'https://legacy-cron.reseller.example/cb',
+                        h2h_webhook_secret: ''
+                    }]
+                };
+            }
+            if (sql.includes('UPDATE users') && sql.includes('SET h2h_webhook_secret = COALESCE')) {
+                cronLazySecret = params[0];
+                return { rows: [{ h2h_webhook_secret: cronLazySecret }] };
+            }
+            return { rows: [] };
+        });
+        mock.method(cronPool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+                if (typeof sql === 'string' && sql.includes('FOR UPDATE')) {
+                    return { rows: [{ id: 9602, invoice_id: 'INV-LAZY-CRON', user_id: 9022, price: 18000, status: 'Pending', flash_sale_id: null, flash_sale_restored: false }] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            const cbRes = await fetch(`${baseUrl}/api/foxy/callback?token=sec7-lazy-cb-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'TRX-LAZY-CB', status: 'SUCCESS', sn: 'SN-LAZY-WHSEC' })
+            });
+            assert.strictEqual(cbRes.status, 200);
+            await new Promise(resolve => setImmediate(resolve));
+            await new Promise(resolve => setTimeout(resolve, 20));
+
+            await cronUtils.checkPendingTransactions();
+
+            assert.strictEqual(sentWebhooks.length, 2);
+            assert.match(cbLazySecret || '', /^[a-f0-9]{64}$/, 'Callback path must lazily generate h2h_webhook_secret');
+            assert.match(cronLazySecret || '', /^[a-f0-9]{64}$/, 'Cron path must lazily generate h2h_webhook_secret');
+
+            const secrets = [cbLazySecret, cronLazySecret];
+            sentWebhooks.forEach((wh, idx) => {
+                const ts = wh.config.headers['X-Timestamp'];
+                const sig = wh.config.headers['X-Signature'];
+                assert.ok(/^\d+$/.test(ts), 'X-Timestamp must exist');
+                assert.ok(sig && sig.length === 64, 'X-Signature must ALWAYS be sent for legacy resellers');
+                const expected = crypto.createHmac('sha256', secrets[idx]).update(`${ts}.${wh.rawData}`).digest('hex');
+                assert.strictEqual(sig, expected);
+            });
+        } finally {
+            process.env.FOXY_CALLBACK_SECRET = '';
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+            if (webhookDns.lookup && webhookDns.lookup.mock) webhookDns.lookup.mock.restore();
+            if (pool.query.mock) pool.query.mock.restore();
+            if (pool.connect.mock) pool.connect.mock.restore();
+            if (cronPool.query.mock) cronPool.query.mock.restore();
+            if (cronPool.connect.mock) cronPool.connect.mock.restore();
+        }
+    });
+
+    test('SEC-007 (4): webhook invalid (http:// / URL berkredensial) atau gagal kirim mencatat warning aman dan tidak menghentikan callback/cron', async () => {
+        const { webhookDns } = require('../utils/webhookClient');
+        process.env.FOXY_CALLBACK_SECRET = 'sec7-warn-secret';
+
+        const warnings = [];
+        mock.method(console, 'warn', (...args) => {
+            warnings.push(args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '));
+        });
+
+        let cbStatusUpdatedToSuccess = false;
+        let cronFirstUpdatedToSuccess = false;
+        let cronSecondProcessed = false;
+        const secretValue = 'super_secret_hmac_key_never_log_12345';
+
+        mock.method(webhookDns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }]);
+        axios.get = async (url) => {
+            if (url.includes('/v1/status')) {
+                return { data: { status: true, data: { status: 'SUCCESS', sn: 'SN-RESILIENT' } } };
+            }
+            return { data: { data: [] } };
+        };
+        axios.post = async () => {
+            const err = new Error('Request failed with status code 502 (https://user:topsecret@hook.reseller.example/cb?token=leak123)');
+            err.response = { status: 502, statusText: 'Bad Gateway', config: { method: 'post', url: 'https://user:topsecret@hook.reseller.example/cb?token=leak123' } };
+            throw err;
+        };
+
+        // 1. Callback Foxy dengan URL http:// lama -> harus tetap 200 & status Success, log warning aman
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 9701, status: 'Pending', price: 10000, product_id: 1, provider_trx_id: 'TRX-BADURL-CB', cost_price: 8000 }] };
+            }
+            if (sql.includes('h2h_webhook_secret')) {
+                return { rows: [{ h2h_callback_url: 'http://legacy-insecure.reseller.example/cb?token=shouldnotleak', h2h_webhook_secret: secretValue, product_name: 'ML 10' }] };
+            }
+            return { rows: [] };
+        });
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+                if (typeof sql === 'string' && sql.includes('FOR UPDATE')) {
+                    return { rows: [{ id: 9701, invoice_id: 'INV-BADURL-CB', user_id: 9030, product_id: 1, price: 10000, status: 'Pending', provider_trx_id: 'TRX-BADURL-CB', flash_sale_id: null, flash_sale_restored: false }] };
+                }
+                if (typeof sql === 'string' && sql.includes("UPDATE transactions SET status = 'Success'")) {
+                    cbStatusUpdatedToSuccess = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        // 2. Cron batch dengan 2 transaksi: tx1 gagal validasi URL berkredensial, tx2 gagal HTTP 502; status KEDUANYA tetap Success
+        mock.method(cronPool, 'query', async (sql) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql.includes('FROM transactions t')) {
+                return {
+                    rows: [
+                        {
+                            id: 9702,
+                            invoice_id: 'INV-CREDURL-CRON',
+                            user_id: 9031,
+                            price: 12000,
+                            provider_trx_id: 'TRX-CREDURL-1',
+                            check_attempts: 0,
+                            flash_sale_id: null,
+                            flash_sale_restored: false,
+                            product_name: 'ML 12',
+                            h2h_callback_url: 'https://adminuser:superpass99@bad.reseller.example/cb?token=urltok99',
+                            h2h_webhook_secret: secretValue
+                        },
+                        {
+                            id: 9703,
+                            invoice_id: 'INV-HTTP502-CRON',
+                            user_id: 9032,
+                            price: 14000,
+                            provider_trx_id: 'TRX-HTTP502-2',
+                            check_attempts: 0,
+                            flash_sale_id: null,
+                            flash_sale_restored: false,
+                            product_name: 'ML 14',
+                            h2h_callback_url: 'https://hook.reseller.example/cb?token=leak123',
+                            h2h_webhook_secret: secretValue
+                        }
+                    ]
+                };
+            }
+            return { rows: [] };
+        });
+        mock.method(cronPool, 'connect', async () => ({
+            query: async (sql, params = []) => {
+                if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+                if (typeof sql === 'string' && sql.includes('FOR UPDATE')) {
+                    if (params[0] === 9702) {
+                        return { rows: [{ id: 9702, invoice_id: 'INV-CREDURL-CRON', user_id: 9031, price: 12000, status: 'Pending', flash_sale_id: null, flash_sale_restored: false }] };
+                    }
+                    return { rows: [{ id: 9703, invoice_id: 'INV-HTTP502-CRON', user_id: 9032, price: 14000, status: 'Pending', flash_sale_id: null, flash_sale_restored: false }] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE transactions SET status = $1') && params[0] === 'Success') {
+                    if (params[2] === 9702) cronFirstUpdatedToSuccess = true;
+                    if (params[2] === 9703) cronSecondProcessed = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            const cbRes = await fetch(`${baseUrl}/api/foxy/callback?token=sec7-warn-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'TRX-BADURL-CB', status: 'SUCCESS', sn: 'SN-RESILIENT' })
+            });
+            assert.strictEqual(cbRes.status, 200, 'Rejected webhook URL must NOT fail Foxy callback response');
+            assert.strictEqual(cbStatusUpdatedToSuccess, true, 'Callback transaction status must still commit Success');
+            await new Promise(resolve => setImmediate(resolve));
+            await new Promise(resolve => setTimeout(resolve, 20));
+
+            await cronUtils.checkPendingTransactions();
+            assert.strictEqual(cronFirstUpdatedToSuccess, true, 'First cron tx must commit Success even if webhook URL is invalid');
+            assert.strictEqual(cronSecondProcessed, true, 'Cron loop must continue processing subsequent transactions cleanly');
+
+            const combinedWarnings = warnings.join('\n');
+            assert.ok(combinedWarnings.includes('INV-BADURL-CB'), 'Warning log must include invoice ID for callback http:// rejection');
+            assert.ok(combinedWarnings.includes('INV-CREDURL-CRON'), 'Warning log must include invoice ID for credential URL rejection');
+            assert.ok(combinedWarnings.includes('INV-HTTP502-CRON'), 'Warning log must include invoice ID for failed webhook delivery');
+            assert.ok(!combinedWarnings.includes(secretValue), 'Warning log must NEVER leak webhook secret');
+            assert.ok(!combinedWarnings.includes('superpass99'), 'Warning log must NEVER leak URL password credentials');
+            assert.ok(!combinedWarnings.includes('topsecret'), 'Warning log must NEVER leak Axios URL password credentials');
+            assert.ok(!combinedWarnings.includes('urltok99'), 'Warning log must NEVER leak URL query token');
+            assert.ok(!combinedWarnings.includes('leak123'), 'Warning log must NEVER leak URL query token in error');
+            assert.ok(!combinedWarnings.includes('shouldnotleak'), 'Warning log must NEVER leak URL query string');
+        } finally {
+            process.env.FOXY_CALLBACK_SECRET = '';
+            console.warn.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+            if (webhookDns.lookup && webhookDns.lookup.mock) webhookDns.lookup.mock.restore();
+            if (pool.query.mock) pool.query.mock.restore();
+            if (pool.connect.mock) pool.connect.mock.restore();
+            if (cronPool.query.mock) cronPool.query.mock.restore();
+            if (cronPool.connect.mock) cronPool.connect.mock.restore();
+        }
+    });
+});

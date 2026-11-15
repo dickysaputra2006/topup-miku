@@ -328,52 +328,134 @@
             </section>
 
             <section id="integrasi" class="dashboard-section hidden">
-                <div class="card">
-                    <h3>Key &amp; Dokumentasi</h3>
-                    <p class="form-description" style="text-align: left;">Gunakan API Key di bawah ini untuk
-                        menghubungkan sistem atau bot Anda ke layanan kami.</p>
+                <div class="card h2h-card">
+                    <div class="h2h-card-header">
+                        <div>
+                            <h3>API Key H2H</h3>
+                            <p class="h2h-muted">Hubungkan sistem atau bot Anda dengan header <code>X-API-Key</code>.</p>
+                        </div>
+                        <span id="h2h-apikey-status-badge" class="status-badge status-pending">Memuat...</span>
+                    </div>
 
-                    <div class="api-key-wrapper">
-                        <code id="api-key-display">Memuat...</code>
-                        <div class="api-key-actions">
-                            <button id="toggle-apikey-btn" class="api-key-action-btn" title="Lihat/Sembunyikan Key">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button id="copy-apikey-btn" class="api-key-action-btn" title="Salin Key">
-                                <i class="fas fa-copy"></i>
-                            </button>
+                    <div class="h2h-credential-box">
+                        <div class="h2h-credential-meta">
+                            <span class="h2h-field-label">Status &amp; Prefix Key</span>
+                            <code id="api-key-display" class="h2h-code-value">Memuat...</code>
                         </div>
                     </div>
-                    <p class="form-description" style="text-align: left; color: #ffc107; margin-top: 1rem;">
-                        <strong>Peringatan:</strong> Jaga kerahasiaan API Key Anda.
+
+                    <p class="h2h-inline-note">
+                        Untuk keamanan, API Key penuh hanya ditampilkan satu kali saat dibuat atau dibuat ulang.
                     </p>
-                    <div class="center-btn" style="justify-content: flex-start; margin-top: 1rem;">
-                        <button id="generate-api-key-btn" class="topup-btn">Buat / Buat Ulang API Key</button>
-                        <a href="#" class="edit-btn" style="text-decoration: none;">Dokumentasi</a>
+
+                    <div class="h2h-action-group">
+                        <button type="button" id="generate-api-key-btn" class="h2h-btn h2h-btn-primary">
+                            <i class="fas fa-key"></i> Buat API Key
+                        </button>
+                        <button type="button" id="revoke-api-key-btn" class="h2h-btn h2h-btn-danger hidden">
+                            <i class="fas fa-ban"></i> Revoke API Key
+                        </button>
                     </div>
                 </div>
 
-                <div class="card">
+                <div class="card h2h-card">
+                    <div class="h2h-card-header">
+                        <div>
+                            <h3>Webhook Secret (HMAC-SHA256)</h3>
+                            <p class="h2h-muted">Secret untuk memverifikasi header <code>X-Signature</code> dan <code>X-Timestamp</code> pada webhook callback.</p>
+                        </div>
+                        <span id="h2h-webhook-status-badge" class="status-badge status-pending">Memuat...</span>
+                    </div>
+
+                    <div class="h2h-credential-box">
+                        <div class="h2h-credential-meta">
+                            <span class="h2h-field-label">Status &amp; Prefix Secret</span>
+                            <code id="webhook-secret-display" class="h2h-code-value">Memuat...</code>
+                        </div>
+                    </div>
+
+                    <p class="h2h-inline-note">
+                        Signature dihitung via HMAC-SHA256 atas <code>${X-Timestamp}.${rawBody}</code>. Tolak webhook dengan selisih timestamp &gt; 5 menit.
+                    </p>
+
+                    <div class="h2h-action-group">
+                        <button type="button" id="rotate-webhook-secret-btn" class="h2h-btn h2h-btn-secondary">
+                            <i class="fas fa-rotate"></i> Rotasi Webhook Secret
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card h2h-card">
                     <h3>Whitelist IP Address</h3>
-                    <p class="form-description" style="text-align: left;">Tambahkan alamat IP server Anda untuk
-                        mengamankan akses API H2H. Pisahkan beberapa IP dengan koma.</p>
+                    <p class="h2h-muted" style="margin-bottom: 1rem;">
+                        Batasi akses seluruh endpoint H2H menggunakan IP tunggal atau CIDR (IPv4/IPv6). Pisahkan dengan koma.
+                    </p>
 
                     <form id="whitelist-ip-form" class="form-row-container">
-                        <input type="text" id="whitelist-ip-input" placeholder="Contoh: 192.168.1.1, 10.0.0.1"
+                        <input type="text" id="whitelist-ip-input" placeholder="Contoh: 203.0.113.10, 203.0.113.0/24, 2001:db8::/48"
                             class="dashboard-input">
-                        <button type="submit" class="topup-btn">Simpan IP</button>
+                        <button type="submit" class="h2h-btn h2h-btn-primary">Simpan IP</button>
                     </form>
                     <div id="current-ips-container" style="margin-top: 1.5rem;">
                         <p><strong>IP yang Terdaftar:</strong></p>
                         <div id="current-ips-list"
                             style="display: flex; flex-wrap: wrap; gap: 0.5rem; min-height: 24px;">
-                            <p style="color: #aaa;">Memuat...</p>
+                            <p class="h2h-muted">Memuat...</p>
                         </div>
                     </div>
                 </div>
             </section>
 
         </main>
+    </div>
+
+    <div id="h2h-secret-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="h2h-secret-modal-title">
+        <div class="modal-content h2h-modal-card">
+            <button type="button" id="close-h2h-secret-modal-btn" class="close-modal" aria-label="Tutup modal">&times;</button>
+            <h3 id="h2h-secret-modal-title">Kredensial Baru Berhasil Dibuat</h3>
+            <div class="h2h-once-warning" role="alert">
+                <i class="fas fa-triangle-exclamation"></i>
+                <span><strong>Simpan sekarang, tidak akan ditampilkan lagi</strong> setelah jendela ini ditutup.</span>
+            </div>
+
+            <div class="h2h-secret-block">
+                <span id="h2h-revealed-primary-label" class="h2h-field-label">API Key Baru</span>
+                <div class="h2h-secret-copy-row">
+                    <code id="h2h-revealed-primary-value" class="h2h-revealed-code"></code>
+                    <button type="button" id="h2h-copy-primary-btn" class="h2h-btn h2h-btn-secondary h2h-copy-btn">
+                        <i class="fas fa-copy"></i> Salin
+                    </button>
+                </div>
+            </div>
+
+            <div id="h2h-revealed-secondary-group" class="h2h-secret-block hidden">
+                <span class="h2h-field-label">Webhook Secret Awal (HMAC-SHA256)</span>
+                <div class="h2h-secret-copy-row">
+                    <code id="h2h-revealed-secondary-value" class="h2h-revealed-code"></code>
+                    <button type="button" id="h2h-copy-secondary-btn" class="h2h-btn h2h-btn-secondary h2h-copy-btn">
+                        <i class="fas fa-copy"></i> Salin
+                    </button>
+                </div>
+            </div>
+
+            <div class="h2h-modal-footer">
+                <button type="button" id="h2h-ack-secret-modal-btn" class="h2h-btn h2h-btn-primary">
+                    Saya Sudah Menyimpan
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="h2h-confirm-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="h2h-confirm-title">
+        <div class="modal-content h2h-modal-card">
+            <button type="button" id="close-h2h-confirm-modal-btn" class="close-modal" aria-label="Tutup konfirmasi">&times;</button>
+            <h3 id="h2h-confirm-title">Konfirmasi Aksi</h3>
+            <p id="h2h-confirm-message" class="h2h-confirm-desc"></p>
+            <div class="h2h-modal-footer">
+                <button type="button" id="h2h-confirm-cancel-btn" class="h2h-btn h2h-btn-secondary">Batal</button>
+                <button type="button" id="h2h-confirm-accept-btn" class="h2h-btn h2h-btn-danger">Lanjutkan</button>
+            </div>
+        </div>
     </div>
 
     <div id="edit-profile-modal" class="modal-overlay hidden">

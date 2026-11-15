@@ -233,3 +233,13 @@ These migrations are additive, so the safest rollback is usually to leave the sc
 For a local sandbox only, rollback would mean manually dropping newly added indexes, tables, or columns in reverse order. That is destructive and intentionally not included in these migration files.
 
 Do not run rollback SQL against any database with data you care about unless you have a verified backup.
+
+### `010_h2h_api_key_and_webhook_security.sql`
+- **SEC-004 & SEC-007:** Adds `users.api_key_hash` (`VARCHAR(64)`), `users.api_key_prefix` (`VARCHAR(8)`), `users.h2h_webhook_secret` (`VARCHAR(128)`), and partial unique index `idx_users_api_key_hash`.
+- **Safe & Idempotent:** Nullable additive columns so existing resellers using legacy `users.api_key` continue working uninterrupted until lazy migration occurs on their first valid `/h2h/*` request.
+
+Apply manually:
+
+```powershell
+psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\010_h2h_api_key_and_webhook_security.sql
+```

@@ -39,13 +39,37 @@ document.addEventListener('DOMContentLoaded', function () {
     const dashboardSections = document.querySelectorAll('.dashboard-section');
 
     const generateApiKeyBtn = document.getElementById('generate-api-key-btn');
+    const revokeApiKeyBtn = document.getElementById('revoke-api-key-btn');
     const apiKeyDisplay = document.getElementById('api-key-display');
+    const apiKeyStatusBadge = document.getElementById('h2h-apikey-status-badge');
+    const webhookSecretDisplay = document.getElementById('webhook-secret-display');
+    const webhookStatusBadge = document.getElementById('h2h-webhook-status-badge');
+    const rotateWebhookSecretBtn = document.getElementById('rotate-webhook-secret-btn');
+    const h2hSecretModal = document.getElementById('h2h-secret-modal');
+    const closeH2HSecretModalBtn = document.getElementById('close-h2h-secret-modal-btn');
+    const h2hAckSecretModalBtn = document.getElementById('h2h-ack-secret-modal-btn');
+    const h2hSecretModalTitle = document.getElementById('h2h-secret-modal-title');
+    const h2hRevealedPrimaryLabel = document.getElementById('h2h-revealed-primary-label');
+    const h2hRevealedPrimaryValue = document.getElementById('h2h-revealed-primary-value');
+    const h2hCopyPrimaryBtn = document.getElementById('h2h-copy-primary-btn');
+    const h2hRevealedSecondaryGroup = document.getElementById('h2h-revealed-secondary-group');
+    const h2hRevealedSecondaryValue = document.getElementById('h2h-revealed-secondary-value');
+    const h2hCopySecondaryBtn = document.getElementById('h2h-copy-secondary-btn');
+    const h2hConfirmModal = document.getElementById('h2h-confirm-modal');
+    const closeH2HConfirmModalBtn = document.getElementById('close-h2h-confirm-modal-btn');
+    const h2hConfirmTitle = document.getElementById('h2h-confirm-title');
+    const h2hConfirmMessage = document.getElementById('h2h-confirm-message');
+    const h2hConfirmCancelBtn = document.getElementById('h2h-confirm-cancel-btn');
+    const h2hConfirmAcceptBtn = document.getElementById('h2h-confirm-accept-btn');
     const cekPesananForm = document.getElementById('cek-pesanan-form');
     const hasilCekPesanan = document.getElementById('hasil-cek-pesanan');
     const whitelistIpForm = document.getElementById('whitelist-ip-form');
     const currentIpsList = document.getElementById('current-ips-list');
 
     let apiKeyFetched = false;
+    let currentHasApiKey = false;
+    let currentHasWebhookSecret = false;
+    let h2hActionBusy = false;
     let mutasiLoaded = false;
     let transaksiLoaded = false;
     let depositFormSetup = false;
@@ -591,62 +615,226 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    async function fetchApiKey() {
-        if (!apiKeyDisplay) return;
+    async function copyTextToClipboard(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return;
+        }
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (!copied) {
+            throw new Error('Copy failed');
+        }
+    }
 
-        // Deklarasi elemen baru
-        const toggleBtn = document.getElementById('toggle-apikey-btn');
-        const copyBtn = document.getElementById('copy-apikey-btn');
-        let fullApiKey = '';
-        let isKeyVisible = false;
+    function resetH2HCopyButton(button) {
+        if (!button) return;
+        if (button._copyResetTimer) {
+            clearTimeout(button._copyResetTimer);
+            button._copyResetTimer = null;
+        }
+        if (button.dataset.defaultHtml) {
+            button.innerHTML = button.dataset.defaultHtml;
+        }
+        button.disabled = false;
+    }
 
-        apiKeyDisplay.textContent = 'Memuat...';
+    function attachH2HCopyButton(button, getValue) {
+        if (!button) return;
+        if (!button.dataset.defaultHtml) {
+            button.dataset.defaultHtml = button.innerHTML;
+        }
+        button.addEventListener('click', async () => {
+            const value = getValue();
+            if (!value) return;
+            try {
+                await copyTextToClipboard(value);
+                if (button._copyResetTimer) {
+                    clearTimeout(button._copyResetTimer);
+                }
+                button.innerHTML = '<i class="fas fa-check"></i> Tersalin';
+                button.disabled = true;
+                showToast('Kredensial berhasil disalin ke clipboard.');
+                button._copyResetTimer = setTimeout(() => {
+                    resetH2HCopyButton(button);
+                }, 1500);
+            } catch (err) {
+                showToast('Gagal menyalin otomatis. Silakan salin teks secara manual.');
+            }
+        });
+    }
 
-        // Fungsi untuk update tampilan key (bintang-bintang atau teks asli)
-        function updateKeyVisibility() {
-            if (isKeyVisible) {
-                apiKeyDisplay.textContent = fullApiKey;
-                toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+    async function requestUserApi(path, options = {}) {
+        const response = await fetch(`${API_URL}${path}`, {
+            ...options,
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                ...(options.headers || {})
+            }
+        });
+        if (response.status === 401) {
+            forceLogout('Sesi Anda telah berakhir, silakan login kembali.');
+            throw new Error('Sesi berakhir.');
+        }
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.message || 'Permintaan gagal diproses.');
+        }
+        return data;
+    }
+
+    function applyCredentialStatusUI({ badgeEl, displayEl, active, prefix, activeLabel, inactiveLabel, inactiveDisplay }) {
+        if (badgeEl) {
+            badgeEl.textContent = active ? activeLabel : inactiveLabel;
+            badgeEl.className = active ? 'status-badge status-success' : 'status-badge status-inactive';
+        }
+        if (displayEl) {
+            displayEl.textContent = active
+                ? (prefix ? `${prefix}••••••••` : 'Aktif (prefix tidak tersedia)')
+                : inactiveDisplay;
+        }
+    }
+
+    function renderApiKeyState({ hasApiKey, prefix }) {
+        currentHasApiKey = Boolean(hasApiKey);
+        applyCredentialStatusUI({
+            badgeEl: apiKeyStatusBadge,
+            displayEl: apiKeyDisplay,
+            active: currentHasApiKey,
+            prefix,
+            activeLabel: 'Aktif',
+            inactiveLabel: 'Belum Aktif',
+            inactiveDisplay: 'Belum ada API Key aktif. Klik tombol untuk membuat.'
+        });
+        if (generateApiKeyBtn) {
+            generateApiKeyBtn.innerHTML = currentHasApiKey
+                ? '<i class="fas fa-sync-alt"></i> Regenerate API Key'
+                : '<i class="fas fa-key"></i> Generate API Key';
+        }
+        if (revokeApiKeyBtn) {
+            revokeApiKeyBtn.classList.toggle('hidden', !currentHasApiKey);
+            revokeApiKeyBtn.disabled = !currentHasApiKey;
+        }
+    }
+
+    function renderWebhookSecretState({ hasWebhookSecret, prefix }) {
+        currentHasWebhookSecret = Boolean(hasWebhookSecret);
+        applyCredentialStatusUI({
+            badgeEl: webhookStatusBadge,
+            displayEl: webhookSecretDisplay,
+            active: currentHasWebhookSecret,
+            prefix,
+            activeLabel: 'Aktif',
+            inactiveLabel: 'Belum Dibuat',
+            inactiveDisplay: 'Belum dibuat. Akan dibuat otomatis atau klik Putar Webhook Secret.'
+        });
+        if (rotateWebhookSecretBtn) {
+            rotateWebhookSecretBtn.innerHTML = currentHasWebhookSecret
+                ? '<i class="fas fa-shield-alt"></i> Putar Webhook Secret'
+                : '<i class="fas fa-plus"></i> Buat Webhook Secret';
+        }
+    }
+
+    function openH2HSecretModal({ title, primaryLabel, primaryValue, secondaryValue = '' }) {
+        if (!h2hSecretModal || !h2hRevealedPrimaryValue) return;
+        if (h2hSecretModalTitle) {
+            h2hSecretModalTitle.textContent = title;
+        }
+        if (h2hRevealedPrimaryLabel) {
+            h2hRevealedPrimaryLabel.textContent = primaryLabel;
+        }
+        h2hRevealedPrimaryValue.textContent = primaryValue || '';
+        resetH2HCopyButton(h2hCopyPrimaryBtn);
+        resetH2HCopyButton(h2hCopySecondaryBtn);
+
+        if (h2hRevealedSecondaryGroup && h2hRevealedSecondaryValue) {
+            if (secondaryValue) {
+                h2hRevealedSecondaryValue.textContent = secondaryValue;
+                h2hRevealedSecondaryGroup.classList.remove('hidden');
             } else {
-                apiKeyDisplay.textContent = '•'.repeat(fullApiKey.length > 0 ? 32 : 0);
-                toggleBtn.innerHTML = '<i class="fas fa-eye"></i>';
+                h2hRevealedSecondaryValue.textContent = '';
+                h2hRevealedSecondaryGroup.classList.add('hidden');
             }
         }
+        h2hSecretModal.classList.remove('hidden');
+    }
 
+    function closeH2HSecretModal() {
+        if (!h2hSecretModal) return;
+        h2hSecretModal.classList.add('hidden');
+        if (h2hRevealedPrimaryValue) h2hRevealedPrimaryValue.textContent = '';
+        if (h2hRevealedSecondaryValue) h2hRevealedSecondaryValue.textContent = '';
+        if (h2hRevealedSecondaryGroup) h2hRevealedSecondaryGroup.classList.add('hidden');
+        resetH2HCopyButton(h2hCopyPrimaryBtn);
+        resetH2HCopyButton(h2hCopySecondaryBtn);
+    }
+
+    let pendingConfirmHandler = null;
+
+    function closeH2HConfirmModal(force = false) {
+        if (!h2hConfirmModal || (h2hActionBusy && !force)) return;
+        pendingConfirmHandler = null;
+        h2hConfirmModal.classList.add('hidden');
+        if (h2hConfirmAcceptBtn) h2hConfirmAcceptBtn.disabled = false;
+        if (h2hConfirmCancelBtn) h2hConfirmCancelBtn.disabled = false;
+    }
+
+    function openH2HConfirmModal({ title, message, confirmLabel = 'Lanjutkan', danger = true, onConfirm }) {
+        if (!h2hConfirmModal || !h2hConfirmAcceptBtn) return;
+        if (h2hConfirmTitle) h2hConfirmTitle.textContent = title;
+        if (h2hConfirmMessage) h2hConfirmMessage.textContent = message;
+        h2hConfirmAcceptBtn.textContent = confirmLabel;
+        h2hConfirmAcceptBtn.classList.toggle('h2h-btn-danger', danger);
+        h2hConfirmAcceptBtn.classList.toggle('h2h-btn-primary', !danger);
+        h2hConfirmAcceptBtn.disabled = false;
+        if (h2hConfirmCancelBtn) h2hConfirmCancelBtn.disabled = false;
+        pendingConfirmHandler = onConfirm;
+        h2hConfirmModal.classList.remove('hidden');
+    }
+
+    async function fetchApiKey() {
+        if (!apiKeyDisplay) return;
+        apiKeyDisplay.textContent = 'Memuat status API Key...';
         try {
-            const response = await fetch(`${API_URL}/apikey`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!response.ok) throw new Error('Gagal mengambil API Key.');
-            const data = await response.json();
-
-            fullApiKey = data.apiKey || 'Belum ada. Klik tombol untuk membuat.';
+            const data = await requestUserApi('/apikey');
+            renderApiKeyState({
+                hasApiKey: data.hasApiKey,
+                prefix: data.prefix
+            });
             apiKeyFetched = true;
-            updateKeyVisibility(); // Tampilkan key dalam bentuk tersembunyi
-
         } catch (error) {
             console.error(error);
-            apiKeyDisplay.textContent = 'Gagal memuat API Key.';
+            apiKeyDisplay.textContent = 'Gagal memuat status API Key.';
+            if (apiKeyStatusBadge) {
+                apiKeyStatusBadge.textContent = 'Gagal Muat';
+                apiKeyStatusBadge.className = 'status-badge status-failed';
+            }
         }
+    }
 
-        // Event listener untuk tombol hide/view
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', () => {
-                isKeyVisible = !isKeyVisible;
-                updateKeyVisibility();
+    async function fetchWebhookSecretStatus() {
+        if (!webhookSecretDisplay) return;
+        webhookSecretDisplay.textContent = 'Memuat status Webhook Secret...';
+        try {
+            const data = await requestUserApi('/webhook-secret');
+            renderWebhookSecretState({
+                hasWebhookSecret: data.hasWebhookSecret,
+                prefix: data.prefix
             });
-        }
-
-        // Event listener untuk tombol copy
-        if (copyBtn) {
-            copyBtn.addEventListener('click', () => {
-                if (fullApiKey && !fullApiKey.startsWith('Belum ada')) {
-                    navigator.clipboard.writeText(fullApiKey).then(() => {
-                        copyBtn.innerHTML = '<i class="fas fa-check"></i>';
-                        setTimeout(() => {
-                            copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
-                        }, 2000);
-                    });
-                }
-            });
+        } catch (error) {
+            console.error(error);
+            webhookSecretDisplay.textContent = 'Gagal memuat status Webhook Secret.';
+            if (webhookStatusBadge) {
+                webhookStatusBadge.textContent = 'Gagal Muat';
+                webhookStatusBadge.className = 'status-badge status-failed';
+            }
         }
     }
 
@@ -692,32 +880,49 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!ipListContainer || !ipInput) return;
 
         try {
-            const response = await fetch(`${API_URL}/whitelisted-ips`, { headers: { 'Authorization': `Bearer ${token}` } });
-            if (!response.ok) throw new Error('Gagal memuat IP.');
-            const ips = await response.json();
+            const ips = await requestUserApi('/whitelisted-ips');
 
-            // ipInput.value = ips.join(', ');
             ipListContainer.innerHTML = '';
             if (ips.length > 0) {
                 ips.forEach(ip => {
                     const ipTag = document.createElement('div');
                     ipTag.className = 'ip-tag';
                     ipTag.innerHTML = `
-                    <span>${ip}</span>
-                    <button class="ip-tag-delete" data-ip="${ip}" title="Hapus IP">&times;</button>
+                    <span>${escapeHtml(ip)}</span>
+                    <button type="button" class="ip-tag-delete" data-ip="${escapeHtml(ip)}" title="Hapus IP">&times;</button>
                 `;
                     ipListContainer.appendChild(ipTag);
                 });
             } else {
-                ipListContainer.innerHTML = '<p style="color: #aaa;">Belum ada IP yang didaftarkan.</p>';
+                ipListContainer.innerHTML = '<p class="h2h-muted">Belum ada IP yang didaftarkan.</p>';
             }
         } catch (error) {
             console.error(error);
-            ipListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
+            ipListContainer.innerHTML = `<div class="ui-state error">${escapeHtml(error.message)}</div>`;
         }
     }
 
+    async function saveWhitelistedIps(ips) {
+        const result = await requestUserApi('/whitelisted-ips', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ips })
+        });
+        showToast(result.message || 'Daftar IP whitelist diperbarui.');
+        await fetchAndDisplayWhitelistedIPs();
+        return result;
+    }
 
+    function loadIntegrasiSectionData() {
+        fetchApiKey();
+        fetchWebhookSecretStatus();
+        fetchAndDisplayWhitelistedIPs();
+    }
+
+    const integrasiSection = document.getElementById('integrasi');
+    if (integrasiSection && !integrasiSection.classList.contains('hidden')) {
+        loadIntegrasiSectionData();
+    }
 
     if (dashboardNavLinks.length > 0 && dashboardSections.length > 0) {
         dashboardNavLinks.forEach(link => {
@@ -745,8 +950,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
 
                 if (targetId === 'integrasi' && !apiKeyFetched) {
-                    fetchApiKey();
-                    fetchAndDisplayWhitelistedIPs();
+                    loadIntegrasiSectionData();
                 }
 
                 if (targetId === 'mutasi-saldo' && !mutasiLoaded) {
@@ -766,22 +970,150 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    if (generateApiKeyBtn) {
-        generateApiKeyBtn.addEventListener('click', async () => {
-            if (confirm('Anda yakin ingin membuat API Key baru? Key yang lama akan diganti dan tidak bisa digunakan lagi.')) {
-                try {
-                    const response = await fetch(`${API_URL}/generate-apikey`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.message);
-                    alert(result.message);
-                    apiKeyDisplay.textContent = result.apiKey;
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                }
+    attachH2HCopyButton(h2hCopyPrimaryBtn, () => (h2hRevealedPrimaryValue ? h2hRevealedPrimaryValue.textContent.trim() : ''));
+    attachH2HCopyButton(h2hCopySecondaryBtn, () => (h2hRevealedSecondaryValue ? h2hRevealedSecondaryValue.textContent.trim() : ''));
+
+    if (closeH2HSecretModalBtn) {
+        closeH2HSecretModalBtn.addEventListener('click', closeH2HSecretModal);
+    }
+    if (h2hAckSecretModalBtn) {
+        h2hAckSecretModalBtn.addEventListener('click', closeH2HSecretModal);
+    }
+    if (closeH2HConfirmModalBtn) {
+        closeH2HConfirmModalBtn.addEventListener('click', () => closeH2HConfirmModal());
+    }
+    if (h2hConfirmCancelBtn) {
+        h2hConfirmCancelBtn.addEventListener('click', () => closeH2HConfirmModal());
+    }
+    if (h2hConfirmModal) {
+        h2hConfirmModal.addEventListener('click', (e) => {
+            if (e.target === h2hConfirmModal) closeH2HConfirmModal();
+        });
+    }
+    if (h2hConfirmAcceptBtn) {
+        h2hConfirmAcceptBtn.addEventListener('click', async () => {
+            if (!pendingConfirmHandler || h2hActionBusy) return;
+            const action = pendingConfirmHandler;
+            h2hActionBusy = true;
+            h2hConfirmAcceptBtn.disabled = true;
+            if (h2hConfirmCancelBtn) h2hConfirmCancelBtn.disabled = true;
+            try {
+                await action();
+            } finally {
+                h2hActionBusy = false;
+                closeH2HConfirmModal(true);
             }
+        });
+    }
+
+    async function executeGenerateOrRegenerate(isRegenerate) {
+        if (generateApiKeyBtn) generateApiKeyBtn.disabled = true;
+        try {
+            const endpoint = isRegenerate ? '/apikey/regenerate' : '/generate-apikey';
+            const result = await requestUserApi(endpoint, { method: 'POST' });
+            renderApiKeyState({
+                hasApiKey: result.hasApiKey !== undefined ? result.hasApiKey : true,
+                prefix: result.prefix
+            });
+            apiKeyFetched = true;
+            if (result.webhookSecret) {
+                await fetchWebhookSecretStatus();
+            }
+            closeH2HConfirmModal(true);
+            openH2HSecretModal({
+                title: result.webhookSecret
+                    ? 'API Key & Webhook Secret Baru'
+                    : (isRegenerate ? 'API Key Baru (Regenerate)' : 'API Key H2H Baru'),
+                primaryLabel: 'API Key H2H (tampil sekali)',
+                primaryValue: result.apiKey,
+                secondaryValue: result.webhookSecret || ''
+            });
+            showToast(result.message || 'API Key berhasil dibuat.');
+        } catch (error) {
+            showToast(`Error: ${error.message}`);
+        } finally {
+            if (generateApiKeyBtn) generateApiKeyBtn.disabled = false;
+        }
+    }
+
+    if (generateApiKeyBtn) {
+        generateApiKeyBtn.addEventListener('click', () => {
+            if (currentHasApiKey) {
+                openH2HConfirmModal({
+                    title: 'Buat Ulang API Key H2H?',
+                    message: 'API Key lama akan segera dinonaktifkan dan tidak dapat digunakan lagi. Pastikan Anda memperbarui konfigurasi integrasi H2H Anda setelah key baru dibuat.',
+                    confirmLabel: 'Ya, Buat Ulang Key',
+                    danger: true,
+                    onConfirm: () => executeGenerateOrRegenerate(true)
+                });
+                return;
+            }
+            executeGenerateOrRegenerate(false);
+        });
+    }
+
+    if (revokeApiKeyBtn) {
+        revokeApiKeyBtn.addEventListener('click', () => {
+            if (!currentHasApiKey) return;
+            openH2HConfirmModal({
+                title: 'Cabut API Key H2H?',
+                message: 'API Key yang aktif akan langsung dicabut. Semua request ke /h2h/* menggunakan key ini akan ditolak sampai Anda membuat API Key baru.',
+                confirmLabel: 'Ya, Cabut API Key',
+                danger: true,
+                onConfirm: async () => {
+                    if (revokeApiKeyBtn) revokeApiKeyBtn.disabled = true;
+                    try {
+                        const result = await requestUserApi('/apikey', { method: 'DELETE' });
+                        renderApiKeyState({
+                            hasApiKey: result.hasApiKey,
+                            prefix: result.prefix
+                        });
+                        showToast(result.message || 'API Key berhasil dicabut.');
+                    } catch (error) {
+                        showToast(`Error: ${error.message}`);
+                    } finally {
+                        if (revokeApiKeyBtn) revokeApiKeyBtn.disabled = !currentHasApiKey;
+                    }
+                }
+            });
+        });
+    }
+
+    async function executeRotateWebhookSecret() {
+        if (rotateWebhookSecretBtn) rotateWebhookSecretBtn.disabled = true;
+        try {
+            const result = await requestUserApi('/webhook-secret/rotate', { method: 'POST' });
+            renderWebhookSecretState({
+                hasWebhookSecret: result.hasWebhookSecret !== undefined ? result.hasWebhookSecret : true,
+                prefix: result.prefix
+            });
+            closeH2HConfirmModal(true);
+            openH2HSecretModal({
+                title: 'Webhook Secret Baru',
+                primaryLabel: 'Webhook Secret HMAC-SHA256 (tampil sekali)',
+                primaryValue: result.webhookSecret
+            });
+            showToast(result.message || 'Webhook Secret berhasil diperbarui.');
+        } catch (error) {
+            showToast(`Error: ${error.message}`);
+        } finally {
+            if (rotateWebhookSecretBtn) rotateWebhookSecretBtn.disabled = false;
+        }
+    }
+
+    if (rotateWebhookSecretBtn) {
+        rotateWebhookSecretBtn.addEventListener('click', () => {
+            if (currentHasWebhookSecret) {
+                openH2HConfirmModal({
+                    title: 'Putar Webhook Secret?',
+                    message: 'Webhook Secret lama akan langsung diganti dengan secret baru. Webhook berikutnya akan ditandatangani menggunakan secret baru ini.',
+                    confirmLabel: 'Ya, Putar Secret',
+                    danger: true,
+                    onConfirm: executeRotateWebhookSecret
+                });
+                return;
+            }
+            executeRotateWebhookSecret();
         });
     }
 
@@ -867,66 +1199,52 @@ document.addEventListener('DOMContentLoaded', function () {
         whitelistIpForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = document.getElementById('whitelist-ip-input');
+            const submitButton = whitelistIpForm.querySelector('button[type="submit"]');
 
-            // Ambil daftar IP yang sudah ada dari tampilan tag
             const existingIpTags = document.querySelectorAll('#current-ips-list .ip-tag span');
             const existingIps = Array.from(existingIpTags).map(tag => tag.textContent);
-
-            // Ambil IP baru dari input, bersihkan, dan gabungkan dengan yang lama (hindari duplikat)
-            const newIpsFromInput = input.value.split(',').map(ip => ip.trim()).filter(ip => ip);
+            const newIpsFromInput = input.value.split(',').map(ip => ip.trim()).filter(Boolean);
+            if (newIpsFromInput.length === 0) {
+                showToast('Masukkan alamat IP atau rentang CIDR terlebih dahulu.');
+                return;
+            }
             const combinedIps = [...new Set([...existingIps, ...newIpsFromInput])];
 
+            if (submitButton) submitButton.disabled = true;
             try {
-                const response = await fetch(`${API_URL}/whitelisted-ips`, {
-                    method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ips: combinedIps })
-                });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message);
-
-                alert(result.message);
-                fetchAndDisplayWhitelistedIPs(); // Muat ulang daftar IP
+                await saveWhitelistedIps(combinedIps);
                 input.value = '';
             } catch (error) {
-                alert(`Error: ${error.message}`);
+                showToast(`Error: ${error.message}`);
+            } finally {
+                if (submitButton) submitButton.disabled = false;
             }
         });
     }
 
     if (currentIpsList) {
-        currentIpsList.addEventListener('click', async (e) => {
-            // Pastikan yang diklik adalah tombol hapus
-            if (e.target.matches('.ip-tag-delete, .ip-tag-delete *')) {
-                const button = e.target.closest('.ip-tag-delete');
-                const ipToDelete = button.dataset.ip;
+        currentIpsList.addEventListener('click', (e) => {
+            if (!e.target.matches('.ip-tag-delete, .ip-tag-delete *')) return;
+            const button = e.target.closest('.ip-tag-delete');
+            const ipToDelete = button.dataset.ip;
 
-                if (!confirm(`Anda yakin ingin menghapus IP "${ipToDelete}" dari whitelist?`)) {
-                    return;
+            openH2HConfirmModal({
+                title: 'Hapus IP Whitelist?',
+                message: `Anda yakin ingin menghapus "${ipToDelete}" dari daftar IP whitelist H2H?`,
+                confirmLabel: 'Ya, Hapus IP',
+                danger: true,
+                onConfirm: async () => {
+                    const currentIpTags = document.querySelectorAll('#current-ips-list .ip-tag span');
+                    const currentIps = Array.from(currentIpTags).map(tag => tag.textContent);
+                    const newIps = currentIps.filter(ip => ip !== ipToDelete);
+
+                    try {
+                        await saveWhitelistedIps(newIps);
+                    } catch (error) {
+                        showToast(`Error: ${error.message}`);
+                    }
                 }
-
-                // Ambil semua IP yang ada SAAT INI dari tampilan tag
-                const currentIpTags = document.querySelectorAll('#current-ips-list .ip-tag span');
-                const currentIps = Array.from(currentIpTags).map(tag => tag.textContent);
-
-                // Buat array baru TANPA IP yang ingin dihapus
-                const newIps = currentIps.filter(ip => ip !== ipToDelete);
-
-                try {
-                    const response = await fetch(`${API_URL}/whitelisted-ips`, {
-                        method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ips: newIps }) // Kirim array yang sudah diperbarui
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.message);
-
-                    alert(result.message);
-                    fetchAndDisplayWhitelistedIPs(); // Muat ulang daftar IP
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                }
-            }
+            });
         });
     }
 

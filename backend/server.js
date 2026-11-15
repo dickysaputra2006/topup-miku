@@ -1,5 +1,6 @@
 require('dotenv').config();
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit;
 const express = require('express');
 const fs = require('fs').promises;
 const { Pool } = require('pg');
@@ -10,6 +11,8 @@ const axios = require('axios');
 const crypto = require('crypto');
 const net = require('net');
 const { sendPasswordResetEmail } = require('./utils/mailer.js');
+const { isValidIpOrCidr, isLoopbackIp, isIpInAllowList } = require('./utils/networkSecurity.js');
+const { sendH2HWebhook, validateWebhookUrl, dispatchSafeH2HWebhook } = require('./utils/webhookClient.js');
 const { syncProductsWithFoxy, rollbackTransactionResources } = require('./utils/cronUtils.js');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
 const { checkAllMobapayPromosML, checkMobapayMlbbEligibility } = require('./utils/validators/stalk-ml-promo.js');
@@ -192,45 +195,27 @@ function hashResetToken(token) {
     return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function hashApiKey(apiKey) {
+    return crypto.createHash('sha256').update(String(apiKey)).digest('hex');
+}
+
+function timingSafeStringEqual(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    const bufA = Buffer.from(a, 'utf8');
+    const bufB = Buffer.from(b, 'utf8');
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+}
+
 function isValidApiKey(apiKey) {
-    return typeof apiKey === 'string' && /^[a-f0-9]{48}$/i.test(apiKey);
+    // Menerima key baru 32 byte (64 hex) dan key legacy 24 byte (48 hex) selama masa transisi
+    return typeof apiKey === 'string' && /^(?:[a-f0-9]{48}|[a-f0-9]{64})$/i.test(apiKey);
 }
 
-function isValidIpOrCidr(value) {
-    if (typeof value !== 'string') return false;
-    const trimmed = value.trim();
-    const [ip, prefix] = trimmed.split('/');
-    if (!net.isIP(ip)) return false;
-    if (prefix === undefined) return true;
-    if (!/^\d{1,3}$/.test(prefix)) return false;
-    const prefixNumber = Number(prefix);
-    return net.isIP(ip) === 4 ? prefixNumber >= 0 && prefixNumber <= 32 : prefixNumber >= 0 && prefixNumber <= 128;
-}
-
-function isPrivateHostname(hostname) {
-    const lower = hostname.toLowerCase();
-    if (lower === 'localhost' || lower.endsWith('.local')) return true;
-    if (net.isIP(lower) === 4) {
-        const parts = lower.split('.').map(Number);
-        return parts[0] === 10 ||
-            parts[0] === 127 ||
-            (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) ||
-            (parts[0] === 192 && parts[1] === 168) ||
-            (parts[0] === 169 && parts[1] === 254);
-    }
-    if (net.isIP(lower) === 6) {
-        return lower === '::1' || lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80');
-    }
-    return false;
-}
-
-function isValidHttpsCallbackUrl(value) {
-    try {
-        const parsed = new URL(value);
-        return parsed.protocol === 'https:' && !parsed.username && !parsed.password && !isPrivateHostname(parsed.hostname);
-    } catch (error) {
-        return false;
-    }
+function parsePositiveQuota(rawValue) {
+    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') return null;
+    const num = Number(rawValue);
+    return Number.isFinite(num) && num > 0 ? num : null;
 }
 
 function isValidPriceAmount(value) {
@@ -274,6 +259,8 @@ function getSafeOrderErrorMessage(error, fallback) {
         'Produk tidak tersedia untuk ID ini.',
         'Metode pembayaran akun tidak sesuai untuk produk ini.',
         'Konfigurasi Double Diamond tidak valid',
+        'Kuota transaksi harian H2H Anda telah tercapai.',
+        'Batas nominal transaksi harian H2H Anda telah tercapai.',
     ];
     return allowedMessages.some(allowed => message.startsWith(allowed)) ? message : fallback;
 }
@@ -480,6 +467,27 @@ const checkoutLimiter = rateLimit({
 const h2hLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 60,
+    keyGenerator: (req) => {
+        const rawApiKey = normalizeString(req.headers['x-api-key'], 128);
+        if (rawApiKey) {
+            return `h2h-key:${hashApiKey(rawApiKey)}`;
+        }
+        return `h2h-ip:${ipKeyGenerator(req.ip || '0.0.0.0')}`;
+    },
+    message: { success: false, message: 'Terlalu banyak permintaan H2H, silakan coba lagi nanti.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+const h2hUserLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 60,
+    keyGenerator: (req) => {
+        if (req.user && req.user.id !== undefined && req.user.id !== null) {
+            return `h2h-user:${req.user.id}`;
+        }
+        return `h2h-ip:${ipKeyGenerator(req.ip || '0.0.0.0')}`;
+    },
     message: { success: false, message: 'Terlalu banyak permintaan H2H, silakan coba lagi nanti.' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -759,18 +767,54 @@ const protectH2H = async (req, res, next) => {
         return res.status(403).json({ success: false, message: 'API Key tidak valid.' });
     }
     try {
-        
+        const keyHash = hashApiKey(apiKey);
         const sql = `
-            SELECT u.id, u.username, u.balance, u.api_key, u.role_id, u.h2h_callback_url, r.name as role_name 
+            SELECT u.id, u.username, u.balance, u.api_key, u.api_key_hash, u.api_key_prefix,
+                   u.role_id, u.h2h_callback_url, r.name as role_name 
             FROM users u 
             JOIN roles r ON u.role_id = r.id 
-            WHERE u.api_key = $1`;
-        const { rows } = await pool.query(sql, [apiKey]);
+            WHERE u.api_key_hash = $2 OR u.api_key = $1`;
+        const { rows } = await pool.query(sql, [apiKey, keyHash]);
 
         if (rows.length === 0) {
             return res.status(403).json({ success: false, message: 'API Key tidak valid.' });
         }
-        req.user = rows[0];
+
+        const matchedUser = rows[0];
+        const hasHash = typeof matchedUser.api_key_hash === 'string' && matchedUser.api_key_hash.length > 0;
+        const hasPlain = typeof matchedUser.api_key === 'string' && matchedUser.api_key.length > 0;
+
+        if (hasHash) {
+            if (!timingSafeStringEqual(matchedUser.api_key_hash, keyHash)) {
+                return res.status(403).json({ success: false, message: 'API Key tidak valid.' });
+            }
+        } else if (hasPlain) {
+            if (!timingSafeStringEqual(matchedUser.api_key, apiKey)) {
+                return res.status(403).json({ success: false, message: 'API Key tidak valid.' });
+            }
+            // Transisi lazy migration SEC-004 + SEC-007: hash & prefix disimpan, plaintext dihapus,
+            // dan h2h_webhook_secret disiapkan bila reseller lama belum memilikinya.
+            const keyPrefix = apiKey.slice(0, 8);
+            const candidateWebhookSecret = crypto.randomBytes(32).toString('hex');
+            try {
+                await pool.query(
+                    `UPDATE users
+                     SET api_key_hash = $1,
+                         api_key_prefix = $2,
+                         api_key = NULL,
+                         h2h_webhook_secret = COALESCE(NULLIF(h2h_webhook_secret, ''), $4)
+                     WHERE id = $3 AND (api_key_hash IS NULL OR api_key IS NOT NULL OR h2h_webhook_secret IS NULL OR h2h_webhook_secret = '')`,
+                    [keyHash, keyPrefix, matchedUser.id, candidateWebhookSecret]
+                );
+            } catch (_migErr) {
+                // Jangan blokir request valid bila update lazy migration gagal sementara
+            }
+        } else {
+            return res.status(403).json({ success: false, message: 'API Key tidak valid.' });
+        }
+
+        const { api_key: _plainKey, api_key_hash: _storedHash, ...safeUser } = matchedUser;
+        req.user = safeUser;
         next();
     } catch (error) {
         logSafeError('H2H Auth Error:', error);
@@ -780,43 +824,44 @@ const protectH2H = async (req, res, next) => {
 
 const protectH2HIp = async (req, res, next) => {
     const requestIp = req.ip;
-    
-    if (requestIp === '::1' || requestIp === '127.0.0.1') {
+    const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+
+    if (!isProduction && isLoopbackIp(requestIp)) {
         return next();
     }
 
     const apiKey = normalizeString(req.headers['x-api-key'], 128);
-    if (!apiKey) {
-        return next();
-    }
-    if (!isValidApiKey(apiKey)) {
+    if (!apiKey || !isValidApiKey(apiKey)) {
         return next();
     }
 
     try {
-        // --- LOGIKA BARU UNTUK MENDAPATKAN IP ASLI ---
-        // req.ip sudah cukup pintar jika 'trust proxy' diaktifkan.
-        // Kita tambahkan console.log untuk debugging.
-        const requestIp = req.ip;
-        console.log(`[IP Whitelist] Mengecek permintaan dari IP: ${requestIp}`);
-        // --- AKHIR LOGIKA BARU ---
-
-        const { rows } = await pool.query('SELECT whitelisted_ips FROM users WHERE api_key = $1', [apiKey]);
+        const keyHash = hashApiKey(apiKey);
+        const { rows } = await pool.query(
+            'SELECT id, whitelisted_ips, api_key, api_key_hash FROM users WHERE api_key_hash = $2 OR api_key = $1',
+            [apiKey, keyHash]
+        );
 
         if (rows.length > 0) {
             const user = rows[0];
-            const allowedIps = user.whitelisted_ips || [];
+            const hasHash = typeof user.api_key_hash === 'string' && user.api_key_hash.length > 0;
+            const hasPlain = typeof user.api_key === 'string' && user.api_key.length > 0;
+            if (hasHash && !timingSafeStringEqual(user.api_key_hash, keyHash)) {
+                return next();
+            }
+            if (!hasHash && hasPlain && !timingSafeStringEqual(user.api_key, apiKey)) {
+                return next();
+            }
 
-            if (Array.isArray(allowedIps) && allowedIps.length > 0) {
-                if (!allowedIps.includes(requestIp)) {
-                    console.warn(`[IP Whitelist] Akses DITOLAK untuk IP: ${requestIp} (API Key: ...${apiKey.slice(-4)})`);
-                    return res.status(403).json({ success: false, message: 'Alamat IP Anda tidak diizinkan.' });
-                }
+            const allowedIps = user.whitelisted_ips || [];
+            if (Array.isArray(allowedIps) && allowedIps.length > 0 && !isIpInAllowList(requestIp, allowedIps)) {
+                console.warn(`[IP Whitelist] Akses DITOLAK untuk IP: ${requestIp} (userId=${user.id || 'unknown'})`);
+                return res.status(403).json({ success: false, message: 'Alamat IP Anda tidak diizinkan.' });
             }
         }
         next();
     } catch (error) {
-        console.error('Error di middleware IP Whitelist:', error);
+        logSafeError('Error di middleware IP Whitelist:', error);
         res.status(500).json({ success: false, message: 'Server error saat validasi IP.' });
     }
 };
@@ -912,25 +957,117 @@ app.get('/api/user/balance-history', protect, async (req, res) => {
         res.status(500).json({ message: 'Server error saat mengambil riwayat saldo.' });
     }
 });
-app.post('/api/user/generate-apikey', protect, async (req, res) => {
+async function handleGenerateOrRegenerateApiKey(req, res) {
     try {
-        const newApiKey = crypto.randomBytes(24).toString('hex');
-        await pool.query('UPDATE users SET api_key = $1 WHERE id = $2', [newApiKey, req.user.id]);
-        res.json({ message: 'API Key baru berhasil dibuat! Harap simpan di tempat aman.', apiKey: newApiKey });
+        const newApiKey = crypto.randomBytes(32).toString('hex');
+        const apiKeyHash = hashApiKey(newApiKey);
+        const apiKeyPrefix = newApiKey.slice(0, 8);
+        const candidateWebhookSecret = crypto.randomBytes(32).toString('hex');
+
+        const result = await pool.query(
+            `UPDATE users
+             SET api_key = NULL,
+                 api_key_hash = $1,
+                 api_key_prefix = $2,
+                 h2h_webhook_secret = COALESCE(h2h_webhook_secret, $3)
+             WHERE id = $4
+             RETURNING api_key_prefix, (h2h_webhook_secret = $3) AS webhook_secret_created`,
+            [apiKeyHash, apiKeyPrefix, candidateWebhookSecret, req.user.id]
+        );
+        const updatedRow = result && result.rows && result.rows[0];
+        const responseBody = {
+            message: 'API Key baru berhasil dibuat! Harap simpan di tempat aman. Key ini hanya ditampilkan sekali.',
+            apiKey: newApiKey,
+            prefix: (updatedRow && updatedRow.api_key_prefix) || apiKeyPrefix,
+            hasApiKey: true,
+            status: 'active'
+        };
+        if (updatedRow && updatedRow.webhook_secret_created === true) {
+            responseBody.webhookSecret = candidateWebhookSecret;
+        }
+        res.json(responseBody);
     } catch (error) {
-        console.error('Error generating API key:', error);
+        logSafeError('Error generating API key:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
-});
+}
+
+async function handleRevokeApiKey(req, res) {
+    try {
+        await pool.query(
+            'UPDATE users SET api_key = NULL, api_key_hash = NULL, api_key_prefix = NULL WHERE id = $1',
+            [req.user.id]
+        );
+        res.json({
+            message: 'API Key berhasil dicabut.',
+            hasApiKey: false,
+            status: 'inactive',
+            prefix: null
+        });
+    } catch (error) {
+        logSafeError('Error revoking API key:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+    }
+}
+
+app.post('/api/user/generate-apikey', protect, handleGenerateOrRegenerateApiKey);
+app.post('/api/user/apikey/regenerate', protect, handleGenerateOrRegenerateApiKey);
+
 app.get('/api/user/apikey', protect, async (req, res) => {
     try {
-        const sql = 'SELECT api_key FROM users WHERE id = $1';
+        const sql = 'SELECT api_key_prefix, api_key_hash, api_key FROM users WHERE id = $1';
         const { rows } = await pool.query(sql, [req.user.id]);
         if (rows.length === 0) return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
-        res.json({ apiKey: rows[0].api_key });
+        const row = rows[0];
+        const hasApiKey = Boolean(row.api_key_hash || row.api_key);
+        const prefix = hasApiKey
+            ? (row.api_key_prefix || (row.api_key ? String(row.api_key).slice(0, 8) : null))
+            : null;
+        res.json({
+            hasApiKey,
+            status: hasApiKey ? 'active' : 'inactive',
+            prefix
+        });
     } catch (error) {
-        console.error('Error fetching API key:', error);
-        res.status(500).json({ message: 'Server error saat mengambil API key.' });
+        logSafeError('Error fetching API key status:', error);
+        res.status(500).json({ message: 'Server error saat mengambil status API key.' });
+    }
+});
+
+app.delete('/api/user/apikey', protect, handleRevokeApiKey);
+app.post('/api/user/apikey/revoke', protect, handleRevokeApiKey);
+
+app.get('/api/user/webhook-secret', protect, async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT h2h_webhook_secret FROM users WHERE id = $1', [req.user.id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+        const secret = rows[0].h2h_webhook_secret;
+        const hasWebhookSecret = typeof secret === 'string' && secret.length > 0;
+        res.json({
+            hasWebhookSecret,
+            status: hasWebhookSecret ? 'active' : 'inactive',
+            prefix: hasWebhookSecret ? secret.slice(0, 8) : null
+        });
+    } catch (error) {
+        logSafeError('Error fetching webhook secret status:', error);
+        res.status(500).json({ message: 'Server error saat mengambil status webhook secret.' });
+    }
+});
+
+app.post('/api/user/webhook-secret/rotate', protect, async (req, res) => {
+    try {
+        const newSecret = crypto.randomBytes(32).toString('hex');
+        await pool.query('UPDATE users SET h2h_webhook_secret = $1 WHERE id = $2', [newSecret, req.user.id]);
+        res.json({
+            message: 'Webhook secret baru berhasil dibuat! Harap simpan di tempat aman. Secret ini hanya ditampilkan sekali.',
+            webhookSecret: newSecret,
+            prefix: newSecret.slice(0, 8),
+            hasWebhookSecret: true,
+            status: 'active'
+        });
+    } catch (error) {
+        logSafeError('Error rotating webhook secret:', error);
+        res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
     }
 });
 app.get('/api/user/transactions', protect, async (req, res) => {
@@ -4133,7 +4270,7 @@ app.post('/api/foxy/callback', async (req, res) => {
     if (committedStatus && tx) {
         try {
             const metaRes = await pool.query(
-                `SELECT u.h2h_callback_url, p.name AS product_name
+                `SELECT u.h2h_callback_url, u.h2h_webhook_secret, p.name AS product_name
                  FROM users u
                  LEFT JOIN products p ON p.id = $2
                  WHERE u.id = $1`,
@@ -4149,11 +4286,15 @@ app.post('/api/foxy/callback', async (req, res) => {
                     serial_number: finalSerialNumber || 'Tidak ada SN',
                     timestamp: new Date().toISOString()
                 };
-                axios.post(meta.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
-                    .catch(err => console.error(
-                        `[callback] Webhook failed for invoice ${tx.invoice_id}:`,
-                        safeAxiosError(err, 'H2H Webhook')
-                    ));
+                void dispatchSafeH2HWebhook({
+                    dbPool: pool,
+                    userId: tx.user_id,
+                    callbackUrl: meta.h2h_callback_url,
+                    webhookSecret: meta.h2h_webhook_secret,
+                    payload: webhookPayload,
+                    invoiceId: tx.invoice_id,
+                    source: 'callback'
+                });
             }
         } catch (webhookErr) {
             logSafeError('[callback] Error preparing H2H webhook:', webhookErr);
@@ -4163,7 +4304,7 @@ app.post('/api/foxy/callback', async (req, res) => {
     return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
 });
 
-app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
+app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res) => {
     const client = await pool.connect();
     let inTransaction = false;
     try {
@@ -4278,6 +4419,36 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
         }
 
         if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
+
+        // Kuota harian H2H opsional via env (nonaktif by default kecuali diaktifkan > 0)
+        const maxDailyOrders = parsePositiveQuota(process.env.H2H_DAILY_MAX_ORDERS);
+        const maxDailyAmount = parsePositiveQuota(process.env.H2H_DAILY_MAX_AMOUNT);
+        if (maxDailyOrders !== null || maxDailyAmount !== null) {
+            const { rows: quotaRows } = await client.query(
+                `SELECT COUNT(*)::int AS order_count, COALESCE(SUM(price), 0)::bigint AS total_amount
+                 FROM transactions
+                 WHERE user_id = $1
+                   AND invoice_id LIKE 'H2H-%'
+                   AND created_at >= DATE_TRUNC('day', NOW())
+                   AND status IN ('Pending', 'Processing', 'Success')`,
+                [h2hUser.id]
+            );
+            const usage = quotaRows[0] || { order_count: 0, total_amount: 0 };
+            const currentCount = Number(usage.order_count || 0);
+            const currentAmount = Number(usage.total_amount || 0);
+
+            if (maxDailyOrders !== null && currentCount + 1 > maxDailyOrders) {
+                const quotaErr = new Error('Kuota transaksi harian H2H Anda telah tercapai.');
+                quotaErr.statusCode = 429;
+                throw quotaErr;
+            }
+            if (maxDailyAmount !== null && currentAmount + finalPrice > maxDailyAmount) {
+                const amountErr = new Error('Batas nominal transaksi harian H2H Anda telah tercapai.');
+                amountErr.statusCode = 429;
+                throw amountErr;
+            }
+        }
+
         const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
         const duplicate = await findRecentPendingDuplicate(client, h2hUser.id, productId, finalTargetForDB);
         if (duplicate) throw new Error(`Pesanan serupa masih pending (${duplicate.invoice_id}). Mohon tunggu sebelum mencoba lagi.`);
@@ -4439,13 +4610,14 @@ app.post('/h2h/order', protectH2HIp, protectH2H, async (req, res) => {
             await client.query('ROLLBACK').catch(() => {});
         }
         logSafeError("H2H Order error:", error);
-        res.status(400).json({ success: false, message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi H2H.') });
+        const statusCode = error && error.statusCode === 429 ? 429 : 400;
+        res.status(statusCode).json({ success: false, message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi H2H.') });
     } finally {
         client.release();
     }
 });
 
-app.get('/h2h/products', protectH2HIp, protectH2H, async (req, res) => {
+app.get('/h2h/products', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res) => {
     try {
         const h2hPartner = req.user;
         const partnerRoleName = h2hPartner.role_name.toLowerCase();
@@ -4540,11 +4712,15 @@ app.get('/h2h/products', protectH2HIp, protectH2H, async (req, res) => {
 
 /* Deprecated checkPendingTransactions removed in Phase 3B */
 
-app.put('/h2h/profile/callback', protectH2H, async (req, res) => {
+app.put('/h2h/profile/callback', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res) => {
     try {
         const callback_url = normalizeString(req.body.callback_url, 2048);
-        // Validasi URL sederhana
-        if (!callback_url || !isValidHttpsCallbackUrl(callback_url)) {
+        if (!callback_url) {
+            return res.status(400).json({ success: false, message: 'URL callback tidak valid.' });
+        }
+        try {
+            await validateWebhookUrl(callback_url);
+        } catch (_ssrfErr) {
             return res.status(400).json({ success: false, message: 'URL callback tidak valid.' });
         }
         
@@ -4556,7 +4732,7 @@ app.put('/h2h/profile/callback', protectH2H, async (req, res) => {
     }
 });
 
-app.get('/h2h/profile', protectH2H, async (req, res) => {
+app.get('/h2h/profile', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res) => {
 
     const profileData = {
         username: req.user.username,

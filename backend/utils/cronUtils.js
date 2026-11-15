@@ -3,6 +3,7 @@ const { Pool } = require('pg');
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
+const { dispatchSafeH2HWebhook } = require('./webhookClient.js');
 
 // ============================================================
 // === KONFIGURASI DATABASE ===
@@ -225,7 +226,7 @@ async function checkPendingTransactions() {
         const res = await pool.query(
             `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts,
                     t.flash_sale_id, t.flash_sale_restored,
-                    p.name as product_name, u.h2h_callback_url
+                    p.name as product_name, u.h2h_callback_url, u.h2h_webhook_secret
              FROM transactions t
              JOIN products p ON t.product_id = p.id
              JOIN users u ON t.user_id = u.id
@@ -347,7 +348,7 @@ async function checkPendingTransactions() {
             client.release();
         }
 
-        // Kirim H2H webhook HANYA setelah DB COMMIT berhasil
+        // Kirim H2H webhook HANYA setelah DB COMMIT berhasil (non-throwing, SSRF + HMAC SEC-007)
         if (committedStatus && tx.h2h_callback_url) {
             const webhookPayload = {
                 invoice_id: tx.invoice_id,
@@ -357,11 +358,15 @@ async function checkPendingTransactions() {
                 serial_number: serialNumber,
                 timestamp: new Date().toISOString()
             };
-            axios.post(tx.h2h_callback_url, webhookPayload, { timeout: PROVIDER_TIMEOUT_MS })
-                .catch(err => console.error(
-                    `[cron][pending] Webhook failed for invoice ${tx.invoice_id}:`,
-                    safeAxiosError(err, 'H2H Webhook')
-                ));
+            await dispatchSafeH2HWebhook({
+                dbPool: pool,
+                userId: tx.user_id,
+                callbackUrl: tx.h2h_callback_url,
+                webhookSecret: tx.h2h_webhook_secret,
+                payload: webhookPayload,
+                invoiceId: tx.invoice_id,
+                source: 'cron][pending'
+            });
         }
     }
 
