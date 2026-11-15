@@ -103,6 +103,119 @@ function safeErrorDetail(error) {
 }
 
 // ============================================================
+// === HELPER KOMPENSASI TRANSAKSI BERSAMA (SEC-002) ===
+// ============================================================
+/**
+ * Mengembalikan saldo user (idempoten via balance_history), kuota promo
+ * (promo_usages + promo_codes.uses_count), dan kuota flash sale
+ * (flash_sales.uses_count + transactions.flash_sale_restored).
+ *
+ * Pemanggil wajib sudah mengunci baris transaksi dengan `FOR UPDATE` dan
+ * memastikan status transaksi eligible sebelum memanggil helper ini.
+ */
+async function rollbackTransactionResources(client, tx, options = {}) {
+    const {
+        refundDescription = `Pengembalian dana untuk invoice ${tx && tx.invoice_id}`,
+        abortIfAlreadyRefunded = false,
+        markFailed = true
+    } = options;
+
+    if (!tx || !tx.invoice_id) {
+        throw new Error('Rollback ditolak: data transaksi tidak valid.');
+    }
+
+    const ALLOWED_ROLLBACK_STATUSES = ['Pending', 'Processing', 'Partial Refund'];
+    if (tx.status !== undefined && tx.status !== null && !ALLOWED_ROLLBACK_STATUSES.includes(tx.status)) {
+        throw new Error(`Rollback ditolak: status transaksi "${tx.status}" tidak dapat direfund atau diubah ke Failed.`);
+    }
+
+    const existingRefund = await client.query(
+        "SELECT id FROM balance_history WHERE reference_id = $1 AND type = 'Refund' LIMIT 1",
+        [tx.invoice_id]
+    );
+    const alreadyRefunded = Boolean(existingRefund && existingRefund.rows && existingRefund.rows.length > 0);
+
+    if (alreadyRefunded && abortIfAlreadyRefunded) {
+        return {
+            alreadyRefunded: true,
+            balanceRefunded: false,
+            promoRolledBackCount: 0,
+            flashSaleRestored: false
+        };
+    }
+
+    if (markFailed) {
+        const updateRes = tx.id
+            ? await client.query(
+                "UPDATE transactions SET status = 'Failed', updated_at = NOW() WHERE id = $1 AND status IN ('Pending', 'Processing', 'Partial Refund')",
+                [tx.id]
+            )
+            : await client.query(
+                "UPDATE transactions SET status = 'Failed', updated_at = NOW() WHERE invoice_id = $1 AND status IN ('Pending', 'Processing', 'Partial Refund')",
+                [tx.invoice_id]
+            );
+        if (updateRes && typeof updateRes.rowCount === 'number' && updateRes.rowCount === 0) {
+            throw new Error(`Rollback ditolak: transaksi ${tx.invoice_id} tidak lagi berstatus Pending/Processing/Partial Refund.`);
+        }
+    }
+
+    let balanceRefunded = false;
+    if (!alreadyRefunded) {
+        await client.query(
+            'UPDATE users SET balance = balance + $1 WHERE id = $2',
+            [tx.price, tx.user_id]
+        );
+        await client.query(
+            "INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, 'Refund', $3, $4)",
+            [tx.user_id, tx.price, refundDescription, tx.invoice_id]
+        );
+        balanceRefunded = true;
+    }
+
+    let promoRolledBackCount = 0;
+    if (tx.id) {
+        const promoUsageRes = await client.query(
+            'DELETE FROM promo_usages WHERE transaction_id = $1 RETURNING promo_code_id',
+            [tx.id]
+        );
+        for (const usage of (promoUsageRes && promoUsageRes.rows ? promoUsageRes.rows : [])) {
+            await client.query(
+                'UPDATE promo_codes SET uses_count = GREATEST(0, uses_count - 1), updated_at = NOW() WHERE id = $1',
+                [usage.promo_code_id]
+            );
+            promoRolledBackCount += 1;
+        }
+    }
+
+    let flashSaleRestored = false;
+    if (tx.flash_sale_id && !alreadyRefunded && !tx.flash_sale_restored) {
+        await client.query(
+            'UPDATE flash_sales SET uses_count = GREATEST(0, uses_count - 1), updated_at = NOW() WHERE id = $1',
+            [tx.flash_sale_id]
+        );
+        if (tx.id) {
+            await client.query(
+                'UPDATE transactions SET flash_sale_restored = TRUE, updated_at = NOW() WHERE id = $1',
+                [tx.id]
+            );
+        } else {
+            await client.query(
+                'UPDATE transactions SET flash_sale_restored = TRUE, updated_at = NOW() WHERE invoice_id = $1',
+                [tx.invoice_id]
+            );
+        }
+        flashSaleRestored = true;
+    }
+
+    return {
+        alreadyRefunded,
+        balanceRefunded,
+        promoRolledBackCount,
+        flashSaleRestored
+    };
+}
+
+// ============================================================
 // === FUNGSI: CEK STATUS TRANSAKSI PENDING ===
 // ============================================================
 async function checkPendingTransactions() {
@@ -111,11 +224,12 @@ async function checkPendingTransactions() {
     try {
         const res = await pool.query(
             `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts,
+                    t.flash_sale_id, t.flash_sale_restored,
                     p.name as product_name, u.h2h_callback_url
              FROM transactions t
              JOIN products p ON t.product_id = p.id
              JOIN users u ON t.user_id = u.id
-             WHERE t.status = 'Pending'`
+             WHERE t.status IN ('Pending', 'Processing')`
         );
         pendingTx = res.rows;
     } catch (err) {
@@ -165,7 +279,7 @@ async function checkPendingTransactions() {
             await client.query('BEGIN');
 
             const checkRes = await client.query(
-                'SELECT status, check_attempts FROM transactions WHERE id = $1 FOR UPDATE',
+                'SELECT status, check_attempts, flash_sale_id, flash_sale_restored FROM transactions WHERE id = $1 FOR UPDATE',
                 [tx.id]
             );
             if (checkRes.rows.length === 0) {
@@ -174,10 +288,17 @@ async function checkPendingTransactions() {
             }
             const currentDbTx = checkRes.rows[0];
 
-            if (currentDbTx.status !== 'Pending') {
+            if (!['Pending', 'Processing'].includes(currentDbTx.status)) {
                 await client.query('ROLLBACK');
                 continue;
             }
+
+            const txForRollback = {
+                ...tx,
+                status: currentDbTx.status,
+                flash_sale_id: currentDbTx.flash_sale_id !== undefined ? currentDbTx.flash_sale_id : tx.flash_sale_id,
+                flash_sale_restored: currentDbTx.flash_sale_restored !== undefined ? currentDbTx.flash_sale_restored : tx.flash_sale_restored
+            };
 
             if (isNotFound) {
                 const MAX_ATTEMPTS = 5;
@@ -189,19 +310,9 @@ async function checkPendingTransactions() {
                     console.log(`[cron][pending] Invoice ${tx.invoice_id}: not found at provider (attempt ${currentDbTx.check_attempts + 1}/${MAX_ATTEMPTS}).`);
                 } else {
                     finalStatus = 'Failed';
-                    await client.query(
-                        'UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2',
-                        [finalStatus, tx.id]
-                    );
-                    await client.query(
-                        'UPDATE users SET balance = balance + $1 WHERE id = $2',
-                        [tx.price, tx.user_id]
-                    );
-                    const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} karena: Transaksi kadaluarsa di provider (Cron)`;
-                    await client.query(
-                        'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
-                        [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]
-                    );
+                    await rollbackTransactionResources(client, txForRollback, {
+                        refundDescription: `Pengembalian dana untuk invoice ${tx.invoice_id} karena: Transaksi kadaluarsa di provider (Cron)`
+                    });
                     console.log(`[cron][pending] Invoice ${tx.invoice_id}: marked Failed (max attempts). Refunded.`);
                 }
             } else if (foxyStatus === 'SUCCESS') {
@@ -213,19 +324,9 @@ async function checkPendingTransactions() {
                 console.log(`[cron][pending] Invoice ${tx.invoice_id}: resolved as Success.`);
             } else if (foxyStatus === 'FAILED' || foxyStatus === 'REFUNDED') {
                 finalStatus = 'Failed';
-                await client.query(
-                    'UPDATE transactions SET status = $1, updated_at = NOW() WHERE id = $2',
-                    [finalStatus, tx.id]
-                );
-                await client.query(
-                    'UPDATE users SET balance = balance + $1 WHERE id = $2',
-                    [tx.price, tx.user_id]
-                );
-                const historyDesc = `Pengembalian dana untuk invoice ${tx.invoice_id} karena: Gagal/Refund dari provider (Cron)`;
-                await client.query(
-                    'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
-                    [tx.user_id, tx.price, 'Refund', historyDesc, tx.invoice_id]
-                );
+                await rollbackTransactionResources(client, txForRollback, {
+                    refundDescription: `Pengembalian dana untuk invoice ${tx.invoice_id} karena: Gagal/Refund dari provider (Cron)`
+                });
                 console.log(`[cron][pending] Invoice ${tx.invoice_id}: resolved as Failed. Refunded.`);
             } else if (foxyStatus === 'PARTIAL_REFUND') {
                 // Tidak auto-refund — butuh review manual admin
@@ -446,4 +547,4 @@ async function runAllCronJobs() {
     return results;
 }
 
-module.exports = { checkPendingTransactions, syncProductsWithFoxy, runAllCronJobs };
+module.exports = { checkPendingTransactions, syncProductsWithFoxy, runAllCronJobs, rollbackTransactionResources, pool };

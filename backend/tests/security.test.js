@@ -161,28 +161,57 @@ describe('Security: Error Exposure Tests', () => {
         assert.strictEqual(res.status, 403);
     });
 
-    test('should reject invalid callback status', async () => {
-        const callbackUrl = `http://127.0.0.1:${server.address().port}/api/foxy/callback`;
-        
+    // Perubahan kontrak SEC-001: sebelumnya tes "should reject invalid callback status" memeriksa
+    // penolakan 400 atas req.body.status = 'HACKED'. Pada SEC-001 (Zero-Trust Payload), field status/sn/message
+    // pada req.body tidak lagi dipercaya atau divalidasi langsung; perlindungan status tidak valid tetap berlaku
+    // melalui sumber otoritatif Foxy GET /v1/status/:trx_id (status selain whitelist tidak boleh mengubah DB),
+    // sementara respons HTTP untuk token valid tetap 200 { message: 'Callback berhasil diproses.' } agar provider tidak retry tanpa henti.
+    test('should ignore invalid status from body/provider and never mutate DB', async () => {
+        const callbackUrl = `http://127.0.0.1:${server.address().port}/api/foxy/callback?token=test-cb-secret`;
+        process.env.FOXY_CALLBACK_SECRET = 'test-cb-secret';
+
+        const axios = require('axios');
+        const origGet = axios.get;
+        let statusUpdateCalled = false;
+        axios.get = async () => ({
+            data: { status: true, data: { status: 'HACKED' } }
+        });
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 10, status: 'Pending', price: 1000, product_id: 1, provider_trx_id: 'TRX-BODY-IGN-1' }] };
+            }
+            return { rows: [] };
+        });
+
         mock.method(pool, 'connect', async () => ({
             query: async (sql) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK') return {};
+                if (typeof sql === 'string' && sql.includes('UPDATE transactions')) {
+                    statusUpdateCalled = true;
+                }
                 return { rows: [] };
             },
             release: () => {}
         }));
 
-        const res = await fetch(callbackUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trx_id: '123', status: 'HACKED' })
-        });
+        try {
+            const res = await fetch(callbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'TRX-BODY-IGN-1', status: 'HACKED', sn: 'EVIL-SN' })
+            });
 
-        assert.strictEqual(res.status, 400);
-        const data = await res.json();
-        assert.strictEqual(data.message, 'Status tidak valid.');
-        
-        pool.connect.mock.restore();
+            assert.strictEqual(res.status, 200);
+            const data = await res.json();
+            assert.deepStrictEqual(data, { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(statusUpdateCalled, false, 'Invalid status from provider must not mutate DB');
+        } finally {
+            axios.get = origGet;
+            process.env.FOXY_CALLBACK_SECRET = '';
+            pool.connect.mock.restore();
+            pool.query.mock.restore();
+        }
     });
 
     test('should apply rate limiter to register endpoint', async () => {
@@ -195,7 +224,8 @@ describe('Security: Error Exposure Tests', () => {
     });
 
     test('should save provider_sn on successful callback', async () => {
-        const callbackUrl = `http://127.0.0.1:${server.address().port}/api/foxy/callback`;
+        process.env.FOXY_CALLBACK_SECRET = 'test-cb-secret';
+        const callbackUrl = `http://127.0.0.1:${server.address().port}/api/foxy/callback?token=test-cb-secret`;
         
         let updateQueryExecuted = false;
         
@@ -205,13 +235,18 @@ describe('Security: Error Exposure Tests', () => {
             data: { status: true, data: { status: 'SUCCESS', sn: 'VOUCHER123' } }
         });
 
-        mock.method(pool, 'query', async () => ({ rows: [] }));
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 1, status: 'Pending', price: 1000, product_id: 1, provider_trx_id: 'CB-SN-123' }] };
+            }
+            return { rows: [] };
+        });
         
         mock.method(pool, 'connect', async () => ({
             query: async (sql, params) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
                 if (sql.includes('SELECT * FROM transactions')) {
-                    return { rows: [{ id: 1, invoice_id: 'TRX-123', user_id: 1, status: 'Pending', price: 1000 }] };
+                    return { rows: [{ id: 1, invoice_id: 'TRX-123', user_id: 1, product_id: 1, status: 'Pending', price: 1000, provider_trx_id: 'CB-SN-123' }] };
                 }
                 if (sql.includes("UPDATE transactions SET status = 'Success', provider_sn = $1")) {
                     if (params && params[0] === 'VOUCHER123') {
@@ -223,21 +258,27 @@ describe('Security: Error Exposure Tests', () => {
             release: () => {}
         }));
 
-        const res = await fetch(callbackUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trx_id: '123', status: 'SUCCESS', sn: 'VOUCHER123' })
-        });
+        try {
+            const res = await fetch(callbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'CB-SN-123', status: 'SUCCESS', sn: 'VOUCHER123' })
+            });
 
-        axios.get = origGet;
-        assert.strictEqual(res.status, 200);
-        assert.ok(updateQueryExecuted, 'UPDATE query with provider_sn should be executed');
-        
-        pool.connect.mock.restore();
-        pool.query.mock.restore();
+            assert.strictEqual(res.status, 200);
+            const data = await res.json();
+            assert.deepStrictEqual(data, { message: 'Callback berhasil diproses.' });
+            assert.ok(updateQueryExecuted, 'UPDATE query with provider_sn should be executed');
+        } finally {
+            axios.get = origGet;
+            process.env.FOXY_CALLBACK_SECRET = '';
+            pool.connect.mock.restore();
+            pool.query.mock.restore();
+        }
     });
 
     test('should accept PARTIAL_REFUND callback with HTTP 200', async () => {
+        process.env.FOXY_CALLBACK_SECRET = 'test-cb-secret';
         const callbackUrl = `http://127.0.0.1:${server.address().port}/api/foxy/callback`;
 
         let partialRefundUpdateExecuted = false;
@@ -249,13 +290,18 @@ describe('Security: Error Exposure Tests', () => {
             data: { status: true, data: { status: 'PARTIAL_REFUND' } }
         });
 
-        mock.method(pool, 'query', async () => ({ rows: [] }));
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 1, status: 'Pending', price: 5000, product_id: 1, provider_trx_id: 'PR-TRX-001' }] };
+            }
+            return { rows: [] };
+        });
 
         mock.method(pool, 'connect', async () => ({
             query: async (sql) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
                 if (sql.includes('SELECT * FROM transactions')) {
-                    return { rows: [{ id: 1, invoice_id: 'TRX-PR1', user_id: 1, status: 'Pending', price: 5000 }] };
+                    return { rows: [{ id: 1, invoice_id: 'TRX-PR1', user_id: 1, product_id: 1, status: 'Pending', price: 5000, provider_trx_id: 'PR-TRX-001' }] };
                 }
                 if (sql.includes("status = 'Partial Refund'")) {
                     partialRefundUpdateExecuted = true;
@@ -268,19 +314,24 @@ describe('Security: Error Exposure Tests', () => {
             release: () => {}
         }));
 
-        const res = await fetch(callbackUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trx_id: 'PR-TRX-001', status: 'PARTIAL_REFUND' })
-        });
+        try {
+            const res = await fetch(callbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-callback-token': 'test-cb-secret' },
+                body: JSON.stringify({ trx_id: 'PR-TRX-001', status: 'PARTIAL_REFUND' })
+            });
 
-        axios.get = origGet;
-        assert.strictEqual(res.status, 200, 'PARTIAL_REFUND callback should return 200');
-        assert.ok(partialRefundUpdateExecuted, "DB should be updated to 'Partial Refund'");
-        assert.strictEqual(balanceModified, false, 'Balance should NOT be modified on PARTIAL_REFUND');
-
-        pool.connect.mock.restore();
-        pool.query.mock.restore();
+            assert.strictEqual(res.status, 200, 'PARTIAL_REFUND callback should return 200');
+            const data = await res.json();
+            assert.deepStrictEqual(data, { message: 'Callback berhasil diproses.' });
+            assert.ok(partialRefundUpdateExecuted, "DB should be updated to 'Partial Refund'");
+            assert.strictEqual(balanceModified, false, 'Balance should NOT be modified on PARTIAL_REFUND');
+        } finally {
+            axios.get = origGet;
+            process.env.FOXY_CALLBACK_SECRET = '';
+            pool.connect.mock.restore();
+            pool.query.mock.restore();
+        }
     });
 
     test('should enforce FOXY_CALLBACK_SECRET when configured', async () => {
@@ -3389,6 +3440,7 @@ describe('Phase 8: Audit 2 Concurrency & Hardening Guards', () => {
     });
 
     test('POST /api/foxy/callback — FAILED merollback kuota promo & cegah double refund via balance_history', async () => {
+        process.env.FOXY_CALLBACK_SECRET = 'test-cb-secret';
         const axios = require('axios');
         const origGet = axios.get;
         axios.get = async () => ({
@@ -3398,12 +3450,17 @@ describe('Phase 8: Audit 2 Concurrency & Hardening Guards', () => {
         let balanceIncremented = false;
         let promoDecremented = false;
 
-        mock.method(pool, 'query', async () => ({ rows: [] }));
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 501, status: 'Pending', price: 15000, product_id: 1, provider_trx_id: 'WEB-FAIL-501' }] };
+            }
+            return { rows: [] };
+        });
         mock.method(pool, 'connect', async () => ({
             query: async (sql) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
                 if (typeof sql === 'string' && sql.includes('SELECT * FROM transactions')) {
-                    return { rows: [{ id: 501, invoice_id: 'TRX-FAIL-PROMO', user_id: 9, product_id: 1, status: 'Pending', price: 15000 }] };
+                    return { rows: [{ id: 501, invoice_id: 'TRX-FAIL-PROMO', user_id: 9, product_id: 1, status: 'Pending', price: 15000, provider_trx_id: 'WEB-FAIL-501' }] };
                 }
                 if (typeof sql === 'string' && sql.includes("type = 'Refund'")) {
                     // Simulasikan sudah ada refund di balance_history
@@ -3423,19 +3480,24 @@ describe('Phase 8: Audit 2 Concurrency & Hardening Guards', () => {
             release: () => {}
         }));
 
-        const res = await fetch(`${baseUrl}/api/foxy/callback`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ trx_id: 'WEB-FAIL-501', status: 'FAILED' })
-        });
+        try {
+            const res = await fetch(`${baseUrl}/api/foxy/callback?token=test-cb-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'WEB-FAIL-501', status: 'FAILED' })
+            });
 
-        axios.get = origGet;
-        assert.strictEqual(res.status, 200);
-        assert.strictEqual(balanceIncremented, false, 'Should skip balance increment if Refund already exists in balance_history');
-        assert.strictEqual(promoDecremented, true, 'Should decrement promo_codes.uses_count when order fails');
-
-        pool.connect.mock.restore();
-        pool.query.mock.restore();
+            assert.strictEqual(res.status, 200);
+            const data = await res.json();
+            assert.deepStrictEqual(data, { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(balanceIncremented, false, 'Should skip balance increment if Refund already exists in balance_history');
+            assert.strictEqual(promoDecremented, true, 'Should decrement promo_codes.uses_count when order fails');
+        } finally {
+            axios.get = origGet;
+            process.env.FOXY_CALLBACK_SECRET = '';
+            pool.connect.mock.restore();
+            pool.query.mock.restore();
+        }
     });
 
     test('GET /api/admin/products — menyertakan p.validation_config pada query dan response', async () => {
@@ -4037,6 +4099,1618 @@ describe('Phase 10: SEC-006 Dependency Vulnerability Hardening', () => {
         } finally {
             pool.query = origQuery;
             await new Promise(resolve => srv.close(resolve));
+        }
+    });
+});
+
+describe('Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening', () => {
+    const jwt = require('jsonwebtoken');
+    const axios = require('axios');
+    const cronUtils = require('../utils/cronUtils');
+    const cronPool = cronUtils.pool;
+    const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+
+    let server;
+    let baseUrl;
+    let origPoolQuery;
+    let origPoolConnect;
+    let origCronQuery;
+    let origCronConnect;
+    let origAxiosGet;
+    let origAxiosPost;
+
+    function makeUserToken(id = 42, role = 'BRONZE') {
+        return jwt.sign({ id, username: `user${id}`, role }, JWT_SECRET, { expiresIn: '1h' });
+    }
+
+    function makeAdminToken(id = 1) {
+        return jwt.sign({ id, username: 'admin', role: 'Admin' }, JWT_SECRET, { expiresIn: '1h' });
+    }
+
+    before(() => {
+        origPoolQuery = pool.query;
+        origPoolConnect = pool.connect;
+        origCronQuery = cronPool ? cronPool.query : null;
+        origCronConnect = cronPool ? cronPool.connect : null;
+        origAxiosGet = axios.get;
+        origAxiosPost = axios.post;
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        pool.query = origPoolQuery;
+        pool.connect = origPoolConnect;
+        if (cronPool && origCronQuery) cronPool.query = origCronQuery;
+        if (cronPool && origCronConnect) cronPool.connect = origCronConnect;
+        axios.get = origAxiosGet;
+        axios.post = origAxiosPost;
+        await new Promise(resolve => server.close(resolve));
+    });
+
+    // (a1) POST /api/order: provider fails AFTER callback/cron already marked transaction 'Success'
+    test('(a) POST /api/order — provider gagal setelah status Success tidak boleh refund atau timpa ke Failed', async () => {
+        const token = makeUserToken(101);
+        let statusUpdatedToFailed = false;
+        let refundCredited = false;
+        let promoRolledBack = false;
+        let flashSaleRolledBack = false;
+        let phase2SelectSql = '';
+
+        axios.get = async () => ({
+            data: { data: [{ product_code: 'ML-100', product_price: 18000 }] }
+        });
+        axios.post = async () => ({
+            data: { status: false, message: 'Provider rejected late' }
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('JOIN games g')) {
+                    return {
+                        rows: [{
+                            id: 11,
+                            name: 'Diamond 50',
+                            provider_sku: 'ML-100',
+                            price: 20000,
+                            status: 'Active',
+                            game_id: 1,
+                            needs_server_id: false,
+                            validation_config: null,
+                            use_manual_prices: false,
+                            manual_prices: {},
+                            use_custom_margin: false
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM users u JOIN roles r')) {
+                    return { rows: [{ balance: 100000, role_id: 1, role_name: 'BRONZE' }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM roles WHERE id')) {
+                    return { rows: [{ margin_percent: 10 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM flash_sales')) {
+                    return { rows: [{ id: 88, discount_price: 19000 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('SELECT id, invoice_id FROM transactions')) {
+                    return { rows: [] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance -')) {
+                    return { rowCount: 1 };
+                }
+                if (typeof sql === 'string' && sql.includes('INSERT INTO transactions')) {
+                    return { rows: [{ id: 7001 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FOR UPDATE') && sql.includes('FROM transactions WHERE invoice_id')) {
+                    phase2SelectSql = sql;
+                    // Simulasi callback/cron sudah menandai 'Success' sebelum kompensasi berjalan
+                    if (sql.includes("status = 'Pending'")) {
+                        return { rows: [] };
+                    }
+                    return { rows: [{ id: 7001, status: 'Success', flash_sale_id: 88, flash_sale_restored: false }] };
+                }
+                if (typeof sql === 'string' && sql.includes("UPDATE transactions SET status = 'Failed'")) {
+                    statusUpdatedToFailed = true;
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance +')) {
+                    refundCredited = true;
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE promo_codes SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    promoRolledBack = true;
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE flash_sales SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    flashSaleRolledBack = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            const res = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 11, targetGameId: '12345678' })
+            });
+
+            assert.ok(phase2SelectSql.length > 0, 'Phase 2 lock query must execute');
+            assert.ok(!phase2SelectSql.includes("status = 'Pending'"), 'Phase 2 lock query must NOT filter by status = Pending');
+            assert.strictEqual(statusUpdatedToFailed, false, 'Must NOT overwrite Success transaction to Failed');
+            assert.strictEqual(refundCredited, false, 'Must NOT refund balance when transaction is already Success');
+            assert.strictEqual(promoRolledBack, false, 'Must NOT rollback promo when transaction is Success');
+            assert.strictEqual(flashSaleRolledBack, false, 'Must NOT rollback flash sale when transaction is Success');
+            assert.strictEqual(res.status, 201, 'Already-Success transaction should return 201 instead of telling user balance was not deducted');
+        } finally {
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    // (a2) POST /h2h/order: provider fails AFTER callback/cron already marked transaction 'Success'
+    test('(a) POST /h2h/order — provider gagal setelah status Success tidak boleh refund atau timpa ke Failed', async () => {
+        const apiKey = 'b'.repeat(48);
+        let statusUpdatedToFailed = false;
+        let refundCredited = false;
+        let flashSaleRolledBack = false;
+        let phase2SelectSql = '';
+
+        axios.get = async () => ({
+            data: { data: [{ product_code: 'ML-100', product_price: 18000 }] }
+        });
+        axios.post = async () => ({
+            data: { status: false, message: 'Provider rejected late' }
+        });
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('u.api_key = $1')) {
+                return { rows: [{ id: 102, username: 'h2hpartner', role_id: 1, role_name: 'PARTNER', api_key: apiKey, balance: 100000 }] };
+            }
+            if (typeof sql === 'string' && sql.includes('whitelisted_ips')) {
+                return { rows: [{ whitelisted_ips: [] }] };
+            }
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('JOIN games g')) {
+                    return {
+                        rows: [{
+                            id: 12,
+                            name: 'Diamond 50 H2H',
+                            provider_sku: 'ML-100',
+                            price: 20000,
+                            status: 'Active',
+                            game_id: 1,
+                            needs_server_id: false,
+                            validation_config: null,
+                            use_manual_prices: false,
+                            manual_prices: {},
+                            use_custom_margin: false
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes('SELECT balance, role_id FROM users WHERE id')) {
+                    return { rows: [{ balance: 100000, role_id: 1 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM roles WHERE id')) {
+                    return { rows: [{ margin_percent: 10 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM flash_sales')) {
+                    return { rows: [{ id: 89, discount_price: 19000 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('SELECT id, invoice_id FROM transactions')) {
+                    return { rows: [] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance -')) {
+                    return { rowCount: 1 };
+                }
+                if (typeof sql === 'string' && sql.includes('INSERT INTO transactions')) {
+                    return { rows: [{ id: 7002 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FOR UPDATE') && sql.includes('FROM transactions WHERE invoice_id')) {
+                    phase2SelectSql = sql;
+                    if (sql.includes("status = 'Pending'")) {
+                        return { rows: [] };
+                    }
+                    return { rows: [{ id: 7002, status: 'Success', flash_sale_id: 89, flash_sale_restored: false }] };
+                }
+                if (typeof sql === 'string' && sql.includes("UPDATE transactions SET status = 'Failed'")) {
+                    statusUpdatedToFailed = true;
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance +')) {
+                    refundCredited = true;
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE flash_sales SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    flashSaleRolledBack = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            const res = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 12, targetGameId: '12345678' })
+            });
+
+            assert.ok(phase2SelectSql.length > 0, 'H2H Phase 2 lock query must execute');
+            assert.ok(!phase2SelectSql.includes("status = 'Pending'"), 'H2H Phase 2 lock query must NOT filter by status = Pending');
+            assert.strictEqual(statusUpdatedToFailed, false, 'H2H must NOT overwrite Success transaction to Failed');
+            assert.strictEqual(refundCredited, false, 'H2H must NOT refund balance when transaction is already Success');
+            assert.strictEqual(flashSaleRolledBack, false, 'H2H must NOT rollback flash sale when transaction is Success');
+            assert.strictEqual(res.status, 201, 'H2H already-Success transaction should return 201');
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    // (b) SEC-003: large promo must NOT push finalPrice below currentProviderCost
+    test('(b) POST /api/order — promo besar tidak dapat menurunkan harga akhir di bawah modal provider', async () => {
+        const token = makeUserToken(103);
+        let balanceDeducted = false;
+        let txInserted = false;
+        let promoChecked = false;
+
+        axios.get = async () => ({
+            data: { data: [{ product_code: 'ML-100', product_price: 18000 }] }
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('JOIN games g')) {
+                    return {
+                        rows: [{
+                            id: 21,
+                            name: 'Diamond 100',
+                            provider_sku: 'ML-100',
+                            price: 20000,
+                            status: 'Active',
+                            game_id: 1,
+                            needs_server_id: false,
+                            validation_config: null,
+                            use_manual_prices: false,
+                            manual_prices: {},
+                            use_custom_margin: false
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM users u JOIN roles r')) {
+                    return { rows: [{ balance: 100000, role_id: 1, role_name: 'BRONZE' }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM roles WHERE id')) {
+                    return { rows: [{ margin_percent: 10 }] }; // pre-promo price = 22000 (>= modal 18000)
+                }
+                if (typeof sql === 'string' && sql.includes('FROM flash_sales')) {
+                    return { rows: [] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM promo_codes')) {
+                    promoChecked = true;
+                    // Fixed discount 10000 drops 22000 -> 12000 (< provider cost 18000)
+                    return {
+                        rows: [{
+                            id: 301,
+                            code: 'BIGDISCOUNT',
+                            type: 'fixed',
+                            value: 10000,
+                            is_active: true,
+                            expires_at: null,
+                            max_uses: 100,
+                            uses_count: 0,
+                            rules: {}
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance -')) {
+                    balanceDeducted = true;
+                    return { rowCount: 1 };
+                }
+                if (typeof sql === 'string' && sql.includes('INSERT INTO transactions')) {
+                    txInserted = true;
+                    return { rows: [{ id: 7010 }] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            const res = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 21, targetGameId: '12345678', promoCode: 'BIGDISCOUNT' })
+            });
+
+            assert.strictEqual(promoChecked, true, 'Promo query must be reached before cost guard rejection');
+            assert.strictEqual(res.status, 400, 'Order with promo pushing price below provider cost must be rejected with 400');
+            const errData = await res.json();
+            assert.ok(errData.message && errData.message.includes('harga modal'), 'Error message must explain final price cannot go below provider cost');
+            assert.strictEqual(balanceDeducted, false, 'Balance must NOT be deducted when promo causes price < provider cost');
+            assert.strictEqual(txInserted, false, 'Transaction must NOT be created when promo causes price < provider cost');
+        } finally {
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+        }
+    });
+
+    // (c1) Callback Foxy FAILED restores BOTH flash_sales.uses_count and promo_usages, never double-refunds
+    test('(c1) POST /api/foxy/callback — memulihkan flash_sales.uses_count & promo_usages serta menandai flash_sale_restored', async () => {
+        process.env.FOXY_CALLBACK_SECRET = 'test-cb-secret';
+        axios.get = async () => ({
+            data: { status: true, data: { status: 'FAILED' } }
+        });
+
+        let refundCount = 0;
+        let promoRolledBack = false;
+        let flashSaleDecremented = 0;
+        let flashSaleRestoredMarked = false;
+        let alreadyRefunded = false;
+        let txFlashSaleRestored = false;
+        let txStatus = 'Pending';
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 801, status: txStatus, price: 15000, product_id: 1, provider_trx_id: 'WEB-CB-FS-1' }] };
+            }
+            return { rows: [] };
+        });
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('SELECT * FROM transactions WHERE provider_trx_id')) {
+                    return {
+                        rows: [{
+                            id: 801,
+                            invoice_id: 'TRX-CB-FS',
+                            user_id: 19,
+                            product_id: 1,
+                            status: txStatus,
+                            price: 15000,
+                            provider_trx_id: 'WEB-CB-FS-1',
+                            flash_sale_id: 55,
+                            flash_sale_restored: txFlashSaleRestored
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes("UPDATE transactions SET status = 'Failed'")) {
+                    txStatus = 'Failed';
+                    return { rowCount: 1 };
+                }
+                if (typeof sql === 'string' && sql.includes("type = 'Refund'")) {
+                    return { rows: alreadyRefunded ? [{ id: 1 }] : [] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance +')) {
+                    refundCount += 1;
+                    alreadyRefunded = true;
+                }
+                if (typeof sql === 'string' && sql.includes('DELETE FROM promo_usages')) {
+                    return { rows: [{ promo_code_id: 77 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE promo_codes SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    promoRolledBack = true;
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE flash_sales SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    flashSaleDecremented += 1;
+                }
+                if (typeof sql === 'string' && sql.includes('flash_sale_restored = TRUE')) {
+                    flashSaleRestoredMarked = true;
+                    txFlashSaleRestored = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            const res1 = await fetch(`${baseUrl}/api/foxy/callback?token=test-cb-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'WEB-CB-FS-1', status: 'FAILED' })
+            });
+            assert.strictEqual(res1.status, 200);
+            assert.strictEqual(refundCount, 1);
+            assert.strictEqual(promoRolledBack, true);
+            assert.strictEqual(flashSaleDecremented, 1, 'Callback FAILED must decrement flash_sales.uses_count');
+            assert.strictEqual(flashSaleRestoredMarked, true, 'Callback FAILED must mark flash_sale_restored = TRUE');
+
+            // Simulasi pemanggilan ulang tidak boleh refund atau decrement flash_sale 2x
+            const res2 = await fetch(`${baseUrl}/api/foxy/callback?token=test-cb-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'WEB-CB-FS-1', status: 'FAILED' })
+            });
+            assert.strictEqual(res2.status, 200);
+            assert.strictEqual(refundCount, 1, 'Balance must NEVER be refunded twice');
+            assert.strictEqual(flashSaleDecremented, 1, 'flash_sales.uses_count must NEVER be decremented twice');
+        } finally {
+            process.env.FOXY_CALLBACK_SECRET = '';
+            pool.connect.mock.restore();
+            pool.query.mock.restore();
+            axios.get = origAxiosGet;
+        }
+    });
+
+    // (c2) Cron checkPendingTransactions restores flash_sales.uses_count & promo_usages, never double-refunds
+    test('(c2) cronUtils checkPendingTransactions — FAILED memulihkan flash_sales.uses_count & promo_usages serta anti double-refund', async () => {
+        assert.ok(cronPool, 'cronUtils must export pool for testing');
+        axios.get = async () => ({
+            data: { status: true, data: { status: 'FAILED' } }
+        });
+
+        let refundCount = 0;
+        let promoRolledBack = false;
+        let flashSaleDecremented = 0;
+        let flashSaleRestoredMarked = false;
+
+        mock.method(cronPool, 'query', async (sql) => {
+            if (typeof sql === 'string' && (sql.includes("t.status IN ('Pending', 'Processing')") || sql.includes("WHERE t.status = 'Pending'"))) {
+                return {
+                    rows: [{
+                        id: 802,
+                        invoice_id: 'TRX-CRON-FS',
+                        user_id: 20,
+                        price: 17000,
+                        provider_trx_id: 'WEB-CRON-FS-1',
+                        check_attempts: 0,
+                        product_name: 'Diamond 70',
+                        h2h_callback_url: null,
+                        flash_sale_id: 66,
+                        flash_sale_restored: false
+                    }]
+                };
+            }
+            return { rows: [] };
+        });
+
+        mock.method(cronPool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('FROM transactions WHERE id = $1 FOR UPDATE')) {
+                    return {
+                        rows: [{
+                            status: 'Pending',
+                            check_attempts: 0,
+                            flash_sale_id: 66,
+                            flash_sale_restored: false
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes("type = 'Refund'")) {
+                    return { rows: [] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance +')) {
+                    refundCount += 1;
+                }
+                if (typeof sql === 'string' && sql.includes('DELETE FROM promo_usages')) {
+                    return { rows: [{ promo_code_id: 78 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE promo_codes SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    promoRolledBack = true;
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE flash_sales SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    flashSaleDecremented += 1;
+                }
+                if (typeof sql === 'string' && sql.includes('flash_sale_restored = TRUE')) {
+                    flashSaleRestoredMarked = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            await cronUtils.checkPendingTransactions();
+            assert.strictEqual(refundCount, 1);
+            assert.strictEqual(promoRolledBack, true);
+            assert.strictEqual(flashSaleDecremented, 1, 'Cron FAILED must decrement flash_sales.uses_count');
+            assert.strictEqual(flashSaleRestoredMarked, true, 'Cron FAILED must mark flash_sale_restored = TRUE');
+
+            // Pastikan helper rollback tidak pernah me-refund saldo atau flash_sale dua kali jika balance_history sudah ada
+            let secondBalanceUpdate = false;
+            let secondFlashSaleUpdate = false;
+            await cronUtils.rollbackTransactionResources({
+                query: async (sql) => {
+                    if (typeof sql === 'string' && sql.includes("type = 'Refund'")) return { rows: [{ id: 1 }] };
+                    if (typeof sql === 'string' && sql.includes('UPDATE users SET balance')) secondBalanceUpdate = true;
+                    if (typeof sql === 'string' && sql.includes('UPDATE flash_sales')) secondFlashSaleUpdate = true;
+                    return { rows: [] };
+                }
+            }, {
+                id: 802,
+                invoice_id: 'TRX-CRON-FS',
+                user_id: 20,
+                price: 17000,
+                flash_sale_id: 66,
+                flash_sale_restored: true
+            });
+            assert.strictEqual(secondBalanceUpdate, false, 'Shared rollback helper must NEVER refund balance twice');
+            assert.strictEqual(secondFlashSaleUpdate, false, 'Shared rollback helper must NEVER decrement flash_sales twice');
+        } finally {
+            cronPool.query.mock.restore();
+            cronPool.connect.mock.restore();
+            axios.get = origAxiosGet;
+        }
+    });
+
+    // (c3) Admin resolve refund restores BOTH promo_usages and flash_sales.uses_count, blocks double refund
+    test('(c3) PUT /api/admin/transactions/:invoiceId/resolve (refund) — memulihkan promo_usages & flash_sales.uses_count', async () => {
+        const adminToken = makeAdminToken();
+        let refundCount = 0;
+        let promoRolledBack = false;
+        let flashSaleDecremented = 0;
+        let flashSaleRestoredMarked = false;
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('SELECT * FROM transactions WHERE invoice_id')) {
+                    return {
+                        rows: [{
+                            id: 803,
+                            invoice_id: 'TRX-ADM-FS',
+                            user_id: 21,
+                            price: 25000,
+                            status: 'Partial Refund',
+                            flash_sale_id: 77,
+                            flash_sale_restored: false
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes("type = 'Refund'")) {
+                    return { rows: [] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance +')) {
+                    refundCount += 1;
+                }
+                if (typeof sql === 'string' && sql.includes('DELETE FROM promo_usages')) {
+                    return { rows: [{ promo_code_id: 79 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE promo_codes SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    promoRolledBack = true;
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE flash_sales SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    flashSaleDecremented += 1;
+                }
+                if (typeof sql === 'string' && sql.includes('flash_sale_restored = TRUE')) {
+                    flashSaleRestoredMarked = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            const res = await fetch(`${baseUrl}/api/admin/transactions/TRX-ADM-FS/resolve`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'refund' })
+            });
+
+            assert.strictEqual(res.status, 200);
+            assert.strictEqual(refundCount, 1);
+            assert.strictEqual(promoRolledBack, true, 'Admin resolve refund must rollback promo_usages & promo_codes.uses_count');
+            assert.strictEqual(flashSaleDecremented, 1, 'Admin resolve refund must decrement flash_sales.uses_count');
+            assert.strictEqual(flashSaleRestoredMarked, true, 'Admin resolve refund must mark flash_sale_restored = TRUE');
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+        }
+    });
+
+    // (d) Cache invalidation after product sync and after provider cost increase
+    test('(d) SEC-003 — sync-products & deteksi kenaikan modal meng-invalidasi foxyProductCache', async () => {
+        const userToken = makeUserToken(104);
+        const adminToken = makeAdminToken();
+
+        let foxyFetchCount = 0;
+        let currentFoxyPrice = 10000;
+
+        axios.get = async () => {
+            foxyFetchCount += 1;
+            return {
+                data: {
+                    data: [{
+                        product_code: 'SKU-CACHE-D1',
+                        product_price: currentFoxyPrice,
+                        category_title: 'Mobile Legends',
+                        category_type: 'Diamonds',
+                        product_name: 'Diamond 50'
+                    }]
+                }
+            };
+        };
+        axios.post = async () => ({ data: { status: true } });
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('JOIN games g')) {
+                    return {
+                        rows: [{
+                            id: 31,
+                            name: 'Diamond 50',
+                            provider_sku: 'SKU-CACHE-D1',
+                            price: 15000,
+                            status: 'Active',
+                            game_id: 1,
+                            needs_server_id: false,
+                            validation_config: null,
+                            use_manual_prices: false,
+                            manual_prices: {},
+                            use_custom_margin: false
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM users u JOIN roles r')) {
+                    return { rows: [{ balance: 100000, role_id: 1, role_name: 'BRONZE' }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM roles WHERE id')) {
+                    return { rows: [{ margin_percent: 10 }] }; // finalPrice = 16500
+                }
+                if (typeof sql === 'string' && sql.includes('FROM flash_sales')) return { rows: [] };
+                if (typeof sql === 'string' && sql.includes('SELECT id, invoice_id FROM transactions')) return { rows: [] };
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance -')) return { rowCount: 1 };
+                if (typeof sql === 'string' && sql.includes('INSERT INTO transactions')) return { rows: [{ id: 7020 }] };
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        let cronConnectCalls = 0;
+        mock.method(cronPool, 'connect', async () => {
+            cronConnectCalls += 1;
+            return {
+                query: async (sql) => {
+                    if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                    if (typeof sql === 'string' && sql.includes('SELECT id, name FROM games')) return { rows: [{ id: 1, name: 'Mobile Legends' }] };
+                    if (typeof sql === 'string' && sql.includes('SELECT id, game_id, name FROM product_categories')) return { rows: [{ id: 1, game_id: 1, name: 'Diamonds' }] };
+                    return { rows: [] };
+                },
+                release: () => {}
+            };
+        });
+
+        try {
+            const serverMod = require('../server.js');
+            assert.strictEqual(typeof serverMod.invalidateFoxyProductCache, 'function', 'server.js must export invalidateFoxyProductCache');
+            serverMod.invalidateFoxyProductCache();
+
+            // 1. Order pertama mengisi foxyProductCache dengan harga 10000
+            const res1 = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 31, targetGameId: '12345678' })
+            });
+            assert.strictEqual(res1.status, 201);
+            const fetchesAfterOrder1 = foxyFetchCount;
+
+            // 2. Harga provider naik ke 19000 (> finalPrice 16500), lalu admin sync-products
+            currentFoxyPrice = 19000;
+            const syncRes = await fetch(`${baseUrl}/api/admin/sync-products`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            assert.strictEqual(syncRes.status, 200);
+            const syncCallsAfterAdminSync = cronConnectCalls;
+
+            // 3. Order berikutnya WAJIB mengambil harga baru (19000), menolak transaksi rugi
+            //    dengan pesan generik, dan TIDAK memicu auto-sync produk dari jalur order!
+            const res2 = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 31, targetGameId: '12345678' })
+            });
+            assert.strictEqual(res2.status, 400, 'After sync-products invalidates cache, order must reject stale underpriced item (19000 > 16500)');
+            const res2Body = await res2.json();
+            assert.strictEqual(res2Body.message, 'Harga sedang diperbarui, coba lagi sebentar');
+            assert.strictEqual(cronConnectCalls, syncCallsAfterAdminSync, 'POST /api/order must NOT trigger syncProductsWithFoxy on price risk');
+            assert.ok(foxyFetchCount > fetchesAfterOrder1 + 1, 'Order after sync-products must re-fetch from Foxy instead of using stale cache');
+
+            // 4. Ketika order mendeteksi price risk (19000 > 16500), cache harus ter-invalidasi;
+            // jika Foxy lalu turun ke 12000, order selanjutnya langsung mengambil data baru 12000 tanpa menunggu TTL 5 menit
+            currentFoxyPrice = 12000;
+            const res3 = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 31, targetGameId: '12345678' })
+            });
+            assert.strictEqual(res3.status, 201, 'After price-risk invalidates cache, next order must fetch updated Foxy price (12000)');
+            assert.strictEqual(cronConnectCalls, syncCallsAfterAdminSync, 'Order path must never trigger background syncProductsWithFoxy');
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            cronPool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    // Review item 1a: rollbackTransactionResources rejects 'Success' directly (JS guard + SQL rowCount guard)
+    test('(review-1a) rollbackTransactionResources menolak mengubah atau merefund transaksi berstatus Success', async () => {
+        let anyMutationCalled = false;
+        await assert.rejects(
+            () => cronUtils.rollbackTransactionResources({
+                query: async (sql) => {
+                    if (typeof sql === 'string' && /UPDATE|INSERT|DELETE/i.test(sql)) {
+                        anyMutationCalled = true;
+                    }
+                    return { rows: [] };
+                }
+            }, {
+                id: 901,
+                invoice_id: 'TRX-SUCCESS-LOCK',
+                user_id: 22,
+                price: 20000,
+                status: 'Success',
+                flash_sale_id: 99,
+                flash_sale_restored: false
+            }),
+            /Rollback ditolak/
+        );
+        assert.strictEqual(anyMutationCalled, false, 'Helper must refuse before executing any mutation when tx.status is Success');
+
+        // Jika caller tidak mengisi tx.status tetapi DB rowCount = 0 karena status sudah Success di PostgreSQL:
+        let balanceRefunded = false;
+        let quotaRestored = false;
+        await assert.rejects(
+            () => cronUtils.rollbackTransactionResources({
+                query: async (sql) => {
+                    if (typeof sql === 'string' && sql.includes("type = 'Refund'")) return { rows: [] };
+                    if (typeof sql === 'string' && sql.includes("UPDATE transactions SET status = 'Failed'")) {
+                        assert.ok(sql.includes("status IN ('Pending', 'Processing', 'Partial Refund')"), 'SQL UPDATE must guard against non-eligible status');
+                        return { rowCount: 0, rows: [] };
+                    }
+                    if (typeof sql === 'string' && sql.includes('UPDATE users SET balance')) balanceRefunded = true;
+                    if (typeof sql === 'string' && sql.includes('DELETE FROM promo_usages')) quotaRestored = true;
+                    if (typeof sql === 'string' && sql.includes('UPDATE flash_sales')) quotaRestored = true;
+                    return { rows: [] };
+                }
+            }, {
+                id: 902,
+                invoice_id: 'TRX-SUCCESS-SQLGUARD',
+                user_id: 22,
+                price: 20000,
+                flash_sale_id: 99,
+                flash_sale_restored: false
+            }),
+            /Rollback ditolak/
+        );
+        assert.strictEqual(balanceRefunded, false, 'Must NOT refund balance when conditional UPDATE rowCount === 0');
+        assert.strictEqual(quotaRestored, false, 'Must NOT restore quotas when conditional UPDATE rowCount === 0');
+    });
+
+    // Review item 1b: concurrent callback 'Success' + cron 'Failed' cannot end up 'Failed' or refunded
+    test('(review-1b) callback Success dan cron Failed bersamaan tidak boleh berakhir Failed atau refund', async () => {
+        const state = {
+            status: 'Pending',
+            balance: 50000,
+            refundRows: 0,
+            flashSaleUses: 1,
+            locked: false,
+            waiters: []
+        };
+        let callbackSelectSql = '';
+
+        let notifyCallbackLocked = null;
+        const callbackAcquiredLock = new Promise(resolve => { notifyCallbackLocked = resolve; });
+
+        async function acquireRowLock() {
+            while (state.locked) {
+                await new Promise(resolve => state.waiters.push(resolve));
+            }
+            state.locked = true;
+        }
+        function releaseRowLock() {
+            state.locked = false;
+            const next = state.waiters.shift();
+            if (next) next();
+        }
+
+        function createTransactionalClient() {
+            let holdingLock = false;
+            return {
+                query: async (sql, params) => {
+                    if (sql === 'BEGIN') return {};
+                    if (sql === 'COMMIT' || sql === 'ROLLBACK') {
+                        if (holdingLock) {
+                            holdingLock = false;
+                            releaseRowLock();
+                        }
+                        return {};
+                    }
+                    if (typeof sql === 'string' && sql.includes('FOR UPDATE') && sql.includes('transactions')) {
+                        const isCallbackLock = sql.includes('WHERE provider_trx_id');
+                        if (isCallbackLock) {
+                            callbackSelectSql = sql;
+                        } else {
+                            // Pastikan cron benar-benar bertabrakan pada saat callback sedang memegang FOR UPDATE lock
+                            await callbackAcquiredLock;
+                        }
+                        await acquireRowLock();
+                        holdingLock = true;
+                        if (isCallbackLock && notifyCallbackLocked) {
+                            notifyCallbackLocked();
+                            notifyCallbackLocked = null;
+                            await new Promise(r => setTimeout(r, 20));
+                        }
+                        return {
+                            rows: [{
+                                id: 950,
+                                invoice_id: 'TRX-CONC-RACE',
+                                user_id: 50,
+                                product_id: 1,
+                                price: 20000,
+                                status: state.status,
+                                provider_trx_id: 'WEB-CONC-RACE',
+                                check_attempts: 0,
+                                flash_sale_id: 77,
+                                flash_sale_restored: false
+                            }]
+                        };
+                    }
+                    if (typeof sql === 'string' && sql.includes("UPDATE transactions SET status = 'Success'")) {
+                        state.status = 'Success';
+                        return { rowCount: 1 };
+                    }
+                    if (typeof sql === 'string' && sql.includes("UPDATE transactions SET status = 'Failed'")) {
+                        if (!['Pending', 'Processing', 'Partial Refund'].includes(state.status)) {
+                            return { rowCount: 0 };
+                        }
+                        state.status = 'Failed';
+                        return { rowCount: 1 };
+                    }
+                    if (typeof sql === 'string' && sql.includes("type = 'Refund'")) {
+                        return { rows: state.refundRows > 0 ? [{ id: 1 }] : [] };
+                    }
+                    if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance +')) {
+                        state.balance += Number(params[0]);
+                        return { rowCount: 1 };
+                    }
+                    if (typeof sql === 'string' && sql.includes("INSERT INTO balance_history") && sql.includes("'Refund'")) {
+                        state.refundRows += 1;
+                        return { rowCount: 1 };
+                    }
+                    if (typeof sql === 'string' && sql.includes('UPDATE flash_sales SET uses_count = GREATEST(0, uses_count - 1)')) {
+                        state.flashSaleUses = Math.max(0, state.flashSaleUses - 1);
+                        return { rowCount: 1 };
+                    }
+                    return { rows: [] };
+                },
+                release: () => {
+                    if (holdingLock) {
+                        holdingLock = false;
+                        releaseRowLock();
+                    }
+                }
+            };
+        }
+
+        axios.get = async (url) => {
+            if (url.includes('/v1/transaction/')) {
+                return { data: { status: true, data: { status: 'SUCCESS', sn: 'SN-CONC-1' } } };
+            }
+            return { data: { status: true, data: { status: 'FAILED' } } };
+        };
+
+        process.env.FOXY_CALLBACK_SECRET = 'test-cb-secret';
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 950, status: state.status, price: 20000, product_id: 1, provider_trx_id: 'WEB-CONC-RACE' }] };
+            }
+            return { rows: [] };
+        });
+        mock.method(pool, 'connect', async () => createTransactionalClient());
+        mock.method(cronPool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                return {
+                    rows: [{
+                        id: 950,
+                        invoice_id: 'TRX-CONC-RACE',
+                        user_id: 50,
+                        price: 20000,
+                        provider_trx_id: 'WEB-CONC-RACE',
+                        check_attempts: 0,
+                        product_name: 'Diamond 100',
+                        h2h_callback_url: null,
+                        flash_sale_id: 77,
+                        flash_sale_restored: false
+                    }]
+                };
+            }
+            return { rows: [] };
+        });
+        mock.method(cronPool, 'connect', async () => createTransactionalClient());
+
+        try {
+            // Jalankan callback Success dan cron checkPendingTransactions secara bersamaan pada satu invoice:
+            // Panggilan status pertama berasal dari cron (melihat FAILED lalu menunggu FOR UPDATE),
+            // sementara callback menerima SUCCESS, mengunci baris & commit Success lebih dulu.
+            let cronStatusFetched = false;
+            axios.get = async (url) => {
+                if (typeof url === 'string' && url.includes('WEB-CONC-RACE')) {
+                    if (!cronStatusFetched) {
+                        cronStatusFetched = true;
+                        return { data: { status: true, data: { status: 'FAILED' } } };
+                    }
+                    return { data: { status: true, data: { status: 'SUCCESS', sn: 'SN-RACE-1' } } };
+                }
+                return origAxiosGet(url);
+            };
+
+            const cronPromise = cronUtils.checkPendingTransactions();
+            const cbPromise = fetch(`${baseUrl}/api/foxy/callback?token=test-cb-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'WEB-CONC-RACE', status: 'SUCCESS', sn: 'SN-RACE-1' })
+            });
+            const [cbRes] = await Promise.all([cbPromise, cronPromise]);
+
+            assert.strictEqual(cbRes.status, 200);
+            assert.ok(callbackSelectSql.includes('FOR UPDATE') && !callbackSelectSql.includes("status = 'Pending'"), 'Callback must lock row by provider_trx_id FOR UPDATE without filtering status');
+            assert.strictEqual(state.status, 'Success', 'Final status must stay Success when callback Success and cron Failed race');
+            assert.strictEqual(state.balance, 50000, 'Balance must NOT be refunded when status is Success');
+            assert.strictEqual(state.refundRows, 0, 'balance_history must have 0 Refund rows');
+            assert.strictEqual(state.flashSaleUses, 1, 'flash_sales.uses_count must NOT be decremented');
+        } finally {
+            process.env.FOXY_CALLBACK_SECRET = '';
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            cronPool.query.mock.restore();
+            cronPool.connect.mock.restore();
+            axios.get = origAxiosGet;
+        }
+    });
+
+    // Review item 3: POST /api/promos/validate enforces finalPrice >= providerCost consistently with checkout
+    test('(review-3) POST /api/promos/validate — menolak promo yang membuat harga akhir di bawah modal & mengizinkan yang valid', async () => {
+        const userToken = makeUserToken(105);
+        require('../server.js').invalidateFoxyProductCache();
+
+        let currentPromoDiscount = 10000;
+        axios.get = async () => ({
+            data: { data: [{ product_code: 'SKU-VAL-1', product_price: 18000 }] }
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (typeof sql === 'string' && sql.includes('FROM promo_codes')) {
+                    return {
+                        rows: [{
+                            id: 401,
+                            code: 'TESTPROMO',
+                            type: 'fixed',
+                            value: currentPromoDiscount,
+                            is_active: true,
+                            expires_at: null,
+                            max_uses: 100,
+                            uses_count: 0,
+                            rules: {}
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM products p')) {
+                    return {
+                        rows: [{
+                            id: 41,
+                            game_id: 1,
+                            provider_sku: 'SKU-VAL-1',
+                            price: 20000,
+                            use_manual_prices: false,
+                            manual_prices: {},
+                            use_custom_margin: false
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM users u JOIN roles r')) {
+                    return { rows: [{ role_id: 1, role_name: 'BRONZE' }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM roles WHERE id')) {
+                    return { rows: [{ margin_percent: 10 }] }; // effectivePrice = 22000
+                }
+                if (typeof sql === 'string' && sql.includes('FROM flash_sales')) {
+                    return { rows: [] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            // 1. Diskon 10000 -> 22000 - 10000 = 12000 < modal 18000 -> DITOLAK 400
+            currentPromoDiscount = 10000;
+            const resTooCheap = await fetch(`${baseUrl}/api/promos/validate`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ promo_code: 'TESTPROMO', product_id: 41, target_game_id: '123456' })
+            });
+            assert.strictEqual(resTooCheap.status, 400, 'Validate must reject promo when final_price < provider modal');
+            const bodyTooCheap = await resTooCheap.json();
+            assert.strictEqual(bodyTooCheap.valid, false);
+
+            // 2. Diskon 2000 -> 22000 - 2000 = 20000 >= modal 18000 -> VALID 200
+            currentPromoDiscount = 2000;
+            const resValid = await fetch(`${baseUrl}/api/promos/validate`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ promo_code: 'TESTPROMO', product_id: 41, target_game_id: '123456' })
+            });
+            assert.strictEqual(resValid.status, 200);
+            const bodyValid = await resValid.json();
+            assert.strictEqual(bodyValid.valid, true);
+            assert.strictEqual(bodyValid.final_price, 20000);
+        } finally {
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+        }
+    });
+});
+
+describe('SEC-001: Foxy Callback Security Hardening', () => {
+    const axios = require('axios');
+    const { validateEnvironment, callbackClock, clearCallbackCooldownCache } = require('../server.js');
+    let secServer;
+    let secCallbackUrl;
+    let origAxiosGet;
+
+    before(() => {
+        secServer = startServer(0);
+        secCallbackUrl = `http://127.0.0.1:${secServer.address().port}/api/foxy/callback`;
+        origAxiosGet = axios.get;
+    });
+
+    after(async () => {
+        axios.get = origAxiosGet;
+        delete process.env.FOXY_CALLBACK_SECRET_PREVIOUS;
+        delete process.env.ALLOW_INSECURE_CALLBACK;
+        process.env.FOXY_CALLBACK_SECRET = '';
+        if (typeof clearCallbackCooldownCache === 'function') clearCallbackCooldownCache();
+        await new Promise(resolve => secServer.close(resolve));
+    });
+
+    test('validateEnvironment wajib menolak startup production jika FOXY_CALLBACK_SECRET kosong', () => {
+        const prevNodeEnv = process.env.NODE_ENV;
+        const prevSecret = process.env.FOXY_CALLBACK_SECRET;
+        const prevAllow = process.env.ALLOW_INSECURE_CALLBACK;
+
+        try {
+            process.env.NODE_ENV = 'production';
+            process.env.FOXY_CALLBACK_SECRET = '';
+            process.env.ALLOW_INSECURE_CALLBACK = 'true';
+            assert.throws(
+                () => validateEnvironment({ strict: true }),
+                /FOXY_CALLBACK_SECRET/,
+                'NODE_ENV=production must fail startup when FOXY_CALLBACK_SECRET is empty'
+            );
+
+            process.env.FOXY_CALLBACK_SECRET = 'prod-strong-secret-value';
+            assert.doesNotThrow(
+                () => validateEnvironment({ strict: true }),
+                'NODE_ENV=production should start when FOXY_CALLBACK_SECRET is set'
+            );
+        } finally {
+            if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = prevNodeEnv;
+            process.env.FOXY_CALLBACK_SECRET = prevSecret || '';
+            if (prevAllow === undefined) delete process.env.ALLOW_INSECURE_CALLBACK;
+            else process.env.ALLOW_INSECURE_CALLBACK = prevAllow;
+        }
+    });
+
+    test('fail-closed: tanpa secret ditolak 403, hanya bisa dilewati non-prod dengan ALLOW_INSECURE_CALLBACK=true', async () => {
+        const prevNodeEnv = process.env.NODE_ENV;
+        const prevSecret = process.env.FOXY_CALLBACK_SECRET;
+        const prevAllow = process.env.ALLOW_INSECURE_CALLBACK;
+
+        let foxyCalled = 0;
+        axios.get = async () => {
+            foxyCalled += 1;
+            return { data: { status: true, data: { status: 'SUCCESS' } } };
+        };
+        mock.method(pool, 'query', async () => ({ rows: [] }));
+
+        try {
+            process.env.NODE_ENV = 'test';
+            process.env.FOXY_CALLBACK_SECRET = '';
+            delete process.env.ALLOW_INSECURE_CALLBACK;
+
+            const resNoSecret = await fetch(secCallbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-FAILCLOSED-1', status: 'SUCCESS', sn: 'SN-FC-1', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resNoSecret.status, 403, 'Callback without configured secret must fail-closed with 403');
+            assert.strictEqual(foxyCalled, 0);
+
+            // Production MUST ignore ALLOW_INSECURE_CALLBACK=true
+            process.env.NODE_ENV = 'production';
+            process.env.ALLOW_INSECURE_CALLBACK = 'true';
+            const resProdOptIn = await fetch(secCallbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-FAILCLOSED-2', status: 'SUCCESS', sn: 'SN-FC-2', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resProdOptIn.status, 403, 'Production must never honor ALLOW_INSECURE_CALLBACK=true');
+
+            // Local/non-production with ALLOW_INSECURE_CALLBACK=true allows missing secret
+            process.env.NODE_ENV = 'development';
+            process.env.ALLOW_INSECURE_CALLBACK = 'true';
+            const resLocalOptIn = await fetch(secCallbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-FAILCLOSED-3', status: 'SUCCESS', sn: 'SN-FC-3', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resLocalOptIn.status, 200);
+            assert.deepStrictEqual(await resLocalOptIn.json(), { message: 'Callback berhasil diproses.' });
+        } finally {
+            axios.get = origAxiosGet;
+            pool.query.mock.restore();
+            if (prevNodeEnv === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = prevNodeEnv;
+            process.env.FOXY_CALLBACK_SECRET = prevSecret || '';
+            if (prevAllow === undefined) delete process.env.ALLOW_INSECURE_CALLBACK;
+            else process.env.ALLOW_INSECURE_CALLBACK = prevAllow;
+        }
+    });
+
+    test('tanpa token atau token salah ditolak 403 tanpa panggil Foxy', async () => {
+        process.env.FOXY_CALLBACK_SECRET = 'sec1-primary-secret-token';
+        let foxyCalled = 0;
+        axios.get = async () => {
+            foxyCalled += 1;
+            return { data: { status: true, data: { status: 'SUCCESS' } } };
+        };
+
+        try {
+            const resMissing = await fetch(secCallbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-NO-TOKEN', status: 'SUCCESS', sn: 'SN-AUTH-1', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resMissing.status, 403);
+
+            const resWrongLen = await fetch(`${secCallbackUrl}?token=short`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-WRONG-LEN', status: 'SUCCESS', sn: 'SN-AUTH-2', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resWrongLen.status, 403);
+
+            const resArrayQuery = await fetch(`${secCallbackUrl}?token=sec1-primary-secret-token&token=extra`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-ARR-TOKEN', status: 'SUCCESS', sn: 'SN-AUTH-3', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resArrayQuery.status, 403);
+            assert.strictEqual(foxyCalled, 0);
+        } finally {
+            axios.get = origAxiosGet;
+            process.env.FOXY_CALLBACK_SECRET = '';
+        }
+    });
+
+    test('token di query ?token=, rotasi FOXY_CALLBACK_SECRET_PREVIOUS, dan tidak bocor ke log', async () => {
+        const curSecret = 'rot-current-secret-987654';
+        const prevSecret = 'rot-previous-secret-123456';
+        process.env.FOXY_CALLBACK_SECRET = curSecret;
+        process.env.FOXY_CALLBACK_SECRET_PREVIOUS = prevSecret;
+
+        const loggedMessages = [];
+        const origLog = console.log;
+        const origWarn = console.warn;
+        const origErr = console.error;
+        console.log = (...args) => loggedMessages.push(args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '));
+        console.warn = (...args) => loggedMessages.push(args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '));
+        console.error = (...args) => loggedMessages.push(args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '));
+
+        axios.get = async (url) => {
+            const err = new Error(`Simulated Foxy error for ${url}?token=${curSecret}`);
+            err.response = {
+                status: 500,
+                statusText: 'Internal Error',
+                headers: {},
+                config: { method: 'GET', url: `${url}?token=${curSecret}` }
+            };
+            throw err;
+        };
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 9101, status: 'Pending', price: 10000, product_id: 2, provider_trx_id: 'SEC1-ROT-1', provider_sku: 'SKU-ROT', product_price: 9000 }] };
+            }
+            return { rows: [] };
+        });
+
+        try {
+            // Token baru via query ?token=
+            const resCur = await fetch(`${secCallbackUrl}?token=${encodeURIComponent(curSecret)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-ROT-1', status: 'SUCCESS', sn: 'SN-ROT-1', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resCur.status, 200);
+            assert.deepStrictEqual(await resCur.json(), { message: 'Callback berhasil diproses.' });
+
+            // Token lama via query ?token= saat masa rotasi
+            const resPrevQuery = await fetch(`${secCallbackUrl}?token=${encodeURIComponent(prevSecret)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-ROT-2-UNKNOWN', status: 'SUCCESS', sn: 'SN-ROT-2', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resPrevQuery.status, 200);
+            assert.deepStrictEqual(await resPrevQuery.json(), { message: 'Callback berhasil diproses.' });
+
+            // Token lama via header X-Callback-Token
+            const resPrevHeader = await fetch(secCallbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-callback-token': prevSecret },
+                body: JSON.stringify({ trx_id: 'SEC1-ROT-3-UNKNOWN', status: 'SUCCESS', sn: 'SN-ROT-3', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resPrevHeader.status, 200);
+            assert.deepStrictEqual(await resPrevHeader.json(), { message: 'Callback berhasil diproses.' });
+
+            const combinedLogs = loggedMessages.join('\n');
+            assert.strictEqual(combinedLogs.includes(curSecret), false, 'Current callback token must NEVER appear in logs');
+            assert.strictEqual(combinedLogs.includes(prevSecret), false, 'Previous callback token must NEVER appear in logs');
+        } finally {
+            console.log = origLog;
+            console.warn = origWarn;
+            console.error = origErr;
+            axios.get = origAxiosGet;
+            pool.query.mock.restore();
+            process.env.FOXY_CALLBACK_SECRET = '';
+            delete process.env.FOXY_CALLBACK_SECRET_PREVIOUS;
+        }
+    });
+
+    test('zero-trust payload: sn/message/status di req.body tidak pernah dipakai atau tersimpan', async () => {
+        process.env.FOXY_CALLBACK_SECRET = 'sec1-zt-secret';
+
+        let savedSnParam = null;
+        let savedSnWithNoSn = 'UNTOUCHED';
+        let savedRefundDescription = '';
+        let foxyMode = 'SUCCESS_NO_SN';
+
+        axios.get = async (url) => {
+            if (foxyMode === 'SUCCESS_NO_SN') {
+                return { data: { status: true, data: { trx_id: 'SEC1-ZT-1', status: 'SUCCESS', product_code: 'SKU-ZT', product_price: 9000 } } };
+            }
+            return { data: { status: true, data: { trx_id: 'SEC1-ZT-2', status: 'FAILED', message: 'FOXY-REAL-REASON', product_code: 'SKU-ZT', product_price: 9000 } } };
+        };
+
+        mock.method(pool, 'query', async (sql, params) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                const trxId = params && params[0];
+                return { rows: [{ id: trxId === 'SEC1-ZT-1' ? 9201 : 9202, status: 'Pending', price: 10000, product_id: 3, provider_trx_id: trxId, provider_sku: 'SKU-ZT', product_price: 9000 }] };
+            }
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('SELECT * FROM transactions WHERE provider_trx_id')) {
+                    const trxId = params && params[0];
+                    return {
+                        rows: [{
+                            id: trxId === 'SEC1-ZT-1' ? 9201 : 9202,
+                            invoice_id: trxId === 'SEC1-ZT-1' ? 'INV-ZT-1' : 'INV-ZT-2',
+                            user_id: 33,
+                            product_id: 3,
+                            status: 'Pending',
+                            price: 10000,
+                            provider_trx_id: trxId
+                        }]
+                    };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM products WHERE id')) {
+                    return { rows: [{ provider_sku: 'SKU-ZT', price: 9000 }] };
+                }
+                if (typeof sql === 'string' && sql.includes("SET status = 'Success', provider_sn")) {
+                    savedSnParam = params && params[0];
+                }
+                if (typeof sql === 'string' && sql.includes("SET status = 'Success', updated_at")) {
+                    savedSnWithNoSn = null;
+                }
+                if (typeof sql === 'string' && sql.includes("INSERT INTO balance_history") && sql.includes("'Refund'")) {
+                    savedRefundDescription = params && params[2];
+                }
+                if (typeof sql === 'string' && sql.includes("UPDATE transactions SET status = 'Failed'")) {
+                    return { rowCount: 1 };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            // 1. Body menyuntikkan sn/serial_number/provider_sn palsu, Foxy tidak mengembalikan SN -> SN body DILARANG tersimpan
+            foxyMode = 'SUCCESS_NO_SN';
+            const res1 = await fetch(`${secCallbackUrl}?token=sec1-zt-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    trx_id: 'SEC1-ZT-1',
+                    status: 'FAILED',
+                    sn: 'SPOOFED-BODY-SN',
+                    serial_number: 'SPOOFED-SERIAL',
+                    provider_sn: 'SPOOFED-PSN',
+                    message: 'SPOOFED-MESSAGE'
+                })
+            });
+            assert.strictEqual(res1.status, 200);
+            assert.deepStrictEqual(await res1.json(), { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(savedSnParam, null, 'Spoofed SN in req.body must NEVER be saved to provider_sn');
+            assert.strictEqual(savedSnWithNoSn, null, 'Should update Success without req.body SN fallback');
+
+            // 2. Body mengaku SUCCESS & menyuntikkan message palsu, Foxy bilang FAILED dengan message asli
+            foxyMode = 'FAILED_WITH_MSG';
+            const res2 = await fetch(`${secCallbackUrl}?token=sec1-zt-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    trx_id: 'SEC1-ZT-2',
+                    status: 'SUCCESS',
+                    sn: 'SPOOFED-SN-2',
+                    message: 'SPOOFED-BODY-REASON'
+                })
+            });
+            assert.strictEqual(res2.status, 200);
+            assert.deepStrictEqual(await res2.json(), { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(savedRefundDescription.includes('SPOOFED-BODY-REASON'), false, 'req.body.message must NEVER enter refund description');
+            assert.ok(savedRefundDescription.includes('FOXY-REAL-REASON'), 'Refund description should come from Foxy verified status response');
+        } finally {
+            axios.get = origAxiosGet;
+            pool.connect.mock.restore();
+            pool.query.mock.restore();
+            process.env.FOXY_CALLBACK_SECRET = '';
+        }
+    });
+
+    test('cross-check /v1/status vs DB: SKU atau trx_id tidak cocok -> log warning (invoice + reason saja) & status tidak berubah', async () => {
+        process.env.FOXY_CALLBACK_SECRET = 'sec1-xcheck-secret';
+
+        let statusMutated = false;
+        let currentScenario = 'SKU_MISMATCH';
+        const warnLogs = [];
+        const origWarn = console.warn;
+        console.warn = (...args) => warnLogs.push(args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' '));
+
+        axios.get = async (url) => {
+            if (currentScenario === 'SKU_MISMATCH') {
+                return { data: { status: true, data: { trx_id: 'SEC1-XC-1', status: 'SUCCESS', product_code: 'SKU-WRONG', sn: 'SN1' } } };
+            }
+            if (currentScenario === 'TRX_MISMATCH') {
+                return { data: { status: true, data: { trx_id: 'TRX-OTHER', status: 'SUCCESS', product_code: 'SKU-REAL', sn: 'SN3' } } };
+            }
+            // products.price saat ini (mis. berubah ke 9000 sementara tx.price 12000 atau Foxy 15000) tidak boleh memblokir selama kolom modal transaksi belum ada
+            return { data: { status: true, data: { trx_id: 'SEC1-XC-4', status: 'SUCCESS', product_code: 'SKU-REAL', product_price: 15000, sn: 'SN4' } } };
+        };
+
+        mock.method(pool, 'query', async (sql, params) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                const trxId = params && params[0];
+                return { rows: [{ id: 9300, status: 'Pending', price: 12000, product_id: 5, provider_trx_id: trxId, provider_sku: 'SKU-REAL' }] };
+            }
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('SELECT * FROM transactions WHERE provider_trx_id')) {
+                    const trxId = params && params[0];
+                    return { rows: [{ id: 9300, invoice_id: `INV-${trxId}`, user_id: 12, product_id: 5, status: 'Pending', price: 12000, provider_trx_id: trxId }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM products WHERE id')) {
+                    return { rows: [{ provider_sku: 'SKU-REAL' }] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE transactions')) {
+                    statusMutated = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            currentScenario = 'SKU_MISMATCH';
+            const r1 = await fetch(`${secCallbackUrl}?token=sec1-xcheck-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-XC-1', status: 'SUCCESS', sn: 'BODY-SENSITIVE-SN-1', message: 'BODY-SENSITIVE-MSG-1' })
+            });
+            assert.strictEqual(r1.status, 200);
+            assert.deepStrictEqual(await r1.json(), { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(statusMutated, false, 'SKU mismatch must NOT change transaction status');
+
+            currentScenario = 'TRX_MISMATCH';
+            const r3 = await fetch(`${secCallbackUrl}?token=sec1-xcheck-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-XC-3', status: 'SUCCESS', sn: 'BODY-SENSITIVE-SN-3', message: 'BODY-SENSITIVE-MSG-3' })
+            });
+            assert.strictEqual(r3.status, 200);
+            assert.deepStrictEqual(await r3.json(), { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(statusMutated, false, 'trx_id mismatch must NOT change transaction status');
+
+            const combinedWarns = warnLogs.join('\n');
+            assert.ok(combinedWarns.includes('INV-SEC1-XC-1') && combinedWarns.includes('SKU mismatch'), 'SKU mismatch warning must include invoice and reason');
+            assert.ok(combinedWarns.includes('INV-SEC1-XC-3') && combinedWarns.includes('trx_id mismatch'), 'trx_id mismatch warning must include invoice and reason');
+            assert.strictEqual(combinedWarns.includes('sec1-xcheck-secret'), false, 'Mismatch warning must NOT leak callback token');
+            assert.strictEqual(combinedWarns.includes('BODY-SENSITIVE'), false, 'Mismatch warning must NOT include req.body contents');
+
+            currentScenario = 'VALID_NOT_BLOCKED_BY_LIVE_PRODUCT_PRICE';
+            const r4 = await fetch(`${secCallbackUrl}?token=sec1-xcheck-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-XC-4', status: 'SUCCESS', sn: 'SN4', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(r4.status, 200);
+            assert.deepStrictEqual(await r4.json(), { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(statusMutated, true, 'Matching trx_id & SKU must commit Success without comparing against live products.price');
+        } finally {
+            console.warn = origWarn;
+            axios.get = origAxiosGet;
+            pool.connect.mock.restore();
+            pool.query.mock.restore();
+            process.env.FOXY_CALLBACK_SECRET = '';
+        }
+    });
+
+    test('respons /v1/status tanpa SKU dan nominal tetap diproses normal', async () => {
+        process.env.FOXY_CALLBACK_SECRET = 'sec1-minimal-secret';
+
+        let updatedToSuccess = false;
+        let savedSn = null;
+
+        axios.get = async () => ({
+            // Hanya memuat trx_id, status, sn (tanpa product_code/sku dan tanpa price/amount)
+            data: { status: true, data: { trx_id: 'SEC1-MINIMAL-1', status: 'SUCCESS', sn: 'SN-MINIMAL-OK' } }
+        });
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                return { rows: [{ id: 9350, status: 'Pending', price: 15000, product_id: 7, provider_trx_id: 'SEC1-MINIMAL-1', provider_sku: 'SKU-DB-7' }] };
+            }
+            return { rows: [] };
+        });
+
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('SELECT * FROM transactions WHERE provider_trx_id')) {
+                    return { rows: [{ id: 9350, invoice_id: 'INV-MINIMAL-1', user_id: 21, product_id: 7, status: 'Pending', price: 15000, provider_trx_id: 'SEC1-MINIMAL-1' }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM products WHERE id')) {
+                    return { rows: [{ provider_sku: 'SKU-DB-7' }] };
+                }
+                if (typeof sql === 'string' && sql.includes("SET status = 'Success', provider_sn")) {
+                    updatedToSuccess = true;
+                    savedSn = params && params[0];
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            const res = await fetch(`${secCallbackUrl}?token=sec1-minimal-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-MINIMAL-1', status: 'SUCCESS', sn: 'SN-MINIMAL-OK', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(res.status, 200);
+            assert.deepStrictEqual(await res.json(), { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(updatedToSuccess, true, 'Status response without SKU or nominal must be processed normally');
+            assert.strictEqual(savedSn, 'SN-MINIMAL-OK');
+        } finally {
+            axios.get = origAxiosGet;
+            pool.connect.mock.restore();
+            pool.query.mock.restore();
+            process.env.FOXY_CALLBACK_SECRET = '';
+        }
+    });
+
+    test('transaksi sudah final atau tidak ditemukan -> Foxy tidak dipanggil, serta cooldown 5 detik pakai injectable clock', async () => {
+        process.env.FOXY_CALLBACK_SECRET = 'sec1-limit-secret';
+        if (typeof clearCallbackCooldownCache === 'function') clearCallbackCooldownCache();
+
+        let foxyCalls = 0;
+        let currentDbStatus = 'Success';
+        let fakeNow = 1_700_000_000_000;
+        mock.method(callbackClock, 'now', () => fakeNow);
+
+        axios.get = async () => {
+            foxyCalls += 1;
+            return { data: { status: true, data: { status: 'PENDING' } } };
+        };
+
+        mock.method(pool, 'query', async (sql, params) => {
+            if (typeof sql === 'string' && sql.includes('FROM transactions t')) {
+                const trxId = params && params[0];
+                if (trxId === 'SEC1-UNKNOWN') return { rows: [] };
+                return { rows: [{ id: 9400, status: currentDbStatus, price: 10000, product_id: 1, provider_trx_id: trxId }] };
+            }
+            return { rows: [] };
+        });
+
+        try {
+            // 1. Transaksi sudah final ('Success') -> Foxy tidak boleh dipanggil
+            currentDbStatus = 'Success';
+            const resFinal = await fetch(`${secCallbackUrl}?token=sec1-limit-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-FINAL-1', status: 'SUCCESS', sn: 'SN-FIN-1', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resFinal.status, 200);
+            assert.deepStrictEqual(await resFinal.json(), { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(foxyCalls, 0, 'Final transaction must not trigger Foxy /v1/status call');
+
+            // 2. Transaksi tidak ada -> tetap 200 tanpa bocor eksistensi, Foxy 0 panggilan
+            const resUnknown = await fetch(`${secCallbackUrl}?token=sec1-limit-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-UNKNOWN', status: 'SUCCESS', sn: 'SN-UNK-1', message: 'Transaksi sukses' })
+            });
+            assert.strictEqual(resUnknown.status, 200);
+            assert.deepStrictEqual(await resUnknown.json(), { message: 'Callback berhasil diproses.' });
+            assert.strictEqual(foxyCalls, 0, 'Unknown transaction must not call Foxy');
+
+            // 3. Cooldown 5 detik: dua callback beruntun pada Pending trx_id yang sama -> hanya 1x panggilan Foxy, lalu lolos lagi setelah > 5000ms
+            currentDbStatus = 'Pending';
+            const resCool1 = await fetch(`${secCallbackUrl}?token=sec1-limit-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-COOLDOWN-1', status: 'PENDING', message: 'Sedang diproses' })
+            });
+            fakeNow += 2000;
+            const resCool2 = await fetch(`${secCallbackUrl}?token=sec1-limit-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-COOLDOWN-1', status: 'PENDING', message: 'Sedang diproses' })
+            });
+            assert.strictEqual(resCool1.status, 200);
+            assert.strictEqual(resCool2.status, 200);
+            assert.strictEqual(foxyCalls, 1, 'Repeated callback within 5s cooldown must only call Foxy once');
+
+            fakeNow += 3001; // Total elapsed: 5001ms (> 5000ms cooldown)
+            const resCool3 = await fetch(`${secCallbackUrl}?token=sec1-limit-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'SEC1-COOLDOWN-1', status: 'PENDING', message: 'Sedang diproses' })
+            });
+            assert.strictEqual(resCool3.status, 200);
+            assert.strictEqual(foxyCalls, 2, 'Callback after cooldown window expires should call Foxy again');
+        } finally {
+            axios.get = origAxiosGet;
+            pool.query.mock.restore();
+            callbackClock.now.mock.restore();
+            if (typeof clearCallbackCooldownCache === 'function') clearCallbackCooldownCache();
+            process.env.FOXY_CALLBACK_SECRET = '';
         }
     });
 });

@@ -1,11 +1,13 @@
 require('dotenv').config();
 const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { checkPendingTransactions, syncProductsWithFoxy } = require('./utils/cronUtils.js');
 
 // ============================================================
 // === KONFIGURASI ===
 // ============================================================
-const LOCK_FILE = '/tmp/topup-miku-cron.lock';
+const LOCK_FILE = path.join(os.tmpdir(), 'topup-miku-cron.lock');
 const LOCK_STALE_MS = 10 * 60 * 1000; // 10 menit — anggap stale jika lebih lama
 const GLOBAL_TIMEOUT_MS = 4 * 60 * 1000; // 4 menit batas total run
 

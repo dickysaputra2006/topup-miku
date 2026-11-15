@@ -53,6 +53,27 @@ document.addEventListener('DOMContentLoaded', function() {
     const fsPriceInfo = document.getElementById('fs-price-info');
     const fsBronzePrice = document.getElementById('fs-bronze-price');
 
+    // Elemen untuk Manajemen Metode Pembayaran
+    const paymentMethodForm = document.getElementById('payment-method-form');
+    const pmFormTitle = document.getElementById('pm-form-title');
+    const pmEditIdInput = document.getElementById('pm-edit-id');
+    const pmNameInput = document.getElementById('pm-name');
+    const pmCodeInput = document.getElementById('pm-code');
+    const pmTypeSelect = document.getElementById('pm-type');
+    const pmAccountNumberInput = document.getElementById('pm-account-number');
+    const pmAccountNameInput = document.getElementById('pm-account-name');
+    const pmQrisUrlInput = document.getElementById('pm-qris-image-url');
+    const pmMinAmountInput = document.getElementById('pm-min-amount');
+    const pmSortOrderInput = document.getElementById('pm-sort-order');
+    const pmInstructionsInput = document.getElementById('pm-instructions');
+    const pmIsQrisCheckbox = document.getElementById('pm-is-qris');
+    const pmIsActiveCheckbox = document.getElementById('pm-is-active');
+    const pmSubmitBtn = document.getElementById('pm-submit-btn');
+    const pmCancelEditBtn = document.getElementById('pm-cancel-edit-btn');
+    const pmFormStatus = document.getElementById('pm-form-status');
+    const adminPaymentMethodsTbody = document.getElementById('admin-payment-methods-tbody');
+    const refreshPmBtn = document.getElementById('refresh-pm-btn');
+
     // === KONFIGURASI & STATE ===
     const ADMIN_API_URL = '/api/admin';
     const PUBLIC_API_URL = '/api';
@@ -61,6 +82,16 @@ document.addEventListener('DOMContentLoaded', function() {
     let allGames = [];
     let allProducts = [];
     let allRoles = [];
+    let allPaymentMethods = [];
+
+    function escapeHtml(str) {
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
 
     if (!token) {
         window.location.href = 'index.html';
@@ -390,7 +421,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const config = product.validation_config || {};
     const rules = config.rules || {};
 
-    if(validationSelector) validationSelector.value = config.validator || "";
+    if(validationSelector) validationSelector.value = (config.enabled !== false && config.validator) ? config.validator : "";
     if(allowedRegionsInput) allowedRegionsInput.value = (rules.allowedRegions || []).join(',');
     if(disallowedRegionsInput) disallowedRegionsInput.value = (rules.disallowedRegions || []).join(',');
 
@@ -564,6 +595,20 @@ if (marginForm) {
 
         if (validationForm && validationSelector) {
 
+    function buildValidationConfig() {
+        const validator = validationSelector.value;
+        const allowed = allowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+        const disallowed = disallowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
+        if (!validator) return { enabled: false };
+        const config = { enabled: true, validator };
+        if (allowed.length > 0 || disallowed.length > 0) {
+            config.rules = {};
+            if (allowed.length > 0) config.rules.allowedRegions = allowed;
+            if (disallowed.length > 0) config.rules.disallowedRegions = disallowed;
+        }
+        return config;
+    }
+
     // Event listener untuk dropdown Tipe Validator
     validationSelector.addEventListener('change', () => {
         validationRulesContainer.classList.toggle('hidden', !validationSelector.value);
@@ -572,18 +617,7 @@ if (marginForm) {
     // Event listener untuk tombol "Simpan Pengaturan Validasi"
     validationForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const validator = validationSelector.value;
-        const allowed = allowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-        const disallowed = disallowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-        let config = null;
-        if (validator) {
-            config = { validator };
-            if (allowed.length > 0 || disallowed.length > 0) {
-                config.rules = {};
-                if (allowed.length > 0) config.rules.allowedRegions = allowed;
-                if (disallowed.length > 0) config.rules.disallowedRegions = disallowed;
-            }
-        }
+        const config = buildValidationConfig();
         try {
             const response = await fetch(`${ADMIN_API_URL}/products/${selectedProductIdForValidation}/validation`, {
                 method: 'PUT',
@@ -614,18 +648,7 @@ if (marginForm) {
                 return;
             }
 
-            const validator = validationSelector.value;
-            const allowed = allowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-            const disallowed = disallowedRegionsInput.value.split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
-            let config = null;
-            if (validator) {
-                config = { validator };
-                if (allowed.length > 0 || disallowed.length > 0) {
-                    config.rules = {};
-                    if (allowed.length > 0) config.rules.allowedRegions = allowed;
-                    if (disallowed.length > 0) config.rules.disallowedRegions = disallowed;
-                }
-            }
+            const config = buildValidationConfig();
             
             const productIdsToUpdate = allProducts
                 .filter(p => p.game_id == selectedGameId)
@@ -767,6 +790,9 @@ if (promosTableBody) {
                 }
                 if (targetId === 'deposit') {
                     fetchAdminDeposits();
+                }
+                if (targetId === 'payment-methods') {
+                    fetchAdminPaymentMethods();
                 }
                 if (targetId === 'transaksi') {
                     fetchAdminTransactions();
@@ -1047,6 +1073,240 @@ if (fsGameSelector) {
         });
     }
 
+    // === METODE PEMBAYARAN DINAMIS (CRUD ADMIN) ===
+    function setPmFormStatus(message, isError = false) {
+        if (!pmFormStatus) return;
+        pmFormStatus.textContent = message || '';
+        pmFormStatus.className = message
+            ? `form-status-msg ${isError ? 'is-error' : 'is-success'}`
+            : 'form-status-msg';
+    }
+
+    function resetPaymentMethodForm() {
+        if (!paymentMethodForm) return;
+        paymentMethodForm.reset();
+        if (pmEditIdInput) pmEditIdInput.value = '';
+        if (pmMinAmountInput) pmMinAmountInput.value = '10000';
+        if (pmSortOrderInput) pmSortOrderInput.value = '0';
+        if (pmIsActiveCheckbox) pmIsActiveCheckbox.checked = true;
+        if (pmIsQrisCheckbox) pmIsQrisCheckbox.checked = false;
+        if (pmFormTitle) pmFormTitle.innerHTML = '<i class="fas fa-credit-card"></i> Tambah Metode Pembayaran';
+        if (pmSubmitBtn) pmSubmitBtn.textContent = 'Simpan Metode';
+        if (pmCancelEditBtn) pmCancelEditBtn.classList.add('hidden');
+        setPmFormStatus('');
+    }
+
+    function fillPaymentMethodForm(pm) {
+        if (!pm || !paymentMethodForm) return;
+        if (pmEditIdInput) pmEditIdInput.value = pm.id;
+        if (pmNameInput) pmNameInput.value = pm.name || '';
+        if (pmCodeInput) pmCodeInput.value = pm.code || '';
+        if (pmTypeSelect) pmTypeSelect.value = pm.type || 'ewallet';
+        if (pmAccountNumberInput) pmAccountNumberInput.value = pm.account_number || '';
+        if (pmAccountNameInput) pmAccountNameInput.value = pm.account_name || '';
+        if (pmQrisUrlInput) pmQrisUrlInput.value = pm.qris_image_url || '';
+        if (pmMinAmountInput) pmMinAmountInput.value = pm.min_amount != null ? Number(pm.min_amount) : 10000;
+        if (pmSortOrderInput) pmSortOrderInput.value = pm.sort_order != null ? Number(pm.sort_order) : 0;
+        if (pmInstructionsInput) pmInstructionsInput.value = pm.instructions || '';
+        if (pmIsQrisCheckbox) pmIsQrisCheckbox.checked = Boolean(pm.is_qris);
+        if (pmIsActiveCheckbox) pmIsActiveCheckbox.checked = Boolean(pm.is_active);
+        if (pmFormTitle) pmFormTitle.innerHTML = `<i class="fas fa-edit"></i> Edit Metode Pembayaran (#${pm.id})`;
+        if (pmSubmitBtn) pmSubmitBtn.textContent = 'Update Metode';
+        if (pmCancelEditBtn) pmCancelEditBtn.classList.remove('hidden');
+        setPmFormStatus('');
+        paymentMethodForm.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (pmNameInput) pmNameInput.focus();
+    }
+
+    async function fetchAdminPaymentMethods() {
+        if (!adminPaymentMethodsTbody) return;
+        adminPaymentMethodsTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Memuat metode pembayaran...</td></tr>';
+        try {
+            const response = await fetch(`${ADMIN_API_URL}/payment-methods`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) throw new Error('Gagal memuat daftar metode pembayaran.');
+            allPaymentMethods = await response.json();
+            renderAdminPaymentMethodsTable(allPaymentMethods);
+        } catch (error) {
+            adminPaymentMethodsTbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--error-color)">${escapeHtml(error.message)}</td></tr>`;
+        }
+    }
+
+    function renderAdminPaymentMethodsTable(methods) {
+        if (!adminPaymentMethodsTbody) return;
+        adminPaymentMethodsTbody.innerHTML = '';
+        if (!Array.isArray(methods) || methods.length === 0) {
+            adminPaymentMethodsTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Belum ada metode pembayaran.</td></tr>';
+            return;
+        }
+        const typeLabelMap = { ewallet: 'E-Wallet', bank: 'Bank', qris: 'QRIS' };
+        const fmtRp = (v) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v);
+
+        methods.forEach(pm => {
+            const row = document.createElement('tr');
+            const typeText = typeLabelMap[pm.type] || pm.type;
+            const qrisTag = pm.is_qris ? ' <span class="badge status-pending">Tanpa Kode Unik</span>' : '';
+            const targetParts = [];
+            if (pm.account_number) targetParts.push(`<strong>${escapeHtml(pm.account_number)}</strong>`);
+            if (pm.account_name) targetParts.push(`<small style="display:block;color:#94a3b8;">A/N ${escapeHtml(pm.account_name)}</small>`);
+            if (pm.qris_image_url) targetParts.push('<small style="display:block;color:#38bdf8;">QRIS image tersedia</small>');
+            const targetHtml = targetParts.length > 0 ? targetParts.join('') : '<span style="color:#6b7280;">-</span>';
+            const statusBadge = pm.is_active
+                ? '<span class="status-badge status-success">Aktif</span>'
+                : '<span class="status-badge status-failed">Nonaktif</span>';
+            const toggleLabel = pm.is_active ? 'Nonaktifkan' : 'Aktifkan';
+            const toggleClass = pm.is_active ? 'resolve-btn resolve-btn-review pm-toggle-btn' : 'resolve-btn resolve-btn-success pm-toggle-btn';
+
+            row.innerHTML = `
+                <td>${Number(pm.sort_order) || 0}</td>
+                <td><code>${escapeHtml(pm.code)}</code></td>
+                <td><strong>${escapeHtml(pm.name)}</strong>${qrisTag}</td>
+                <td>${escapeHtml(typeText)}</td>
+                <td>${targetHtml}</td>
+                <td>${fmtRp(pm.min_amount || 10000)}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    <div class="admin-resolve-actions">
+                        <button type="button" class="edit-btn edit-btn-compact pm-edit-btn" data-id="${pm.id}">Edit</button>
+                        <button type="button" class="${toggleClass}" data-id="${pm.id}" data-active="${pm.is_active ? '1' : '0'}">${toggleLabel}</button>
+                        <button type="button" class="resolve-btn resolve-btn-refund pm-delete-btn" data-id="${pm.id}">Hapus</button>
+                    </div>
+                </td>
+            `;
+            adminPaymentMethodsTbody.appendChild(row);
+        });
+    }
+
+    if (pmTypeSelect && pmIsQrisCheckbox) {
+        pmTypeSelect.addEventListener('change', () => {
+            pmIsQrisCheckbox.checked = pmTypeSelect.value === 'qris';
+        });
+    }
+
+    if (pmCancelEditBtn) {
+        pmCancelEditBtn.addEventListener('click', resetPaymentMethodForm);
+    }
+
+    if (refreshPmBtn) {
+        refreshPmBtn.addEventListener('click', () => fetchAdminPaymentMethods());
+    }
+
+    if (paymentMethodForm) {
+        paymentMethodForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!paymentMethodForm.checkValidity()) {
+                const firstInvalid = paymentMethodForm.querySelector(':invalid');
+                if (firstInvalid) firstInvalid.focus();
+                paymentMethodForm.reportValidity();
+                return;
+            }
+            const editId = pmEditIdInput ? pmEditIdInput.value.trim() : '';
+            const payload = {
+                name: pmNameInput ? pmNameInput.value.trim() : '',
+                code: pmCodeInput ? pmCodeInput.value.trim().toUpperCase() : '',
+                type: pmTypeSelect ? pmTypeSelect.value : 'ewallet',
+                account_number: pmAccountNumberInput ? pmAccountNumberInput.value.trim() : '',
+                account_name: pmAccountNameInput ? pmAccountNameInput.value.trim() : '',
+                qris_image_url: pmQrisUrlInput ? pmQrisUrlInput.value.trim() : '',
+                instructions: pmInstructionsInput ? pmInstructionsInput.value.trim() : '',
+                min_amount: pmMinAmountInput ? Number(pmMinAmountInput.value) : 10000,
+                sort_order: pmSortOrderInput && pmSortOrderInput.value !== '' ? parseInt(pmSortOrderInput.value, 10) : 0,
+                is_qris: pmIsQrisCheckbox ? pmIsQrisCheckbox.checked : false,
+                is_active: pmIsActiveCheckbox ? pmIsActiveCheckbox.checked : true
+            };
+
+            if (pmSubmitBtn) {
+                pmSubmitBtn.disabled = true;
+                pmSubmitBtn.textContent = editId ? 'Menyimpan...' : 'Menambahkan...';
+            }
+            setPmFormStatus('');
+
+            try {
+                const url = editId
+                    ? `${ADMIN_API_URL}/payment-methods/${editId}`
+                    : `${ADMIN_API_URL}/payment-methods`;
+                const method = editId ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || 'Gagal menyimpan metode pembayaran.');
+                const successMsg = result.message || 'Metode pembayaran berhasil disimpan.';
+                resetPaymentMethodForm();
+                setPmFormStatus(successMsg, false);
+                await fetchAdminPaymentMethods();
+            } catch (error) {
+                setPmFormStatus(error.message, true);
+            } finally {
+                if (pmSubmitBtn) {
+                    pmSubmitBtn.disabled = false;
+                    const stillEditing = pmEditIdInput && pmEditIdInput.value.trim() !== '';
+                    pmSubmitBtn.textContent = stillEditing ? 'Update Metode' : 'Simpan Metode';
+                }
+            }
+        });
+    }
+
+    if (adminPaymentMethodsTbody) {
+        adminPaymentMethodsTbody.addEventListener('click', async (e) => {
+            const editBtn = e.target.closest('.pm-edit-btn');
+            if (editBtn) {
+                const pm = allPaymentMethods.find(item => String(item.id) === editBtn.dataset.id);
+                if (pm) fillPaymentMethodForm(pm);
+                return;
+            }
+
+            const toggleBtn = e.target.closest('.pm-toggle-btn');
+            if (toggleBtn) {
+                const id = toggleBtn.dataset.id;
+                const currentActive = toggleBtn.dataset.active === '1';
+                toggleBtn.disabled = true;
+                try {
+                    const response = await fetch(`${ADMIN_API_URL}/payment-methods/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ is_active: !currentActive })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+                    await fetchAdminPaymentMethods();
+                } catch (error) {
+                    alert(`Gagal: ${error.message}`);
+                    toggleBtn.disabled = false;
+                }
+                return;
+            }
+
+            const deleteBtn = e.target.closest('.pm-delete-btn');
+            if (deleteBtn) {
+                const id = deleteBtn.dataset.id;
+                const pm = allPaymentMethods.find(item => String(item.id) === id);
+                const label = pm ? `${pm.name} (${pm.code})` : `#${id}`;
+                if (!confirm(`Yakin ingin menghapus metode pembayaran "${label}"?`)) return;
+                deleteBtn.disabled = true;
+                try {
+                    const response = await fetch(`${ADMIN_API_URL}/payment-methods/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+                    if (pmEditIdInput && pmEditIdInput.value === id) {
+                        resetPaymentMethodForm();
+                    }
+                    setPmFormStatus(result.message || 'Metode pembayaran berhasil dihapus.', false);
+                    await fetchAdminPaymentMethods();
+                } catch (error) {
+                    alert(`Gagal menghapus: ${error.message}`);
+                    deleteBtn.disabled = false;
+                }
+            }
+        });
+    }
+
     if (addGameForm) {
         addGameForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1084,13 +1344,17 @@ if (fsGameSelector) {
         syncForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const syncButton = syncForm.querySelector('button');
+            const marginInput = document.getElementById('margin-percent');
+            const rawMargin = marginInput ? marginInput.value.trim() : '';
+            const margin_percent = rawMargin !== '' ? parseFloat(rawMargin) : undefined;
             if (confirm(`Anda yakin ingin sinkronisasi produk dari Foxy? Ini akan menambah/memperbarui produk.`)) {
                 syncButton.disabled = true;
                 syncButton.textContent = 'Mensinkronkan...';
                 try {
                     const response = await fetch(`${ADMIN_API_URL}/sync-products`, {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ margin_percent })
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);
@@ -1239,6 +1503,7 @@ if (manualPriceForm) {
         await fetchAdminGames();
         await fetchAdminProducts();
         await fetchAdminDeposits();
+        await fetchAdminPaymentMethods();
         await populateAddProductFormDropdown();
         await fetchAndDisplayMargins();
         await fetchAndDisplayPromos();

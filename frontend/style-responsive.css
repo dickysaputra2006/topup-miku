@@ -27,7 +27,7 @@ html {
 
 body {
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100vw;
 }
 
@@ -106,7 +106,7 @@ header {
 
 .product-card:hover {
   transform: translateY(-3px) scale(1.02);
-  box-shadow: 0 6px 20px rgba(236, 72, 153, 0.2);
+  box-shadow: 0 8px 24px rgba(6, 182, 212, 0.24);
 }
 
 /* Image sudah full-cover via style.css, responsive CSS tidak perlu override height img */
@@ -251,6 +251,25 @@ table {
 .sidebar,
 .admin-sidebar {
   border-radius: var(--radius-md);
+}
+
+@media (min-width: 769px) {
+  .dashboard-container,
+  .admin-page-container {
+    align-items: flex-start;
+  }
+
+  #dashboard-sidebar,
+  #admin-sidebar {
+    position: sticky;
+    top: calc(56px + 1.25rem);
+    align-self: flex-start;
+    height: auto;
+    min-height: auto;
+    max-height: calc(100vh - 6.5rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
 }
 
 @media (max-width: 768px) {
@@ -888,7 +907,7 @@ table th {
     /* Letakkan tepat di bawah header (header ~56px) */
     top: 56px;
     z-index: 90;
-    background-color: var(--bg-dark, #13131f);
+    background-color: var(--bg-dark, #0b0f19);
     border-bottom: 1px solid var(--border-color, rgba(255,255,255,0.08));
     padding: 0.5rem 0.75rem;
     width: 100%;
@@ -951,12 +970,12 @@ table th {
 
   /* State: ACTIVE (step yang sedang dilihat) */
   .step-nav-btn.active .step-nav-num {
-    background-color: var(--primary-color, #ec4899);
+    background-color: var(--primary-color, #06b6d4);
     color: #fff;
   }
 
   .step-nav-btn.active {
-    color: var(--primary-color, #ec4899);
+    color: var(--primary-color, #06b6d4);
   }
 
   .step-nav-btn.active .step-nav-label {
@@ -965,12 +984,12 @@ table th {
 
   /* State: COMPLETED (step yang sudah dilewati) */
   .step-nav-btn.completed .step-nav-num {
-    background-color: rgba(236, 72, 153, 0.25);
-    color: var(--primary-color, #ec4899);
+    background-color: rgba(6, 182, 212, 0.22);
+    color: var(--primary-color, #06b6d4);
   }
 
   .step-nav-btn.completed {
-    color: rgba(236, 72, 153, 0.7);
+    color: rgba(6, 182, 212, 0.78);
   }
 
   /* Garis pemisah antar step */
@@ -1039,7 +1058,7 @@ table th {
   border: 1px solid var(--border-color, #4B5563);
   border-radius: 5px;   /* sama dengan input modal di style.css */
   /* Background identik dengan input modal */
-  background-color: var(--bg-dark, #1F2937);
+  background-color: var(--bg-dark, #0b0f19);
   color: var(--text-color, #F3F4F6);
   /* Font identik */
   font-size: 0.9rem;
@@ -1053,7 +1072,7 @@ table th {
 }
 
 .phone-country-code:focus {
-  outline: 2px solid var(--primary-color, #ec4899);
+  outline: 2px solid var(--primary-color, #06b6d4);
   outline-offset: 1px;
 }
 
@@ -1290,8 +1309,8 @@ table th {
     display: flex;
     align-items: flex-start;
     gap: 0.65rem;
-    background: rgba(236, 72, 153, 0.08);
-    border: 1px solid rgba(236, 72, 153, 0.25);
+    background: rgba(6, 182, 212, 0.08);
+    border: 1px solid rgba(6, 182, 212, 0.25);
     border-radius: var(--radius-sm, 6px);
     padding: 0.75rem 1rem;
     margin-top: 0.75rem;
@@ -1326,7 +1345,7 @@ table th {
     transition: background 0.15s, border-color 0.15s;
 }
 .contact-page-link:hover {
-    background: rgba(236, 72, 153, 0.1);
+    background: rgba(6, 182, 212, 0.12);
     border-color: var(--primary-color);
     color: var(--primary-color);
 }
@@ -1903,5 +1922,348 @@ table th {
 @media (max-width: 768px) {
     #leaderboard-nav-btn {
         display: none !important;
+    }
+}
+
+
+/* ============================================================
+   PAKET 1: RESPONSIVE POLISH — DARK GAMING THEME, HERO, COUNTDOWN & INVOICE
+   ============================================================ */
+
+header {
+    background-color: #0b0f19;
+}
+
+.header-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0;
+    background-color: var(--bg-surface-elevated, #161f33);
+    border: 1px solid var(--border-color, #1f2937);
+    border-radius: 8px;
+    color: var(--text-color, #f8fafc);
+    font-size: 1.05rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.header-icon-btn:hover,
+.header-icon-btn:focus-visible {
+    background-color: rgba(6, 182, 212, 0.14);
+    border-color: var(--primary-color, #06b6d4);
+    color: var(--primary-color, #06b6d4);
+    outline: none;
+}
+
+#notification-container .badge-count {
+    top: -6px;
+    right: -6px;
+}
+
+@media (min-width: 769px) {
+    #hamburger-btn {
+        display: none !important;
+    }
+}
+
+.hero-placeholder.miku-hero-banner {
+    height: auto;
+    min-height: clamp(165px, 21vw, 230px);
+}
+
+.product-card {
+    aspect-ratio: 4 / 5;
+    height: auto;
+    min-height: 155px;
+    border-radius: var(--radius-md);
+}
+
+@media (max-width: 768px) {
+    .header-container {
+        width: 100%;
+        height: auto;
+        min-height: 56px;
+        padding: 0.55rem 0.85rem;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.55rem 0.5rem;
+    }
+
+    .header-left {
+        flex: 1 1 auto;
+        min-width: 0;
+        gap: 0.5rem;
+    }
+
+    .logo {
+        font-size: clamp(1.05rem, 4.5vw, 1.3rem);
+        white-space: nowrap;
+    }
+
+    .header-right {
+        flex: 0 1 auto;
+        min-width: 0;
+        gap: 0.5rem;
+        margin-left: auto;
+    }
+
+    .header-center {
+        order: 3;
+        flex: 1 0 100%;
+        width: 100%;
+        padding: 0;
+    }
+
+    .search-container {
+        max-width: 100%;
+    }
+
+    #search-input {
+        padding: 0.55rem 1rem 0.55rem 2.5rem;
+        min-height: 40px;
+        font-size: 0.9rem;
+    }
+
+    #hamburger-btn {
+        display: inline-flex;
+        margin-right: 0;
+        padding: 0;
+    }
+
+    #user-auth-button {
+        display: inline-block;
+        max-width: min(40vw, 145px);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        padding: 0.42rem 0.72rem;
+        min-height: 36px;
+        font-size: 0.8rem;
+        line-height: 1.35;
+        vertical-align: middle;
+    }
+
+    #user-auth-button i {
+        margin-right: 0.25rem;
+        vertical-align: -1px;
+    }
+
+    .dropdown-menu {
+        z-index: 999;
+        visibility: hidden;
+        pointer-events: none;
+        box-sizing: border-box;
+        height: 100vh;
+        height: 100dvh;
+        overflow-y: auto;
+        background-color: var(--bg-dark, #0b0f19);
+    }
+
+    .dropdown-menu.active {
+        left: 0;
+        visibility: visible;
+        pointer-events: auto;
+    }
+
+    .hero-placeholder.miku-hero-banner {
+        height: auto;
+        min-height: 155px;
+        padding: 1.25rem 1.25rem;
+        gap: 1rem;
+    }
+
+    .miku-hero-svg {
+        width: 80px;
+        height: 80px;
+    }
+
+    .flash-sale-header {
+        align-items: center;
+    }
+
+    .flash-sale-countdown {
+        padding: 0.35rem 0.6rem;
+        gap: 0.45rem;
+    }
+
+    .countdown-label {
+        font-size: 0.75rem;
+    }
+
+    .countdown-unit {
+        min-width: 24px;
+        height: 24px;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .hero-placeholder.miku-hero-banner {
+        height: auto;
+        min-height: 145px;
+        padding: 1.05rem;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .miku-hero-visual {
+        display: none;
+    }
+
+    .miku-badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.6rem;
+    }
+
+    .product-card {
+        aspect-ratio: 4 / 5;
+        height: auto;
+        min-height: 132px;
+    }
+
+    .invoice-actions {
+        flex-direction: column;
+    }
+
+    .invoice-btn {
+        width: 100%;
+        flex: none;
+    }
+}
+
+@media (max-width: 380px) {
+    .logo {
+        font-size: 1.02rem;
+    }
+
+    #user-auth-button {
+        max-width: min(36vw, 122px);
+        padding: 0.38rem 0.6rem;
+        font-size: 0.76rem;
+    }
+}
+
+@media print {
+    header,
+    footer,
+    .no-print,
+    .invoice-actions,
+    #auth-modal,
+    #toast-notification,
+    #dropdown-menu {
+        display: none !important;
+    }
+}
+
+
+/* ============================================================
+   MIKU MEMBER DASHBOARD — RESPONSIVE DESKTOP & MOBILE RULES
+   ============================================================ */
+
+@media (min-width: 769px) {
+    #dashboard-sidebar {
+        flex: 0 0 260px;
+        max-width: 260px;
+    }
+
+    .sidebar-top-header .menu-toggle-btn {
+        display: none !important;
+    }
+}
+
+@media (max-width: 960px) and (min-width: 769px) {
+    .dashboard-split-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-header #menu-toggle-btn,
+    #dashboard-sidebar .menu-toggle-btn {
+        display: inline-flex !important;
+    }
+
+    .dashboard-header .header-back-home {
+        display: none;
+    }
+
+    .dashboard-header .header-user-meta {
+        display: none;
+    }
+
+    .dashboard-header .header-user-chip {
+        padding: 0.15rem;
+    }
+
+    #dashboard-sidebar {
+        width: min(82vw, 290px);
+        max-width: 290px;
+        height: 100vh;
+        height: 100dvh;
+        max-height: none;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        z-index: 999;
+        border-radius: 0 14px 14px 0;
+    }
+
+    body.menu-open::after {
+        z-index: 998;
+    }
+
+    .dashboard-kpi-card .order-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .dashboard-split-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .dashboard-quick-banner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-kpi-card .stat-item {
+        padding: 0.85rem 0.9rem;
+    }
+
+    .profile-contact-row {
+        padding: 0.6rem 0.75rem;
+    }
+
+    .quick-banner-actions {
+        width: 100%;
+    }
+
+    .quick-action-btn {
+        flex: 1 1 calc(50% - 0.3rem);
+        justify-content: center;
+    }
+
+    .selected-target-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .selected-target-row .copy-deposit-number-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .pm-form-actions button {
+        width: 100%;
     }
 }
