@@ -4,9 +4,11 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check utils/mailer.js && node --check utils/networkSecurity.js && node --check utils/webhookClient.js && node --check utils/cronUtils.js && node --check cron_job_script.js && node --check seed_local_dummy.js && node --check utils/validators/cek-id-game.js && node --check utils/validators/stalk-mcgg.js && node --check utils/validators/stalk-ml-promo.js && node --check tests/auth.test.js && node --check tests/security.test.js",
+    "check": "node --check server.js && node --check utils/mailer.js && node --check utils/networkSecurity.js && node --check utils/webhookClient.js && node --check utils/cronUtils.js && node --check cron_job_script.js && node --check seed_local_dummy.js && node --check utils/validators/cek-id-game.js && node --check utils/validators/stalk-mcgg.js && node --check utils/validators/stalk-ml-promo.js && node --check ../scripts/dump-routes.js && node -e \"const fs=require('fs'),path=require('path'),cp=require('child_process');for(const d of ['tests/helpers','tests/unit','tests/integration'])for(const f of fs.readdirSync(d).filter(x=>x.endsWith('.js')))cp.execFileSync(process.execPath,['--check',path.join(d,f)],{stdio:'inherit'})\"",
     "seed": "node seed_local_dummy.js",
-    "test": "node --test"
+    "test": "node --test \"tests/unit/**/*.test.js\" \"tests/integration/**/*.test.js\"",
+    "test:unit": "node --test \"tests/unit/**/*.test.js\"",
+    "test:integration": "node --test \"tests/integration/**/*.test.js\""
   },
   "keywords": [],
   "author": "",
