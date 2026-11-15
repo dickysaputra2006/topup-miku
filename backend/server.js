@@ -261,8 +261,226 @@ function getSafeOrderErrorMessage(error, fallback) {
         'Konfigurasi Double Diamond tidak valid',
         'Kuota transaksi harian H2H Anda telah tercapai.',
         'Batas nominal transaksi harian H2H Anda telah tercapai.',
+        'Format ref_id tidak valid',
+        'Header Idempotency-Key harus berupa UUID yang valid.',
+        'ref_id sudah digunakan',
+        'Idempotency-Key sudah digunakan',
     ];
     return allowedMessages.some(allowed => message.startsWith(allowed)) ? message : fallback;
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const REF_ID_REGEX = /^[A-Za-z0-9._:-]{1,100}$/;
+const INVOICE_ID_REGEX = /^[A-Za-z0-9_-]{3,64}$/;
+
+function generateInvoiceId(prefix) {
+    return `${prefix}-${crypto.randomBytes(12).toString('hex').toUpperCase()}`;
+}
+
+function generateProviderTrxId(prefix) {
+    return `${prefix}-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+}
+
+function isValidInvoiceId(rawId) {
+    return typeof rawId === 'string' && INVOICE_ID_REGEX.test(rawId);
+}
+
+function parseOptionalRefId(rawRefId) {
+    if (rawRefId === undefined || rawRefId === null) {
+        return null;
+    }
+    if (typeof rawRefId !== 'string' || !REF_ID_REGEX.test(rawRefId)) {
+        const err = new Error('Format ref_id tidak valid. Gunakan 1-100 karakter huruf, angka, titik, underscore, titik dua, atau tanda hubung.');
+        err.statusCode = 400;
+        throw err;
+    }
+    return rawRefId;
+}
+
+function parseOptionalIdempotencyKeyHeader(req) {
+    const rawHeader = req && req.headers ? req.headers['idempotency-key'] : undefined;
+    if (rawHeader === undefined) {
+        return null;
+    }
+    if (typeof rawHeader !== 'string') {
+        const err = new Error('Header Idempotency-Key harus berupa UUID yang valid.');
+        err.statusCode = 400;
+        throw err;
+    }
+    const trimmed = rawHeader.trim();
+    if (!UUID_REGEX.test(trimmed)) {
+        const err = new Error('Header Idempotency-Key harus berupa UUID yang valid.');
+        err.statusCode = 400;
+        throw err;
+    }
+    return trimmed.toLowerCase();
+}
+
+async function findTransactionByRefId(queryable, userId, refId) {
+    const { rows } = await queryable.query(
+        `SELECT t.id, t.invoice_id, t.user_id, t.product_id, t.target_game_id, t.price, t.status, t.ref_id,
+                p.name AS product_name, g.needs_server_id
+         FROM transactions t
+         LEFT JOIN products p ON t.product_id = p.id
+         LEFT JOIN games g ON p.game_id = g.id
+         WHERE t.user_id = $1 AND t.ref_id = $2
+         LIMIT 1`,
+        [userId, refId]
+    );
+    return rows && rows[0] ? rows[0] : null;
+}
+
+function matchesOrderIdempotencyPayload(existingTx, productId, targetGameId, targetServerId) {
+    if (!existingTx || Number(existingTx.product_id) !== Number(productId)) {
+        return false;
+    }
+    const expectedTarget = Boolean(existingTx.needs_server_id)
+        ? `${targetGameId}|${targetServerId || ''}`
+        : targetGameId;
+    return existingTx.target_game_id === expectedTarget;
+}
+
+function buildIdempotentOrderResponseBody(channel, existingTx) {
+    if (channel === 'h2h') {
+        return {
+            success: true,
+            idempotent: true,
+            message: 'Transaksi H2H sudah tercatat sebelumnya (idempotent).',
+            data: {
+                invoiceId: existingTx.invoice_id,
+                status: existingTx.status,
+                productName: existingTx.product_name,
+                target: existingTx.target_game_id,
+                price: Number(existingTx.price)
+            }
+        };
+    }
+    return {
+        idempotent: true,
+        message: 'Pesanan sudah tercatat sebelumnya (idempotent).',
+        invoiceId: existingTx.invoice_id,
+        status: existingTx.status
+    };
+}
+
+async function resolveExistingIdempotentOrder(queryable, { channel, userId, idempotencyKey, keyLabel, productId, targetGameId, targetServerId }) {
+    if (!idempotencyKey) return null;
+    const existingTx = await findTransactionByRefId(queryable, userId, idempotencyKey);
+    if (!existingTx) return null;
+
+    if (!matchesOrderIdempotencyPayload(existingTx, productId, targetGameId, targetServerId)) {
+        const conflictErr = new Error(`${keyLabel} sudah digunakan untuk pesanan dengan payload berbeda.`);
+        conflictErr.statusCode = 409;
+        throw conflictErr;
+    }
+
+    if (channel === 'web' && existingTx.status === 'Failed') {
+        return {
+            statusCode: 409,
+            body: {
+                idempotent: true,
+                invoiceId: existingTx.invoice_id,
+                status: existingTx.status,
+                message: 'Pesanan sebelumnya gagal dan saldo telah dikembalikan. Silakan buat pesanan baru.'
+            }
+        };
+    }
+
+    return {
+        statusCode: 200,
+        body: buildIdempotentOrderResponseBody(channel, existingTx)
+    };
+}
+
+async function findDepositByIdempotencyKey(queryable, userId, idempotencyKey) {
+    const { rows } = await queryable.query(
+        `SELECT id, user_id, amount, unique_code, status, method, note, idempotency_key, created_at
+         FROM deposits
+         WHERE user_id = $1 AND idempotency_key = $2
+         LIMIT 1`,
+        [userId, idempotencyKey]
+    );
+    return rows && rows[0] ? rows[0] : null;
+}
+
+function matchesDepositIdempotencyPayload(existingDeposit, baseAmount, methodRow, trimmedNote) {
+    if (!existingDeposit) return false;
+    const existingBaseAmount = Math.trunc(Number(existingDeposit.amount) - Number(existingDeposit.unique_code || 0));
+    const existingMethod = String(existingDeposit.method || '').trim().toLowerCase();
+    const targetMethod = String(methodRow.name || '').trim().toLowerCase();
+    const existingNote = existingDeposit.note ? String(existingDeposit.note).trim() : null;
+    const targetNote = trimmedNote ? String(trimmedNote).trim() : null;
+    return existingBaseAmount === baseAmount && existingMethod === targetMethod && existingNote === targetNote;
+}
+
+function buildDepositPaymentInstructions({ depositId, totalAmount, uniqueCode, methodRow }) {
+    const useUniqueCode = !Boolean(methodRow.is_qris);
+    const amountFormatted = new Intl.NumberFormat('id-ID').format(totalAmount);
+    const safeMethodName = escapeHtml(methodRow.name);
+    const safeAcctNumber = methodRow.account_number ? escapeHtml(methodRow.account_number) : '';
+    const safeAcctName = methodRow.account_name ? escapeHtml(methodRow.account_name) : '';
+    const targetLabel = safeAcctNumber
+        ? `ke tujuan <strong>${safeAcctNumber}</strong>${safeAcctName ? ` (a.n. <strong>${safeAcctName}</strong>)` : ''}`
+        : 'ke tujuan pembayaran resmi MIKU Store';
+
+    let paymentInstructions;
+    if (useUniqueCode) {
+        paymentInstructions = `Transfer sejumlah <strong>Rp ${amountFormatted}</strong> (termasuk kode unik <strong>${uniqueCode}</strong>) via <strong>${safeMethodName}</strong> ${targetLabel}. Sertakan nomor deposit <strong>#${depositId}</strong> di keterangan transfer.`;
+    } else {
+        paymentInstructions = `Transfer tepat sejumlah <strong>Rp ${amountFormatted}</strong> via <strong>${safeMethodName}</strong> (tanpa kode unik 3 digit)${safeAcctName ? ` a.n. <strong>${safeAcctName}</strong>` : ''}. Cantumkan nomor deposit <strong>#${depositId}</strong> saat konfirmasi pembayaran.`;
+    }
+    if (methodRow.instructions) {
+        paymentInstructions += ` <br><small>${escapeHtml(methodRow.instructions)}</small>`;
+    }
+    return paymentInstructions;
+}
+
+function buildDepositResponsePayload(depositRow, methodRow, idempotent = false) {
+    const totalAmount = Number(depositRow.amount);
+    const uniqueCode = Number(depositRow.unique_code || 0);
+    const body = {
+        message: idempotent
+            ? 'Permintaan deposit sudah tercatat sebelumnya (idempotent).'
+            : 'Permintaan deposit berhasil dibuat. Saldo akan masuk setelah admin memverifikasi pembayaran.',
+        deposit: {
+            id: depositRow.id,
+            amount: totalAmount,
+            unique_code: uniqueCode,
+            method: methodRow.name,
+            is_qris: Boolean(methodRow.is_qris),
+            status: depositRow.status || 'Pending',
+            created_at: depositRow.created_at,
+            paymentInstructions: buildDepositPaymentInstructions({
+                depositId: depositRow.id,
+                totalAmount,
+                uniqueCode,
+                methodRow
+            })
+        }
+    };
+    if (idempotent) {
+        body.idempotent = true;
+    }
+    return body;
+}
+
+async function insertTransactionRecord(client, {
+    invoiceId,
+    userId,
+    productId,
+    targetForDb,
+    finalPrice,
+    providerTrxId,
+    flashSaleId,
+    idempotencyKey
+}) {
+    const sql = idempotencyKey
+        ? 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id, flash_sale_id, ref_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id'
+        : 'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id, flash_sale_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id';
+    const params = idempotencyKey
+        ? [invoiceId, userId, productId, targetForDb, finalPrice, 'Pending', providerTrxId, flashSaleId || null, idempotencyKey]
+        : [invoiceId, userId, productId, targetForDb, finalPrice, 'Pending', providerTrxId, flashSaleId || null];
+    return client.query(sql, params);
 }
 
 async function findRecentPendingDuplicate(client, userId, productId, targetGameId) {
@@ -1094,7 +1312,11 @@ app.get('/api/user/transactions', protect, async (req, res) => {
 });
 app.get('/api/user/transaction/:invoiceId', protect, async (req, res) => {
     try {
-        const { invoiceId } = req.params;
+        const rawInvoiceId = String(req.params.invoiceId || '').trim();
+        if (!isValidInvoiceId(rawInvoiceId)) {
+            return res.status(400).json({ message: 'Format invoice tidak valid.' });
+        }
+        const invoiceId = rawInvoiceId;
         const userId = req.user.id;
 
         // Query ini menggabungkan 3 tabel untuk mendapatkan semua detail
@@ -1373,6 +1595,13 @@ app.get('/api/payment-methods', protect, async (req, res) => {
 });
 
 app.post('/api/deposit/request', protect, async (req, res) => {
+    let idempotencyKey = null;
+    try {
+        idempotencyKey = parseOptionalIdempotencyKeyHeader(req);
+    } catch (keyErr) {
+        return res.status(keyErr.statusCode || 400).json({ message: keyErr.message });
+    }
+
     const { amount, method, note } = req.body;
     const userId = req.user.id;
     const parsedAmount = Number(amount);
@@ -1423,10 +1652,30 @@ app.post('/api/deposit/request', protect, async (req, res) => {
         });
     }
 
+    // Pre-check idempotency (sebelum pendingCount >= 2 agar retry deposit yang baru dibuat tidak terkena 429)
+    if (idempotencyKey) {
+        try {
+            const existingDeposit = await findDepositByIdempotencyKey(pool, userId, idempotencyKey);
+            if (existingDeposit) {
+                if (!matchesDepositIdempotencyPayload(existingDeposit, baseAmount, methodRow, trimmedNote)) {
+                    return res.status(409).json({
+                        message: 'Idempotency-Key sudah digunakan untuk deposit dengan payload berbeda.'
+                    });
+                }
+                return res.status(200).json(buildDepositResponsePayload(existingDeposit, methodRow, true));
+            }
+        } catch (idempErr) {
+            console.error('Error checking deposit idempotency:', idempErr);
+            return res.status(500).json({ message: 'Terjadi kesalahan pada server saat memvalidasi idempotency deposit.' });
+        }
+    }
+
     const useUniqueCode = !Boolean(methodRow.is_qris);
     const client = await pool.connect();
+    let inTransaction = false;
     try {
         await client.query('BEGIN');
+        inTransaction = true;
         const pendingCheck = await client.query(
             "SELECT COUNT(*) AS count FROM deposits WHERE user_id = $1 AND status = 'Pending'",
             [userId]
@@ -1436,6 +1685,7 @@ app.post('/api/deposit/request', protect, async (req, res) => {
             : 0;
         if (pendingCount >= 2) {
             await client.query('ROLLBACK');
+            inTransaction = false;
             return res.status(429).json({
                 message: 'Anda masih memiliki maksimal 2 permintaan deposit Pending. Selesaikan atau tunggu verifikasi terlebih dahulu.'
             });
@@ -1463,45 +1713,46 @@ app.post('/api/deposit/request', protect, async (req, res) => {
             }
         }
 
-        const sql = 'INSERT INTO deposits (user_id, amount, unique_code, status, method, note) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at';
-        const { rows } = await client.query(sql, [userId, totalAmount, uniqueCode, 'Pending', methodRow.name, trimmedNote || null]);
+        const insertSql = idempotencyKey
+            ? 'INSERT INTO deposits (user_id, amount, unique_code, status, method, note, idempotency_key) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, created_at'
+            : 'INSERT INTO deposits (user_id, amount, unique_code, status, method, note) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, created_at';
+        const insertParams = idempotencyKey
+            ? [userId, totalAmount, uniqueCode, 'Pending', methodRow.name, trimmedNote || null, idempotencyKey]
+            : [userId, totalAmount, uniqueCode, 'Pending', methodRow.name, trimmedNote || null];
+
+        const { rows } = await client.query(insertSql, insertParams);
         const depositId = rows[0].id;
         const createdAt = rows[0].created_at;
         await client.query('COMMIT');
+        inTransaction = false;
 
-        const amountFormatted = new Intl.NumberFormat('id-ID').format(totalAmount);
-        const safeMethodName = escapeHtml(methodRow.name);
-        const safeAcctNumber = methodRow.account_number ? escapeHtml(methodRow.account_number) : '';
-        const safeAcctName = methodRow.account_name ? escapeHtml(methodRow.account_name) : '';
-        const targetLabel = safeAcctNumber
-            ? `ke tujuan <strong>${safeAcctNumber}</strong>${safeAcctName ? ` (a.n. <strong>${safeAcctName}</strong>)` : ''}`
-            : 'ke tujuan pembayaran resmi MIKU Store';
-
-        let paymentInstructions;
-        if (useUniqueCode) {
-            paymentInstructions = `Transfer sejumlah <strong>Rp ${amountFormatted}</strong> (termasuk kode unik <strong>${uniqueCode}</strong>) via <strong>${safeMethodName}</strong> ${targetLabel}. Sertakan nomor deposit <strong>#${depositId}</strong> di keterangan transfer.`;
-        } else {
-            paymentInstructions = `Transfer tepat sejumlah <strong>Rp ${amountFormatted}</strong> via <strong>${safeMethodName}</strong> (tanpa kode unik 3 digit)${safeAcctName ? ` a.n. <strong>${safeAcctName}</strong>` : ''}. Cantumkan nomor deposit <strong>#${depositId}</strong> saat konfirmasi pembayaran.`;
-        }
-        if (methodRow.instructions) {
-            paymentInstructions += ` <br><small>${escapeHtml(methodRow.instructions)}</small>`;
-        }
-
-        res.status(201).json({
-            message: 'Permintaan deposit berhasil dibuat. Saldo akan masuk setelah admin memverifikasi pembayaran.',
-            deposit: {
-                id: depositId,
-                amount: totalAmount,
-                unique_code: uniqueCode,
-                method: methodRow.name,
-                is_qris: Boolean(methodRow.is_qris),
-                status: 'Pending',
-                created_at: createdAt,
-                paymentInstructions
-            }
-        });
+        return res.status(201).json(buildDepositResponsePayload({
+            id: depositId,
+            amount: totalAmount,
+            unique_code: uniqueCode,
+            status: 'Pending',
+            created_at: createdAt
+        }, methodRow, false));
     } catch (error) {
-        await client.query('ROLLBACK');
+        if (inTransaction) {
+            await client.query('ROLLBACK').catch(() => {});
+            inTransaction = false;
+        }
+        if (error && error.code === '23505' && idempotencyKey) {
+            try {
+                const existingAfterRace = await findDepositByIdempotencyKey(client, userId, idempotencyKey);
+                if (existingAfterRace) {
+                    if (!matchesDepositIdempotencyPayload(existingAfterRace, baseAmount, methodRow, trimmedNote)) {
+                        return res.status(409).json({
+                            message: 'Idempotency-Key sudah digunakan untuk deposit dengan payload berbeda.'
+                        });
+                    }
+                    return res.status(200).json(buildDepositResponsePayload(existingAfterRace, methodRow, true));
+                }
+            } catch (rereadErr) {
+                console.error('Error re-reading deposit after 23505 race:', rereadErr);
+            }
+        }
         console.error('Error creating deposit request:', error);
         res.status(500).json({ message: 'Terjadi kesalahan pada server saat membuat permintaan deposit.' });
     } finally {
@@ -2576,7 +2827,7 @@ app.get('/api/admin/validation-services/pgs-preview', protectAdmin, async (req, 
         const response = await axios.post(
             'https://pgscode.id/api/tools/run',
             { key: pgsKey, api_key: pgsApiKey, action: 'get-service' },
-            { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+            { headers: { 'Content-Type': 'application/json' }, timeout: 10000 }
         );
         const rawData = response.data;
         // Jangan forward key/api_key ke frontend — hanya kirim data service
@@ -3152,31 +3403,28 @@ function publicStatusLabel(status) {
     return 'Pending';
 }
 
-// Helper: mask invoice ID — TRX-17781619937353 => TRX-1778****7353
+// Helper: mask invoice ID — TRX-9A7F3C2B10E84D65A1F9C302 => TRX-9A7F****C302
 function maskInvoiceId(invoiceId) {
-    if (!invoiceId || invoiceId.length <= 8) return invoiceId;
-    // Cari prefix (misal TRX-)
+    if (!invoiceId || typeof invoiceId !== 'string') return invoiceId;
+    if (invoiceId.length <= 4) return '****';
     const dashIdx = invoiceId.indexOf('-');
     if (dashIdx !== -1 && dashIdx <= 6) {
-        const prefix = invoiceId.slice(0, dashIdx + 1);    // "TRX-"
-        const num = invoiceId.slice(dashIdx + 1);          // "17781619937353"
-        if (num.length <= 8) return invoiceId;
-        const visible_start = num.slice(0, 4);
-        const visible_end = num.slice(-4);
-        return `${prefix}${visible_start}****${visible_end}`;
+        const prefix = invoiceId.slice(0, dashIdx + 1);    // "TRX-" atau "H2H-"
+        const suffix = invoiceId.slice(dashIdx + 1);
+        if (suffix.length <= 4) return `${prefix}****`;
+        if (suffix.length <= 8) return `${prefix}${suffix.slice(0, 2)}****${suffix.slice(-2)}`;
+        return `${prefix}${suffix.slice(0, 4)}****${suffix.slice(-4)}`;
     }
-    // Fallback: tampilkan 4 karakter awal + **** + 4 karakter akhir
-    const start = invoiceId.slice(0, 4);
-    const end = invoiceId.slice(-4);
-    return `${start}****${end}`;
+    if (invoiceId.length <= 8) return `${invoiceId.slice(0, 2)}****${invoiceId.slice(-2)}`;
+    return `${invoiceId.slice(0, 4)}****${invoiceId.slice(-4)}`;
 }
 
 // GET /api/public/transaction/:invoiceId — cek satu transaksi (publik, tanpa login)
 app.get('/api/public/transaction/:invoiceId', async (req, res) => {
     try {
-        const rawId = String(req.params.invoiceId || '').trim().slice(0, 64);
-        // Hanya izinkan karakter aman: huruf, angka, underscore, dash
-        if (!rawId || !/^[A-Za-z0-9_-]+$/.test(rawId)) {
+        const rawId = String(req.params.invoiceId || '').trim();
+        // Hanya izinkan karakter aman [A-Za-z0-9_-] dengan panjang 3-64
+        if (!isValidInvoiceId(rawId)) {
             return res.status(400).json({ message: 'Format invoice tidak valid.' });
         }
 
@@ -3691,11 +3939,86 @@ app.post('/api/bot/admin/deposits/:id/reject', requireWaBotAdminToken, async (re
     }
 });
 
-// === ORDER & H2H ENDPOINTS ===
-app.post('/api/order', protect, async (req, res) => {
+// === ORDER & H2H HELPERS (3-Phase Architecture — SEC-013) ===
+function isProviderTimeoutOrAmbiguous(providerError) {
+    if (!providerError || providerError.isExplicitRejection) return false;
+    const httpStatus = providerError.response && providerError.response.status;
+    const errCode = providerError.code;
+    return (
+        errCode === 'ECONNABORTED' ||
+        errCode === 'ETIMEDOUT' ||
+        errCode === 'ECONNRESET' ||
+        Boolean(providerError.message && /timeout/i.test(providerError.message)) ||
+        httpStatus === 502 ||
+        httpStatus === 503 ||
+        httpStatus === 504
+    );
+}
+
+/**
+ * Fase (c): transaksi DB kedua setelah panggilan provider tanpa menahan koneksi di Fase (b).
+ * Mempertahankan lock FOR UPDATE tanpa filter status agar aman terhadap balapan callback.
+ */
+async function finalizeOrderAfterProviderCall({
+    invoiceId,
+    providerTrxId,
+    userId,
+    finalPrice,
+    appliedFlashSaleId,
+    newTransactionId,
+    shouldRollbackIfPending,
+    logPrefix
+}) {
     const client = await pool.connect();
     let inTransaction = false;
+    let lockedTxStatus = null;
     try {
+        await client.query('BEGIN');
+        inTransaction = true;
+        const { rows: lockedTxRows } = await client.query(
+            'SELECT id, status, provider_trx_id, flash_sale_id, flash_sale_restored FROM transactions WHERE invoice_id = $1 FOR UPDATE',
+            [invoiceId]
+        );
+        if (lockedTxRows && lockedTxRows.length === 1) {
+            lockedTxStatus = lockedTxRows[0].status;
+            // Simpan provider_trx_id tanpa menimpa status transaksi yang sudah dikunci
+            await client.query(
+                'UPDATE transactions SET provider_trx_id = COALESCE(provider_trx_id, $1), updated_at = NOW() WHERE invoice_id = $2',
+                [providerTrxId, invoiceId]
+            );
+            if (shouldRollbackIfPending && ['Pending', 'Processing'].includes(lockedTxStatus)) {
+                await rollbackTransactionResources(client, {
+                    id: lockedTxRows[0].id || newTransactionId,
+                    invoice_id: invoiceId,
+                    user_id: userId,
+                    price: finalPrice,
+                    status: lockedTxStatus,
+                    flash_sale_id: lockedTxRows[0].flash_sale_id !== undefined ? lockedTxRows[0].flash_sale_id : appliedFlashSaleId,
+                    flash_sale_restored: lockedTxRows[0].flash_sale_restored
+                }, {
+                    refundDescription: `Refund otomatis karena gagal kirim ke provider (${invoiceId})`
+                });
+            }
+        }
+        await client.query('COMMIT');
+        inTransaction = false;
+    } catch (compErr) {
+        if (inTransaction) {
+            await client.query('ROLLBACK').catch(() => {});
+            inTransaction = false;
+        }
+        const actionLabel = shouldRollbackIfPending ? 'Compensating refund' : 'Persisting provider_trx_id';
+        console.error(`[CRITICAL] ${logPrefix} ${actionLabel} failed for invoice ${invoiceId}:`, safeErrorDetail(compErr));
+    } finally {
+        client.release();
+    }
+    return lockedTxStatus;
+}
+
+// === ORDER & H2H ENDPOINTS ===
+app.post('/api/order', protect, async (req, res) => {
+    try {
+        const idempotencyKey = parseOptionalIdempotencyKeyHeader(req);
         const productId = Number(req.body.productId);
         const targetGameId = normalizeString(req.body.targetGameId, 80);
         const targetServerId = normalizeString(req.body.targetServerId, 80);
@@ -3704,8 +4027,24 @@ app.post('/api/order', protect, async (req, res) => {
 
         if (!Number.isInteger(productId) || productId <= 0 || !targetGameId) throw new Error('Produk dan ID Game wajib diisi.');
 
-        // Ambil detail produk LENGKAP di luar transaksi DB dan tanpa FOR UPDATE
-        const productQuery = `
+        // Pre-check DB singkat: idempotency + lookup produk, lalu LEPAS koneksi sebelum HTTP eksternal
+        let product;
+        const preClient = await pool.connect();
+        try {
+            const earlyIdempotent = await resolveExistingIdempotentOrder(preClient, {
+                channel: 'web',
+                userId,
+                idempotencyKey,
+                keyLabel: 'Idempotency-Key',
+                productId,
+                targetGameId,
+                targetServerId
+            });
+            if (earlyIdempotent) {
+                return res.status(earlyIdempotent.statusCode).json(earlyIdempotent.body);
+            }
+
+            const productQuery = `
                 SELECT p.*, g.id as game_id, g.needs_server_id,
                     gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
                 FROM (SELECT * FROM products WHERE id = $1 AND status = 'Active') AS p
@@ -3713,18 +4052,21 @@ app.post('/api/order', protect, async (req, res) => {
                 LEFT JOIN game_margins gm ON p.game_id = gm.game_id
                 WHERE g.status = 'Active'
             `;
-        const { rows: products } = await client.query(productQuery, [productId]);
+            const { rows: products } = await preClient.query(productQuery, [productId]);
 
-        if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
-        const product = products[0];
+            if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
+            product = products[0];
+        } finally {
+            preClient.release();
+        }
 
         if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
 
-        // === PHASE 5B: VALIDASI ID GAME (di luar blok BEGIN...COMMIT agar tidak menahan DB lock) ===
+        // === PHASE 5B: VALIDASI ID GAME (0 koneksi DB ditahan) ===
         await validateOrderGameIdIfNeeded(product, targetGameId, targetServerId);
         // === AKHIR PHASE 5B ===
 
-        // --- PRICE GUARD FETCH: Ambil harga provider real-time di luar blok BEGIN...COMMIT ---
+        // --- PRICE GUARD FETCH: Ambil harga provider real-time tanpa menahan koneksi DB ---
         let currentProviderCost = 0;
         try {
             console.log('[order] Checking real-time price from Foxy...');
@@ -3751,181 +4093,227 @@ app.post('/api/order', protect, async (req, res) => {
             throw new Error('Harga sedang diperbarui, coba lagi sebentar');
         }
 
-        // === FASE 1: RESERVASI ATOMIK DI DATABASE ===
-        await client.query('BEGIN');
-        inTransaction = true;
-
-        // --- LOGIKA HARGA FINAL TIGA LAPIS ---
-        const { rows: users } = await client.query('SELECT balance, role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE', [userId]);
-        if (!users || users.length === 0) throw new Error('Pengguna tidak ditemukan.');
-        const user = users[0];
-        const userRoleName = user.role_name.toLowerCase();
-
+        // === FASE (a): RESERVASI ATOMIK SINGKAT DI DATABASE ===
         let finalPrice;
-        const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
-        
-        if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
-            finalPrice = Number(manualPrice);
-        } else {
-            const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [user.role_id]);
-            if (roleRows.length === 0) throw new Error('Harga produk tidak valid.');
-            let margin = Number(roleRows[0].margin_percent); // Default: margin global
-            
-            if (product.use_custom_margin) {
-                const customMargin = product[`${userRoleName}_margin`];
-                if (customMargin !== null && customMargin !== undefined) {
-                    margin = Number(customMargin);
-                }
-            }
-            finalPrice = Math.ceil(Number(product.price) * (1 + (margin / 100)));
-        }
-        // --- AKHIR LOGIKA HARGA FINAL ---
-
-        // --- FLASH SALE OVERRIDE (dengan FOR UPDATE & kuota max_uses) ---
         let appliedFlashSaleId = null;
-        const { rows: flashSaleRows } = await client.query(
-            `SELECT id, discount_price FROM flash_sales
-             WHERE product_id = $1 AND is_active = true
-               AND NOW() BETWEEN start_at AND end_at
-               AND (max_uses IS NULL OR uses_count < max_uses)
-             LIMIT 1 FOR UPDATE`,
-            [productId]
-        );
-        if (flashSaleRows.length > 0) {
-            const flashPrice = Number(flashSaleRows[0].discount_price);
-            if (flashPrice > 0 && flashPrice < finalPrice) {
-                finalPrice = flashPrice;
-                appliedFlashSaleId = flashSaleRows[0].id || null;
+        let finalTargetForDB;
+        let invoiceId;
+        let trx_id_provider;
+        let newTransactionId = null;
+        const client = await pool.connect();
+        let inTransaction = false;
+        try {
+            await client.query('BEGIN');
+            inTransaction = true;
+
+            // --- LOGIKA HARGA FINAL TIGA LAPIS ---
+            const { rows: users } = await client.query('SELECT balance, role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1 FOR UPDATE', [userId]);
+            if (!users || users.length === 0) throw new Error('Pengguna tidak ditemukan.');
+            const user = users[0];
+            const userRoleName = user.role_name.toLowerCase();
+
+            const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
+            
+            if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
+                finalPrice = Number(manualPrice);
+            } else {
+                const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [user.role_id]);
+                if (roleRows.length === 0) throw new Error('Harga produk tidak valid.');
+                let margin = Number(roleRows[0].margin_percent); // Default: margin global
+                
+                if (product.use_custom_margin) {
+                    const customMargin = product[`${userRoleName}_margin`];
+                    if (customMargin !== null && customMargin !== undefined) {
+                        margin = Number(customMargin);
+                    }
+                }
+                finalPrice = Math.ceil(Number(product.price) * (1 + (margin / 100)));
             }
-        }
-        // --- AKHIR FLASH SALE OVERRIDE ---
+            // --- AKHIR LOGIKA HARGA FINAL ---
 
-        // Blokir jika harga prapromo sudah di bawah modal provider
-        if (currentProviderCost > finalPrice) {
-            console.warn(`[order] Price risk: Provider cost (${currentProviderCost}) > Final user price (${finalPrice}). SKU ${product.provider_sku}.`);
-            invalidateFoxyProductCache();
-            throw new Error('Harga sedang diperbarui, coba lagi sebentar');
-        }
-
-        // --- PROMO CODE ENFORCEMENT ---
-        let appliedPromoId = null;
-        if (promoCode) {
-            const { rows: promoRows } = await client.query(
-                'SELECT * FROM promo_codes WHERE code = $1 AND is_active = true FOR UPDATE',
-                [promoCode]
+            // --- FLASH SALE OVERRIDE (dengan FOR UPDATE & kuota max_uses) ---
+            const { rows: flashSaleRows } = await client.query(
+                `SELECT id, discount_price FROM flash_sales
+                 WHERE product_id = $1 AND is_active = true
+                   AND NOW() BETWEEN start_at AND end_at
+                   AND (max_uses IS NULL OR uses_count < max_uses)
+                 LIMIT 1 FOR UPDATE`,
+                [productId]
             );
-            if (promoRows.length === 0) throw new Error('Kode promo tidak ditemukan atau tidak aktif.');
-            const promo = promoRows[0];
-            const rules = promo.rules || {};
+            if (flashSaleRows.length > 0) {
+                const flashPrice = Number(flashSaleRows[0].discount_price);
+                if (flashPrice > 0 && flashPrice < finalPrice) {
+                    finalPrice = flashPrice;
+                    appliedFlashSaleId = flashSaleRows[0].id || null;
+                }
+            }
+            // --- AKHIR FLASH SALE OVERRIDE ---
 
-            if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
-                throw new Error('Kode promo sudah kedaluwarsa.');
+            // Blokir jika harga prapromo sudah di bawah modal provider
+            if (currentProviderCost > finalPrice) {
+                console.warn(`[order] Price risk: Provider cost (${currentProviderCost}) > Final user price (${finalPrice}). SKU ${product.provider_sku}.`);
+                invalidateFoxyProductCache();
+                throw new Error('Harga sedang diperbarui, coba lagi sebentar');
             }
-            if (promo.max_uses && promo.uses_count >= promo.max_uses) {
-                throw new Error('Kuota penggunaan promo ini sudah habis.');
-            }
-            if (rules.max_uses_per_user) {
-                const { rows: usageRows } = await client.query(
-                    'SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND (user_id = $2 OR customer_game_id = $3)',
-                    [promo.id, userId, targetGameId]
+
+            // --- PROMO CODE ENFORCEMENT ---
+            let appliedPromoId = null;
+            if (promoCode) {
+                const { rows: promoRows } = await client.query(
+                    'SELECT * FROM promo_codes WHERE code = $1 AND is_active = true FOR UPDATE',
+                    [promoCode]
                 );
-                const usageCount = (usageRows && usageRows[0] && usageRows[0].count !== undefined)
-                    ? parseInt(usageRows[0].count, 10)
-                    : 0;
-                if (usageCount >= Number(rules.max_uses_per_user)) {
-                    throw new Error(`Anda sudah mencapai batas maksimal penggunaan kode ini (${rules.max_uses_per_user}x).`);
+                if (promoRows.length === 0) throw new Error('Kode promo tidak ditemukan atau tidak aktif.');
+                const promo = promoRows[0];
+                const rules = promo.rules || {};
+
+                if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
+                    throw new Error('Kode promo sudah kedaluwarsa.');
+                }
+                if (promo.max_uses && promo.uses_count >= promo.max_uses) {
+                    throw new Error('Kuota penggunaan promo ini sudah habis.');
+                }
+                if (rules.max_uses_per_user) {
+                    const { rows: usageRows } = await client.query(
+                        'SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND (user_id = $2 OR customer_game_id = $3)',
+                        [promo.id, userId, targetGameId]
+                    );
+                    const usageCount = (usageRows && usageRows[0] && usageRows[0].count !== undefined)
+                        ? parseInt(usageRows[0].count, 10)
+                        : 0;
+                    if (usageCount >= Number(rules.max_uses_per_user)) {
+                        throw new Error(`Anda sudah mencapai batas maksimal penggunaan kode ini (${rules.max_uses_per_user}x).`);
+                    }
+                }
+                if (rules.min_price && finalPrice < rules.min_price) {
+                    throw new Error(`Promo ini hanya berlaku untuk pembelian minimal Rp ${rules.min_price}.`);
+                }
+                if (rules.allowed_game_ids && !rules.allowed_game_ids.includes(product.game_id)) {
+                    throw new Error('Promo ini tidak berlaku untuk game ini.');
+                }
+                if (rules.allowed_product_ids && !rules.allowed_product_ids.includes(product.id)) {
+                    throw new Error('Promo ini tidak berlaku untuk produk ini.');
+                }
+
+                let discount = 0;
+                if (promo.type === 'percentage') {
+                    discount = Math.floor(finalPrice * Number(promo.value) / 100);
+                    if (rules.max_discount_amount && Number(rules.max_discount_amount) > 0 && discount > Number(rules.max_discount_amount)) {
+                        discount = Math.floor(Number(rules.max_discount_amount));
+                    }
+                } else if (promo.type === 'fixed') {
+                    discount = Math.floor(Number(promo.value));
+                }
+                if (!Number.isFinite(discount) || discount < 0) {
+                    throw new Error('Nilai diskon promo tidak valid.');
+                }
+                if (discount >= finalPrice) {
+                    discount = finalPrice - 1;
+                }
+                if (discount > 0) {
+                    finalPrice = finalPrice - discount;
+                    appliedPromoId = promo.id;
                 }
             }
-            if (rules.min_price && finalPrice < rules.min_price) {
-                throw new Error(`Promo ini hanya berlaku untuk pembelian minimal Rp ${rules.min_price}.`);
-            }
-            if (rules.allowed_game_ids && !rules.allowed_game_ids.includes(product.game_id)) {
-                throw new Error('Promo ini tidak berlaku untuk game ini.');
-            }
-            if (rules.allowed_product_ids && !rules.allowed_product_ids.includes(product.id)) {
-                throw new Error('Promo ini tidak berlaku untuk produk ini.');
-            }
+            // --- AKHIR PROMO CODE ENFORCEMENT ---
 
-            let discount = 0;
-            if (promo.type === 'percentage') {
-                discount = Math.floor(finalPrice * Number(promo.value) / 100);
-                if (rules.max_discount_amount && Number(rules.max_discount_amount) > 0 && discount > Number(rules.max_discount_amount)) {
-                    discount = Math.floor(Number(rules.max_discount_amount));
+            // SEC-003: Validasi ulang harga akhir terhadap modal provider SETELAH diskon promo dihitung
+            if (currentProviderCost > finalPrice) {
+                if (appliedPromoId) {
+                    console.warn(`[order] Promo cost guard blocked order: Final price (${finalPrice}) < Provider cost (${currentProviderCost}). SKU ${product.provider_sku}.`);
+                    throw new Error('Kode promo tidak dapat digunakan karena membuat harga akhir di bawah harga modal produk.');
                 }
-            } else if (promo.type === 'fixed') {
-                discount = Math.floor(Number(promo.value));
+                invalidateFoxyProductCache();
+                throw new Error('Harga sedang diperbarui, coba lagi sebentar');
             }
-            if (!Number.isFinite(discount) || discount < 0) {
-                throw new Error('Nilai diskon promo tidak valid.');
-            }
-            if (discount >= finalPrice) {
-                discount = finalPrice - 1;
-            }
-            if (discount > 0) {
-                finalPrice = finalPrice - discount;
-                appliedPromoId = promo.id;
-            }
-        }
-        // --- AKHIR PROMO CODE ENFORCEMENT ---
 
-        // SEC-003: Validasi ulang harga akhir terhadap modal provider SETELAH diskon promo dihitung
-        if (currentProviderCost > finalPrice) {
+            if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
+            finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
+            if (!idempotencyKey) {
+                const duplicate = await findRecentPendingDuplicate(client, userId, productId, finalTargetForDB);
+                if (duplicate) throw new Error(`Pesanan serupa masih pending (${duplicate.invoice_id}). Mohon tunggu sebelum mencoba lagi.`);
+            }
+
+            if (Number(user.balance) < finalPrice) throw new Error('Saldo Anda tidak mencukupi.');
+            
+            const deductRes = await client.query(
+                'UPDATE users SET balance = balance - $1 WHERE id = $2 AND balance >= $1',
+                [finalPrice, userId]
+            );
+            if (deductRes && typeof deductRes.rowCount === 'number' && deductRes.rowCount === 0) {
+                throw new Error('Saldo Anda tidak mencukupi.');
+            }
+            
+            invoiceId = generateInvoiceId('TRX');
+            trx_id_provider = generateProviderTrxId('WEB');
+            let txInsertRows;
+            try {
+                ({ rows: txInsertRows } = await insertTransactionRecord(client, {
+                    invoiceId,
+                    userId,
+                    productId,
+                    targetForDb: finalTargetForDB,
+                    finalPrice,
+                    providerTrxId: trx_id_provider,
+                    flashSaleId: appliedFlashSaleId,
+                    idempotencyKey
+                }));
+            } catch (insertErr) {
+                if (insertErr && insertErr.code === '23505' && idempotencyKey) {
+                    await client.query('ROLLBACK').catch(() => {});
+                    inTransaction = false;
+                    const raceResolved = await resolveExistingIdempotentOrder(client, {
+                        channel: 'web',
+                        userId,
+                        idempotencyKey,
+                        keyLabel: 'Idempotency-Key',
+                        productId,
+                        targetGameId,
+                        targetServerId
+                    });
+                    if (raceResolved) {
+                        return res.status(raceResolved.statusCode).json(raceResolved.body);
+                    }
+                }
+                throw insertErr;
+            }
+            newTransactionId = (txInsertRows && txInsertRows[0]) ? txInsertRows[0].id : null;
+            const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
+            await client.query(
+                'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
+                [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]
+            );
+
+            if (appliedFlashSaleId) {
+                await client.query(
+                    'UPDATE flash_sales SET uses_count = uses_count + 1, updated_at = NOW() WHERE id = $1',
+                    [appliedFlashSaleId]
+                );
+            }
+
             if (appliedPromoId) {
-                console.warn(`[order] Promo cost guard blocked order: Final price (${finalPrice}) < Provider cost (${currentProviderCost}). SKU ${product.provider_sku}.`);
-                throw new Error('Kode promo tidak dapat digunakan karena membuat harga akhir di bawah harga modal produk.');
+                await client.query('UPDATE promo_codes SET uses_count = uses_count + 1, updated_at = NOW() WHERE id = $1', [appliedPromoId]);
+                await client.query(
+                    'INSERT INTO promo_usages (promo_code_id, user_id, product_id, transaction_id, customer_game_id) VALUES ($1, $2, $3, $4, $5)',
+                    [appliedPromoId, userId, productId, newTransactionId, targetGameId]
+                );
             }
-            invalidateFoxyProductCache();
-            throw new Error('Harga sedang diperbarui, coba lagi sebentar');
+
+            // COMMIT fase reservasi saldo dan LEPAS koneksi DB sebelum memanggil API Foxy
+            await client.query('COMMIT');
+            inTransaction = false;
+        } catch (phaseAError) {
+            if (inTransaction) {
+                await client.query('ROLLBACK').catch(() => {});
+            }
+            throw phaseAError;
+        } finally {
+            client.release();
         }
 
-        if (!isValidPriceAmount(finalPrice)) throw new Error('Harga produk tidak valid.');
-        const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
-        const duplicate = await findRecentPendingDuplicate(client, userId, productId, finalTargetForDB);
-        if (duplicate) throw new Error(`Pesanan serupa masih pending (${duplicate.invoice_id}). Mohon tunggu sebelum mencoba lagi.`);
-
-        if (Number(user.balance) < finalPrice) throw new Error('Saldo Anda tidak mencukupi.');
-        
-        const deductRes = await client.query(
-            'UPDATE users SET balance = balance - $1 WHERE id = $2 AND balance >= $1',
-            [finalPrice, userId]
-        );
-        if (deductRes && typeof deductRes.rowCount === 'number' && deductRes.rowCount === 0) {
-            throw new Error('Saldo Anda tidak mencukupi.');
-        }
-        
-        const invoiceId = `TRX-${Date.now()}${userId}`;
-        const trx_id_provider = `WEB-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
-        const { rows: txInsertRows } = await client.query(
-            'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id, flash_sale_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
-            [invoiceId, userId, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider, appliedFlashSaleId || null]
-        );
-        const newTransactionId = (txInsertRows && txInsertRows[0]) ? txInsertRows[0].id : null;
-        const historyDesc = `Pembelian produk: ${product.name} (${invoiceId})`;
-        await client.query(
-            'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)',
-            [userId, -finalPrice, 'Purchase', historyDesc, invoiceId]
-        );
-
-        if (appliedFlashSaleId) {
-            await client.query(
-                'UPDATE flash_sales SET uses_count = uses_count + 1, updated_at = NOW() WHERE id = $1',
-                [appliedFlashSaleId]
-            );
-        }
-
-        if (appliedPromoId) {
-            await client.query('UPDATE promo_codes SET uses_count = uses_count + 1, updated_at = NOW() WHERE id = $1', [appliedPromoId]);
-            await client.query(
-                'INSERT INTO promo_usages (promo_code_id, user_id, product_id, transaction_id, customer_game_id) VALUES ($1, $2, $3, $4, $5)',
-                [appliedPromoId, userId, productId, newTransactionId, targetGameId]
-            );
-        }
-
-        // COMMIT fase reservasi saldo sebelum memanggil API Foxy
-        await client.query('COMMIT');
-        inTransaction = false;
-
-        // === FASE 2: DISPATCH PESANAN KE PROVIDER FOXY ===
+        // === FASE (b): DISPATCH PESANAN KE PROVIDER FOXY (0 koneksi DB ditahan) ===
+        let providerSucceeded = false;
+        let isTimeoutOrAmbiguous = false;
         try {
             const foxyRes = await axios.post(
                 `${FOXY_BASE_URL}/v1/order`,
@@ -3937,78 +4325,37 @@ app.post('/api/order', protect, async (req, res) => {
                 rejectErr.isExplicitRejection = true;
                 throw rejectErr;
             }
+            providerSucceeded = true;
         } catch (providerError) {
             console.error('[order] Foxy order submission failed:', safeAxiosError(providerError, 'Foxy'));
-            const httpStatus = providerError && providerError.response && providerError.response.status;
-            const errCode = providerError && providerError.code;
-            const isTimeoutOrAmbiguous = !providerError.isExplicitRejection && (
-                errCode === 'ECONNABORTED' ||
-                errCode === 'ETIMEDOUT' ||
-                errCode === 'ECONNRESET' ||
-                (providerError && providerError.message && /timeout/i.test(providerError.message)) ||
-                httpStatus === 502 ||
-                httpStatus === 503 ||
-                httpStatus === 504
-            );
-
-            // Jika timeout / network ambiguity, biarkan status tetap 'Pending' agar dicek cron
-            if (isTimeoutOrAmbiguous) {
-                console.warn(`[order] Timeout/ambiguous response for invoice ${invoiceId} (${trx_id_provider}). Keeping status Pending for cron reconciliation.`);
-                return res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
-            }
-
-            // Jika Foxy menolak secara eksplisit, jalankan transaksi kompensasi (refund + kembalikan kuota promo/flash sale)
-            let lockedTxStatus = null;
-            try {
-                await client.query('BEGIN');
-                inTransaction = true;
-                const { rows: lockedTxRows } = await client.query(
-                    'SELECT id, status, flash_sale_id, flash_sale_restored FROM transactions WHERE invoice_id = $1 FOR UPDATE',
-                    [invoiceId]
-                );
-                if (lockedTxRows && lockedTxRows.length === 1) {
-                    lockedTxStatus = lockedTxRows[0].status;
-                    if (['Pending', 'Processing'].includes(lockedTxStatus)) {
-                        await rollbackTransactionResources(client, {
-                            id: lockedTxRows[0].id || newTransactionId,
-                            invoice_id: invoiceId,
-                            user_id: userId,
-                            price: finalPrice,
-                            status: lockedTxStatus,
-                            flash_sale_id: lockedTxRows[0].flash_sale_id !== undefined ? lockedTxRows[0].flash_sale_id : appliedFlashSaleId,
-                            flash_sale_restored: lockedTxRows[0].flash_sale_restored
-                        }, {
-                            refundDescription: `Refund otomatis karena gagal kirim ke provider (${invoiceId})`
-                        });
-                    }
-                }
-                await client.query('COMMIT');
-                inTransaction = false;
-            } catch (compErr) {
-                if (inTransaction) {
-                    await client.query('ROLLBACK').catch(() => {});
-                    inTransaction = false;
-                }
-                console.error(`[CRITICAL] Compensating refund failed for invoice ${invoiceId}:`, safeErrorDetail(compErr));
-            }
-
-            if (lockedTxStatus === 'Success') {
-                return res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
-            }
-
-            throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
+            isTimeoutOrAmbiguous = isProviderTimeoutOrAmbiguous(providerError);
         }
 
-        res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
+        // === FASE (c): TRANSAKSI DB KEDUA — SIMPAN provider_trx_id ATAU KOMPENSASI ===
+        const lockedTxStatus = await finalizeOrderAfterProviderCall({
+            invoiceId,
+            providerTrxId: trx_id_provider,
+            userId,
+            finalPrice,
+            appliedFlashSaleId,
+            newTransactionId,
+            shouldRollbackIfPending: !providerSucceeded && !isTimeoutOrAmbiguous,
+            logPrefix: '[order]'
+        });
+
+        if (providerSucceeded || isTimeoutOrAmbiguous || lockedTxStatus === 'Success') {
+            if (!providerSucceeded && isTimeoutOrAmbiguous) {
+                console.warn(`[order] Timeout/ambiguous response for invoice ${invoiceId} (${trx_id_provider}). Keeping status Pending for cron reconciliation.`);
+            }
+            return res.status(201).json({ message: 'Pesanan Anda sedang diproses!', invoiceId });
+        }
+
+        throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
 
     } catch (error) {
-        if (inTransaction) {
-            await client.query('ROLLBACK').catch(() => {});
-        }
         logSafeError("Order error:", error);
-        res.status(400).json({ message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi.') });
-    } finally {
-        client.release();
+        const statusCode = error && [400, 409, 429].includes(error.statusCode) ? error.statusCode : 400;
+        res.status(statusCode).json({ message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi.') });
     }
 });
 
@@ -4305,9 +4652,8 @@ app.post('/api/foxy/callback', async (req, res) => {
 });
 
 app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res) => {
-    const client = await pool.connect();
-    let inTransaction = false;
     try {
+        const refId = parseOptionalRefId(req.body.ref_id);
         const productId = Number(req.body.productId);
         const targetGameId = normalizeString(req.body.targetGameId, 80);
         const targetServerId = normalizeString(req.body.targetServerId, 80);
@@ -4317,29 +4663,48 @@ app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res
             throw new Error('productId dan targetGameId wajib diisi.');
         }
 
-        // 1. Ambil detail produk LENGKAP di luar transaksi DB dan tanpa FOR UPDATE
-        const productQuery = `
-            SELECT p.*, g.id as game_id, g.needs_server_id,
-                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
-            FROM products p 
-            JOIN games g ON p.game_id = g.id
-            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
-            WHERE p.id = $1 AND p.status = 'Active' AND g.status = 'Active'
-        `;
-        const { rows: products } = await client.query(productQuery, [productId]);
+        // Pre-check DB singkat: idempotency + lookup produk, lalu LEPAS koneksi sebelum HTTP eksternal
+        let product;
+        const preClient = await pool.connect();
+        try {
+            const earlyIdempotent = await resolveExistingIdempotentOrder(preClient, {
+                channel: 'h2h',
+                userId: h2hUser.id,
+                idempotencyKey: refId,
+                keyLabel: 'ref_id',
+                productId,
+                targetGameId,
+                targetServerId
+            });
+            if (earlyIdempotent) {
+                return res.status(earlyIdempotent.statusCode).json(earlyIdempotent.body);
+            }
 
-        if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
-        const product = products[0];
+            const productQuery = `
+                SELECT p.*, g.id as game_id, g.needs_server_id,
+                       gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
+                FROM products p 
+                JOIN games g ON p.game_id = g.id
+                LEFT JOIN game_margins gm ON p.game_id = gm.game_id
+                WHERE p.id = $1 AND p.status = 'Active' AND g.status = 'Active'
+            `;
+            const { rows: products } = await preClient.query(productQuery, [productId]);
+
+            if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
+            product = products[0];
+        } finally {
+            preClient.release();
+        }
 
         if (product.needs_server_id && !targetServerId) {
             throw new Error('Server ID wajib diisi untuk game ini.');
         }
 
-        // === PHASE 5B: VALIDASI ID GAME H2H (di luar blok BEGIN...COMMIT agar tidak menahan DB lock) ===
+        // === PHASE 5B: VALIDASI ID GAME H2H (0 koneksi DB ditahan) ===
         await validateOrderGameIdIfNeeded(product, targetGameId, targetServerId);
         // === AKHIR PHASE 5B ===
 
-        // --- PRICE GUARD H2H FETCH (di luar blok BEGIN...COMMIT) ---
+        // --- PRICE GUARD H2H FETCH (0 koneksi DB ditahan) ---
         let currentProviderCost = 0;
         try {
             console.log(`[h2h-order] Checking real-time price for SKU ${product.provider_sku}...`);
@@ -4366,7 +4731,16 @@ app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res
             throw new Error('Harga sedang diperbarui, coba lagi sebentar');
         }
 
-        // === FASE 1: RESERVASI ATOMIK DI DATABASE ===
+        // === FASE (a): RESERVASI ATOMIK SINGKAT DI DATABASE ===
+        let finalPrice;
+        let appliedFlashSaleId = null;
+        let finalTargetForDB;
+        let invoiceId;
+        let trx_id_provider;
+        let newH2hTransactionId = null;
+        const client = await pool.connect();
+        let inTransaction = false;
+        try {
         await client.query('BEGIN');
         inTransaction = true;
 
@@ -4377,7 +4751,6 @@ app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res
         const userRoleName = h2hUser.role_name.toLowerCase();
 
         // --- LOGIKA HARGA FINAL ---
-        let finalPrice;
         const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
         if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
             finalPrice = Number(manualPrice);
@@ -4395,7 +4768,7 @@ app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res
         }
         
         // --- FLASH SALE OVERRIDE (dengan FOR UPDATE & kuota max_uses) ---
-        let appliedFlashSaleId = null;
+        appliedFlashSaleId = null;
         const { rows: h2hFlashSaleRows } = await client.query(
             `SELECT id, discount_price FROM flash_sales
              WHERE product_id = $1 AND is_active = true
@@ -4449,9 +4822,11 @@ app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res
             }
         }
 
-        const finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
-        const duplicate = await findRecentPendingDuplicate(client, h2hUser.id, productId, finalTargetForDB);
-        if (duplicate) throw new Error(`Pesanan serupa masih pending (${duplicate.invoice_id}). Mohon tunggu sebelum mencoba lagi.`);
+        finalTargetForDB = product.needs_server_id ? `${targetGameId}|${targetServerId}` : targetGameId;
+        if (!refId) {
+            const duplicate = await findRecentPendingDuplicate(client, h2hUser.id, productId, finalTargetForDB);
+            if (duplicate) throw new Error(`Pesanan serupa masih pending (${duplicate.invoice_id}). Mohon tunggu sebelum mencoba lagi.`);
+        }
 
         if (Number(userForTx.balance) < finalPrice) throw new Error('Saldo H2H Anda tidak mencukupi.');
         
@@ -4463,14 +4838,41 @@ app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res
             throw new Error('Saldo H2H Anda tidak mencukupi.');
         }
 
-        const invoiceId = `H2H-${Date.now()}${h2hUser.id}`;
-        const trx_id_provider = `H2H-PROVIDER-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+        invoiceId = generateInvoiceId('H2H');
+        trx_id_provider = generateProviderTrxId('H2H-PROVIDER');
 
-        const { rows: h2hTxInsertRows } = await client.query(
-            'INSERT INTO transactions (invoice_id, user_id, product_id, target_game_id, price, status, provider_trx_id, flash_sale_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id',
-            [invoiceId, h2hUser.id, productId, finalTargetForDB, finalPrice, 'Pending', trx_id_provider, appliedFlashSaleId || null]
-        );
-        const newH2hTransactionId = (h2hTxInsertRows && h2hTxInsertRows[0]) ? h2hTxInsertRows[0].id : null;
+        let h2hTxInsertRows;
+        try {
+            ({ rows: h2hTxInsertRows } = await insertTransactionRecord(client, {
+                invoiceId,
+                userId: h2hUser.id,
+                productId,
+                targetForDb: finalTargetForDB,
+                finalPrice,
+                providerTrxId: trx_id_provider,
+                flashSaleId: appliedFlashSaleId,
+                idempotencyKey: refId
+            }));
+        } catch (insertErr) {
+            if (insertErr && insertErr.code === '23505' && refId) {
+                await client.query('ROLLBACK').catch(() => {});
+                inTransaction = false;
+                const raceResolved = await resolveExistingIdempotentOrder(client, {
+                    channel: 'h2h',
+                    userId: h2hUser.id,
+                    idempotencyKey: refId,
+                    keyLabel: 'ref_id',
+                    productId,
+                    targetGameId,
+                    targetServerId
+                });
+                if (raceResolved) {
+                    return res.status(raceResolved.statusCode).json(raceResolved.body);
+                }
+            }
+            throw insertErr;
+        }
+        newH2hTransactionId = (h2hTxInsertRows && h2hTxInsertRows[0]) ? h2hTxInsertRows[0].id : null;
 
         const historyDesc = `Pembelian H2H: ${product.name} (${invoiceId})`;
         await client.query(
@@ -4485,11 +4887,19 @@ app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res
             );
         }
 
-        // COMMIT fase reservasi saldo sebelum memanggil API Foxy
+        // COMMIT fase reservasi saldo dan LEPAS koneksi DB sebelum memanggil API Foxy
         await client.query('COMMIT');
         inTransaction = false;
+        } catch (phaseAError) {
+            if (inTransaction) {
+                await client.query('ROLLBACK').catch(() => {});
+            }
+            throw phaseAError;
+        } finally {
+            client.release();
+        }
 
-        // === FASE 2: DISPATCH PESANAN KE PROVIDER FOXY ===
+        // === FASE (b): DISPATCH PESANAN KE PROVIDER FOXY (0 koneksi DB ditahan) ===
         const foxyPayload = {
             product_code: product.provider_sku,
             user_id: targetGameId,
@@ -4506,6 +4916,8 @@ app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res
             }
         };
 
+        let providerSucceeded = false;
+        let isTimeoutOrAmbiguous = false;
         try {
             const foxyRes = await axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, { ...foxyConfigHeaders, timeout: PROVIDER_TIMEOUT_MS });
             if (foxyRes && foxyRes.data && foxyRes.data.status === false) {
@@ -4513,107 +4925,47 @@ app.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res
                 rejectErr.isExplicitRejection = true;
                 throw rejectErr;
             }
+            providerSucceeded = true;
         } catch (providerError) {
             console.error('[h2h-order] Foxy order submission failed:', safeAxiosError(providerError, 'Foxy'));
-            const httpStatus = providerError && providerError.response && providerError.response.status;
-            const errCode = providerError && providerError.code;
-            const isTimeoutOrAmbiguous = !providerError.isExplicitRejection && (
-                errCode === 'ECONNABORTED' ||
-                errCode === 'ETIMEDOUT' ||
-                errCode === 'ECONNRESET' ||
-                (providerError && providerError.message && /timeout/i.test(providerError.message)) ||
-                httpStatus === 502 ||
-                httpStatus === 503 ||
-                httpStatus === 504
-            );
-
-            if (isTimeoutOrAmbiguous) {
-                console.warn(`[h2h-order] Timeout/ambiguous response for invoice ${invoiceId} (${trx_id_provider}). Keeping status Pending for cron reconciliation.`);
-                return res.status(201).json({
-                    success: true,
-                    message: 'Pesanan H2H Anda sedang diproses!',
-                    data: {
-                        invoiceId: invoiceId,
-                        status: 'Pending',
-                        productName: product.name,
-                        target: finalTargetForDB,
-                        price: finalPrice
-                    }
-                });
-            }
-
-            let lockedTxStatus = null;
-            try {
-                await client.query('BEGIN');
-                inTransaction = true;
-                const { rows: lockedTxRows } = await client.query(
-                    'SELECT id, status, flash_sale_id, flash_sale_restored FROM transactions WHERE invoice_id = $1 FOR UPDATE',
-                    [invoiceId]
-                );
-                if (lockedTxRows && lockedTxRows.length === 1) {
-                    lockedTxStatus = lockedTxRows[0].status;
-                    if (['Pending', 'Processing'].includes(lockedTxStatus)) {
-                        await rollbackTransactionResources(client, {
-                            id: lockedTxRows[0].id || newH2hTransactionId,
-                            invoice_id: invoiceId,
-                            user_id: h2hUser.id,
-                            price: finalPrice,
-                            status: lockedTxStatus,
-                            flash_sale_id: lockedTxRows[0].flash_sale_id !== undefined ? lockedTxRows[0].flash_sale_id : appliedFlashSaleId,
-                            flash_sale_restored: lockedTxRows[0].flash_sale_restored
-                        }, {
-                            refundDescription: `Refund otomatis karena gagal kirim ke provider (${invoiceId})`
-                        });
-                    }
-                }
-                await client.query('COMMIT');
-                inTransaction = false;
-            } catch (compErr) {
-                if (inTransaction) {
-                    await client.query('ROLLBACK').catch(() => {});
-                    inTransaction = false;
-                }
-                console.error(`[CRITICAL] Compensating refund failed for H2H invoice ${invoiceId}:`, safeErrorDetail(compErr));
-            }
-
-            if (lockedTxStatus === 'Success') {
-                return res.status(201).json({
-                    success: true,
-                    message: 'Pesanan H2H Anda sedang diproses!',
-                    data: {
-                        invoiceId: invoiceId,
-                        status: 'Success',
-                        productName: product.name,
-                        target: finalTargetForDB,
-                        price: finalPrice
-                    }
-                });
-            }
-
-            throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
+            isTimeoutOrAmbiguous = isProviderTimeoutOrAmbiguous(providerError);
         }
-        
-        res.status(201).json({ 
-            success: true,
-            message: 'Pesanan H2H Anda sedang diproses!', 
-            data: {
-                invoiceId: invoiceId,
-                status: 'Pending',
-                productName: product.name,
-                target: finalTargetForDB,
-                price: finalPrice
-            }
+
+        // === FASE (c): TRANSAKSI DB KEDUA — SIMPAN provider_trx_id ATAU KOMPENSASI ===
+        const lockedTxStatus = await finalizeOrderAfterProviderCall({
+            invoiceId,
+            providerTrxId: trx_id_provider,
+            userId: h2hUser.id,
+            finalPrice,
+            appliedFlashSaleId,
+            newTransactionId: newH2hTransactionId,
+            shouldRollbackIfPending: !providerSucceeded && !isTimeoutOrAmbiguous,
+            logPrefix: '[h2h-order]'
         });
 
-    } catch (error) {
-        if (inTransaction) {
-            await client.query('ROLLBACK').catch(() => {});
+        if (providerSucceeded || isTimeoutOrAmbiguous || lockedTxStatus === 'Success') {
+            if (!providerSucceeded && isTimeoutOrAmbiguous) {
+                console.warn(`[h2h-order] Timeout/ambiguous response for invoice ${invoiceId} (${trx_id_provider}). Keeping status Pending for cron reconciliation.`);
+            }
+            return res.status(201).json({
+                success: true,
+                message: 'Pesanan H2H Anda sedang diproses!',
+                data: {
+                    invoiceId: invoiceId,
+                    status: lockedTxStatus === 'Success' ? 'Success' : 'Pending',
+                    productName: product.name,
+                    target: finalTargetForDB,
+                    price: finalPrice
+                }
+            });
         }
+
+        throw new Error('Gagal mengirim pesanan ke provider. Saldo tidak dipotong.');
+
+    } catch (error) {
         logSafeError("H2H Order error:", error);
-        const statusCode = error && error.statusCode === 429 ? 429 : 400;
+        const statusCode = error && [400, 409, 429].includes(error.statusCode) ? error.statusCode : 400;
         res.status(statusCode).json({ success: false, message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi H2H.') });
-    } finally {
-        client.release();
     }
 });
 

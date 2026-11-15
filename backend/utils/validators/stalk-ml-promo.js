@@ -49,7 +49,7 @@ async function checkAllMobapayPromosML(userId, zoneId, countryCode = "ID") {
             country: countryCode, language: 'en', network: '', net: '', coupon_id: '', shop_id: '' 
         }; 
         console.log(`[checkAllMobapayPromosML] Requesting Main Shop API: ${apiUrl} with params: ${JSON.stringify(mainShopParams)}`); 
-        const mainResponse = await axios.get(apiUrl, { params: mainShopParams, headers, timeout: 20000 }); 
+        const mainResponse = await axios.get(apiUrl, { params: mainShopParams, headers, timeout: 10000 }); 
         const mainResult = mainResponse.data; 
 
         if (mainResponse.status === 200 && mainResult && typeof mainResult.code !== 'undefined') { 
@@ -273,7 +273,7 @@ function detectPaymentChannelCountry(shopInfo, allowedCountries) {
  */
 async function checkMobapayMlbbEligibility(userId, zoneId, checks = [], rules = {}, options = {}) {
     const country = (options.country && typeof options.country === 'string') ? options.country.toUpperCase() : 'ID';
-    const timeout = (typeof options.timeout === 'number' && options.timeout > 0) ? options.timeout : 10000;
+    const timeout = (typeof options.timeout === 'number' && options.timeout > 0) ? Math.min(options.timeout, 10000) : 10000;
 
     if (!userId) {
         return { success: false, message: 'User ID wajib diisi.', data: {} };

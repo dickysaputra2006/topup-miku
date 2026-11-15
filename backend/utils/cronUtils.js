@@ -219,13 +219,22 @@ async function rollbackTransactionResources(client, tx, options = {}) {
 // ============================================================
 // === FUNGSI: CEK STATUS TRANSAKSI PENDING ===
 // ============================================================
+const PENDING_IN_FLIGHT_GRACE_MS = 10 * 60 * 1000; // 10 menit
+
+function isWithinInFlightGracePeriod(createdAt, nowMs = Date.now()) {
+    if (!createdAt) return false;
+    const createdAtMs = new Date(createdAt).getTime();
+    if (!Number.isFinite(createdAtMs)) return false;
+    return (nowMs - createdAtMs) < PENDING_IN_FLIGHT_GRACE_MS;
+}
+
 async function checkPendingTransactions() {
     console.log('[cron][pending] Starting checkPendingTransactions...');
     let pendingTx;
     try {
         const res = await pool.query(
             `SELECT t.id, t.invoice_id, t.user_id, t.price, t.provider_trx_id, t.check_attempts,
-                    t.flash_sale_id, t.flash_sale_restored,
+                    t.flash_sale_id, t.flash_sale_restored, t.created_at,
                     p.name as product_name, u.h2h_callback_url, u.h2h_webhook_secret
              FROM transactions t
              JOIN products p ON t.product_id = p.id
@@ -246,7 +255,11 @@ async function checkPendingTransactions() {
     console.log(`[cron][pending] Found ${pendingTx.length} pending transaction(s). Processing...`);
 
     for (const tx of pendingTx) {
-        if (!tx.provider_trx_id) continue;
+        if (!tx.provider_trx_id) {
+            // Data lama sebelum perubahan Fase (a) yang belum memiliki provider_trx_id:
+            // pertahankan aturan lama (lewati tanpa memanggil /v1/status atau refund).
+            continue;
+        }
 
         let foxyStatus = null;
         let serialNumber = 'Tidak ada SN';
@@ -273,6 +286,13 @@ async function checkPendingTransactions() {
             }
         }
 
+        // Jika /v1/status mengembalikan 404 saat transaksi berumur < 10 menit,
+        // lewati tanpa menaikkan check_attempts dan tanpa refund (order mungkin masih di Fase (b)).
+        if (isNotFound && isWithinInFlightGracePeriod(tx.created_at)) {
+            console.log(`[cron][pending] Invoice ${tx.invoice_id}: not found at provider yet (< 10 min grace period), skipping.`);
+            continue;
+        }
+
         const client = await pool.connect();
         let finalStatus = null;
         let committedStatus = null;
@@ -280,7 +300,7 @@ async function checkPendingTransactions() {
             await client.query('BEGIN');
 
             const checkRes = await client.query(
-                'SELECT status, check_attempts, flash_sale_id, flash_sale_restored FROM transactions WHERE id = $1 FOR UPDATE',
+                'SELECT status, check_attempts, flash_sale_id, flash_sale_restored, created_at FROM transactions WHERE id = $1 FOR UPDATE',
                 [tx.id]
             );
             if (checkRes.rows.length === 0) {
@@ -302,6 +322,11 @@ async function checkPendingTransactions() {
             };
 
             if (isNotFound) {
+                const txCreatedAt = currentDbTx.created_at !== undefined ? currentDbTx.created_at : tx.created_at;
+                if (isWithinInFlightGracePeriod(txCreatedAt)) {
+                    await client.query('ROLLBACK');
+                    continue;
+                }
                 const MAX_ATTEMPTS = 5;
                 if (currentDbTx.check_attempts < MAX_ATTEMPTS) {
                     await client.query(

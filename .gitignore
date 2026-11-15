@@ -8,6 +8,8 @@ node_modules/
 *.log
 .env
 backend/.env
+.agent
+.md
 
 # Antigravity / Gemini files
 .gemini/

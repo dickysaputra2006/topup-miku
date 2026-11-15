@@ -45,6 +45,46 @@ document.addEventListener('DOMContentLoaded', function() {
     let isOrderSubmitting = false;
     let lastValidationErrorMessage = ''; // simpan pesan error validasi terbaru
 
+    function generateIdempotencyKey() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+        if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+            const bytes = new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+        }
+        throw new Error('Browser tidak mendukung generator UUID yang aman.');
+    }
+
+    let orderIdempotencyKey = generateIdempotencyKey();
+    let lastOrderAttemptSignature = null;
+
+    function buildCurrentOrderPayload() {
+        const targetGameId = document.getElementById('target-game-id').value;
+        const targetServerIdEl = document.getElementById('target-server-id');
+        const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
+        return {
+            productId: selectedProductId,
+            targetGameId,
+            targetServerId,
+            promoCode: (appliedPromo && appliedPromo.valid) ? promoCodeInput.value : null
+        };
+    }
+
+    function ensureOrderIdempotencyKey(payload) {
+        const signature = JSON.stringify(payload);
+        // Rotasi key hanya jika payload berubah setelah percobaan submit sebelumnya
+        if (lastOrderAttemptSignature !== null && lastOrderAttemptSignature !== signature) {
+            orderIdempotencyKey = generateIdempotencyKey();
+            lastOrderAttemptSignature = null;
+        }
+        return signature;
+    }
+
     // === Bagian 2: Definisi Semua Fungsi ===
 
     function showModal() { if (modal) modal.classList.remove('hidden'); }
@@ -513,7 +553,8 @@ function applyFlashSaleSelection() {
         }
         // --- AKHIR LOGIKA BARU ---
 
-        // Tampilkan modal konfirmasi
+        // Tampilkan modal konfirmasi (pertahankan key untuk payload sama, rotasi jika payload berubah setelah submit sebelumnya)
+        ensureOrderIdempotencyKey(buildCurrentOrderPayload());
         if (confirmModal) confirmModal.classList.remove('hidden');
     });
 
@@ -534,25 +575,44 @@ function applyFlashSaleSelection() {
             confirmBtn.disabled = true;
             submitOrderBtn.disabled = true;
             confirmBtn.innerHTML = 'Memproses...';
-            const targetGameId = document.getElementById('target-game-id').value;
-            const targetServerIdEl = document.getElementById('target-server-id');
-            const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
+            const orderPayload = buildCurrentOrderPayload();
+            const currentSignature = ensureOrderIdempotencyKey(orderPayload);
+            lastOrderAttemptSignature = currentSignature;
 
             try {
                 const response = await fetch(`${PUBLIC_API_URL}/order`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        productId: selectedProductId,
-                        targetGameId: targetGameId,
-                        targetServerId: targetServerId,
-                        // Kirim kode promo yang valid ke backend
-                        promoCode: (appliedPromo && appliedPromo.valid) ? promoCodeInput.value : null
-                    })
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Idempotency-Key': orderIdempotencyKey
+                    },
+                    body: JSON.stringify(orderPayload)
                 });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message);
-                
+                let result = null;
+                let hasDefinitiveJson = false;
+                try {
+                    result = await response.json();
+                    hasDefinitiveJson = result !== null && typeof result === 'object';
+                } catch (_) {
+                    hasDefinitiveJson = false;
+                }
+
+                // Rotasi key hanya pada respons definitif 2xx/4xx JSON agar user bisa mencoba order baru.
+                // Pertahankan key pada 5xx (meski JSON) dan error jaringan/timeout karena status di server
+                // bisa ambigu/belum pasti selesai, sehingga retry tetap aman tanpa double debit.
+                if (response.status >= 200 && response.status < 500 && hasDefinitiveJson) {
+                    orderIdempotencyKey = generateIdempotencyKey();
+                    lastOrderAttemptSignature = null;
+                }
+
+                if (!response.ok) {
+                    throw new Error((result && result.message) ? result.message : `Gagal memproses pesanan (HTTP ${response.status}).`);
+                }
+                if (result && result.status === 'Failed') {
+                    throw new Error(result.message || 'Pesanan sebelumnya gagal dan saldo telah dikembalikan. Silakan buat pesanan baru.');
+                }
+
                 hideConfirmModal();
                 alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nAnda akan diarahkan ke halaman invoice.`);
                 window.location.href = `invoice.html?id=${encodeURIComponent(result.invoiceId)}`;

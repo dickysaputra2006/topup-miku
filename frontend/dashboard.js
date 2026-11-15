@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const row = document.createElement('tr');
             const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.price);
             row.innerHTML = `
-                    <td><a href="invoice.html?id=${tx.invoice_id}" class="history-link">${tx.invoice_id}</a></td>
+                    <td><a href="invoice.html?id=${encodeURIComponent(tx.invoice_id)}" class="history-link">${escapeHtml(tx.invoice_id)}</a></td>
                     <td>${new Date(tx.created_at).toLocaleString('id-ID')}</td>
                     <td>${tx.product_name}</td>
                     <td>${tx.target_game_id}</td>
@@ -444,6 +444,37 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function generateClientUuidV4() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+        if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+            const bytes = new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+        }
+        throw new Error('Browser tidak mendukung generator UUID yang aman.');
+    }
+
+    let depositIdempotencyKey = generateClientUuidV4();
+    let depositAttemptSignature = null;
+
+    function prepareDepositIdempotencyKey(payload) {
+        const signature = JSON.stringify(payload);
+        // Rotasi key jika payload berubah dibanding percobaan submit sebelumnya
+        if (depositAttemptSignature !== null && depositAttemptSignature !== signature) {
+            depositIdempotencyKey = generateClientUuidV4();
+            depositAttemptSignature = null;
+        }
+        if (!depositIdempotencyKey) {
+            depositIdempotencyKey = generateClientUuidV4();
+        }
+        return signature;
+    }
+
     function setupDepositForm() {
         const depositForm = document.getElementById('deposit-form');
         const paymentInstructionsSection = document.getElementById('payment-instructions');
@@ -513,13 +544,37 @@ document.addEventListener('DOMContentLoaded', function () {
             try {
                 const body = { amount: parseInt(amount, 10), method };
                 if (note) body.note = note;
+                const currentSignature = prepareDepositIdempotencyKey(body);
+                depositAttemptSignature = currentSignature;
                 const response = await fetch('/api/deposit/request', {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Idempotency-Key': depositIdempotencyKey
+                    },
                     body: JSON.stringify(body)
                 });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message);
+                let result = null;
+                let hasDefinitiveJson = false;
+                try {
+                    result = await response.json();
+                    hasDefinitiveJson = result !== null && typeof result === 'object';
+                } catch (_) {
+                    hasDefinitiveJson = false;
+                }
+
+                // Rotasi key hanya pada respons definitif 2xx/4xx JSON agar user bisa mengajukan ulang dengan key baru.
+                // Pertahankan key pada 5xx (meski JSON) dan error jaringan/timeout karena kondisi server bisa
+                // ambigu (mis. transaksi sudah/sedang diproses), sehingga retry aman tanpa duplikasi deposit.
+                if (response.status >= 200 && response.status < 500 && hasDefinitiveJson) {
+                    depositIdempotencyKey = generateClientUuidV4();
+                    depositAttemptSignature = null;
+                }
+
+                if (!response.ok) {
+                    throw new Error((result && result.message) ? result.message : `Gagal mengajukan deposit (HTTP ${response.status}).`);
+                }
                 instructionText.innerHTML = `<div class="ui-state success">
                         <p><strong>Request #${escapeHtml(result.deposit.id)} berhasil dibuat!</strong></p>
                         <p style="margin-top:0.5rem;">${result.deposit.paymentInstructions}</p>
@@ -961,6 +1016,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     fetchTransactions();
                 }
                 if (targetId === 'deposit-tab') {
+                    if (depositAttemptSignature === null) {
+                        depositIdempotencyKey = generateClientUuidV4();
+                    }
                     setupDepositForm();
                     loadDepositPaymentMethods();
                     loadDepositHistory();
@@ -1256,6 +1314,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const submitButton = cekPesananForm.querySelector('button');
 
             if (!invoiceId) return;
+            if (!/^[A-Za-z0-9_-]{3,64}$/.test(invoiceId)) {
+                hasilCekPesanan.classList.remove('hidden');
+                hasilCekPesanan.innerHTML = '<div class="ui-state error">Format Invoice ID tidak valid (3-64 karakter huruf, angka, _ atau -).</div>';
+                return;
+            }
 
             submitButton.disabled = true;
             submitButton.textContent = 'Mencari...';
@@ -1264,7 +1327,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             try {
                 // Kita gunakan endpoint yang sudah ada
-                const response = await fetch(`${API_URL}/transaction/${invoiceId}`, {
+                const response = await fetch(`${API_URL}/transaction/${encodeURIComponent(invoiceId)}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
@@ -1280,7 +1343,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             } catch (error) {
                 hasilCekPesanan.classList.remove('hidden');
-                hasilCekPesanan.innerHTML = `<div class="ui-state error">${error.message}</div>`;
+                hasilCekPesanan.innerHTML = `<div class="ui-state error">${escapeHtml(error.message)}</div>`;
             } finally {
                 submitButton.disabled = false;
                 submitButton.textContent = 'Cari Transaksi';

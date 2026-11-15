@@ -6782,3 +6782,2292 @@ describe('Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening', () => {
         }
     });
 });
+
+// ============================================================
+// PHASE 14: SEC-009 — Idempotency Keys & Cryptographic Invoice IDs
+// ============================================================
+describe('Phase 14: SEC-009: Idempotency Keys & Cryptographic Invoice IDs', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const jwt = require('jsonwebtoken');
+    const axios = require('axios');
+    const crypto = require('crypto');
+    const { invalidateFoxyProductCache } = require('../server');
+    const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+
+    let server;
+    let baseUrl;
+    let origPoolQuery;
+    let origPoolConnect;
+    let origAxiosGet;
+    let origAxiosPost;
+
+    function makeUserToken(id, role = 'User') {
+        return jwt.sign({ id, username: `sec9_user_${id}`, role }, JWT_SECRET, { expiresIn: '1h' });
+    }
+
+    function createTransactionalMockDb(initialUsers, initialProducts, options = {}) {
+        const users = new Map();
+        for (const u of initialUsers) {
+            users.set(u.id, { ...u });
+        }
+        const products = new Map();
+        for (const p of initialProducts) {
+            products.set(p.id, { ...p });
+        }
+        const transactions = [];
+        const deposits = [];
+        const balanceHistory = [];
+        let nextTxId = 1;
+        let nextDepId = 1;
+        let rollbackCount = 0;
+
+        const matchTxByRef = (userId, refId) => transactions.find(
+            (t) => t.user_id === userId && t.ref_id !== null && t.ref_id === refId
+        ) || null;
+
+        const matchDepByKey = (userId, key) => deposits.find(
+            (d) => d.user_id === userId && d.idempotency_key !== null && d.idempotency_key === key
+        ) || null;
+
+        const runQuery = async (sql, params = [], txState = null) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql === 'BEGIN') return {};
+            if (sql === 'COMMIT') return {};
+            if (sql === 'ROLLBACK') return {};
+
+            // protectH2H & protectH2HIp lookups
+            if (sql.includes('FROM users u') && sql.includes('u.api_key = $1')) {
+                const candidatePlain = params[0];
+                const candidateHash = params[1];
+                for (const u of users.values()) {
+                    if ((u.api_key_hash && u.api_key_hash === candidateHash) || (u.api_key && u.api_key === candidatePlain)) {
+                        return { rows: [{ ...u }] };
+                    }
+                }
+                return { rows: [] };
+            }
+            if (sql.includes('whitelisted_ips') && !sql.includes('FROM users u')) {
+                const u = users.get(params[0]);
+                return u ? { rows: [{ id: u.id, whitelisted_ips: u.whitelisted_ips || [], api_key: u.api_key || null, api_key_hash: u.api_key_hash || null }] } : { rows: [] };
+            }
+            if (sql.includes('FROM users u JOIN roles r') && sql.includes('u.id = $1') && !sql.includes('FOR UPDATE')) {
+                const u = users.get(params[0]);
+                return u ? { rows: [{ id: u.id, username: u.username, role_name: u.role_name, balance: u.balance, role_id: u.role_id }] } : { rows: [] };
+            }
+
+            // Payment method lookup for deposits
+            if (sql.includes('FROM payment_methods')) {
+                const methodInput = String(params[0] || '').toLowerCase();
+                if (methodInput === 'bca') {
+                    return {
+                        rows: [{
+                            id: 1, code: 'BCA', name: 'Bank BCA', type: 'bank',
+                            account_number: '901000111', account_name: 'MIKU Store',
+                            qris_image_url: null, instructions: 'Kirim tepat nominal',
+                            is_qris: false, min_amount: 10000
+                        }]
+                    };
+                }
+                if (methodInput === 'qris') {
+                    return {
+                        rows: [{
+                            id: 2, code: 'QRIS', name: 'QRIS All Payment', type: 'qris',
+                            account_number: null, account_name: 'MIKU Store QRIS',
+                            qris_image_url: '/qris.png', instructions: null,
+                            is_qris: true, min_amount: 10000
+                        }]
+                    };
+                }
+                return { rows: [] };
+            }
+
+            // Transaction lookup by (user_id, ref_id)
+            if (sql.includes('FROM transactions t') && sql.includes('t.ref_id = $2')) {
+                const found = matchTxByRef(params[0], params[1]);
+                if (!found) return { rows: [] };
+                const prod = products.get(found.product_id);
+                return {
+                    rows: [{
+                        ...found,
+                        product_name: prod ? prod.name : 'Unknown Product',
+                        needs_server_id: prod ? Boolean(prod.needs_server_id) : false
+                    }]
+                };
+            }
+
+            // Deposit lookup by (user_id, idempotency_key)
+            if (sql.includes('FROM deposits') && sql.includes('idempotency_key = $2')) {
+                const found = matchDepByKey(params[0], params[1]);
+                return { rows: found ? [{ ...found }] : [] };
+            }
+
+            // Public transaction lookup by invoice_id
+            if (sql.includes('FROM transactions t') && sql.includes('t.invoice_id = $1')) {
+                const found = transactions.find((t) => t.invoice_id === params[0]);
+                if (!found) return { rows: [] };
+                const prod = products.get(found.product_id);
+                return {
+                    rows: [{
+                        invoice_id: found.invoice_id,
+                        status: found.status,
+                        price: found.price,
+                        created_at: found.created_at,
+                        updated_at: found.updated_at,
+                        product_name: prod ? prod.name : 'Test Product',
+                        game_name: 'Mobile Legends'
+                    }]
+                };
+            }
+
+            // Public recent transactions
+            if (sql.includes('FROM transactions t') && sql.includes('ORDER BY t.created_at DESC')) {
+                return {
+                    rows: [...transactions].reverse().slice(0, 10).map((t) => {
+                        const prod = products.get(t.product_id);
+                        return {
+                            invoice_id: t.invoice_id,
+                            status: t.status,
+                            created_at: t.created_at,
+                            product_name: prod ? prod.name : 'Test Product',
+                            game_name: 'Mobile Legends'
+                        };
+                    })
+                };
+            }
+
+            // Product + game lookup
+            if (sql.includes('JOIN games g') && (sql.includes('p.id = $1') || sql.includes('WHERE id = $1'))) {
+                const prod = products.get(params[0]);
+                return { rows: prod ? [{ ...prod }] : [] };
+            }
+
+            // Pending deposit count check
+            if (sql.includes("FROM deposits WHERE user_id = $1 AND status = 'Pending'")) {
+                if (typeof options.pendingDepositCountOverride === 'function') {
+                    return { rows: [{ count: String(options.pendingDepositCountOverride()) }] };
+                }
+                const cnt = deposits.filter((d) => d.user_id === params[0] && d.status === 'Pending').length;
+                return { rows: [{ count: String(cnt) }] };
+            }
+
+            if (sql.includes("FROM deposits WHERE status = 'Pending' AND amount = $1")) {
+                return { rows: [] };
+            }
+
+            // User FOR UPDATE
+            if (sql.includes('FROM users u JOIN roles r') && sql.includes('FOR UPDATE')) {
+                const target = txState ? txState.stagedUsers.get(params[0]) : users.get(params[0]);
+                return target ? { rows: [{ balance: target.balance, role_id: target.role_id, role_name: target.role_name }] } : { rows: [] };
+            }
+            if (sql.includes('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE')) {
+                const target = txState ? txState.stagedUsers.get(params[0]) : users.get(params[0]);
+                return target ? { rows: [{ balance: target.balance, role_id: target.role_id }] } : { rows: [] };
+            }
+
+            if (sql.includes('SELECT margin_percent FROM roles WHERE id = $1')) {
+                return { rows: [{ margin_percent: 10 }] };
+            }
+
+            if (sql.includes('FROM flash_sales')) {
+                return { rows: [] };
+            }
+
+            if (sql.includes('SELECT invoice_id') && sql.includes('FROM transactions') && sql.includes("status = 'Pending'")) {
+                const found = transactions.find(
+                    (t) => t.user_id === params[0] && t.product_id === params[1] && t.target_game_id === params[2] && t.status === 'Pending'
+                );
+                return { rows: found ? [{ invoice_id: found.invoice_id }] : [] };
+            }
+
+            // Deduct balance (staged until COMMIT)
+            if (sql.includes('UPDATE users SET balance = balance - $1')) {
+                const amt = Number(params[0]);
+                const uid = params[1];
+                const u = txState.stagedUsers.get(uid);
+                if (!u || Number(u.balance) < amt) return { rowCount: 0 };
+                u.balance = Number(u.balance) - amt;
+                return { rowCount: 1 };
+            }
+
+            // Refund balance
+            if (sql.includes('UPDATE users SET balance = balance + $1')) {
+                const amt = Number(params[0]);
+                const uid = params[1];
+                const u = txState.stagedUsers.get(uid);
+                if (u) u.balance = Number(u.balance) + amt;
+                return { rowCount: 1 };
+            }
+
+            // INSERT INTO transactions
+            if (sql.includes('INSERT INTO transactions')) {
+                if (typeof options.beforeTxInsert === 'function') {
+                    await options.beforeTxInsert(params);
+                }
+                const hasRefCol = sql.includes('ref_id');
+                const invoiceId = params[0];
+                const userId = params[1];
+                const productId = params[2];
+                const targetGameId = params[3];
+                const price = Number(params[4]);
+                const status = params[5];
+                const providerTrxId = params[6];
+                const flashSaleId = params[7] || null;
+                const refId = hasRefCol ? (params[8] || null) : null;
+
+                if (refId !== null && matchTxByRef(userId, refId)) {
+                    const dupErr = new Error('duplicate key value violates unique constraint "uq_transactions_user_ref_id"');
+                    dupErr.code = '23505';
+                    dupErr.constraint = 'uq_transactions_user_ref_id';
+                    throw dupErr;
+                }
+                const row = {
+                    id: nextTxId++,
+                    invoice_id: invoiceId,
+                    user_id: userId,
+                    product_id: productId,
+                    target_game_id: targetGameId,
+                    price,
+                    status,
+                    provider_trx_id: providerTrxId,
+                    flash_sale_id: flashSaleId,
+                    ref_id: refId,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+                txState.stagedTransactions.push(row);
+                return { rows: [{ id: row.id }] };
+            }
+
+            // INSERT INTO deposits
+            if (sql.includes('INSERT INTO deposits')) {
+                if (typeof options.beforeDepositInsert === 'function') {
+                    await options.beforeDepositInsert(params);
+                }
+                const hasIdemCol = sql.includes('idempotency_key');
+                const userId = params[0];
+                const amount = Number(params[1]);
+                const uniqueCode = Number(params[2]);
+                const status = params[3];
+                const method = params[4];
+                const note = params[5] || null;
+                const idempotencyKey = hasIdemCol ? (params[6] || null) : null;
+
+                if (idempotencyKey !== null && matchDepByKey(userId, idempotencyKey)) {
+                    const dupErr = new Error('duplicate key value violates unique constraint "uq_deposits_user_idempotency_key"');
+                    dupErr.code = '23505';
+                    dupErr.constraint = 'uq_deposits_user_idempotency_key';
+                    throw dupErr;
+                }
+                const now = new Date().toISOString();
+                const row = {
+                    id: nextDepId++,
+                    user_id: userId,
+                    amount,
+                    unique_code: uniqueCode,
+                    status,
+                    method,
+                    note,
+                    idempotency_key: idempotencyKey,
+                    created_at: now,
+                    updated_at: now
+                };
+                txState.stagedDeposits.push(row);
+                return { rows: [{ id: row.id, created_at: row.created_at }] };
+            }
+
+            if (sql.includes('INSERT INTO balance_history')) {
+                const isRefundLiteral = sql.includes("'Refund'");
+                txState.stagedHistory.push({
+                    user_id: params[0],
+                    amount: Number(params[1]),
+                    type: isRefundLiteral ? 'Refund' : params[2],
+                    description: isRefundLiteral ? params[2] : params[3],
+                    reference_id: isRefundLiteral ? params[3] : params[4]
+                });
+                return { rowCount: 1 };
+            }
+
+            if (sql.includes('FROM transactions WHERE invoice_id = $1 FOR UPDATE')) {
+                const found = transactions.find((t) => t.invoice_id === params[0]);
+                return { rows: found ? [{ ...found }] : [] };
+            }
+
+            if (sql.includes('UPDATE transactions SET provider_trx_id')) {
+                const nextProviderTrxId = params[0];
+                const invoiceKey = params[1];
+                const target = transactions.find((t) => t.invoice_id === invoiceKey || t.id === invoiceKey);
+                if (!target) return { rowCount: 0 };
+                if (txState) {
+                    txState.stagedProviderTrxUpdates.push({ tx: target, providerTrxId: nextProviderTrxId });
+                } else if (!target.provider_trx_id) {
+                    target.provider_trx_id = nextProviderTrxId;
+                }
+                return { rowCount: 1 };
+            }
+
+            if (sql.includes("SELECT id FROM balance_history WHERE reference_id = $1 AND type = 'Refund'")) {
+                const exists = balanceHistory.find((h) => h.reference_id === params[0] && h.type === 'Refund');
+                return { rows: exists ? [{ id: 1 }] : [] };
+            }
+
+            if (sql.includes("UPDATE transactions SET status = 'Failed'")) {
+                const allowed = ['Pending', 'Processing', 'Partial Refund'];
+                const byId = sql.includes('WHERE id = $1');
+                const target = transactions.find((t) => (byId ? t.id === params[0] : t.invoice_id === params[0]) && allowed.includes(t.status));
+                if (!target) return { rowCount: 0 };
+                if (txState) {
+                    txState.stagedStatusUpdates.push({ tx: target, status: 'Failed' });
+                } else {
+                    target.status = 'Failed';
+                }
+                return { rowCount: 1 };
+            }
+
+            if (sql.includes('DELETE FROM promo_usages WHERE transaction_id = $1')) {
+                return { rows: [] };
+            }
+
+            return { rows: [] };
+        };
+
+        const createClient = () => {
+            let txState = null;
+            return {
+                query: async (sql, params = []) => {
+                    if (sql === 'BEGIN') {
+                        const stagedUsers = new Map();
+                        for (const [k, v] of users.entries()) {
+                            stagedUsers.set(k, { ...v });
+                        }
+                        txState = {
+                            stagedUsers,
+                            stagedTransactions: [],
+                            stagedDeposits: [],
+                            stagedHistory: [],
+                            stagedStatusUpdates: [],
+                            stagedProviderTrxUpdates: []
+                        };
+                        return {};
+                    }
+                    if (sql === 'COMMIT') {
+                        if (txState) {
+                            const committed = {
+                                transactions: [...txState.stagedTransactions],
+                                deposits: [...txState.stagedDeposits]
+                            };
+                            for (const [k, v] of txState.stagedUsers.entries()) {
+                                users.set(k, v);
+                            }
+                            for (const tx of txState.stagedTransactions) {
+                                // Double-check unique constraint at commit too
+                                if (tx.ref_id !== null && matchTxByRef(tx.user_id, tx.ref_id)) {
+                                    const dupErr = new Error('duplicate key value violates unique constraint "uq_transactions_user_ref_id"');
+                                    dupErr.code = '23505';
+                                    throw dupErr;
+                                }
+                                transactions.push(tx);
+                            }
+                            for (const dep of txState.stagedDeposits) {
+                                if (dep.idempotency_key !== null && matchDepByKey(dep.user_id, dep.idempotency_key)) {
+                                    const dupErr = new Error('duplicate key value violates unique constraint "uq_deposits_user_idempotency_key"');
+                                    dupErr.code = '23505';
+                                    throw dupErr;
+                                }
+                                deposits.push(dep);
+                            }
+                            for (const h of txState.stagedHistory) {
+                                balanceHistory.push(h);
+                            }
+                            for (const upd of (txState.stagedStatusUpdates || [])) {
+                                upd.tx.status = upd.status;
+                            }
+                            for (const upd of (txState.stagedProviderTrxUpdates || [])) {
+                                if (!upd.tx.provider_trx_id) {
+                                    upd.tx.provider_trx_id = upd.providerTrxId;
+                                }
+                            }
+                            txState = null;
+                            if (typeof options.onCommit === 'function') {
+                                await options.onCommit(committed);
+                            }
+                        }
+                        return {};
+                    }
+                    if (sql === 'ROLLBACK') {
+                        if (txState) {
+                            rollbackCount++;
+                            txState = null;
+                        }
+                        return {};
+                    }
+                    return runQuery(sql, params, txState);
+                },
+                release: () => {}
+            };
+        };
+
+        return {
+            users,
+            products,
+            transactions,
+            deposits,
+            balanceHistory,
+            getRollbackCount: () => rollbackCount,
+            poolQuery: async (sql, params) => runQuery(sql, params, null),
+            poolConnect: async () => createClient()
+        };
+    }
+
+    before(() => {
+        origPoolQuery = pool.query;
+        origPoolConnect = pool.connect;
+        origAxiosGet = axios.get;
+        origAxiosPost = axios.post;
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        pool.query = origPoolQuery;
+        pool.connect = origPoolConnect;
+        axios.get = origAxiosGet;
+        axios.post = origAxiosPost;
+        await new Promise((resolve) => server.close(resolve));
+    });
+
+    test('SEC-009 (1): migrasi 011 idempoten menambah hanya transactions.ref_id dan deposits.idempotency_key dengan unique index parsial', () => {
+        const migrationsDir = path.resolve(__dirname, '../../migrations');
+        const files = fs.readdirSync(migrationsDir).filter((f) => /^011_.*\.sql$/i.test(f));
+        assert.strictEqual(files.length, 1, 'Harus ada tepat satu file migrasi 011_*.sql');
+
+        const sql = fs.readFileSync(path.join(migrationsDir, files[0]), 'utf8');
+        assert.match(sql, /ALTER\s+TABLE\s+transactions[\s\S]*?ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+ref_id\s+VARCHAR\(100\)/i);
+        assert.match(sql, /CREATE\s+UNIQUE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+\w+\s+ON\s+transactions\s*\(\s*user_id\s*,\s*ref_id\s*\)\s+WHERE\s+ref_id\s+IS\s+NOT\s+NULL/i);
+        assert.match(sql, /ALTER\s+TABLE\s+deposits[\s\S]*?ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+idempotency_key\s+VARCHAR\(100\)/i);
+        assert.match(sql, /CREATE\s+UNIQUE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+\w+\s+ON\s+deposits\s*\(\s*user_id\s*,\s*idempotency_key\s*\)\s+WHERE\s+idempotency_key\s+IS\s+NOT\s+NULL/i);
+
+        const addColumnMatches = sql.match(/ADD\s+COLUMN/gi) || [];
+        assert.strictEqual(addColumnMatches.length, 2, 'Migrasi 011 tidak boleh menambah kolom selain ref_id dan idempotency_key');
+    });
+
+    test('SEC-009 (2): POST /h2h/order — ref_id validasi, HTTP 200 idempotent:true tanpa double debit, 409 payload beda, & kompatibel tanpa ref_id', async () => {
+        const apiKey = crypto.randomBytes(32).toString('hex');
+        const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+        const db = createTransactionalMockDb(
+            [{
+                id: 9201,
+                username: 'h2h_sec9',
+                balance: 200000,
+                role_id: 2,
+                role_name: 'PARTNER',
+                api_key: null,
+                api_key_hash: apiKeyHash,
+                whitelisted_ips: []
+            }],
+            [
+                {
+                    id: 11, name: 'ML 86 Diamonds', provider_sku: 'ML-86', price: 12000, status: 'Active',
+                    game_id: 1, needs_server_id: false, validation_config: null,
+                    use_manual_prices: false, manual_prices: {}, use_custom_margin: false
+                },
+                {
+                    id: 12, name: 'ML 172 Diamonds', provider_sku: 'ML-172', price: 20000, status: 'Active',
+                    game_id: 1, needs_server_id: true, validation_config: null,
+                    use_manual_prices: false, manual_prices: {}, use_custom_margin: false
+                }
+            ]
+        );
+
+        let foxyOrderCalls = 0;
+        invalidateFoxyProductCache();
+        axios.get = async () => ({
+            data: {
+                data: [
+                    { product_code: 'ML-86', product_price: 11000 },
+                    { product_code: 'ML-172', product_price: 18000 }
+                ]
+            }
+        });
+        axios.post = async () => {
+            foxyOrderCalls++;
+            return { data: { status: true } };
+        };
+
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+
+        try {
+            // 1. Format ref_id tidak valid ditolak 400
+            for (const badRef of ['', 'bad ref with space', 'x'.repeat(101), '../etc/passwd']) {
+                const resBad = await fetch(`${baseUrl}/h2h/order`, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ productId: 11, targetGameId: '100200', ref_id: badRef })
+                });
+                assert.strictEqual(resBad.status, 400, `ref_id tidak valid "${badRef}" harus ditolak 400`);
+            }
+            assert.strictEqual(foxyOrderCalls, 0);
+
+            // 2. Request pertama dengan ref_id -> 201 Created, invoice kriptografis H2H-...
+            const res1 = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 11, targetGameId: '100200', ref_id: 'ORD-H2H-001' })
+            });
+            assert.strictEqual(res1.status, 201, 'Order H2H pertama harus mengembalikan 201');
+            const body1 = await res1.json();
+            assert.strictEqual(body1.success, true);
+            assert.match(body1.data.invoiceId, /^H2H-[A-F0-9]{16,}$/, 'invoiceId H2H harus berformat kriptografis H2H-<HEX>');
+            const expectedFirstBalance = 200000 - body1.data.price;
+            assert.strictEqual(body1.data.price, Math.ceil(12000 * 1.1));
+            assert.strictEqual(db.users.get(9201).balance, expectedFirstBalance, 'Saldo harus terpotong sekali sebesar harga produk');
+            assert.strictEqual(foxyOrderCalls, 1);
+
+            // Simulasikan transaksi sudah berubah jadi Success oleh callback/cron
+            db.transactions[0].status = 'Success';
+
+            // 3. Retry dengan ref_id & payload sama -> HTTP 200 + idempotent:true + status sama
+            const resRetry = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 11, targetGameId: '100200', ref_id: 'ORD-H2H-001' })
+            });
+            assert.strictEqual(resRetry.status, 200, 'Retry dengan ref_id sama harus mengembalikan HTTP 200');
+            const bodyRetry = await resRetry.json();
+            assert.strictEqual(bodyRetry.idempotent, true, 'Respons retry harus menandai idempotent: true');
+            assert.strictEqual(bodyRetry.data.invoiceId, body1.data.invoiceId, 'invoiceId retry harus identik');
+            assert.strictEqual(bodyRetry.data.status, 'Success', 'Status terbaru transaksi harus dikembalikan');
+            assert.strictEqual(bodyRetry.data.price, body1.data.price);
+            assert.strictEqual(db.users.get(9201).balance, expectedFirstBalance, 'Saldo TIDAK boleh terpotong ulang');
+            assert.strictEqual(foxyOrderCalls, 1, 'Foxy tidak boleh dipanggil ulang pada retry idempoten');
+            assert.strictEqual(db.transactions.length, 1);
+
+            // 4. Retry dengan ref_id sama tapi target atau product berbeda -> HTTP 409 Conflict
+            const resDiffTarget = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 11, targetGameId: '999888', ref_id: 'ORD-H2H-001' })
+            });
+            assert.strictEqual(resDiffTarget.status, 409, 'ref_id sama dengan target berbeda harus ditolak 409');
+
+            const resDiffProduct = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 12, targetGameId: '100200', targetServerId: '1234', ref_id: 'ORD-H2H-001' })
+            });
+            assert.strictEqual(resDiffProduct.status, 409, 'ref_id sama dengan produk berbeda harus ditolak 409');
+            assert.strictEqual(db.users.get(9201).balance, expectedFirstBalance);
+
+            // 5. ref_id BARU dalam <15 detik untuk produk & target sama tetap diterima (201)
+            const resDistinctRef = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 11, targetGameId: '100200', ref_id: 'ORD-H2H-002' })
+            });
+            assert.strictEqual(resDistinctRef.status, 201, 'ref_id berbeda harus diizinkan meski dalam 15 detik');
+            const bodyDistinct = await resDistinctRef.json();
+            assert.notStrictEqual(bodyDistinct.data.invoiceId, body1.data.invoiceId);
+            assert.strictEqual(db.transactions.length, 2);
+
+            // 6. Tanpa ref_id mempertahankan perilaku lama (201 pertama, lalu blokir duplicate pending 15 detik)
+            const resLegacy1 = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 12, targetGameId: '555666', targetServerId: '2020' })
+            });
+            assert.strictEqual(resLegacy1.status, 201, 'Order H2H tanpa ref_id tetap harus berfungsi untuk reseller lama');
+
+            const resLegacyDup = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 12, targetGameId: '555666', targetServerId: '2020' })
+            });
+            assert.strictEqual(resLegacyDup.status, 400, 'Tanpa ref_id tetap terkena guard duplikat 15 detik');
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    test('SEC-009 (3): POST /api/order — header Idempotency-Key (UUID) mengembalikan 200 idempotent:true, tolak 409 jika payload beda, & tolak non-UUID 400', async () => {
+        const token = makeUserToken(9202, 'User');
+        const db = createTransactionalMockDb(
+            [{ id: 9202, username: 'web_sec9', balance: 100000, role_id: 1, role_name: 'User' }],
+            [
+                {
+                    id: 21, name: 'DM 50', provider_sku: 'DM-50', price: 10000, status: 'Active',
+                    game_id: 1, needs_server_id: false, validation_config: null,
+                    use_manual_prices: false, manual_prices: {}, use_custom_margin: false
+                },
+                {
+                    id: 22, name: 'DM 100', provider_sku: 'DM-100', price: 20000, status: 'Active',
+                    game_id: 1, needs_server_id: false, validation_config: null,
+                    use_manual_prices: false, manual_prices: {}, use_custom_margin: false
+                }
+            ]
+        );
+
+        let foxyCalls = 0;
+        invalidateFoxyProductCache();
+        axios.get = async () => ({
+            data: {
+                data: [
+                    { product_code: 'DM-50', product_price: 9000 },
+                    { product_code: 'DM-100', product_price: 18000 }
+                ]
+            }
+        });
+        axios.post = async () => {
+            foxyCalls++;
+            return { data: { status: true } };
+        };
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+
+        const idemKey = '550e8400-e29b-41d4-a716-446655440001';
+        try {
+            // Invalid UUID headers -> 400
+            for (const badHeader of ['not-a-uuid', '']) {
+                const resBad = await fetch(`${baseUrl}/api/order`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Idempotency-Key': badHeader
+                    },
+                    body: JSON.stringify({ productId: 21, targetGameId: '778899' })
+                });
+                assert.strictEqual(resBad.status, 400, `Idempotency-Key "${badHeader}" harus ditolak 400`);
+            }
+
+            // Valid UUID order -> 201, crypto TRX- invoice
+            const res1 = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': idemKey
+                },
+                body: JSON.stringify({ productId: 21, targetGameId: '778899' })
+            });
+            assert.strictEqual(res1.status, 201);
+            const body1 = await res1.json();
+            assert.match(body1.invoiceId, /^TRX-[A-F0-9]{16,}$/, 'invoiceId web harus berformat TRX-<HEX>');
+            assert.strictEqual(db.users.get(9202).balance, 89000);
+            assert.strictEqual(foxyCalls, 1);
+
+            // Retry with exact same UUID & payload -> 200 + idempotent:true
+            const resRetry = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': idemKey.toUpperCase()
+                },
+                body: JSON.stringify({ productId: 21, targetGameId: '778899' })
+            });
+            assert.strictEqual(resRetry.status, 200);
+            const bodyRetry = await resRetry.json();
+            assert.strictEqual(bodyRetry.idempotent, true);
+            assert.strictEqual(bodyRetry.invoiceId, body1.invoiceId);
+            assert.strictEqual(db.users.get(9202).balance, 89000);
+            assert.strictEqual(foxyCalls, 1);
+
+            // Retry with same UUID & different target/product -> 409
+            const resConflict = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': idemKey
+                },
+                body: JSON.stringify({ productId: 22, targetGameId: '778899' })
+            });
+            assert.strictEqual(resConflict.status, 409, 'Idempotency-Key sama dengan produk berbeda harus ditolak 409');
+
+            const resConflictTarget = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': idemKey
+                },
+                body: JSON.stringify({ productId: 21, targetGameId: '111222' })
+            });
+            assert.strictEqual(resConflictTarget.status, 409, 'Idempotency-Key sama dengan target berbeda harus ditolak 409');
+
+            // Without Idempotency-Key -> legacy behavior
+            const resNoKey = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 21, targetGameId: '333444' })
+            });
+            assert.strictEqual(resNoKey.status, 201);
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    test('SEC-009 (4): POST /api/deposit/request — header Idempotency-Key (UUID) 200 idempotent:true & 409 jika payload beda', async () => {
+        const token = makeUserToken(9203, 'User');
+        let forcedPendingCount = 0;
+        const db = createTransactionalMockDb(
+            [{ id: 9203, username: 'dep_sec9', balance: 0, role_id: 1, role_name: 'User' }],
+            [],
+            { pendingDepositCountOverride: () => forcedPendingCount }
+        );
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+
+        const depKey = '550e8400-e29b-41d4-a716-446655440002';
+        try {
+            // Invalid UUID -> 400
+            const resBad = await fetch(`${baseUrl}/api/deposit/request`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': 'bukan-uuid'
+                },
+                body: JSON.stringify({ amount: 50000, method: 'BCA' })
+            });
+            assert.strictEqual(resBad.status, 400);
+
+            // First deposit request with UUID -> 201
+            const res1 = await fetch(`${baseUrl}/api/deposit/request`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': depKey
+                },
+                body: JSON.stringify({ amount: 50000, method: 'BCA', note: 'topup awal' })
+            });
+            assert.strictEqual(res1.status, 201);
+            const body1 = await res1.json();
+            assert.strictEqual(db.deposits.length, 1);
+
+            // Retry even when pending limit reached -> 200 + idempotent:true + exact same deposit
+            forcedPendingCount = 2;
+            const resRetry = await fetch(`${baseUrl}/api/deposit/request`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': depKey
+                },
+                body: JSON.stringify({ amount: 50000, method: 'BCA', note: 'topup awal' })
+            });
+            assert.strictEqual(resRetry.status, 200, 'Retry deposit dengan Idempotency-Key sama harus 200 meski pendingCount = 2');
+            const bodyRetry = await resRetry.json();
+            assert.strictEqual(bodyRetry.idempotent, true);
+            assert.strictEqual(bodyRetry.deposit.id, body1.deposit.id);
+            assert.strictEqual(bodyRetry.deposit.amount, body1.deposit.amount);
+            assert.strictEqual(bodyRetry.deposit.unique_code, body1.deposit.unique_code);
+            assert.strictEqual(bodyRetry.deposit.paymentInstructions, body1.deposit.paymentInstructions);
+            assert.strictEqual(db.deposits.length, 1, 'Deposit ganda tidak boleh dibuat');
+
+            // Same UUID with different amount or method -> 409
+            const resDiffAmount = await fetch(`${baseUrl}/api/deposit/request`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': depKey
+                },
+                body: JSON.stringify({ amount: 75000, method: 'BCA', note: 'topup awal' })
+            });
+            assert.strictEqual(resDiffAmount.status, 409);
+
+            const resDiffMethod = await fetch(`${baseUrl}/api/deposit/request`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': depKey
+                },
+                body: JSON.stringify({ amount: 50000, method: 'QRIS', note: 'topup awal' })
+            });
+            assert.strictEqual(resDiffMethod.status, 409);
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+        }
+    });
+
+    test('SEC-009 (5): race paralel Promise.all dengan ref_id/Idempotency-Key sama menangani 23505 via ROLLBACK + re-read', async () => {
+        const apiKey = crypto.randomBytes(32).toString('hex');
+        const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+        const userToken = makeUserToken(9205, 'User');
+
+        const raceH2hRef = 'RACE-REF-99';
+        const raceOrderKey = '550e8400-e29b-41d4-a716-446655440088';
+        const raceDepKey = '550e8400-e29b-41d4-a716-446655440099';
+
+        // Barrier per skenario agar 2 request paralel sama-sama lolos pre-check dan tx #2 menunggu tx #1 COMMIT sebelum 23505
+        const createRaceBarrier = (constraintName) => {
+            let arrivals = 0;
+            let winnerPicked = false;
+            let releaseArrivalBarrier;
+            const arrivalBarrierReady = new Promise((resolve) => { releaseArrivalBarrier = resolve; });
+            let resolveWinnerCommitted;
+            const winnerCommitted = new Promise((resolve) => { resolveWinnerCommitted = resolve; });
+            return {
+                waitAndCollide: async () => {
+                    arrivals++;
+                    if (arrivals === 2) releaseArrivalBarrier();
+                    await arrivalBarrierReady;
+                    if (!winnerPicked) {
+                        winnerPicked = true;
+                        return;
+                    }
+                    await winnerCommitted;
+                    const err23505 = new Error(`duplicate key value violates unique constraint "${constraintName}"`);
+                    err23505.code = '23505';
+                    err23505.constraint = constraintName;
+                    throw err23505;
+                },
+                notifyCommitted: () => resolveWinnerCommitted()
+            };
+        };
+
+        const h2hBarrier = createRaceBarrier('uq_transactions_user_ref_id');
+        const orderBarrier = createRaceBarrier('uq_transactions_user_ref_id');
+        const depBarrier = createRaceBarrier('uq_deposits_user_idempotency_key');
+
+        const db = createTransactionalMockDb(
+            [
+                {
+                    id: 9204, username: 'race_h2h', balance: 100000, role_id: 2, role_name: 'PARTNER',
+                    api_key: null, api_key_hash: apiKeyHash, whitelisted_ips: []
+                },
+                {
+                    id: 9205, username: 'race_dep', balance: 50000, role_id: 1, role_name: 'User'
+                }
+            ],
+            [{
+                id: 31, name: 'Race Item', provider_sku: 'RACE-SKU', price: 10000, status: 'Active',
+                game_id: 1, needs_server_id: false, validation_config: null,
+                use_manual_prices: false, manual_prices: {}, use_custom_margin: false
+            }],
+            {
+                beforeTxInsert: async (params) => {
+                    if (params[8] === raceH2hRef) return h2hBarrier.waitAndCollide();
+                    if (params[8] === raceOrderKey) return orderBarrier.waitAndCollide();
+                },
+                beforeDepositInsert: async () => depBarrier.waitAndCollide(),
+                onCommit: (committed) => {
+                    if (committed.transactions.some((t) => t.ref_id === raceH2hRef)) {
+                        h2hBarrier.notifyCommitted();
+                    }
+                    if (committed.transactions.some((t) => t.ref_id === raceOrderKey)) {
+                        orderBarrier.notifyCommitted();
+                    }
+                    if (committed.deposits.some((d) => d.idempotency_key === raceDepKey)) {
+                        depBarrier.notifyCommitted();
+                    }
+                }
+            }
+        );
+
+        let foxyCalls = 0;
+        invalidateFoxyProductCache();
+        axios.get = async () => ({
+            data: { data: [{ product_code: 'RACE-SKU', product_price: 9000 }] }
+        });
+        axios.post = async () => {
+            foxyCalls++;
+            return { data: { status: true } };
+        };
+
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+
+        try {
+            // 1. Race 2 paralel POST /h2h/order dengan ref_id identik
+            const [resA, resB] = await Promise.all([
+                fetch(`${baseUrl}/h2h/order`, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ productId: 31, targetGameId: '554433', ref_id: raceH2hRef })
+                }),
+                fetch(`${baseUrl}/h2h/order`, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ productId: 31, targetGameId: '554433', ref_id: raceH2hRef })
+                })
+            ]);
+
+            const statuses = [resA.status, resB.status].sort((a, b) => a - b);
+            assert.deepStrictEqual(statuses, [200, 201], 'Salah satu paralel H2H harus 201 dan satunya 200 idempotent');
+            const bodyA = await resA.json();
+            const bodyB = await resB.json();
+            assert.strictEqual(bodyA.data.invoiceId, bodyB.data.invoiceId, 'Kedua response paralel H2H harus mengembalikan invoiceId sama');
+            assert.strictEqual([bodyA.idempotent === true, bodyB.idempotent === true].filter(Boolean).length, 1, 'Tepat satu response H2H bertanda idempotent:true');
+            assert.strictEqual(db.transactions.filter((t) => t.user_id === 9204).length, 1, 'Harus tercipta tepat 1 transaksi H2H di DB');
+            assert.strictEqual(db.balanceHistory.filter((h) => h.user_id === 9204).length, 1, 'Ledger mutasi H2H hanya boleh punya 1 baris Purchase');
+            assert.strictEqual(db.users.get(9204).balance, 89000, 'Saldo H2H hanya boleh terpotong 1x (100000 - 11000)');
+            assert.strictEqual(foxyCalls, 1, 'Provider Foxy hanya boleh dipanggil 1x untuk H2H race');
+            assert.ok(db.getRollbackCount() >= 1, 'Request H2H yang kalah race 23505 wajib melakukan ROLLBACK');
+
+            // 2. Race 2 paralel POST /api/order dengan Idempotency-Key identik
+            const [ordResA, ordResB] = await Promise.all([
+                fetch(`${baseUrl}/api/order`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${userToken}`,
+                        'Content-Type': 'application/json',
+                        'Idempotency-Key': raceOrderKey
+                    },
+                    body: JSON.stringify({ productId: 31, targetGameId: '667788' })
+                }),
+                fetch(`${baseUrl}/api/order`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${userToken}`,
+                        'Content-Type': 'application/json',
+                        'Idempotency-Key': raceOrderKey
+                    },
+                    body: JSON.stringify({ productId: 31, targetGameId: '667788' })
+                })
+            ]);
+
+            assert.deepStrictEqual([ordResA.status, ordResB.status].sort((a, b) => a - b), [200, 201], 'Salah satu paralel /api/order harus 201 dan satunya 200 idempotent');
+            const ordBodyA = await ordResA.json();
+            const ordBodyB = await ordResB.json();
+            assert.strictEqual(ordBodyA.invoiceId, ordBodyB.invoiceId, 'Kedua response paralel /api/order harus mengembalikan invoiceId sama');
+            assert.strictEqual([ordBodyA.idempotent === true, ordBodyB.idempotent === true].filter(Boolean).length, 1, 'Tepat satu response /api/order bertanda idempotent:true');
+            assert.strictEqual(db.transactions.filter((t) => t.user_id === 9205).length, 1, 'Harus tercipta tepat 1 transaksi /api/order di DB');
+            assert.strictEqual(db.balanceHistory.filter((h) => h.user_id === 9205).length, 1, 'Ledger mutasi /api/order hanya boleh punya 1 baris Purchase');
+            assert.ok(db.users.get(9205).balance < 50000 && db.users.get(9205).balance >= 39000, `Saldo /api/order hanya boleh terpotong 1x, aktual=${db.users.get(9205).balance}`);
+            assert.strictEqual(foxyCalls, 2, 'Provider Foxy hanya boleh dipanggil 1x lagi untuk /api/order race');
+            assert.ok(db.getRollbackCount() >= 2, 'Request /api/order yang kalah race 23505 wajib melakukan ROLLBACK');
+
+            // 3. Race 2 paralel POST /api/deposit/request dengan Idempotency-Key identik
+            const [depResA, depResB] = await Promise.all([
+                fetch(`${baseUrl}/api/deposit/request`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${userToken}`,
+                        'Content-Type': 'application/json',
+                        'Idempotency-Key': raceDepKey
+                    },
+                    body: JSON.stringify({ amount: 50000, method: 'QRIS' })
+                }),
+                fetch(`${baseUrl}/api/deposit/request`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${userToken}`,
+                        'Content-Type': 'application/json',
+                        'Idempotency-Key': raceDepKey
+                    },
+                    body: JSON.stringify({ amount: 50000, method: 'QRIS' })
+                })
+            ]);
+
+            assert.deepStrictEqual([depResA.status, depResB.status].sort((a, b) => a - b), [200, 201]);
+            const depBodyA = await depResA.json();
+            const depBodyB = await depResB.json();
+            assert.strictEqual(depBodyA.deposit.id, depBodyB.deposit.id);
+            assert.strictEqual([depBodyA.idempotent === true, depBodyB.idempotent === true].filter(Boolean).length, 1, 'Tepat satu response deposit bertanda idempotent:true');
+            assert.strictEqual(db.deposits.length, 1, 'Deposit paralel harus menghasilkan tepat 1 baris');
+            assert.ok(db.getRollbackCount() >= 3, 'Request deposit yang kalah race 23505 wajib melakukan ROLLBACK');
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    test('SEC-009 (6): invoice_id kriptografis (TRX-/H2H-) unik paralel, lolos validator publik, tolak >64 char, & tersamarkan di recent-transactions', async () => {
+        const apiKey = crypto.randomBytes(32).toString('hex');
+        const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
+        const webToken = makeUserToken(9206, 'User');
+        const db = createTransactionalMockDb(
+            [
+                {
+                    id: 9206, username: 'web_crypto', balance: 500000, role_id: 1, role_name: 'User'
+                },
+                {
+                    id: 9207, username: 'h2h_crypto', balance: 500000, role_id: 2, role_name: 'PARTNER',
+                    api_key: null, api_key_hash: apiKeyHash, whitelisted_ips: []
+                }
+            ],
+            [{
+                id: 41, name: 'Crypto Product', provider_sku: 'CRYPTO-SKU', price: 10000, status: 'Active',
+                game_id: 1, needs_server_id: false, validation_config: null,
+                use_manual_prices: false, manual_prices: {}, use_custom_margin: false
+            }]
+        );
+
+        invalidateFoxyProductCache();
+        axios.get = async () => ({
+            data: { data: [{ product_code: 'CRYPTO-SKU', product_price: 9000 }] }
+        });
+        axios.post = async () => ({ data: { status: true } });
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+
+        try {
+            const webReqs = [1, 2, 3].map((i) => fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${webToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 41, targetGameId: `web_target_${i}` })
+            }));
+            const h2hReqs = [1, 2, 3].map((i) => fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 41, targetGameId: `h2h_target_${i}`, ref_id: `UNIQ-${i}` })
+            }));
+
+            const webResponses = await Promise.all(webReqs);
+            const h2hResponses = await Promise.all(h2hReqs);
+            const webBodies = await Promise.all(webResponses.map((r) => r.json()));
+            const h2hBodies = await Promise.all(h2hResponses.map((r) => r.json()));
+
+            const webInvoices = webBodies.map((b) => b.invoiceId);
+            const h2hInvoices = h2hBodies.map((b) => b.data.invoiceId);
+            const allInvoices = [...webInvoices, ...h2hInvoices];
+
+            assert.strictEqual(new Set(allInvoices).size, 6, 'Semua invoice paralel harus unik');
+            for (const inv of webInvoices) {
+                assert.match(inv, /^TRX-[A-F0-9]{16,}$/, `Invoice web baru harus kriptografis: ${inv}`);
+                assert.ok(inv.length <= 64, 'Panjang invoice harus <= 64 agar lolos input & validator publik');
+            }
+            for (const inv of h2hInvoices) {
+                assert.match(inv, /^H2H-[A-F0-9]{16,}$/, `Invoice H2H baru harus kriptografis: ${inv}`);
+                assert.ok(inv.length <= 64);
+            }
+
+            // Semua invoice baru harus lolos GET /api/public/transaction/:invoiceId
+            for (const inv of [webInvoices[0], h2hInvoices[0]]) {
+                const pubRes = await fetch(`${baseUrl}/api/public/transaction/${encodeURIComponent(inv)}`);
+                assert.strictEqual(pubRes.status, 200, `Validator publik harus menerima invoice kriptografis ${inv}`);
+                const pubData = await pubRes.json();
+                assert.strictEqual(pubData.invoice_id, inv);
+            }
+
+            // Invoice >64 karakter harus ditolak 400 (bukan diam-diam dipotong)
+            const tooLongRes = await fetch(`${baseUrl}/api/public/transaction/${'TRX-' + 'A'.repeat(65)}`);
+            assert.strictEqual(tooLongRes.status, 400, 'Invoice > 64 karakter harus ditolak 400');
+
+            // Tambahkan contoh invoice pendek lama untuk memastikan maskInvoiceId juga menyamarkan suffix <= 8
+            db.transactions.push({
+                id: 999,
+                invoice_id: 'TRX-SAFE-001',
+                user_id: 9206,
+                product_id: 41,
+                target_game_id: 'x',
+                price: 10000,
+                status: 'Pending',
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            });
+
+            const recentRes = await fetch(`${baseUrl}/api/public/recent-transactions`);
+            assert.strictEqual(recentRes.status, 200);
+            const recentList = await recentRes.json();
+            assert.ok(recentList.length >= 3);
+            for (const item of recentList) {
+                assert.ok(item.invoice_masked.includes('****'), `Invoice harus tersamarkan: ${item.invoice_masked}`);
+                assert.ok(!allInvoices.includes(item.invoice_masked), 'Invoice lengkap tidak boleh bocor');
+                assert.notStrictEqual(item.invoice_masked, 'TRX-SAFE-001', 'Invoice pendek TRX-SAFE-001 pun harus disamarkan');
+            }
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    test('SEC-009 (7): replay setelah order Failed — POST /api/order tolak 409 dengan pesan jelas agar user tidak terjebak; POST /h2h/order kembalikan 200 status Failed & ref_id baru diproses normal', async () => {
+        const webToken = makeUserToken(9207, 'User');
+        const h2hApiKey = crypto.randomBytes(32).toString('hex');
+        const h2hApiKeyHash = crypto.createHash('sha256').update(h2hApiKey).digest('hex');
+
+        const db = createTransactionalMockDb(
+            [
+                { id: 9207, username: 'web_fail_replay', balance: 100000, role_id: 1, role_name: 'User' },
+                {
+                    id: 9208, username: 'h2h_fail_replay', balance: 100000, role_id: 2, role_name: 'PARTNER',
+                    api_key: null, api_key_hash: h2hApiKeyHash, whitelisted_ips: []
+                }
+            ],
+            [{
+                id: 51, name: 'Fail Replay Item', provider_sku: 'FAIL-SKU', price: 10000, status: 'Active',
+                game_id: 1, needs_server_id: false, validation_config: null,
+                use_manual_prices: false, manual_prices: {}, use_custom_margin: false
+            }]
+        );
+
+        let foxyShouldReject = true;
+        let foxyCalls = 0;
+        invalidateFoxyProductCache();
+        axios.get = async () => ({
+            data: { data: [{ product_code: 'FAIL-SKU', product_price: 9000 }] }
+        });
+        axios.post = async () => {
+            foxyCalls++;
+            if (foxyShouldReject) {
+                return { data: { status: false, message: 'Provider explicit reject' } };
+            }
+            return { data: { status: true } };
+        };
+
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+
+        try {
+            // 1. Web /api/order: percobaan pertama ditolak provider -> status Failed & saldo kembali
+            const webKey1 = '550e8400-e29b-41d4-a716-446655440701';
+            const webResFail = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${webToken}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': webKey1
+                },
+                body: JSON.stringify({ productId: 51, targetGameId: '500600' })
+            });
+            assert.strictEqual(webResFail.status, 400);
+            assert.strictEqual(db.users.get(9207).balance, 100000, 'Saldo web wajib kembali utuh pasca refund kompensasi');
+            const webTx = db.transactions.find((t) => t.user_id === 9207);
+            assert.strictEqual(webTx.status, 'Failed');
+
+            // Aktifkan provider agar sukses untuk key baru
+            foxyShouldReject = false;
+
+            // 2. Replay /api/order dengan Idempotency-Key lama yang statusnya Failed -> 409 + pesan jelas
+            const webReplay = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${webToken}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': webKey1
+                },
+                body: JSON.stringify({ productId: 51, targetGameId: '500600' })
+            });
+            assert.strictEqual(webReplay.status, 409, 'Replay /api/order atas transaksi Failed wajib ditolak 409 agar UI tidak menganggap sukses');
+            const webReplayBody = await webReplay.json();
+            assert.strictEqual(webReplayBody.idempotent, true);
+            assert.strictEqual(webReplayBody.status, 'Failed');
+            assert.strictEqual(webReplayBody.invoiceId, webTx.invoice_id);
+            assert.match(webReplayBody.message, /gagal.*pesanan baru/i);
+            assert.strictEqual(foxyCalls, 1, 'Replay Failed tidak boleh memanggil Foxy');
+            assert.strictEqual(db.users.get(9207).balance, 100000);
+
+            // 3. Web /api/order dengan Idempotency-Key BARU -> diproses normal 201
+            const webKey2 = '550e8400-e29b-41d4-a716-446655440702';
+            const webResNew = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${webToken}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': webKey2
+                },
+                body: JSON.stringify({ productId: 51, targetGameId: '500600' })
+            });
+            assert.strictEqual(webResNew.status, 201, 'Key baru setelah order Failed harus memproses order baru');
+            assert.strictEqual(db.users.get(9207).balance, 89000);
+
+            // 4. H2H /h2h/order: percobaan pertama ditolak provider -> Failed & refund
+            foxyShouldReject = true;
+            const h2hResFail = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': h2hApiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 51, targetGameId: '700800', ref_id: 'REF-FAIL-1' })
+            });
+            assert.strictEqual(h2hResFail.status, 400);
+            assert.strictEqual(db.users.get(9208).balance, 100000);
+            const h2hTx = db.transactions.find((t) => t.user_id === 9208);
+            assert.strictEqual(h2hTx.status, 'Failed');
+
+            // 5. H2H replay ref_id sama -> kembalikan hasil lama (HTTP 200 idempotent:true, data.status='Failed')
+            foxyShouldReject = false;
+            const h2hReplay = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': h2hApiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 51, targetGameId: '700800', ref_id: 'REF-FAIL-1' })
+            });
+            assert.strictEqual(h2hReplay.status, 200);
+            const h2hReplayBody = await h2hReplay.json();
+            assert.strictEqual(h2hReplayBody.idempotent, true);
+            assert.strictEqual(h2hReplayBody.data.invoiceId, h2hTx.invoice_id);
+            assert.strictEqual(h2hReplayBody.data.status, 'Failed');
+            assert.strictEqual(db.users.get(9208).balance, 100000);
+
+            // 6. H2H ref_id baru -> diproses normal 201
+            const h2hNew = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': h2hApiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 51, targetGameId: '700800', ref_id: 'REF-OK-2' })
+            });
+            assert.strictEqual(h2hNew.status, 201);
+            assert.strictEqual(db.users.get(9208).balance, 89000);
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+});
+
+// ============================================================
+// PHASE 15: SEC-013 — Connection Pool Exhaustion & 3-Phase Order Flow
+// ============================================================
+describe('Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow', () => {
+    const jwt = require('jsonwebtoken');
+    const axios = require('axios');
+    const crypto = require('crypto');
+    const cronUtils = require('../utils/cronUtils');
+    const cronPool = cronUtils.pool;
+    const { invalidateFoxyProductCache, clearCallbackCooldownCache } = require('../server');
+    const { webhookDns } = require('../utils/webhookClient');
+    const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
+
+    let server;
+    let baseUrl;
+    let origPoolQuery;
+    let origPoolConnect;
+    let origAxiosGet;
+    let origAxiosPost;
+
+    function makeUserToken(id, role = 'User') {
+        return jwt.sign({ id, username: `sec13_user_${id}`, role }, JWT_SECRET, { expiresIn: '1h' });
+    }
+
+    function createPhase13MockDb(initialUsers, initialProducts) {
+        const users = new Map();
+        for (const u of initialUsers) {
+            users.set(u.id, { ...u });
+        }
+        const products = new Map();
+        for (const p of initialProducts) {
+            products.set(p.id, { ...p });
+        }
+        const transactions = [];
+        const balanceHistory = [];
+        let nextTxId = 1;
+        let activeClients = 0;
+        let connectCalls = 0;
+
+        const runQuery = async (sql, params = [], txState = null) => {
+            if (typeof sql !== 'string') return { rows: [] };
+            if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+
+            if (sql.includes('FROM users u') && sql.includes('u.api_key = $1')) {
+                const candidatePlain = params[0];
+                const candidateHash = params[1];
+                for (const u of users.values()) {
+                    if ((u.api_key_hash && u.api_key_hash === candidateHash) || (u.api_key && u.api_key === candidatePlain)) {
+                        return { rows: [{ ...u }] };
+                    }
+                }
+                return { rows: [] };
+            }
+            if (sql.includes('whitelisted_ips') && !sql.includes('FROM users u')) {
+                const u = users.get(params[0]);
+                return u ? { rows: [{ id: u.id, whitelisted_ips: u.whitelisted_ips || [], api_key: u.api_key || null, api_key_hash: u.api_key_hash || null }] } : { rows: [] };
+            }
+            if (sql.includes('FROM users u JOIN roles r') && sql.includes('u.id = $1') && !sql.includes('FOR UPDATE')) {
+                const u = users.get(params[0]);
+                return u ? { rows: [{ id: u.id, username: u.username, role_name: u.role_name, balance: u.balance, role_id: u.role_id }] } : { rows: [] };
+            }
+            if (sql.includes('JOIN games g') && (sql.includes('p.id = $1') || sql.includes('WHERE id = $1'))) {
+                const prod = products.get(params[0]);
+                return { rows: prod ? [{ ...prod }] : [] };
+            }
+            if (sql.includes('FROM users u JOIN roles r') && sql.includes('FOR UPDATE')) {
+                const target = txState ? txState.stagedUsers.get(params[0]) : users.get(params[0]);
+                return target ? { rows: [{ balance: target.balance, role_id: target.role_id, role_name: target.role_name }] } : { rows: [] };
+            }
+            if (sql.includes('SELECT balance, role_id FROM users WHERE id = $1 FOR UPDATE')) {
+                const target = txState ? txState.stagedUsers.get(params[0]) : users.get(params[0]);
+                return target ? { rows: [{ balance: target.balance, role_id: target.role_id }] } : { rows: [] };
+            }
+            if (sql.includes('SELECT margin_percent FROM roles WHERE id = $1')) {
+                return { rows: [{ margin_percent: 10 }] };
+            }
+            if (sql.includes('FROM flash_sales')) {
+                return { rows: [] };
+            }
+            if (sql.includes('FROM transactions t') && sql.includes('t.provider_trx_id = $1')) {
+                const found = params[0]
+                    ? transactions.find((t) => t.provider_trx_id !== null && t.provider_trx_id === params[0])
+                    : null;
+                if (!found) return { rows: [] };
+                const prod = products.get(found.product_id);
+                return {
+                    rows: [{
+                        ...found,
+                        provider_sku: prod ? prod.provider_sku : null,
+                        cost_price: prod ? Number(prod.price) : null
+                    }]
+                };
+            }
+            if (sql.includes('FROM transactions t') && (sql.includes('t.ref_id = $2') || sql.includes('t.invoice_id = $1'))) {
+                return { rows: [] };
+            }
+            if (sql.includes('FROM products WHERE id = $1')) {
+                const prod = products.get(params[0]);
+                return { rows: prod ? [{ ...prod }] : [] };
+            }
+            if (sql.includes('SELECT invoice_id') && sql.includes('FROM transactions') && sql.includes("status = 'Pending'")) {
+                return { rows: [] };
+            }
+            if (sql.includes('UPDATE users SET balance = balance - $1')) {
+                const amt = Number(params[0]);
+                const uid = params[1];
+                const u = txState.stagedUsers.get(uid);
+                if (!u || Number(u.balance) < amt) return { rowCount: 0 };
+                u.balance = Number(u.balance) - amt;
+                return { rowCount: 1 };
+            }
+            if (sql.includes('UPDATE users SET balance = balance + $1')) {
+                const amt = Number(params[0]);
+                const uid = params[1];
+                const u = txState.stagedUsers.get(uid);
+                if (u) u.balance = Number(u.balance) + amt;
+                return { rowCount: 1 };
+            }
+            if (sql.includes('INSERT INTO transactions')) {
+                const hasRefCol = sql.includes('ref_id');
+                const row = {
+                    id: nextTxId++,
+                    invoice_id: params[0],
+                    user_id: params[1],
+                    product_id: params[2],
+                    target_game_id: params[3],
+                    price: Number(params[4]),
+                    status: params[5],
+                    provider_trx_id: params[6],
+                    flash_sale_id: params[7] || null,
+                    flash_sale_restored: false,
+                    ref_id: hasRefCol ? (params[8] || null) : null,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                };
+                txState.stagedTransactions.push(row);
+                return { rows: [{ id: row.id }] };
+            }
+            if (sql.includes('INSERT INTO balance_history')) {
+                const isRefundLiteral = sql.includes("'Refund'");
+                txState.stagedHistory.push({
+                    user_id: params[0],
+                    amount: Number(params[1]),
+                    type: isRefundLiteral ? 'Refund' : params[2],
+                    description: isRefundLiteral ? params[2] : params[3],
+                    reference_id: isRefundLiteral ? params[3] : params[4]
+                });
+                return { rowCount: 1 };
+            }
+            if (sql.includes('FROM transactions WHERE invoice_id = $1 FOR UPDATE')) {
+                const found = transactions.find((t) => t.invoice_id === params[0]);
+                return { rows: found ? [{ ...found }] : [] };
+            }
+            if (sql.includes('SELECT * FROM transactions WHERE provider_trx_id = $1')) {
+                const found = params[0]
+                    ? transactions.find((t) => t.provider_trx_id !== null && t.provider_trx_id === params[0])
+                    : null;
+                return { rows: found ? [{ ...found }] : [] };
+            }
+            if (sql.includes('UPDATE transactions SET provider_trx_id')) {
+                const nextProviderTrxId = params[0];
+                const invoiceKey = params[1];
+                const target = transactions.find((t) => t.invoice_id === invoiceKey || t.id === invoiceKey);
+                if (!target) return { rowCount: 0 };
+                if (txState) {
+                    txState.stagedProviderTrxUpdates.push({ tx: target, providerTrxId: nextProviderTrxId });
+                } else if (!target.provider_trx_id) {
+                    target.provider_trx_id = nextProviderTrxId;
+                }
+                return { rowCount: 1 };
+            }
+            if (sql.includes("SELECT id FROM balance_history WHERE reference_id = $1 AND type = 'Refund'")) {
+                const exists = balanceHistory.find((h) => h.reference_id === params[0] && h.type === 'Refund');
+                return { rows: exists ? [{ id: 1 }] : [] };
+            }
+            if (sql.includes("UPDATE transactions SET status = 'Success'")) {
+                const sn = sql.includes('provider_sn = $1') ? params[0] : null;
+                const txId = sql.includes('WHERE id = $2') ? params[1] : params[0];
+                const target = transactions.find((t) => t.id === txId);
+                if (!target) return { rowCount: 0 };
+                if (txState) {
+                    txState.stagedStatusUpdates.push({ tx: target, status: 'Success', providerSn: sn });
+                } else {
+                    target.status = 'Success';
+                    if (sn !== null) target.provider_sn = sn;
+                }
+                return { rowCount: 1 };
+            }
+            if (sql.includes("UPDATE transactions SET status = 'Failed'")) {
+                const allowed = ['Pending', 'Processing', 'Partial Refund'];
+                const byId = sql.includes('WHERE id = $1');
+                const target = transactions.find((t) => (byId ? t.id === params[0] : t.invoice_id === params[0]) && allowed.includes(t.status));
+                if (!target) return { rowCount: 0 };
+                if (txState) {
+                    txState.stagedStatusUpdates.push({ tx: target, status: 'Failed' });
+                } else {
+                    target.status = 'Failed';
+                }
+                return { rowCount: 1 };
+            }
+            if (sql.includes('DELETE FROM promo_usages WHERE transaction_id = $1')) {
+                return { rows: [] };
+            }
+            return { rows: [] };
+        };
+
+        const createClient = () => {
+            let txState = null;
+            let released = false;
+            connectCalls += 1;
+            activeClients += 1;
+            return {
+                query: async (sql, params = []) => {
+                    if (sql === 'BEGIN') {
+                        const stagedUsers = new Map();
+                        for (const [k, v] of users.entries()) {
+                            stagedUsers.set(k, { ...v });
+                        }
+                        txState = {
+                            stagedUsers,
+                            stagedTransactions: [],
+                            stagedHistory: [],
+                            stagedStatusUpdates: [],
+                            stagedProviderTrxUpdates: []
+                        };
+                        return {};
+                    }
+                    if (sql === 'COMMIT') {
+                        if (txState) {
+                            for (const [k, v] of txState.stagedUsers.entries()) {
+                                users.set(k, v);
+                            }
+                            for (const tx of txState.stagedTransactions) {
+                                transactions.push(tx);
+                            }
+                            for (const h of txState.stagedHistory) {
+                                balanceHistory.push(h);
+                            }
+                            for (const upd of txState.stagedStatusUpdates) {
+                                upd.tx.status = upd.status;
+                                if (upd.providerSn !== undefined && upd.providerSn !== null) {
+                                    upd.tx.provider_sn = upd.providerSn;
+                                }
+                            }
+                            for (const upd of txState.stagedProviderTrxUpdates) {
+                                if (!upd.tx.provider_trx_id) {
+                                    upd.tx.provider_trx_id = upd.providerTrxId;
+                                }
+                            }
+                            txState = null;
+                        }
+                        return {};
+                    }
+                    if (sql === 'ROLLBACK') {
+                        txState = null;
+                        return {};
+                    }
+                    return runQuery(sql, params, txState);
+                },
+                release: () => {
+                    if (!released) {
+                        released = true;
+                        activeClients -= 1;
+                    }
+                }
+            };
+        };
+
+        return {
+            users,
+            products,
+            transactions,
+            balanceHistory,
+            getActiveClients: () => activeClients,
+            getConnectCalls: () => connectCalls,
+            poolQuery: async (sql, params) => runQuery(sql, params, null),
+            poolConnect: async () => createClient()
+        };
+    }
+
+    before(() => {
+        origPoolQuery = pool.query;
+        origPoolConnect = pool.connect;
+        origAxiosGet = axios.get;
+        origAxiosPost = axios.post;
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        pool.query = origPoolQuery;
+        pool.connect = origPoolConnect;
+        axios.get = origAxiosGet;
+        axios.post = origAxiosPost;
+        await new Promise((resolve) => server.close(resolve));
+    });
+
+    test('SEC-013 (1): /api/order & /h2h/order release DB client before validator, price check & /v1/order, and persist provider_trx_id in Fase (a)', async () => {
+        const h2hKey = 'e'.repeat(64);
+        const h2hKeyHash = crypto.createHash('sha256').update(h2hKey).digest('hex');
+        const db = createPhase13MockDb([
+            { id: 9301, username: 'sec13_web', role_id: 1, role_name: 'User', balance: 100000 },
+            { id: 9302, username: 'sec13_h2h', role_id: 2, role_name: 'Bronze', balance: 100000, api_key: null, api_key_hash: h2hKeyHash, api_key_prefix: h2hKey.slice(0, 8), whitelisted_ips: [] }
+        ], [
+            {
+                id: 71,
+                name: 'MLBB 50 Diamonds',
+                provider_sku: 'ML50-SEC13',
+                price: 10000,
+                status: 'Active',
+                game_id: 1,
+                needs_server_id: true,
+                use_manual_prices: false,
+                use_custom_margin: false,
+                validation_config: { enabled: true, validator: 'Mobile Legends' }
+            }
+        ]);
+
+        const origPgsKey = process.env.PGS_KEY;
+        const origPgsApiKey = process.env.PGS_API_KEY;
+        process.env.PGS_KEY = 'test-pgs-key';
+        process.env.PGS_API_KEY = 'test-pgs-api-key';
+
+        const snapshots = [];
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+        invalidateFoxyProductCache();
+
+        axios.get = async (url) => {
+            if (url.includes('/v1/products')) {
+                snapshots.push({
+                    stage: 'foxy_products',
+                    activeClients: db.getActiveClients(),
+                    txCount: db.transactions.length
+                });
+                return { data: { data: [{ product_code: 'ML50-SEC13', product_price: 10000 }] } };
+            }
+            return { data: {} };
+        };
+
+        axios.post = async (url, body) => {
+            if (url.includes('pgscode.id')) {
+                snapshots.push({
+                    stage: 'validator',
+                    activeClients: db.getActiveClients(),
+                    txCount: db.transactions.length
+                });
+                return { data: { status: true, data: { username: 'MikuPlayer' } } };
+            }
+            if (url.includes('/v1/order')) {
+                snapshots.push({
+                    stage: 'foxy_order',
+                    activeClients: db.getActiveClients(),
+                    txCount: db.transactions.length,
+                    latestTx: db.transactions.length > 0 ? { ...db.transactions[db.transactions.length - 1] } : null,
+                    postedTrxId: body.trx_id
+                });
+                return { data: { status: true } };
+            }
+            return { data: {} };
+        };
+
+        try {
+            const webToken = makeUserToken(9301, 'User');
+            const webRes = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${webToken}`,
+                    'Content-Type': 'application/json',
+                    'Idempotency-Key': '11111111-1111-4111-8111-111111111301'
+                },
+                body: JSON.stringify({ productId: 71, targetGameId: '100200', targetServerId: '3001' })
+            });
+            assert.strictEqual(webRes.status, 201);
+            const webBody = await webRes.json();
+
+            assert.strictEqual(db.getActiveClients(), 0, 'Web order must leave 0 active DB clients');
+            const webValSnap = snapshots.find((s) => s.stage === 'validator');
+            const webProdSnap = snapshots.find((s) => s.stage === 'foxy_products');
+            const webOrderSnap = snapshots.find((s) => s.stage === 'foxy_order');
+            assert.strictEqual(webValSnap.activeClients, 0, 'Validator HTTP call must hold 0 DB clients');
+            assert.strictEqual(webProdSnap.activeClients, 0, 'Foxy price check must hold 0 DB clients');
+            assert.strictEqual(webOrderSnap.activeClients, 0, 'Foxy /v1/order must hold 0 DB clients');
+            assert.ok(webOrderSnap.latestTx, 'Fase (a) must commit Pending transaction before Fase (b)');
+            assert.strictEqual(webOrderSnap.latestTx.status, 'Pending');
+            assert.match(webOrderSnap.postedTrxId, /^WEB-/, 'Web trx_id must use WEB- prefix');
+            assert.strictEqual(webOrderSnap.latestTx.provider_trx_id, webOrderSnap.postedTrxId, 'provider_trx_id must already be saved in Fase (a) INSERT');
+            assert.strictEqual(db.users.get(9301).balance, 89000);
+
+            const committedWebTx = db.transactions.find((t) => t.invoice_id === webBody.invoiceId);
+            assert.strictEqual(committedWebTx.status, 'Pending');
+            assert.strictEqual(committedWebTx.provider_trx_id, webOrderSnap.postedTrxId, 'Fase (c) must save provider_trx_id');
+
+            // H2H order with invalidated cache so both external HTTP steps run
+            snapshots.length = 0;
+            invalidateFoxyProductCache();
+            const h2hRes = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': h2hKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 71, targetGameId: '400500', targetServerId: '3002', ref_id: 'H2H-SEC13-1' })
+            });
+            assert.strictEqual(h2hRes.status, 201);
+            const h2hBody = await h2hRes.json();
+
+            assert.strictEqual(db.getActiveClients(), 0, 'H2H order must leave 0 active DB clients');
+            const h2hValSnap = snapshots.find((s) => s.stage === 'validator');
+            const h2hProdSnap = snapshots.find((s) => s.stage === 'foxy_products');
+            const h2hOrderSnap = snapshots.find((s) => s.stage === 'foxy_order');
+            assert.strictEqual(h2hValSnap.activeClients, 0, 'H2H validator must hold 0 DB clients');
+            assert.strictEqual(h2hProdSnap.activeClients, 0, 'H2H Foxy price check must hold 0 DB clients');
+            assert.strictEqual(h2hOrderSnap.activeClients, 0, 'H2H Foxy /v1/order must hold 0 DB clients');
+            assert.strictEqual(h2hOrderSnap.latestTx.status, 'Pending');
+            assert.match(h2hOrderSnap.postedTrxId, /^H2H-PROVIDER-/, 'H2H trx_id must use H2H-PROVIDER- prefix');
+            assert.strictEqual(h2hOrderSnap.latestTx.provider_trx_id, h2hOrderSnap.postedTrxId, 'H2H provider_trx_id must already be saved in Fase (a) INSERT');
+
+            const committedH2hTx = db.transactions.find((t) => t.invoice_id === h2hBody.data.invoiceId);
+            assert.strictEqual(committedH2hTx.status, 'Pending');
+            assert.strictEqual(committedH2hTx.provider_trx_id, h2hOrderSnap.postedTrxId);
+            assert.strictEqual(db.users.get(9302).balance, 89000);
+        } finally {
+            if (origPgsKey === undefined) delete process.env.PGS_KEY;
+            else process.env.PGS_KEY = origPgsKey;
+            if (origPgsApiKey === undefined) delete process.env.PGS_API_KEY;
+            else process.env.PGS_API_KEY = origPgsApiKey;
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    test('SEC-013 (2): /api/order & /h2h/order Fase (c) preserves Success if real POST /api/foxy/callback committed Success during Fase (b)', async () => {
+        const h2hKey = 'f'.repeat(64);
+        const h2hKeyHash = crypto.createHash('sha256').update(h2hKey).digest('hex');
+        const db = createPhase13MockDb([
+            { id: 9303, username: 'sec13_cb_web', role_id: 1, role_name: 'User', balance: 100000 },
+            { id: 9304, username: 'sec13_cb_h2h', role_id: 2, role_name: 'Bronze', balance: 100000, api_key: null, api_key_hash: h2hKeyHash, api_key_prefix: h2hKey.slice(0, 8), whitelisted_ips: [] }
+        ], [
+            {
+                id: 72,
+                name: 'MLBB 50 Diamonds',
+                provider_sku: 'ML50-CB',
+                price: 10000,
+                status: 'Active',
+                game_id: 1,
+                needs_server_id: false,
+                use_manual_prices: false,
+                use_custom_margin: false,
+                validation_config: null
+            }
+        ]);
+
+        const origCallbackSecret = process.env.FOXY_CALLBACK_SECRET;
+        process.env.FOXY_CALLBACK_SECRET = 'sec13-race-secret';
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+        invalidateFoxyProductCache();
+
+        let simulateRejectAfterSuccess = false;
+        let lastPostedTrxId = null;
+
+        axios.get = async (url) => {
+            if (url.includes('/v1/products')) {
+                return { data: { data: [{ product_code: 'ML50-CB', product_price: 10000 }] } };
+            }
+            if (url.includes('/v1/status/')) {
+                const trxIdFromUrl = decodeURIComponent(url.split('/v1/status/')[1]);
+                return {
+                    data: {
+                        status: true,
+                        data: {
+                            trx_id: trxIdFromUrl,
+                            status: 'SUCCESS',
+                            sn: simulateRejectAfterSuccess ? 'SN-CB-H2H' : 'SN-CB-WEB'
+                        }
+                    }
+                };
+            }
+            return { data: {} };
+        };
+
+        axios.post = async (url, body) => {
+            if (url.includes('/v1/order')) {
+                assert.strictEqual(db.getActiveClients(), 0, 'Must hold 0 DB clients during /v1/order');
+                const latestTx = db.transactions[db.transactions.length - 1];
+                assert.ok(latestTx, 'Fase (a) transaction must exist during Fase (b)');
+                assert.strictEqual(latestTx.provider_trx_id, body.trx_id, 'provider_trx_id must already exist during Fase (b)');
+                lastPostedTrxId = body.trx_id;
+
+                // Kirim POST /api/foxy/callback nyata sebelum /v1/order selesai (Fase (b) sedang berjalan)
+                clearCallbackCooldownCache();
+                const cbRes = await fetch(`${baseUrl}/api/foxy/callback?token=sec13-race-secret`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        trx_id: body.trx_id,
+                        status: 'SUCCESS',
+                        sn: simulateRejectAfterSuccess ? 'SN-CB-H2H' : 'SN-CB-WEB'
+                    })
+                });
+                assert.strictEqual(cbRes.status, 200, 'Real Foxy callback during Fase (b) must succeed');
+                assert.strictEqual(db.getActiveClients(), 0, 'Callback must release DB client');
+
+                if (!simulateRejectAfterSuccess) {
+                    return { data: { status: true } };
+                }
+                const err = new Error('Explicit reject after callback won');
+                err.response = { status: 400, data: { status: false } };
+                throw err;
+            }
+            return { data: {} };
+        };
+
+        try {
+            // Case A: callback set Success before /v1/order returns 200
+            const webToken = makeUserToken(9303, 'User');
+            const resA = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${webToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 72, targetGameId: '123456' })
+            });
+            assert.strictEqual(resA.status, 201);
+            const bodyA = await resA.json();
+            const txA = db.transactions.find((t) => t.invoice_id === bodyA.invoiceId);
+            assert.strictEqual(txA.status, 'Success', 'Fase (c) must preserve Success');
+            assert.strictEqual(txA.provider_trx_id, lastPostedTrxId, 'COALESCE must preserve existing provider_trx_id');
+            assert.strictEqual(txA.provider_sn, 'SN-CB-WEB', 'Callback SN must remain intact');
+            assert.strictEqual(db.users.get(9303).balance, 89000);
+
+            // Case B: callback set Success while /v1/order explicitly rejects (H2H)
+            simulateRejectAfterSuccess = true;
+            const resB = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': h2hKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 72, targetGameId: '654321', ref_id: 'CB-BEAT-H2H-1' })
+            });
+            assert.strictEqual(resB.status, 201);
+            const bodyB = await resB.json();
+            assert.strictEqual(bodyB.data.status, 'Success');
+            const txB = db.transactions.find((t) => t.invoice_id === bodyB.data.invoiceId);
+            assert.strictEqual(txB.status, 'Success', 'Fase (c) must not rollback or overwrite Success');
+            assert.strictEqual(txB.provider_trx_id, lastPostedTrxId);
+            assert.strictEqual(txB.provider_sn, 'SN-CB-H2H');
+            assert.strictEqual(db.users.get(9304).balance, 89000, 'Balance must NOT be refunded when Success already committed');
+            assert.strictEqual(db.balanceHistory.filter((h) => h.reference_id === txB.invoice_id && h.type === 'Refund').length, 0);
+        } finally {
+            if (origCallbackSecret === undefined) delete process.env.FOXY_CALLBACK_SECRET;
+            else process.env.FOXY_CALLBACK_SECRET = origCallbackSecret;
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    test('SEC-013 (3): /api/order & /h2h/order timeout keeps Pending and saves provider_trx_id in Fase (c), explicit 400 refunds without holding connections', async () => {
+        const h2hKey = 'a'.repeat(64);
+        const h2hKeyHash = crypto.createHash('sha256').update(h2hKey).digest('hex');
+        const db = createPhase13MockDb([
+            { id: 9305, username: 'sec13_to_web', role_id: 1, role_name: 'User', balance: 100000 },
+            { id: 9306, username: 'sec13_err_h2h', role_id: 2, role_name: 'Bronze', balance: 100000, api_key: null, api_key_hash: h2hKeyHash, api_key_prefix: h2hKey.slice(0, 8), whitelisted_ips: [] }
+        ], [
+            {
+                id: 73,
+                name: 'MLBB 50 Diamonds',
+                provider_sku: 'ML50-TO',
+                price: 10000,
+                status: 'Active',
+                game_id: 1,
+                needs_server_id: false,
+                use_manual_prices: false,
+                use_custom_margin: false,
+                validation_config: null
+            }
+        ]);
+
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+        invalidateFoxyProductCache();
+
+        axios.get = async () => ({ data: { data: [{ product_code: 'ML50-TO', product_price: 10000 }] } });
+
+        let mode = 'timeout';
+        let lastPostedTrxId = null;
+        axios.post = async (url, body) => {
+            if (url.includes('/v1/order')) {
+                assert.strictEqual(db.getActiveClients(), 0, 'Must release DB client before /v1/order');
+                lastPostedTrxId = body.trx_id;
+                const latestTx = db.transactions[db.transactions.length - 1];
+                assert.strictEqual(latestTx.provider_trx_id, body.trx_id, 'Fase (a) already commits provider_trx_id before Fase (b)');
+                if (mode === 'timeout') {
+                    const toErr = new Error('timeout of 15000ms exceeded');
+                    toErr.code = 'ECONNABORTED';
+                    throw toErr;
+                }
+                const err = new Error('Bad Request from provider');
+                err.response = { status: 400, data: { status: false } };
+                throw err;
+            }
+            return { data: {} };
+        };
+
+        try {
+            // 1. Timeout on Web /api/order -> returns 201, keeps Pending, saves provider_trx_id in Fase (c), no refund
+            const webToken = makeUserToken(9305, 'User');
+            const toRes = await fetch(`${baseUrl}/api/order`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${webToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 73, targetGameId: '111222' })
+            });
+            assert.strictEqual(toRes.status, 201);
+            const toBody = await toRes.json();
+            const txTo = db.transactions.find((t) => t.invoice_id === toBody.invoiceId);
+            assert.strictEqual(txTo.status, 'Pending');
+            assert.strictEqual(txTo.provider_trx_id, lastPostedTrxId, 'Timeout path must still save provider_trx_id in Fase (c) for cron');
+            assert.strictEqual(db.users.get(9305).balance, 89000);
+            assert.strictEqual(db.getActiveClients(), 0);
+
+            // 2. Explicit 400 on H2H /h2h/order -> returns 400, sets Failed, refunds balance, no leaked clients
+            mode = 'reject';
+            const rejRes = await fetch(`${baseUrl}/h2h/order`, {
+                method: 'POST',
+                headers: { 'X-API-Key': h2hKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: 73, targetGameId: '333444', ref_id: 'REJ-H2H-1' })
+            });
+            assert.strictEqual(rejRes.status, 400);
+            const txRej = db.transactions.find((t) => t.ref_id === 'REJ-H2H-1');
+            assert.strictEqual(txRej.status, 'Failed');
+            assert.strictEqual(db.users.get(9306).balance, 100000);
+            assert.strictEqual(db.balanceHistory.filter((h) => h.reference_id === txRej.invoice_id && h.type === 'Refund').length, 1);
+            assert.strictEqual(db.getActiveClients(), 0);
+        } finally {
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    test('SEC-013 (4): cronUtils.checkPendingTransactions handles <10m grace period, SUCCESS at any age, >10m 404 expiry/refund, legacy null skip, and callback safety', async () => {
+        const origCallbackSecret = process.env.FOXY_CALLBACK_SECRET;
+        const webhookSecret = 'whsec_sec13_cron_test_123';
+        process.env.FOXY_CALLBACK_SECRET = 'sec13-cb-secret';
+        mock.method(webhookDns, 'lookup', async () => [{ address: '93.184.216.34', family: 4 }]);
+
+        const foxyStatusUrls = [];
+        const capturedWebhooks = [];
+        const refundHistory = [];
+        const nowMs = Date.now();
+        const txRows = [
+            {
+                id: 9501,
+                invoice_id: 'TRX-CRON-FRESH-OK',
+                user_id: 9307,
+                price: 10000,
+                provider_trx_id: 'WEB-CRON-FRESH-OK',
+                check_attempts: 0,
+                product_name: 'ML 30',
+                h2h_callback_url: null,
+                h2h_webhook_secret: null,
+                flash_sale_id: null,
+                flash_sale_restored: false,
+                status: 'Pending',
+                provider_sn: null,
+                created_at: new Date(nowMs - 2 * 60 * 1000).toISOString()
+            },
+            {
+                id: 9502,
+                invoice_id: 'TRX-CRON-OLD-OK',
+                user_id: 9308,
+                price: 12000,
+                provider_trx_id: 'WEB-CRON-OLD-OK',
+                check_attempts: 2,
+                product_name: 'ML 40',
+                h2h_callback_url: null,
+                h2h_webhook_secret: null,
+                flash_sale_id: null,
+                flash_sale_restored: false,
+                status: 'Pending',
+                provider_sn: null,
+                created_at: new Date(nowMs - 25 * 60 * 1000).toISOString()
+            },
+            {
+                id: 9503,
+                invoice_id: 'TRX-CRON-FRESH-404',
+                user_id: 9309,
+                price: 15000,
+                provider_trx_id: 'WEB-CRON-FRESH-404',
+                check_attempts: 0,
+                product_name: 'ML 50',
+                h2h_callback_url: null,
+                h2h_webhook_secret: null,
+                flash_sale_id: 81,
+                flash_sale_restored: false,
+                status: 'Pending',
+                provider_sn: null,
+                created_at: new Date(nowMs - 2 * 60 * 1000).toISOString()
+            },
+            {
+                id: 9504,
+                invoice_id: 'TRX-CRON-FRESH-ERR',
+                user_id: 9310,
+                price: 18000,
+                provider_trx_id: 'WEB-CRON-FRESH-ERR',
+                check_attempts: 0,
+                product_name: 'ML 60',
+                h2h_callback_url: null,
+                h2h_webhook_secret: null,
+                flash_sale_id: null,
+                flash_sale_restored: false,
+                status: 'Pending',
+                provider_sn: null,
+                created_at: new Date(nowMs - 3 * 60 * 1000).toISOString()
+            },
+            {
+                id: 9505,
+                invoice_id: 'H2H-CRON-STALE-404',
+                user_id: 9311,
+                price: 25000,
+                provider_trx_id: 'H2H-CRON-STALE-404',
+                check_attempts: 0,
+                product_name: 'ML 100',
+                h2h_callback_url: 'https://reseller-sec13.example/webhook',
+                h2h_webhook_secret: webhookSecret,
+                flash_sale_id: 82,
+                flash_sale_restored: false,
+                status: 'Pending',
+                provider_sn: null,
+                created_at: new Date(nowMs - 15 * 60 * 1000).toISOString()
+            },
+            {
+                id: 9506,
+                invoice_id: 'TRX-LEGACY-NULL',
+                user_id: 9312,
+                price: 20000,
+                provider_trx_id: null,
+                check_attempts: 0,
+                product_name: 'ML 80',
+                h2h_callback_url: null,
+                h2h_webhook_secret: null,
+                flash_sale_id: 83,
+                flash_sale_restored: false,
+                status: 'Pending',
+                provider_sn: null,
+                created_at: new Date(nowMs - 20 * 60 * 1000).toISOString()
+            }
+        ];
+        const balances = new Map([
+            [9307, 50000],
+            [9308, 50000],
+            [9309, 50000],
+            [9310, 50000],
+            [9311, 50000],
+            [9312, 50000]
+        ]);
+        const fsRestores = [];
+        const failedUpdates = [];
+
+        axios.get = async (url) => {
+            if (url.includes('/v1/status/')) {
+                foxyStatusUrls.push(url);
+                if (url.endsWith('/WEB-CRON-FRESH-OK')) {
+                    return { data: { status: true, data: { status: 'SUCCESS', sn: 'SN-FRESH-OK' } } };
+                }
+                if (url.endsWith('/WEB-CRON-OLD-OK')) {
+                    return { data: { status: true, data: { status: 'SUCCESS', sn: 'SN-OLD-OK' } } };
+                }
+                if (url.endsWith('/WEB-CRON-FRESH-404') || url.endsWith('/H2H-CRON-STALE-404')) {
+                    const err404 = new Error('Not Found');
+                    err404.response = { status: 404, data: { status: false, message: 'Not found' } };
+                    throw err404;
+                }
+                if (url.endsWith('/WEB-CRON-FRESH-ERR')) {
+                    const err500 = new Error('Upstream temporary error');
+                    err500.response = { status: 500, data: { message: 'Internal Server Error' } };
+                    throw err500;
+                }
+            }
+            return { data: {} };
+        };
+        axios.post = async (url, rawData) => {
+            if (url.includes('reseller-sec13.example')) {
+                capturedWebhooks.push({ url, data: JSON.parse(rawData) });
+                return { status: 200, data: { ok: true } };
+            }
+            return { data: {} };
+        };
+
+        mock.method(cronPool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes("t.status IN ('Pending', 'Processing')")) {
+                return {
+                    rows: txRows
+                        .filter((r) => ['Pending', 'Processing'].includes(r.status))
+                        .map((r) => ({ ...r }))
+                };
+            }
+            return { rows: [] };
+        });
+        mock.method(cronPool, 'connect', async () => ({
+            query: async (sql, params = []) => {
+                if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+                if (typeof sql === 'string' && sql.includes('FROM transactions WHERE id = $1 FOR UPDATE')) {
+                    const row = txRows.find((r) => r.id === params[0]);
+                    return { rows: row ? [{ ...row }] : [] };
+                }
+                if (typeof sql === 'string' && sql.includes('SET check_attempts = check_attempts + 1')) {
+                    const row = txRows.find((r) => r.id === params[0]);
+                    if (row) row.check_attempts += 1;
+                    return { rowCount: row ? 1 : 0 };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE transactions SET status = $1, provider_sn = $2')) {
+                    const row = txRows.find((r) => r.id === params[2]);
+                    if (row) {
+                        row.status = params[0];
+                        row.provider_sn = params[1];
+                    }
+                    return { rowCount: row ? 1 : 0 };
+                }
+                if (typeof sql === 'string' && sql.includes("type = 'Refund'")) {
+                    const exists = refundHistory.find((h) => h.reference_id === params[0]);
+                    return { rows: exists ? [{ id: 1 }] : [] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance = balance + $1')) {
+                    balances.set(params[1], balances.get(params[1]) + Number(params[0]));
+                    return { rowCount: 1 };
+                }
+                if (typeof sql === 'string' && sql.includes('INSERT INTO balance_history')) {
+                    refundHistory.push({ user_id: params[0], amount: Number(params[1]), reference_id: params[3] });
+                    return { rowCount: 1 };
+                }
+                if (typeof sql === 'string' && sql.includes('DELETE FROM promo_usages')) {
+                    return { rows: [] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE flash_sales SET uses_count')) {
+                    fsRestores.push(params[0]);
+                    return { rowCount: 1 };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE transactions SET flash_sale_restored = TRUE')) {
+                    const row = txRows.find((r) => r.id === params[0]);
+                    if (row) row.flash_sale_restored = true;
+                    return { rowCount: 1 };
+                }
+                if (typeof sql === 'string' && sql.includes("UPDATE transactions SET status = 'Failed'")) {
+                    const row = txRows.find((r) => r.id === params[0]);
+                    if (row) row.status = 'Failed';
+                    failedUpdates.push(params[0]);
+                    return { rowCount: 1 };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        try {
+            // Run 1: handles fresh/old SUCCESS, skips <10m 404 & 500, skips legacy null, increments >10m 404 once
+            await cronUtils.checkPendingTransactions();
+            await new Promise((resolve) => setImmediate(resolve));
+
+            assert.ok(!foxyStatusUrls.some((u) => u.endsWith('/null')), 'Legacy null provider_trx_id must NOT call /v1/status');
+
+            const txFreshOk = txRows.find((r) => r.id === 9501);
+            const txOldOk = txRows.find((r) => r.id === 9502);
+            const txFresh404 = txRows.find((r) => r.id === 9503);
+            const txFreshErr = txRows.find((r) => r.id === 9504);
+            const txStale404 = txRows.find((r) => r.id === 9505);
+            const txLegacyNull = txRows.find((r) => r.id === 9506);
+
+            assert.strictEqual(txFreshOk.status, 'Success', '(a) <10m Pending with SUCCESS must become Success');
+            assert.strictEqual(txFreshOk.provider_sn, 'SN-FRESH-OK');
+            assert.strictEqual(txOldOk.status, 'Success', '(a) >10m Pending with SUCCESS must become Success');
+            assert.strictEqual(txOldOk.provider_sn, 'SN-OLD-OK');
+            assert.strictEqual(balances.get(9307), 50000);
+            assert.strictEqual(balances.get(9308), 50000);
+
+            assert.strictEqual(txFresh404.status, 'Pending', '(b) <10m Pending with 404 must stay Pending');
+            assert.strictEqual(txFresh404.check_attempts, 0, '(b) <10m Pending with 404 must NOT increment check_attempts');
+            assert.strictEqual(txFreshErr.status, 'Pending', '(b) <10m Pending with /v1/status error must stay Pending');
+            assert.strictEqual(txFreshErr.check_attempts, 0, '(b) <10m Pending with error must NOT increment check_attempts');
+
+            assert.strictEqual(txLegacyNull.status, 'Pending', 'Legacy null row must remain Pending under legacy rule');
+            assert.strictEqual(txLegacyNull.check_attempts, 0);
+            assert.strictEqual(balances.get(9312), 50000);
+
+            assert.strictEqual(txStale404.status, 'Pending', '(c) First >10m 404 attempt must not refund yet');
+            assert.strictEqual(txStale404.check_attempts, 1);
+            assert.strictEqual(refundHistory.length, 0);
+
+            // Runs 2..5: >10m 404 increments check_attempts up to MAX_ATTEMPTS (5) without refunding yet
+            for (let i = 0; i < 4; i++) {
+                await cronUtils.checkPendingTransactions();
+            }
+            assert.strictEqual(txStale404.check_attempts, 5);
+            assert.strictEqual(txStale404.status, 'Pending');
+            assert.strictEqual(txFresh404.check_attempts, 0, '<10m 404 still has 0 check_attempts after 5 runs');
+            assert.strictEqual(txFreshErr.check_attempts, 0, '<10m error still has 0 check_attempts after 5 runs');
+            assert.strictEqual(refundHistory.length, 0);
+
+            // Run 6: check_attempts >= MAX_ATTEMPTS -> Failed + single refund + flash sale restore + H2H webhook
+            await cronUtils.checkPendingTransactions();
+            await new Promise((resolve) => setImmediate(resolve));
+
+            assert.deepStrictEqual(failedUpdates, [9505], '(c) Only stale >10m 404 past MAX_ATTEMPTS must become Failed');
+            assert.strictEqual(txStale404.status, 'Failed');
+            assert.strictEqual(balances.get(9311), 75000, '(c) Stale >10m 404 must be refunded once');
+            assert.strictEqual(refundHistory.length, 1);
+            assert.strictEqual(refundHistory[0].reference_id, 'H2H-CRON-STALE-404');
+            assert.deepStrictEqual(fsRestores, [82], 'Flash sale quota must be restored once for expired row');
+            assert.strictEqual(capturedWebhooks.length, 1, 'Expired H2H tx must dispatch Failed webhook');
+            assert.strictEqual(capturedWebhooks[0].data.invoice_id, 'H2H-CRON-STALE-404');
+            assert.strictEqual(capturedWebhooks[0].data.status, 'Failed');
+            assert.strictEqual(balances.get(9309), 50000);
+            assert.strictEqual(balances.get(9310), 50000);
+
+            // Verify POST /api/foxy/callback safely ignores unknown/empty trx_id and leaves NULL rows untouched
+            const cbDb = createPhase13MockDb([
+                { id: 9313, username: 'cb_orphan_owner', role_id: 1, role_name: 'User', balance: 40000 }
+            ], []);
+            cbDb.transactions.push({
+                id: 9507,
+                invoice_id: 'TRX-NULL-PROVIDER',
+                user_id: 9313,
+                product_id: 71,
+                target_game_id: '12345',
+                price: 10000,
+                status: 'Pending',
+                provider_trx_id: null,
+                flash_sale_id: null,
+                flash_sale_restored: false
+            });
+            mock.method(pool, 'query', cbDb.poolQuery);
+            mock.method(pool, 'connect', cbDb.poolConnect);
+
+            const cbResUnknown = await fetch(`${baseUrl}/api/foxy/callback?token=sec13-cb-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: 'WEB-DOES-NOT-EXIST', status: 'Success' })
+            });
+            assert.strictEqual(cbResUnknown.status, 200);
+
+            const cbResEmpty = await fetch(`${baseUrl}/api/foxy/callback?token=sec13-cb-secret`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trx_id: '', status: 'Success' })
+            });
+            assert.strictEqual(cbResEmpty.status, 200);
+            assert.strictEqual(cbDb.transactions[0].status, 'Pending', 'Legacy NULL row must stay untouched');
+            assert.strictEqual(cbDb.users.get(9313).balance, 40000);
+        } finally {
+            if (origCallbackSecret === undefined) delete process.env.FOXY_CALLBACK_SECRET;
+            else process.env.FOXY_CALLBACK_SECRET = origCallbackSecret;
+            if (webhookDns.lookup && webhookDns.lookup.mock) webhookDns.lookup.mock.restore();
+            if (cronPool.query && cronPool.query.mock) cronPool.query.mock.restore();
+            if (cronPool.connect && cronPool.connect.mock) cronPool.connect.mock.restore();
+            if (pool.query && pool.query.mock) pool.query.mock.restore();
+            if (pool.connect && pool.connect.mock) pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+
+    test('SEC-013 (5): External Axios calls in validators, mailer, and pgs-preview configure 5-10s timeouts', async () => {
+        const db = createPhase13MockDb([
+            { id: 9310, username: 'sec13_admin', role_id: 99, role_name: 'Admin', balance: 0 }
+        ], []);
+
+        const origEnv = {
+            PGS_KEY: process.env.PGS_KEY,
+            PGS_API_KEY: process.env.PGS_API_KEY,
+            BREVO_API_KEY: process.env.BREVO_API_KEY
+        };
+        process.env.PGS_KEY = 'pgs-key-test';
+        process.env.PGS_API_KEY = 'pgs-api-test';
+        process.env.BREVO_API_KEY = 'brevo-key-test';
+
+        const mailerPath = require.resolve('../utils/mailer');
+        delete require.cache[mailerPath];
+
+        const { validateGameId } = require('../utils/validators/cek-id-game');
+        const { cekPromoMcggMobapay } = require('../utils/validators/stalk-mcgg');
+        const { checkAllMobapayPromosML, checkMobapayMlbbEligibility } = require('../utils/validators/stalk-ml-promo');
+        const { sendPasswordResetEmail } = require('../utils/mailer');
+
+        const capturedTimeouts = new Map();
+        axios.post = async (url, _body, config = {}) => {
+            if (url.includes('pgscode.id')) {
+                const action = _body && _body.action ? _body.action : 'unknown';
+                capturedTimeouts.set(`pgs:${action}`, config.timeout);
+                if (action === 'get-service') {
+                    return { data: { status: true, data: [] } };
+                }
+                return { data: { status: true, data: { username: 'Miku' } } };
+            }
+            if (url.includes('brevo.com')) {
+                capturedTimeouts.set('mailer', config.timeout);
+                return { data: { messageId: 'ok' } };
+            }
+            return { data: {} };
+        };
+        axios.get = async (url, config = {}) => {
+            if (url.includes('mobapay.com')) {
+                const isMcgg = url.includes('app_id=124526') || (config.params && config.params.app_id === 124526) || url.includes('124526');
+                if (isMcgg) {
+                    capturedTimeouts.set('stalk-mcgg', config.timeout);
+                    return { data: { code: 0, data: { user_info: { user_name: 'MCGGUser' }, shop_info: { shelf_location: [] } } } };
+                }
+                const key = capturedTimeouts.has('stalk-ml-main') ? 'stalk-ml-elig' : 'stalk-ml-main';
+                capturedTimeouts.set(key, config.timeout);
+                return { data: { code: 0, data: { user_info: { user_name: 'MLUser' }, shop_info: { shelf_location: [] } } } };
+            }
+            return { data: {} };
+        };
+
+        mock.method(pool, 'query', db.poolQuery);
+        mock.method(pool, 'connect', db.poolConnect);
+
+        try {
+            await validateGameId('ml', '123456', '1234');
+            await cekPromoMcggMobapay('123456', '1234');
+            await checkAllMobapayPromosML('123456', '1234', 'ID');
+            await checkMobapayMlbbEligibility('123456', '1234', ['wdp_available'], {}, { timeout: 25000 });
+            await sendPasswordResetEmail('user@example.com', 'reset-tok-123');
+
+            const adminToken = makeUserToken(9310, 'Admin');
+            const pgsRes = await fetch(`${baseUrl}/api/admin/validation-services/pgs-preview`, {
+                headers: { 'Authorization': `Bearer ${adminToken}` }
+            });
+            assert.strictEqual(pgsRes.status, 200);
+
+            for (const key of ['pgs:get-nick', 'stalk-mcgg', 'stalk-ml-main', 'stalk-ml-elig', 'mailer', 'pgs:get-service']) {
+                const val = capturedTimeouts.get(key);
+                assert.ok(
+                    typeof val === 'number' && val >= 5000 && val <= 10000,
+                    `Timeout for ${key} must be between 5000 and 10000ms (got ${val})`
+                );
+            }
+        } finally {
+            if (origEnv.PGS_KEY === undefined) delete process.env.PGS_KEY;
+            else process.env.PGS_KEY = origEnv.PGS_KEY;
+            if (origEnv.PGS_API_KEY === undefined) delete process.env.PGS_API_KEY;
+            else process.env.PGS_API_KEY = origEnv.PGS_API_KEY;
+            if (origEnv.BREVO_API_KEY === undefined) delete process.env.BREVO_API_KEY;
+            else process.env.BREVO_API_KEY = origEnv.BREVO_API_KEY;
+            delete require.cache[mailerPath];
+            pool.query.mock.restore();
+            pool.connect.mock.restore();
+            axios.get = origAxiosGet;
+            axios.post = origAxiosPost;
+        }
+    });
+});

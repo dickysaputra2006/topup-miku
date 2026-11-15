@@ -3,22 +3,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const token = localStorage.getItem('authToken');
     const invoiceDetailsContainer = document.getElementById('invoice-details-container');
     const params = new URLSearchParams(window.location.search);
-    const invoiceId = params.get('id');
+    const rawInvoiceId = params.get('id');
+    const invoiceId = rawInvoiceId ? rawInvoiceId.trim() : '';
 
     if (!token) {
         window.location.href = 'index.html';
         return;
     }
 
-    if (!invoiceId) {
-        invoiceDetailsContainer.innerHTML = '<div class="ui-state error">Invoice ID tidak ditemukan.</div>';
+    if (!invoiceId || !/^[A-Za-z0-9_-]{3,64}$/.test(invoiceId)) {
+        invoiceDetailsContainer.innerHTML = '<div class="ui-state error">Invoice ID tidak valid atau tidak ditemukan.</div>';
         return;
     }
 
     async function fetchInvoiceDetails() {
         invoiceDetailsContainer.innerHTML = '<div class="card"><div class="ui-state loading">Memuat detail invoice...</div></div>';
         try {
-            const response = await fetch(API_URL + invoiceId, {
+            const response = await fetch(API_URL + encodeURIComponent(invoiceId), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 

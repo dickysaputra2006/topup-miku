@@ -45,7 +45,7 @@
             showResult('<p style="color:var(--warning-color);">Nomor invoice tidak boleh kosong.</p>', true);
             return;
         }
-        if (!/^[A-Za-z0-9_-]+$/.test(invoiceId)) {
+        if (!/^[A-Za-z0-9_-]{3,64}$/.test(invoiceId)) {
             showResult('<p style="color:var(--warning-color);">Format invoice tidak valid. Gunakan huruf, angka, dash, atau underscore.</p>', true);
             return;
         }

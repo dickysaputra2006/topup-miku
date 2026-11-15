@@ -30,7 +30,8 @@ async function cekPromoMcggMobapay(gameUserId, gameServerId) { // Nama fungsi di
       headers: { 
         "Accept": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-       }
+       },
+      timeout: 8000
     });
 
     // console.log(`[MOBAPAY_MCGG_PROMO] Respons API Data Lengkap:`, JSON.stringify(response.data, null, 2)); // Untuk debugging

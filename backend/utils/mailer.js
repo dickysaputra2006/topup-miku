@@ -41,7 +41,7 @@ const sendPasswordResetEmail = async (userEmail, token) => {
     };
 
     try {
-        await axios.post(BREVO_API_URL, payload, { headers });
+        await axios.post(BREVO_API_URL, payload, { headers, timeout: 10000 });
         console.log('Email reset password (API) berhasil dikirim.');
     } catch (error) {
         console.error('Gagal mengirim email reset password (API):', error.response ? error.response.status : error.message);
