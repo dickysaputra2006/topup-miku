@@ -5,6 +5,7 @@ const assert = require('node:assert');
 process.env.PORT = '0';
 process.env.JWT_SECRET = 'test-secret';
 process.env.FOXY_API_KEY = 'test-foxy-key';
+process.env.FOXY_CALLBACK_SECRET = '';
 
 const { pool, startServer } = require('../server.js');
 
@@ -198,6 +199,12 @@ describe('Security: Error Exposure Tests', () => {
         
         let updateQueryExecuted = false;
         
+        const axios = require('axios');
+        const origGet = axios.get;
+        axios.get = async () => ({
+            data: { status: true, data: { status: 'SUCCESS', sn: 'VOUCHER123' } }
+        });
+
         mock.method(pool, 'query', async () => ({ rows: [] }));
         
         mock.method(pool, 'connect', async () => ({
@@ -222,6 +229,7 @@ describe('Security: Error Exposure Tests', () => {
             body: JSON.stringify({ trx_id: '123', status: 'SUCCESS', sn: 'VOUCHER123' })
         });
 
+        axios.get = origGet;
         assert.strictEqual(res.status, 200);
         assert.ok(updateQueryExecuted, 'UPDATE query with provider_sn should be executed');
         
@@ -234,6 +242,12 @@ describe('Security: Error Exposure Tests', () => {
 
         let partialRefundUpdateExecuted = false;
         let balanceModified = false;
+
+        const axios = require('axios');
+        const origGet = axios.get;
+        axios.get = async () => ({
+            data: { status: true, data: { status: 'PARTIAL_REFUND' } }
+        });
 
         mock.method(pool, 'query', async () => ({ rows: [] }));
 
@@ -260,12 +274,29 @@ describe('Security: Error Exposure Tests', () => {
             body: JSON.stringify({ trx_id: 'PR-TRX-001', status: 'PARTIAL_REFUND' })
         });
 
+        axios.get = origGet;
         assert.strictEqual(res.status, 200, 'PARTIAL_REFUND callback should return 200');
         assert.ok(partialRefundUpdateExecuted, "DB should be updated to 'Partial Refund'");
         assert.strictEqual(balanceModified, false, 'Balance should NOT be modified on PARTIAL_REFUND');
 
         pool.connect.mock.restore();
         pool.query.mock.restore();
+    });
+
+    test('should enforce FOXY_CALLBACK_SECRET when configured', async () => {
+        const callbackUrl = `http://127.0.0.1:${server.address().port}/api/foxy/callback`;
+        process.env.FOXY_CALLBACK_SECRET = 'super-secret-callback-token-123';
+
+        try {
+            const resForbidden = await fetch(callbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-callback-token': 'wrong-token' },
+                body: JSON.stringify({ trx_id: 'TRX-SEC-1', status: 'SUCCESS' })
+            });
+            assert.strictEqual(resForbidden.status, 403, 'Wrong callback token must return 403');
+        } finally {
+            process.env.FOXY_CALLBACK_SECRET = '';
+        }
     });
 
     test('should reject admin resolve on final status (Success)', async () => {
@@ -633,6 +664,22 @@ describe('Phase 4A: Deposit Endpoints', () => {
         const originalConnect = pool.connect;
 
         mock.method(pool, 'query', async (sql, params) => {
+            if (typeof sql === 'string' && sql.includes('FROM payment_methods')) {
+                return {
+                    rows: [{
+                        id: 1,
+                        code: 'GOPAY',
+                        name: 'GoPay',
+                        type: 'ewallet',
+                        account_number: '081200000001',
+                        account_name: 'Admin MIKU Store (Placeholder)',
+                        qris_image_url: null,
+                        instructions: null,
+                        is_qris: false,
+                        min_amount: 10000
+                    }]
+                };
+            }
             if (typeof sql === 'string' && (sql.includes('u.id = $1') || sql.includes('WHERE id = $1'))) {
                 return { rows: [{ id: 99, role_name: 'User', username: 'testuser' }] };
             }
@@ -683,6 +730,22 @@ describe('Phase 4A: Deposit Endpoints', () => {
     test('POST /api/deposit/request — response does not expose fake bank info', async () => {
         const token = makeToken(99);
         mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM payment_methods')) {
+                return {
+                    rows: [{
+                        id: 1,
+                        code: 'GOPAY',
+                        name: 'GoPay',
+                        type: 'ewallet',
+                        account_number: '081200000001',
+                        account_name: 'Admin MIKU Store (Placeholder)',
+                        qris_image_url: null,
+                        instructions: null,
+                        is_qris: false,
+                        min_amount: 10000
+                    }]
+                };
+            }
             if (sql.includes('u.id = $1') || sql.includes('WHERE id = $1')) return { rows: [{ id: 99, role_name: 'User' }] };
             return { rows: [] };
         });
@@ -701,6 +764,7 @@ describe('Phase 4A: Deposit Endpoints', () => {
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount: 50000, method: 'GoPay' })
         });
+        assert.strictEqual(res.status, 201);
         const body = await res.json();
         const instrText = body.deposit?.paymentInstructions || '';
         // Pastikan tidak ada nomor rekening palsu lama
@@ -1166,6 +1230,22 @@ describe('Phase 4C: Deposit Method & Note', () => {
         let balanceHistoryInserted = false;
 
         mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM payment_methods')) {
+                return {
+                    rows: [{
+                        id: 3,
+                        code: 'SHOPEEPAY',
+                        name: 'ShopeePay',
+                        type: 'ewallet',
+                        account_number: '081200000003',
+                        account_name: 'Admin MIKU Store (Placeholder)',
+                        qris_image_url: null,
+                        instructions: null,
+                        is_qris: false,
+                        min_amount: 10000
+                    }]
+                };
+            }
             if (sql.includes('SELECT u.id, u.username')) return { rows: [{ id: 55, username: 'testuser', role_name: 'BRONZE' }] };
             return { rows: [] };
         });
@@ -1212,6 +1292,22 @@ describe('Phase 4C: Deposit Method & Note', () => {
         let insertedNote = 'SENTINEL'; // nilai awal untuk mendeteksi jika tidak diset
 
         mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM payment_methods')) {
+                return {
+                    rows: [{
+                        id: 2,
+                        code: 'DANA',
+                        name: 'DANA',
+                        type: 'ewallet',
+                        account_number: '081200000002',
+                        account_name: 'Admin MIKU Store (Placeholder)',
+                        qris_image_url: null,
+                        instructions: null,
+                        is_qris: false,
+                        min_amount: 10000
+                    }]
+                };
+            }
             if (sql.includes('SELECT u.id, u.username')) return { rows: [{ id: 55, username: 'testuser', role_name: 'BRONZE' }] };
             return { rows: [] };
         });
@@ -3184,5 +3280,763 @@ describe('Phase 7B: WA Bot Admin Deposit Approve/Reject API', () => {
         assert.ok('count' in data, 'Must have count field');
 
         pool.query.mock.restore();
+    });
+});
+
+// ============================================================
+// PHASE 8 — Audit 2 Concurrency & Hardening Guards
+// ============================================================
+describe('Phase 8: Audit 2 Concurrency & Hardening Guards', () => {
+    let server;
+    let baseUrl;
+    const JWT_SECRET = 'test-secret';
+    const jwt = require('jsonwebtoken');
+
+    before(() => {
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        try { pool.query.mock.restore(); } catch (_) {}
+        try { pool.connect.mock.restore(); } catch (_) {}
+        await new Promise(resolve => server.close(resolve));
+    });
+
+    test('POST /api/deposit/request — blokir spam jika user sudah punya 2 deposit Pending (429)', async () => {
+        const token = jwt.sign({ id: 77, username: 'spamuser', role: 'BRONZE' }, JWT_SECRET, { expiresIn: '1h' });
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM payment_methods')) {
+                return {
+                    rows: [{
+                        id: 1,
+                        code: 'GOPAY',
+                        name: 'GoPay',
+                        type: 'ewallet',
+                        account_number: '081200000001',
+                        account_name: 'Admin MIKU Store (Placeholder)',
+                        qris_image_url: null,
+                        instructions: null,
+                        is_qris: false,
+                        min_amount: 10000
+                    }]
+                };
+            }
+            if (typeof sql === 'string' && sql.includes('SELECT u.id')) {
+                return { rows: [{ id: 77, username: 'spamuser', role_name: 'BRONZE' }] };
+            }
+            return { rows: [] };
+        });
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('SELECT COUNT(*) AS count FROM deposits')) {
+                    return { rows: [{ count: '2' }] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 50000, method: 'GoPay' })
+        });
+
+        assert.strictEqual(res.status, 429, 'Must return 429 when user has 2 Pending deposits');
+        pool.query.mock.restore();
+        pool.connect.mock.restore();
+    });
+
+    test('POST /api/admin/deposits/approve — tolak 409 jika balance_history DEPOSIT-id sudah ada', async () => {
+        const token = jwt.sign({ id: 1, username: 'admin', role: 'Admin' }, JWT_SECRET, { expiresIn: '1h' });
+        let balanceUpdated = false;
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            return { rows: [] };
+        });
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('FROM deposits WHERE id = $1 FOR UPDATE')) {
+                    return { rows: [{ id: 88, user_id: 5, amount: 50123, unique_code: 123, status: 'Pending' }] };
+                }
+                if (typeof sql === 'string' && sql.includes('FROM balance_history WHERE reference_id')) {
+                    return { rows: [{ id: 999 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance')) {
+                    balanceUpdated = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(`${baseUrl}/api/admin/deposits/approve`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ depositId: 88 })
+        });
+
+        assert.strictEqual(res.status, 409, 'Must return 409 when DEPOSIT-id already in balance_history');
+        assert.strictEqual(balanceUpdated, false, 'Balance must not be updated');
+        pool.query.mock.restore();
+        pool.connect.mock.restore();
+    });
+
+    test('POST /api/foxy/callback — FAILED merollback kuota promo & cegah double refund via balance_history', async () => {
+        const axios = require('axios');
+        const origGet = axios.get;
+        axios.get = async () => ({
+            data: { status: true, data: { status: 'FAILED' } }
+        });
+
+        let balanceIncremented = false;
+        let promoDecremented = false;
+
+        mock.method(pool, 'query', async () => ({ rows: [] }));
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql) => {
+                if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
+                if (typeof sql === 'string' && sql.includes('SELECT * FROM transactions')) {
+                    return { rows: [{ id: 501, invoice_id: 'TRX-FAIL-PROMO', user_id: 9, product_id: 1, status: 'Pending', price: 15000 }] };
+                }
+                if (typeof sql === 'string' && sql.includes("type = 'Refund'")) {
+                    // Simulasikan sudah ada refund di balance_history
+                    return { rows: [{ id: 1 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE users SET balance')) {
+                    balanceIncremented = true;
+                }
+                if (typeof sql === 'string' && sql.includes('DELETE FROM promo_usages')) {
+                    return { rows: [{ promo_code_id: 77 }] };
+                }
+                if (typeof sql === 'string' && sql.includes('UPDATE promo_codes SET uses_count = GREATEST(0, uses_count - 1)')) {
+                    promoDecremented = true;
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const res = await fetch(`${baseUrl}/api/foxy/callback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trx_id: 'WEB-FAIL-501', status: 'FAILED' })
+        });
+
+        axios.get = origGet;
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(balanceIncremented, false, 'Should skip balance increment if Refund already exists in balance_history');
+        assert.strictEqual(promoDecremented, true, 'Should decrement promo_codes.uses_count when order fails');
+
+        pool.connect.mock.restore();
+        pool.query.mock.restore();
+    });
+
+    test('GET /api/admin/products — menyertakan p.validation_config pada query dan response', async () => {
+        const token = jwt.sign({ id: 1, username: 'admin', role: 'Admin' }, JWT_SECRET, { expiresIn: '1h' });
+        let capturedProductSql = '';
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            if (typeof sql === 'string' && sql.includes('FROM products p JOIN games g')) {
+                capturedProductSql = sql;
+                return {
+                    rows: [{
+                        id: 10,
+                        game_id: 1,
+                        name: '86 Diamonds',
+                        provider_sku: 'ML86',
+                        price: 20000,
+                        status: 'Active',
+                        validation_config: { enabled: true, validator: 'mobile-legends-region' },
+                        game_name: 'Mobile Legends'
+                    }]
+                };
+            }
+            if (typeof sql === 'string' && sql.includes('FROM roles ORDER BY id ASC')) {
+                return { rows: [{ id: 1, name: 'BRONZE', margin_percent: 10 }] };
+            }
+            return { rows: [] };
+        });
+
+        const res = await fetch(`${baseUrl}/api/admin/products`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        assert.strictEqual(res.status, 200);
+        assert.ok(capturedProductSql.includes('p.validation_config'), 'SQL must select p.validation_config');
+        const products = await res.json();
+        assert.strictEqual(products.length, 1);
+        assert.deepStrictEqual(products[0].validation_config, { enabled: true, validator: 'mobile-legends-region' });
+
+        pool.query.mock.restore();
+    });
+
+    test('POST /api/admin/sync-products — tolak margin_percent tidak valid dengan 400', async () => {
+        const token = jwt.sign({ id: 1, username: 'admin', role: 'Admin' }, JWT_SECRET, { expiresIn: '1h' });
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            return { rows: [] };
+        });
+
+        for (const badMargin of ['abc', -5]) {
+            const res = await fetch(`${baseUrl}/api/admin/sync-products`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ margin_percent: badMargin })
+            });
+            assert.strictEqual(res.status, 400, `Invalid margin ${badMargin} must return 400`);
+        }
+
+        pool.query.mock.restore();
+    });
+
+    test('POST /api/admin/sync-products — tolak 400 dengan pesan jelas jika FOXY_API_KEY kosong', async () => {
+        const token = jwt.sign({ id: 1, username: 'admin', role: 'Admin' }, JWT_SECRET, { expiresIn: '1h' });
+        const origFoxyKey = process.env.FOXY_API_KEY;
+        process.env.FOXY_API_KEY = '   ';
+
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            return { rows: [] };
+        });
+
+        try {
+            const res = await fetch(`${baseUrl}/api/admin/sync-products`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ margin_percent: 10 })
+            });
+            assert.strictEqual(res.status, 400, 'Empty FOXY_API_KEY must return 400');
+            const data = await res.json();
+            assert.strictEqual(
+                data.message,
+                'FOXY_API_KEY belum diatur di file .env. Isi API key Foxy atau gunakan data seeder lokal untuk pengujian.'
+            );
+        } finally {
+            process.env.FOXY_API_KEY = origFoxyKey;
+            pool.query.mock.restore();
+        }
+    });
+
+    test('PUT /api/user/profile — normalisasi nomor WA ke E.164 & bedakan error 23505 email vs nomor_wa', async () => {
+        const token = jwt.sign({ id: 55, username: 'testuser', role: 'BRONZE' }, JWT_SECRET, { expiresIn: '1h' });
+        let savedParams = null;
+
+        // 1. Sukses: normalisasi 0812-3456-7890 -> +6281234567890
+        mock.method(pool, 'query', async (sql, params) => {
+            if (typeof sql === 'string' && sql.includes('UPDATE users SET full_name')) {
+                savedParams = params;
+                return { rowCount: 1 };
+            }
+            return { rows: [] };
+        });
+
+        const resLocal = await fetch(`${baseUrl}/api/user/profile`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullName: 'Budi Santoso', email: 'Budi@Example.com', nomorWa: '0812-3456-7890' })
+        });
+        assert.strictEqual(resLocal.status, 200);
+        assert.deepStrictEqual(savedParams, ['Budi Santoso', 'budi@example.com', '+6281234567890', 55]);
+
+        // 2. Sukses: format sudah E.164 (+6281234567890) tetap dipertahankan
+        const resE164 = await fetch(`${baseUrl}/api/user/profile`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullName: 'Budi Santoso', email: 'budi@example.com', nomorWa: '+6281234567890' })
+        });
+        assert.strictEqual(resE164.status, 200);
+        assert.strictEqual(savedParams[2], '+6281234567890');
+        pool.query.mock.restore();
+
+        // 3. Tolak nomor WA tidak valid dengan 400
+        const resInvalid = await fetch(`${baseUrl}/api/user/profile`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullName: 'Budi Santoso', email: 'budi@example.com', nomorWa: '0812abc' })
+        });
+        assert.strictEqual(resInvalid.status, 400);
+
+        // 4. Error 23505 duplikat nomor_wa
+        mock.method(pool, 'query', async () => {
+            const err = new Error('duplicate key value violates unique constraint');
+            err.code = '23505';
+            err.constraint = 'uq_users_nomor_wa';
+            err.detail = 'Key (nomor_wa)=(+6281234567890) already exists.';
+            throw err;
+        });
+        const resDupWa = await fetch(`${baseUrl}/api/user/profile`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullName: 'Budi Santoso', email: 'budi@example.com', nomorWa: '081234567890' })
+        });
+        assert.strictEqual(resDupWa.status, 409);
+        const dupWaData = await resDupWa.json();
+        assert.strictEqual(dupWaData.message, 'Nomor WhatsApp sudah digunakan oleh akun lain.');
+        pool.query.mock.restore();
+
+        // 5. Error 23505 duplikat email
+        mock.method(pool, 'query', async () => {
+            const err = new Error('duplicate key value violates unique constraint');
+            err.code = '23505';
+            err.constraint = 'users_email_key';
+            err.detail = 'Key (email)=(budi@example.com) already exists.';
+            throw err;
+        });
+        const resDupEmail = await fetch(`${baseUrl}/api/user/profile`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullName: 'Budi Santoso', email: 'budi@example.com', nomorWa: '081234567890' })
+        });
+        assert.strictEqual(resDupEmail.status, 409);
+        const dupEmailData = await resDupEmail.json();
+        assert.strictEqual(dupEmailData.message, 'Email sudah digunakan oleh akun lain.');
+        pool.query.mock.restore();
+    });
+});
+
+// ============================================================
+// PHASE 9 — Sistem Metode Pembayaran Dinamis (payment_methods)
+// ============================================================
+describe('Phase 9: Dynamic Payment Methods (Paket 2)', () => {
+    let server;
+    let baseUrl;
+    const JWT_SECRET = 'test-secret';
+    const jwt = require('jsonwebtoken');
+
+    before(() => {
+        server = startServer(0);
+        baseUrl = `http://127.0.0.1:${server.address().port}`;
+    });
+
+    after(async () => {
+        try { pool.query.mock.restore(); } catch (_) {}
+        try { pool.connect.mock.restore(); } catch (_) {}
+        await new Promise(resolve => server.close(resolve));
+    });
+
+    test('GET /api/payment-methods — tanpa token ditolak 401; dengan token mengembalikan metode aktif terurut', async () => {
+        const resNoAuth = await fetch(`${baseUrl}/api/payment-methods`);
+        assert.strictEqual(resNoAuth.status, 401);
+
+        let capturedSql = '';
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM payment_methods')) {
+                capturedSql = sql;
+                return {
+                    rows: [
+                        { id: 1, code: 'GOPAY', name: 'GoPay', type: 'ewallet', account_number: '081200000001', account_name: 'Admin', is_qris: false, min_amount: 10000, sort_order: 1 },
+                        { id: 5, code: 'QRIS', name: 'QRIS All Payment', type: 'qris', account_number: null, account_name: 'MIKU Store', qris_image_url: 'https://example.com/qris.png', is_qris: true, min_amount: 10000, sort_order: 2 }
+                    ]
+                };
+            }
+            return { rows: [] };
+        });
+
+        const token = jwt.sign({ id: 10, username: 'member1', role: 'BRONZE' }, JWT_SECRET, { expiresIn: '1h' });
+        const res = await fetch(`${baseUrl}/api/payment-methods`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        assert.strictEqual(res.status, 200);
+        assert.ok(capturedSql.includes('WHERE is_active = true'), 'SQL must filter is_active = true');
+        assert.ok(capturedSql.includes('ORDER BY sort_order ASC, id ASC'), 'SQL must order by sort_order ASC, id ASC');
+        const body = await res.json();
+        assert.strictEqual(body.length, 2);
+        assert.strictEqual(body[1].code, 'QRIS');
+        pool.query.mock.restore();
+    });
+
+    test('POST /api/deposit/request — QRIS tidak menambah kode unik 3 digit & validasi min_amount metode', async () => {
+        const token = jwt.sign({ id: 22, username: 'qrisuser', role: 'BRONZE' }, JWT_SECRET, { expiresIn: '1h' });
+
+        // 1. Cek min_amount per metode (50000) menolak request 20000
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM payment_methods')) {
+                return {
+                    rows: [{
+                        id: 7,
+                        code: 'BCA',
+                        name: 'Bank BCA',
+                        type: 'bank',
+                        account_number: '1234567890',
+                        account_name: 'Admin MIKU',
+                        qris_image_url: null,
+                        instructions: 'Transfer sesama BCA.',
+                        is_qris: false,
+                        min_amount: 50000
+                    }]
+                };
+            }
+            return { rows: [] };
+        });
+        const resBelowMin = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 20000, method: 'BCA' })
+        });
+        assert.strictEqual(resBelowMin.status, 400);
+        const minErr = await resBelowMin.json();
+        assert.ok(minErr.message.includes('50.000'), 'Error must mention method min_amount');
+        pool.query.mock.restore();
+
+        // 2. QRIS (is_qris: true) mengirim by code ('qris_all') menyimpan name ('QRIS All') dan unique_code === 0
+        let savedDepositParams = null;
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('FROM payment_methods')) {
+                return {
+                    rows: [{
+                        id: 8,
+                        code: 'QRIS_ALL',
+                        name: 'QRIS All Payment',
+                        type: 'qris',
+                        account_number: null,
+                        account_name: 'MIKU Store',
+                        qris_image_url: 'https://example.com/qris.png',
+                        instructions: 'Scan QRIS.',
+                        is_qris: true,
+                        min_amount: 10000
+                    }]
+                };
+            }
+            return { rows: [] };
+        });
+        mock.method(pool, 'connect', async () => ({
+            query: async (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return {};
+                if (sql.includes('SELECT COUNT(*) AS count FROM deposits')) return { rows: [{ count: '0' }] };
+                if (sql.includes('INSERT INTO deposits')) {
+                    savedDepositParams = params;
+                    return { rows: [{ id: 501, created_at: new Date() }] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        }));
+
+        const resQris = await fetch(`${baseUrl}/api/deposit/request`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: 50000, method: 'qris_all' })
+        });
+        assert.strictEqual(resQris.status, 201);
+        const qrisData = await resQris.json();
+        assert.strictEqual(qrisData.deposit.unique_code, 0, 'QRIS must have unique_code = 0');
+        assert.strictEqual(qrisData.deposit.amount, 50000, 'QRIS amount must equal base amount');
+        assert.strictEqual(qrisData.deposit.method, 'QRIS All Payment', 'Deposit method must store methodRow.name');
+        assert.strictEqual(savedDepositParams[1], 50000);
+        assert.strictEqual(savedDepositParams[2], 0);
+        assert.strictEqual(savedDepositParams[4], 'QRIS All Payment');
+        pool.query.mock.restore();
+        pool.connect.mock.restore();
+    });
+
+    test('Admin CRUD /api/admin/payment-methods — akses ditolak non-admin, validasi input, create/edit/delete', async () => {
+        const userToken = jwt.sign({ id: 10, username: 'member1', role: 'BRONZE' }, JWT_SECRET, { expiresIn: '1h' });
+        const adminToken = jwt.sign({ id: 1, username: 'admin', role: 'Admin' }, JWT_SECRET, { expiresIn: '1h' });
+
+        // 1. Non-admin ditolak 403
+        const resForbidden = await fetch(`${baseUrl}/api/admin/payment-methods`, {
+            headers: { 'Authorization': `Bearer ${userToken}` }
+        });
+        assert.strictEqual(resForbidden.status, 403);
+
+        // 2. GET /api/admin/payment-methods oleh Admin
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            if (typeof sql === 'string' && sql.includes('FROM payment_methods')) {
+                return { rows: [{ id: 1, code: 'GOPAY', name: 'GoPay', type: 'ewallet', is_active: true }] };
+            }
+            return { rows: [] };
+        });
+        const resList = await fetch(`${baseUrl}/api/admin/payment-methods`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        assert.strictEqual(resList.status, 200);
+        const listData = await resList.json();
+        assert.strictEqual(listData.length, 1);
+        pool.query.mock.restore();
+
+        // 3. POST invalid (javascript: URL QRIS atau kode invalid) ditolak 400
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            return { rows: [] };
+        });
+        const resBadUrl = await fetch(`${baseUrl}/api/admin/payment-methods`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code: 'QRIS_BAD', name: 'QRIS', type: 'qris', qris_image_url: 'javascript:alert(1)' })
+        });
+        assert.strictEqual(resBadUrl.status, 400);
+        pool.query.mock.restore();
+
+        // 4. POST valid type 'qris' otomatis set is_qris = true & code uppercase -> 201
+        let insertParams = null;
+        mock.method(pool, 'query', async (sql, params) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            if (typeof sql === 'string' && sql.includes('INSERT INTO payment_methods')) {
+                insertParams = params;
+                return {
+                    rows: [{
+                        id: 12,
+                        code: params[0],
+                        name: params[1],
+                        type: params[2],
+                        is_qris: params[7],
+                        min_amount: params[8],
+                        is_active: params[9],
+                        sort_order: params[10]
+                    }]
+                };
+            }
+            return { rows: [] };
+        });
+        const resCreate = await fetch(`${baseUrl}/api/admin/payment-methods`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                code: 'qris_miku',
+                name: 'QRIS MIKU',
+                type: 'qris',
+                qris_image_url: 'https://example.com/qris-miku.png',
+                min_amount: 15000,
+                sort_order: 5
+            })
+        });
+        assert.strictEqual(resCreate.status, 201);
+        const createdBody = await resCreate.json();
+        assert.strictEqual(createdBody.paymentMethod.code, 'QRIS_MIKU');
+        assert.strictEqual(createdBody.paymentMethod.is_qris, true);
+        assert.strictEqual(insertParams[7], true);
+        pool.query.mock.restore();
+
+        // 5. PUT toggle partial { is_active: false } mempertahankan field lain -> 200
+        let updateParams = null;
+        mock.method(pool, 'query', async (sql, params) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            if (typeof sql === 'string' && sql.includes('SELECT * FROM payment_methods WHERE id = $1')) {
+                return {
+                    rows: [{
+                        id: 12,
+                        code: 'QRIS_MIKU',
+                        name: 'QRIS MIKU',
+                        type: 'qris',
+                        account_number: null,
+                        account_name: 'MIKU Store',
+                        qris_image_url: 'https://example.com/qris-miku.png',
+                        instructions: 'Scan QRIS',
+                        is_qris: true,
+                        min_amount: 15000,
+                        is_active: true,
+                        sort_order: 5
+                    }]
+                };
+            }
+            if (typeof sql === 'string' && sql.includes('UPDATE payment_methods')) {
+                updateParams = params;
+                return { rows: [{ id: 12, code: params[0], name: params[1], is_active: params[9] }] };
+            }
+            return { rows: [] };
+        });
+        const resToggle = await fetch(`${baseUrl}/api/admin/payment-methods/12`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${adminToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: false })
+        });
+        assert.strictEqual(resToggle.status, 200);
+        assert.strictEqual(updateParams[1], 'QRIS MIKU');
+        assert.strictEqual(updateParams[9], false);
+        pool.query.mock.restore();
+
+        // 6. DELETE -> 200 dan 404 saat tidak ditemukan
+        mock.method(pool, 'query', async (sql, params) => {
+            if (typeof sql === 'string' && sql.includes('SELECT r.name as role_name')) {
+                return { rows: [{ role_name: 'Admin' }] };
+            }
+            if (typeof sql === 'string' && sql.includes('DELETE FROM payment_methods WHERE id = $1')) {
+                return params[0] === 12 ? { rows: [{ id: 12, name: 'QRIS MIKU' }] } : { rows: [] };
+            }
+            return { rows: [] };
+        });
+        const resDelOk = await fetch(`${baseUrl}/api/admin/payment-methods/12`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        assert.strictEqual(resDelOk.status, 200);
+
+        const resDelMissing = await fetch(`${baseUrl}/api/admin/payment-methods/999`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        assert.strictEqual(resDelMissing.status, 404);
+        pool.query.mock.restore();
+    });
+});
+
+describe('Phase 10: SEC-006 Dependency Vulnerability Hardening', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const { createRequire } = require('module');
+    const backendDir = path.join(__dirname, '..');
+
+    function parseSemver(ver) {
+        const clean = String(ver || '').trim().replace(/^[^\d]*/, '').split('-')[0];
+        const parts = clean.split('.').map(n => Number.parseInt(n, 10) || 0);
+        return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+    }
+
+    function compareSemver(a, b) {
+        const pa = parseSemver(a);
+        const pb = parseSemver(b);
+        for (let i = 0; i < 3; i += 1) {
+            if (pa[i] !== pb[i]) return pa[i] - pb[i];
+        }
+        return 0;
+    }
+
+    function getLockEntries(lockJson, pkgName) {
+        const suffix = `node_modules/${pkgName}`;
+        return Object.entries(lockJson.packages || {})
+            .filter(([pkgPath]) => pkgPath === suffix || pkgPath.endsWith(`/${suffix}`))
+            .map(([pkgPath, meta]) => ({ pkgPath, version: meta && meta.version }));
+    }
+
+    test('package-lock.json dipertahankan dan seluruh dependensi SEC-006 memenuhi versi aman minimum', () => {
+        const pkgPath = path.join(backendDir, 'package.json');
+        const lockPath = path.join(backendDir, 'package-lock.json');
+        assert.ok(fs.existsSync(lockPath), 'backend/package-lock.json harus dipertahankan');
+
+        const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        const lockJson = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+        assert.ok(lockJson.lockfileVersion >= 2, 'lockfileVersion harus valid');
+
+        const rootLockDeps = (lockJson.packages && lockJson.packages[''] && lockJson.packages[''].dependencies) || {};
+        assert.deepStrictEqual(rootLockDeps, pkgJson.dependencies, 'dependencies root package-lock.json harus sinkron dengan package.json');
+
+        const minVersions = [
+            { name: 'axios', min: '1.20.0', maxExclusive: '2.0.0' },
+            { name: 'form-data', min: '4.0.6' },
+            { name: 'follow-redirects', min: '1.16.0' },
+            { name: 'express', min: '4.22.3', maxExclusive: '5.0.0' },
+            { name: 'proxy-addr', min: '2.0.8' },
+            { name: 'body-parser', min: '1.20.9' },
+            { name: 'qs', min: '6.16.1' },
+            { name: 'express-rate-limit', min: '8.6.0', maxExclusive: '9.0.0' },
+            { name: 'ip-address', min: '10.7.4' },
+            { name: 'jws', min: '3.2.3' },
+        ];
+
+        for (const rule of minVersions) {
+            const entries = getLockEntries(lockJson, rule.name);
+            assert.ok(entries.length > 0, `Dependensi ${rule.name} harus tercatat di package-lock.json`);
+            for (const entry of entries) {
+                assert.ok(
+                    compareSemver(entry.version, rule.min) >= 0,
+                    `${entry.pkgPath} (${entry.version}) masih di bawah versi aman >= ${rule.min}`
+                );
+                if (rule.maxExclusive) {
+                    assert.ok(
+                        compareSemver(entry.version, rule.maxExclusive) < 0,
+                        `${entry.pkgPath} (${entry.version}) tidak boleh melompat ke major >= ${rule.maxExclusive}`
+                    );
+                }
+            }
+        }
+    });
+
+    test('qs bebas crash TypeError pada comma-format array null dan non-callable toString (GHSA-q8mj-m7cp-5q26, GHSA-6pq8-jhm2-2vcw)', () => {
+        const expressReq = createRequire(require.resolve('express'));
+        const bodyParserReq = createRequire(expressReq.resolve('body-parser'));
+        const qsInstances = [expressReq('qs'), bodyParserReq('qs')];
+
+        for (const qs of qsInstances) {
+            assert.doesNotThrow(() => {
+                qs.stringify({ a: [null, 'b'] }, { arrayFormat: 'comma', encodeValuesOnly: true });
+            }, 'qs.stringify dengan elemen null pada arrayFormat comma tidak boleh crash TypeError');
+
+            assert.doesNotThrow(() => {
+                qs.stringify({ a: [{ toString: null }] }, { arrayFormat: 'comma' });
+            }, 'qs.stringify dengan toString: null pada arrayFormat comma tidak boleh crash TypeError');
+        }
+    });
+
+    test('form-data mensanitasi/menolak injeksi CRLF pada nama field multipart (GHSA-hmw2-7cc7-3qxx)', () => {
+        const axiosReq = createRequire(require.resolve('axios'));
+        const FormData = axiosReq('form-data');
+        const fd = new FormData();
+        fd.append('bad\r\nfield', 'val');
+        const body = fd.getBuffer().toString();
+        assert.ok(!body.includes('bad\r\nfield'), 'form-data tidak boleh menyisipkan CRLF mentah ke header multipart');
+    });
+
+    test('ip-address mengenali rentang penuh link-local IPv6 fe80::/10 (GHSA-rpw4-54j3-4h4q)', () => {
+        const rateLimitReq = createRequire(require.resolve('express-rate-limit'));
+        const { Address6 } = rateLimitReq('ip-address');
+        assert.strictEqual(new Address6('febf::1').isLinkLocal(), true);
+    });
+
+    test('Express + trust proxy + rate limiter + body-parser + JWT tetap kompatibel pasca-upgrade', async () => {
+        const jwt = require('jsonwebtoken');
+        const srv = startServer(0);
+        const origQuery = pool.query;
+        try {
+            const port = srv.address().port;
+            const baseUrl = `http://127.0.0.1:${port}`;
+            const testIp = '198.51.100.206';
+
+            const resNoToken = await fetch(`${baseUrl}/api/user/profile`, {
+                headers: { 'X-Forwarded-For': testIp }
+            });
+            assert.strictEqual(resNoToken.status, 401);
+            assert.ok(resNoToken.headers.get('ratelimit-limit') || resNoToken.headers.get('ratelimit-policy'));
+
+            mock.method(pool, 'query', async () => ({
+                rows: [{ id: 206, username: 'sec006user', email: 'sec006@example.com', nomor_wa: '+628123456789', balance: '50000', role_name: 'BRONZE' }]
+            }));
+            const token = jwt.sign({ id: 206, username: 'sec006user', role: 'BRONZE' }, process.env.JWT_SECRET, { expiresIn: '1h' });
+            const resProfile = await fetch(`${baseUrl}/api/user/profile`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'X-Forwarded-For': testIp
+                }
+            });
+            assert.strictEqual(resProfile.status, 200);
+            const profileData = await resProfile.json();
+            assert.strictEqual(profileData.username, 'sec006user');
+
+            const resBadJson = await fetch(`${baseUrl}/api/auth/login`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Forwarded-For': testIp
+                },
+                body: '{"broken":'
+            });
+            assert.strictEqual(resBadJson.status, 400);
+        } finally {
+            pool.query = origQuery;
+            await new Promise(resolve => srv.close(resolve));
+        }
     });
 });
