@@ -1,7 +1,6 @@
 const {
     PORT,
     JWT_SECRET,
-    ALLOWED_ORIGINS,
     FOXY_API_KEY,
     FOXY_CALLBACK_URL,
     validateEnvironment,
@@ -20,13 +19,12 @@ const {
     CALLBACK_VERIFY_COOLDOWN_MS,
     CALLBACK_SUCCESS_RESPONSE,
 } = require('./config/constants');
-const rateLimit = require('express-rate-limit');
-const { ipKeyGenerator } = rateLimit;
+const { securityHeaders, corsMiddleware } = require('./middleware/securityHeaders');
+const { createRateLimiters } = require('./middleware/rateLimiters');
 const express = require('express');
 const fs = require('fs').promises;
 const { createPool } = require('./config/db');
 const bcrypt = require('bcryptjs');
-const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
@@ -580,21 +578,8 @@ async function getFoxyProducts() {
 }
 
 // Middleware (HARUS DI ATAS SEMUA RUTE)
-app.use((req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
-    res.setHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; img-src 'self' data: https:;");
-    next();
-});
-app.use(cors({
-    origin(origin, callback) {
-        if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-        return callback(new Error('Origin tidak diizinkan oleh CORS.'));
-    }
-}));
+app.use(securityHeaders);
+app.use(corsMiddleware);
 app.use(express.json({ limit: MAX_BODY_SIZE }));
 const frontendPath = path.join(__dirname, '../frontend');
 app.use(express.static(frontendPath));
@@ -609,86 +594,8 @@ pool.on('connect', (client) => {
   client.query("SET TIME ZONE 'Asia/Jakarta'");
 });
 
-// Aturan ketat untuk endpoint login, lupa password, dan bot admin
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 menit
-    max: 30, // Batasi setiap IP maksimal 30 request per 15 menit
-    message: 'Terlalu banyak percobaan login dari IP ini, silakan coba lagi setelah 15 menit.',
-    standardHeaders: true, 
-    legacyHeaders: false, 
-});
-
-const registerLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: 5,
-    message: 'Terlalu banyak percobaan registrasi dari IP ini, silakan coba lagi nanti.',
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-const checkoutLimiter = rateLimit({
-    windowMs: 5 * 60 * 1000,
-    max: 30,
-    message: 'Terlalu banyak percobaan checkout, silakan coba lagi nanti.',
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-const h2hLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 60,
-    keyGenerator: (req) => {
-        const rawApiKey = normalizeString(req.headers['x-api-key'], 128);
-        if (rawApiKey) {
-            return `h2h-key:${hashApiKey(rawApiKey)}`;
-        }
-        return `h2h-ip:${ipKeyGenerator(req.ip || '0.0.0.0')}`;
-    },
-    message: { success: false, message: 'Terlalu banyak permintaan H2H, silakan coba lagi nanti.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-const h2hUserLimiter = rateLimit({
-    windowMs: 60 * 1000,
-    max: 60,
-    keyGenerator: (req) => {
-        if (req.user && req.user.id !== undefined && req.user.id !== null) {
-            return `h2h-user:${req.user.id}`;
-        }
-        return `h2h-ip:${ipKeyGenerator(req.ip || '0.0.0.0')}`;
-    },
-    message: { success: false, message: 'Terlalu banyak permintaan H2H, silakan coba lagi nanti.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-// Aturan umum untuk endpoint API lainnya yang butuh login
-const apiLimiter = rateLimit({
-    windowMs: 5 * 60 * 1000, // 5 menit
-    max: 300, // Batasi setiap IP 100 request per 5 menit
-    message: 'Terlalu banyak permintaan ke API dari IP ini, silakan coba lagi nanti.',
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-// Terapkan limiter ke endpoint yang relevan
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', registerLimiter);
-app.use('/api/auth/forgot-password', authLimiter);
-app.use('/api/auth/reset-password', authLimiter);
-
-app.use('/api/user', apiLimiter);
-app.use('/api/deposit', apiLimiter);
-app.use('/api/payment-methods', apiLimiter);
-app.use('/api/bot', authLimiter);
-app.use('/api/foxy/callback', apiLimiter);
-app.use('/api/order', checkoutLimiter);
-app.use('/api/order', apiLimiter);
-app.use('/h2h', h2hLimiter);
-app.use('/h2h', apiLimiter); 
-app.use('/api/full-validate', apiLimiter);
-app.use('/api/products', apiLimiter);
+const { h2hUserLimiter, applyRateLimiters } = createRateLimiters({ normalizeString, hashApiKey });
+applyRateLimiters(app);
 
 
 // === AUTH ENDPOINTS ===
