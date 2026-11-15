@@ -1,0 +1,187 @@
+Auth Login Tests :: should return 200 and token on successful login
+Auth Login Tests :: should return 400 if username or password is missing
+Auth Login Tests :: should return 401 if password does not match
+Auth Login Tests :: should return 401 if user is not found
+Auth Login Tests :: should return 500 on database error
+Auth Register Tests (Phase 2B) :: should return 400 for invalid countryCode format
+Auth Register Tests (Phase 2B) :: should return 400 for invalid local phone number (too short)
+Auth Register Tests (Phase 2B) :: should return 400 for phone with non-digit chars
+Auth Register Tests (Phase 2B) :: should return 400 if any required field is missing
+Auth Register Tests (Phase 2B) :: should return 409 when nomor_wa is already registered
+Phase 10: SEC-006 Dependency Vulnerability Hardening :: Express + trust proxy + rate limiter + body-parser + JWT tetap kompatibel pasca-upgrade
+Phase 10: SEC-006 Dependency Vulnerability Hardening :: form-data mensanitasi/menolak injeksi CRLF pada nama field multipart (GHSA-hmw2-7cc7-3qxx)
+Phase 10: SEC-006 Dependency Vulnerability Hardening :: ip-address mengenali rentang penuh link-local IPv6 fe80::/10 (GHSA-rpw4-54j3-4h4q)
+Phase 10: SEC-006 Dependency Vulnerability Hardening :: package-lock.json dipertahankan dan seluruh dependensi SEC-006 memenuhi versi aman minimum
+Phase 10: SEC-006 Dependency Vulnerability Hardening :: qs bebas crash TypeError pada comma-format array null dan non-callable toString (GHSA-q8mj-m7cp-5q26, GHSA-6pq8-jhm2-2vcw)
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (a) POST /api/order — provider gagal setelah status Success tidak boleh refund atau timpa ke Failed
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (a) POST /h2h/order — provider gagal setelah status Success tidak boleh refund atau timpa ke Failed
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (b) POST /api/order — promo besar tidak dapat menurunkan harga akhir di bawah modal provider
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (c1) POST /api/foxy/callback — memulihkan flash_sales.uses_count & promo_usages serta menandai flash_sale_restored
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (c2) cronUtils checkPendingTransactions — FAILED memulihkan flash_sales.uses_count & promo_usages serta anti double-refund
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (c3) PUT /api/admin/transactions/:invoiceId/resolve (refund) — memulihkan promo_usages & flash_sales.uses_count
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (d) SEC-003 — sync-products & deteksi kenaikan modal meng-invalidasi foxyProductCache
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (review-1a) rollbackTransactionResources menolak mengubah atau merefund transaksi berstatus Success
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (review-1b) callback Success dan cron Failed bersamaan tidak boleh berakhir Failed atau refund
+Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Hardening :: (review-3) POST /api/promos/validate — menolak promo yang membuat harga akhir di bawah modal & mengizinkan yang valid
+Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening :: SEC-004 (1): generate-apikey simpan SHA-256 hash & prefix saja, GET /api/user/apikey tidak return key utuh, regenerate & revoke bekerja
+Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening :: SEC-004 (2): legacy 48-hex API key tetap lolos dan lazy-migrate ke SHA-256 hash dengan api_key jadi NULL
+Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening :: SEC-007 (1): tolak webhook SSRF (127.0.0.1, 169.254.169.254, 100.64.x.x, 0.0.0.0, ::ffff:127.0.0.1, DNS private) & PUT /h2h/profile/callback
+Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening :: SEC-007 (2): redirect (302) tidak diikuti, DNS pinning mengikat IP, X-Signature & X-Timestamp valid di Foxy callback & cron
+Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening :: SEC-007 (3): reseller lama tanpa h2h_webhook_secret dibuatkan secret secara lazy agar X-Signature selalu ada
+Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening :: SEC-007 (4): webhook invalid (http:// / URL berkredensial) atau gagal kirim mencatat warning aman dan tidak menghentikan callback/cron
+Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening :: SEC-008 (1): protectH2HIp dukung CIDR IPv4/IPv6 & ::ffff:x.x.x.x, lindungi /h2h/profile & /h2h/profile/callback, blok loopback di production
+Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening :: SEC-008 (2): rate limit per user_id & API key memblokir meski IP berganti + kuota harian opsional via env
+Phase 14: SEC-009: Idempotency Keys & Cryptographic Invoice IDs :: SEC-009 (1): migrasi 011 idempoten menambah hanya transactions.ref_id dan deposits.idempotency_key dengan unique index parsial
+Phase 14: SEC-009: Idempotency Keys & Cryptographic Invoice IDs :: SEC-009 (2): POST /h2h/order — ref_id validasi, HTTP 200 idempotent:true tanpa double debit, 409 payload beda, & kompatibel tanpa ref_id
+Phase 14: SEC-009: Idempotency Keys & Cryptographic Invoice IDs :: SEC-009 (3): POST /api/order — header Idempotency-Key (UUID) mengembalikan 200 idempotent:true, tolak 409 jika payload beda, & tolak non-UUID 400
+Phase 14: SEC-009: Idempotency Keys & Cryptographic Invoice IDs :: SEC-009 (4): POST /api/deposit/request — header Idempotency-Key (UUID) 200 idempotent:true & 409 jika payload beda
+Phase 14: SEC-009: Idempotency Keys & Cryptographic Invoice IDs :: SEC-009 (5): race paralel Promise.all dengan ref_id/Idempotency-Key sama menangani 23505 via ROLLBACK + re-read
+Phase 14: SEC-009: Idempotency Keys & Cryptographic Invoice IDs :: SEC-009 (6): invoice_id kriptografis (TRX-/H2H-) unik paralel, lolos validator publik, tolak >64 char, & tersamarkan di recent-transactions
+Phase 14: SEC-009: Idempotency Keys & Cryptographic Invoice IDs :: SEC-009 (7): replay setelah order Failed — POST /api/order tolak 409 dengan pesan jelas agar user tidak terjebak; POST /h2h/order kembalikan 200 status Failed & ref_id baru diproses normal
+Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow :: SEC-013 (1): /api/order & /h2h/order release DB client before validator, price check & /v1/order, and persist provider_trx_id in Fase (a)
+Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow :: SEC-013 (2): /api/order & /h2h/order Fase (c) preserves Success if real POST /api/foxy/callback committed Success during Fase (b)
+Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow :: SEC-013 (3): /api/order & /h2h/order timeout keeps Pending and saves provider_trx_id in Fase (c), explicit 400 refunds without holding connections
+Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow :: SEC-013 (4): cronUtils.checkPendingTransactions handles <10m grace period, SUCCESS at any age, >10m 404 expiry/refund, legacy null skip, and callback safety
+Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow :: SEC-013 (5): External Axios calls in validators, mailer, and pgs-preview configure 5-10s timeouts
+Phase 4A: Deposit Endpoints :: GET /api/user/deposits — rejects unauthenticated request
+Phase 4A: Deposit Endpoints :: GET /api/user/deposits — returns only deposits for authenticated user
+Phase 4A: Deposit Endpoints :: POST /api/deposit/request — rejects amount above maximum (> 100000000)
+Phase 4A: Deposit Endpoints :: POST /api/deposit/request — rejects amount below minimum (< 10000)
+Phase 4A: Deposit Endpoints :: POST /api/deposit/request — rejects unauthenticated request
+Phase 4A: Deposit Endpoints :: POST /api/deposit/request — response does not expose fake bank info
+Phase 4A: Deposit Endpoints :: POST /api/deposit/request — valid request creates Pending deposit, no balance change
+Phase 4B: Admin Deposit Approval :: GET /api/admin/deposits — admin dapat list deposit
+Phase 4B: Admin Deposit Approval :: GET /api/admin/deposits — non-admin (user token) ditolak 403
+Phase 4B: Admin Deposit Approval :: POST /api/admin/deposits/approve — Pending berhasil diapprove, saldo bertambah
+Phase 4B: Admin Deposit Approval :: POST /api/admin/deposits/approve — double approve ditolak 409, saldo tidak double
+Phase 4B: Admin Deposit Approval :: POST /api/admin/deposits/approve — legacy status "Success" ditolak 409, saldo tidak double
+Phase 4B: Admin Deposit Approval :: POST /api/admin/deposits/approve — user biasa (BRONZE) ditolak 403
+Phase 4B: Admin Deposit Approval :: POST /api/admin/deposits/reject — Pending berhasil direject, saldo tidak bertambah
+Phase 4B: Admin Deposit Approval :: POST /api/admin/deposits/reject — reject deposit Approved ditolak 409
+Phase 4C: Deposit Method & Note :: GET /api/admin/deposits — admin dapat melihat method dan note
+Phase 4C: Deposit Method & Note :: GET /api/user/deposits — return method dan note milik user
+Phase 4C: Deposit Method & Note :: POST /api/admin/deposits/approve — masih berjalan dengan kolom method/note baru
+Phase 4C: Deposit Method & Note :: POST /api/deposit/request — method invalid ditolak 400
+Phase 4C: Deposit Method & Note :: POST /api/deposit/request — note >200 karakter ditolak 400
+Phase 4C: Deposit Method & Note :: POST /api/deposit/request — tanpa method ditolak 400
+Phase 4C: Deposit Method & Note :: POST /api/deposit/request — tanpa note menyimpan NULL, tidak error
+Phase 4C: Deposit Method & Note :: POST /api/deposit/request — valid method+note tersimpan, saldo tidak bertambah
+Phase 5B-2: Bulk Validation & Name Sanitizer :: PUT /api/admin/products/bulk-validation — admin update valid berhasil 200
+Phase 5B-2: Bulk Validation & Name Sanitizer :: PUT /api/admin/products/bulk-validation — batch > 500 ditolak 400
+Phase 5B-2: Bulk Validation & Name Sanitizer :: PUT /api/admin/products/bulk-validation — config null berhasil (disable)
+Phase 5B-2: Bulk Validation & Name Sanitizer :: PUT /api/admin/products/bulk-validation — invalid config ditolak 400
+Phase 5B-2: Bulk Validation & Name Sanitizer :: PUT /api/admin/products/bulk-validation — non-admin ditolak 403
+Phase 5B-2: Bulk Validation & Name Sanitizer :: PUT /api/admin/products/bulk-validation — productId non-angka ditolak 400
+Phase 5B-2: Bulk Validation & Name Sanitizer :: PUT /api/admin/products/bulk-validation — productIds kosong ditolak 400
+Phase 5B-2: Bulk Validation & Name Sanitizer :: sanitizeValidationServiceName — game code harus tetap sama meski nama disanitasi
+Phase 5B-2: Bulk Validation & Name Sanitizer :: sanitizeValidationServiceName — game code tidak diubah di /api/games/validatable
+Phase 5B-2: Bulk Validation & Name Sanitizer :: sanitizeValidationServiceName — suffix provider disensor dari label
+Phase 5B: Game ID Validation in Order Flow :: POST /api/order — enabled=false → tidak trigger validator, flow normal
+Phase 5B: Game ID Validation in Order Flow :: POST /api/order — enabled=true + validator return failure → 400, saldo tidak dipotong
+Phase 5B: Game ID Validation in Order Flow :: POST /api/order — produk tanpa validation_config tidak error validasi
+Phase 5B: Game ID Validation in Order Flow :: PUT /api/admin/products/:id/validation — admin bisa simpan config valid
+Phase 5B: Game ID Validation in Order Flow :: PUT /api/admin/products/:id/validation — enabled=true tanpa validator ditolak 400
+Phase 5B: Game ID Validation in Order Flow :: PUT /api/admin/products/:id/validation — non-admin ditolak 403
+Phase 5B: Game ID Validation in Order Flow :: PUT /api/admin/products/:id/validation — validator format berbahaya ditolak 400
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: MOBAPAY_SKU — DD_TITLES mengandung semua 4 target
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: MOBAPAY_SKU — WDP SKU benar
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: POST /api/products/217/validate — HOTFIX: mobapay config tidak menghasilkan 500 karena needs_server_id
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: POST /api/products/:id/validate — HOTFIX: query harus JOIN ke games untuk needs_server_id
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: POST /api/products/:id/validate — mobapay DD unavailable → 400 dengan pesan Promo Double Diamond
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: POST /api/products/:id/validate — mobapay WDP available → 200 success
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: POST /api/products/:id/validate — produk tanpa validation_config → success "tidak memerlukan validasi"
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: POST /api/products/:id/validate — validator PGS existing tidak rusak (tetap panggil validateGameId)
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: PUT /api/admin/products/bulk-validation — checks invalid untuk mobapay ditolak 400
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: PUT /api/admin/products/bulk-validation — config mobapay DD 50+50 valid berhasil 200
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: PUT /api/admin/products/bulk-validation — config mobapay WDP valid berhasil 200
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: PUT /api/admin/products/bulk-validation — double_diamond tanpa target ditolak 400
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: PUT /api/admin/products/bulk-validation — double_diamond target tidak valid ditolak 400
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: detectPaymentChannelCountry — ID channel gopay → true
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: detectPaymentChannelCountry — no ID channel → false
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: isItemAvailable — game_can_buy=false → false
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: isItemAvailable — item null → false
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: isItemAvailable — normal item → true
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: isItemAvailable — reached_limit=true → false
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: validateOrderGameIdIfNeeded — config mobapay checks=[] → tidak ada check (langsung lulus tanpa API call)
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: validateOrderGameIdIfNeeded — config mobapay enabled=false → skip (tidak panggil Mobapay)
+Phase 5C-2A: Mobapay MLBB Eligibility Engine :: validateOrderGameIdIfNeeded — produk tanpa validation_config di-skip (tidak panggil Mobapay)
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard — SQL filters only Success status
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard — accessible without authentication
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard — email, nomor_wa, user_id never returned
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard — empty returns array, not error
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard — rank_label Legend for high spender (>=5jt)
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard — returns required fields
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard — username is masked
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard?limit=999 — limit capped at 50
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard?period=invalid — falls back to all_time
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard?period=monthly — monthly period accepted
+Phase 6A: Public Leaderboard :: GET /api/public/leaderboard?period=weekly — weekly period accepted
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/:id — tidak ditemukan → 404
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/:id — token benar → 200 detail deposit
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/pending — SQL harus filter status Pending
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/pending — env kosong → 503 aman
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/pending — tanpa token ditolak 401
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/pending — tidak ada UPDATE/INSERT di DB (read-only)
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/pending — tidak expose field sensitif
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/pending — token benar → 200 dengan daftar deposit
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/pending — token salah ditolak 403
+Phase 7A: WA Bot Admin Deposit Read-Only API :: GET /api/bot/admin/deposits/pending?limit=999 — limit capped at 50
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: GET /api/bot/admin/deposits/pending — Phase 7A regression: masih 200 dengan array
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/42/approve — tanpa token ditolak 401
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/42/approve — token salah ditolak 403
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/42/reject — tanpa token ditolak 401
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/42/reject — token salah ditolak 403
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/:id/approve — Pending berhasil di-approve
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/:id/approve — balance_history reference sudah ada → 409, saldo tidak bertambah
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/:id/approve — double approve 409, saldo tidak double
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/:id/approve — non-Pending → 409
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/:id/approve — tidak ditemukan → 404
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/:id/reject — Pending berhasil ditolak
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/:id/reject — double reject 409, saldo tidak berubah
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/:id/reject — non-Pending → 409
+Phase 7B: WA Bot Admin Deposit Approve/Reject API :: POST /api/bot/admin/deposits/:id/reject — tidak ditemukan → 404
+Phase 8: Audit 2 Concurrency & Hardening Guards :: GET /api/admin/products — menyertakan p.validation_config pada query dan response
+Phase 8: Audit 2 Concurrency & Hardening Guards :: POST /api/admin/deposits/approve — tolak 409 jika balance_history DEPOSIT-id sudah ada
+Phase 8: Audit 2 Concurrency & Hardening Guards :: POST /api/admin/sync-products — tolak 400 dengan pesan jelas jika FOXY_API_KEY kosong
+Phase 8: Audit 2 Concurrency & Hardening Guards :: POST /api/admin/sync-products — tolak margin_percent tidak valid dengan 400
+Phase 8: Audit 2 Concurrency & Hardening Guards :: POST /api/deposit/request — blokir spam jika user sudah punya 2 deposit Pending (429)
+Phase 8: Audit 2 Concurrency & Hardening Guards :: POST /api/foxy/callback — FAILED merollback kuota promo & cegah double refund via balance_history
+Phase 8: Audit 2 Concurrency & Hardening Guards :: PUT /api/user/profile — normalisasi nomor WA ke E.164 & bedakan error 23505 email vs nomor_wa
+Phase 9: Dynamic Payment Methods (Paket 2) :: Admin CRUD /api/admin/payment-methods — akses ditolak non-admin, validasi input, create/edit/delete
+Phase 9: Dynamic Payment Methods (Paket 2) :: GET /api/payment-methods — tanpa token ditolak 401; dengan token mengembalikan metode aktif terurut
+Phase 9: Dynamic Payment Methods (Paket 2) :: POST /api/deposit/request — QRIS tidak menambah kode unik 3 digit & validasi min_amount metode
+Public Transaction Endpoints :: GET /api/public/recent-transactions — invoice is masked
+Public Transaction Endpoints :: GET /api/public/recent-transactions — no sensitive fields
+Public Transaction Endpoints :: GET /api/public/transaction/:id — Partial Refund status_label correct
+Public Transaction Endpoints :: GET /api/public/transaction/:id — found, returns safe fields only
+Public Transaction Endpoints :: GET /api/public/transaction/:id — invalid chars returns 400
+Public Transaction Endpoints :: GET /api/public/transaction/:id — not found returns 404
+SEC-001: Foxy Callback Security Hardening :: cross-check /v1/status vs DB: SKU atau trx_id tidak cocok -> log warning (invoice + reason saja) & status tidak berubah
+SEC-001: Foxy Callback Security Hardening :: fail-closed: tanpa secret ditolak 403, hanya bisa dilewati non-prod dengan ALLOW_INSECURE_CALLBACK=true
+SEC-001: Foxy Callback Security Hardening :: respons /v1/status tanpa SKU dan nominal tetap diproses normal
+SEC-001: Foxy Callback Security Hardening :: tanpa token atau token salah ditolak 403 tanpa panggil Foxy
+SEC-001: Foxy Callback Security Hardening :: token di query ?token=, rotasi FOXY_CALLBACK_SECRET_PREVIOUS, dan tidak bocor ke log
+SEC-001: Foxy Callback Security Hardening :: transaksi sudah final atau tidak ditemukan -> Foxy tidak dipanggil, serta cooldown 5 detik pakai injectable clock
+SEC-001: Foxy Callback Security Hardening :: validateEnvironment wajib menolak startup production jika FOXY_CALLBACK_SECRET kosong
+SEC-001: Foxy Callback Security Hardening :: zero-trust payload: sn/message/status di req.body tidak pernah dipakai atau tersimpan
+Security: Error Exposure Tests :: should accept PARTIAL_REFUND callback with HTTP 200
+Security: Error Exposure Tests :: should apply rate limiter to register endpoint
+Security: Error Exposure Tests :: should block double refund with 409
+Security: Error Exposure Tests :: should enforce FOXY_CALLBACK_SECRET when configured
+Security: Error Exposure Tests :: should ignore invalid status from body/provider and never mutate DB
+Security: Error Exposure Tests :: should not expose sensitive error message in H2H order endpoint
+Security: Error Exposure Tests :: should not expose sensitive error message in standard order endpoint
+Security: Error Exposure Tests :: should reject admin access if user role is changed in DB
+Security: Error Exposure Tests :: should reject admin resolve on final status (Success)
+Security: Error Exposure Tests :: should reject invalid H2H API key
+Security: Error Exposure Tests :: should reject success/refund action from Pending status (must be Partial Refund first)
+Security: Error Exposure Tests :: should save provider_sn on successful callback
+normalizePhone Unit Tests (Phase 2B) :: normalizePhone: +60 Malaysia
+normalizePhone Unit Tests (Phase 2B) :: normalizePhone: +62 + 81234567890 -> +6281234567890
+normalizePhone Unit Tests (Phase 2B) :: normalizePhone: +65 Singapore
+normalizePhone Unit Tests (Phase 2B) :: normalizePhone: returns null for countryCode without +
+normalizePhone Unit Tests (Phase 2B) :: normalizePhone: returns null for invalid countryCode
+normalizePhone Unit Tests (Phase 2B) :: normalizePhone: returns null for non-digit local
+normalizePhone Unit Tests (Phase 2B) :: normalizePhone: returns null for too-short local
+normalizePhone Unit Tests (Phase 2B) :: normalizePhone: strips leading 0 from local number
+normalizePhone Unit Tests (Phase 2B) :: normalizePhone: strips spaces and dashes from local
