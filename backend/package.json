@@ -4,7 +4,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check utils/mailer.js && node --check utils/cronUtils.js && node --check cron_job_script.js && node --check utils/validators/cek-id-game.js && node --check utils/validators/stalk-mcgg.js && node --check utils/validators/stalk-ml-promo.js && node --check tests/auth.test.js && node --check tests/security.test.js",
+    "check": "node --check server.js && node --check utils/mailer.js && node --check utils/cronUtils.js && node --check cron_job_script.js && node --check seed_local_dummy.js && node --check utils/validators/cek-id-game.js && node --check utils/validators/stalk-mcgg.js && node --check utils/validators/stalk-ml-promo.js && node --check tests/auth.test.js && node --check tests/security.test.js",
+    "seed": "node seed_local_dummy.js",
     "test": "node --test"
   },
   "keywords": [],
@@ -12,13 +13,13 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "axios": "^1.10.0",
+    "axios": "^1.21.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "express-rate-limit": "^8.4.1",
-    "jsonwebtoken": "^9.0.2",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.4",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.12.0"
   }
 }
