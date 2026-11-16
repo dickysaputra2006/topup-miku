@@ -1,0 +1,237 @@
+/* MIKU Store — Admin Modals, Confirm Dialogs, Sticky Form Footer & Sync Result Banner */
+
+.admin-modal-card {
+    max-width: 520px;
+    width: 100%;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    max-height: min(calc(100dvh - 2rem), 680px);
+    overflow: hidden;
+}
+
+.admin-modal-card-wide {
+    max-width: 640px;
+}
+
+.admin-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--border);
+    background-color: var(--surface);
+    flex-shrink: 0;
+}
+
+.admin-modal-header h3 {
+    margin: 0;
+    padding: 0;
+    text-align: left;
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--text);
+}
+
+.admin-modal-header .close-modal {
+    position: static;
+    flex-shrink: 0;
+}
+
+.admin-modal-body {
+    padding: var(--space-6);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    flex: 1 1 auto;
+}
+
+.admin-modal-message {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    line-height: 1.55;
+}
+
+.admin-detail-summary {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+}
+
+.admin-detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-3);
+    padding-bottom: var(--space-2);
+    border-bottom: 1px solid var(--border);
+}
+
+.admin-detail-row:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.admin-detail-row span {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+}
+
+.admin-detail-row strong {
+    color: var(--text);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+}
+
+.admin-modal-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.admin-modal-field label {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--text);
+}
+
+.admin-modal-field input,
+.admin-modal-field select,
+.admin-modal-field textarea {
+    width: 100%;
+    min-height: 44px;
+    padding: var(--space-3);
+    margin: 0;
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: inherit;
+    font-size: max(1rem, 1em);
+    box-sizing: border-box;
+}
+
+.admin-modal-field textarea {
+    min-height: 92px;
+    resize: vertical;
+}
+
+.admin-modal-field input:focus-visible,
+.admin-modal-field select:focus-visible,
+.admin-modal-field textarea:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-color: var(--accent);
+}
+
+.admin-field-error {
+    margin: 0;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--danger-text);
+}
+
+/* Footer Modal Sticky: menjaga "Simpan" dan "Batal" selalu terjangkau */
+.admin-modal-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-6);
+    background-color: var(--surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.admin-modal-card .admin-modal-footer button[type="submit"],
+.admin-modal-card .admin-modal-footer button[type="button"] {
+    width: auto;
+    min-width: 104px;
+}
+
+.admin-modal-card .admin-modal-footer button.admin-btn-danger {
+    background-color: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--danger-text);
+}
+
+.admin-modal-card .admin-modal-footer button.admin-btn-danger:hover:not(:disabled) {
+    background-color: var(--danger);
+    color: var(--text);
+}
+
+.admin-modal-card .admin-modal-footer button.admin-btn-secondary {
+    background-color: var(--surface-2);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.admin-modal-card .admin-modal-footer button.admin-btn-secondary:hover:not(:disabled) {
+    border-color: var(--accent);
+    background-color: var(--accent-soft);
+}
+
+.admin-modal-card .admin-modal-footer button.admin-btn-primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+}
+
+/* Status banner pasca-sinkronisasi & toast state */
+.admin-sync-summary {
+    padding: var(--space-4);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background-color: var(--bg);
+    display: grid;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+}
+
+.admin-sync-summary.is-success {
+    border-color: rgba(34, 197, 94, 0.45);
+    background-color: var(--success-soft);
+}
+
+.admin-sync-summary.is-error {
+    border-color: rgba(239, 68, 68, 0.45);
+    background-color: var(--danger-soft);
+}
+
+.toast.toast-success {
+    border-color: var(--success);
+}
+
+.toast.toast-info {
+    border-color: var(--accent);
+}
+
+@media (max-width: 600px) {
+    .admin-modal-header,
+    .admin-modal-body,
+    .admin-modal-footer {
+        padding-inline: var(--space-4);
+    }
+
+    .admin-modal-footer {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+
+    .admin-modal-card .admin-modal-footer button[type="submit"],
+    .admin-modal-card .admin-modal-footer button[type="button"] {
+        width: 100%;
+    }
+}

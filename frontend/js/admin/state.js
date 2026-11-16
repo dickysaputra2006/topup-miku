@@ -14,8 +14,13 @@
         allRoles: [],
         allPaymentMethods: [],
         allValidatableGamesData: [],
+        allDeposits: [],
+        pendingDepositCount: 0,
         selectedProductIdForValidation: null,
         selectedProductIdForPrice: null,
+        pendingConfirmHandler: null,
+        confirmBusy: false,
+        modalClosers: [],
         els: {},
     };
 
@@ -28,6 +33,8 @@
             sections: document.querySelectorAll('.admin-section'),
             sidebar: document.getElementById('admin-sidebar'),
             menuToggleBtn: document.querySelectorAll('#menu-toggle-btn, .menu-toggle-btn'),
+            pendingDepositBadge: document.getElementById('pending-deposit-badge'),
+            depositPendingSummary: document.getElementById('deposit-pending-summary'),
             validationEditor: document.getElementById('product-validation-editor'),
             validationForm: document.getElementById('validation-config-form'),
             validationSelector: document.getElementById('validation-selector'),
@@ -84,18 +91,177 @@
             pmFormStatus: document.getElementById('pm-form-status'),
             adminPaymentMethodsTbody: document.getElementById('admin-payment-methods-tbody'),
             refreshPmBtn: document.getElementById('refresh-pm-btn'),
+            adminConfirmModal: document.getElementById('admin-confirm-modal'),
+            closeAdminConfirmBtn: document.getElementById('close-admin-confirm-btn'),
+            adminConfirmCancelBtn: document.getElementById('admin-confirm-cancel-btn'),
+            adminConfirmAcceptBtn: document.getElementById('admin-confirm-accept-btn'),
+            adminConfirmTitle: document.getElementById('admin-confirm-title'),
+            adminConfirmMessage: document.getElementById('admin-confirm-message'),
+            adminConfirmDetails: document.getElementById('admin-confirm-details'),
+            rejectDepositModal: document.getElementById('reject-deposit-modal'),
+            closeRejectDepositBtn: document.getElementById('close-reject-deposit-btn'),
+            cancelRejectDepositBtn: document.getElementById('cancel-reject-deposit-btn'),
+            rejectDepositForm: document.getElementById('reject-deposit-form'),
+            rejectDepositSummary: document.getElementById('reject-deposit-summary'),
+            rejectReasonInput: document.getElementById('reject-reason-input'),
+            rejectReasonError: document.getElementById('reject-reason-error'),
+            submitRejectDepositBtn: document.getElementById('submit-reject-deposit-btn'),
         };
+    }
+
+    /**
+     * Tampilkan notifikasi toast non-blocking admin.
+     */
+    app.notify = function notify(message, variant = 'success') {
+        const toast = document.getElementById('toast-notification');
+        if (toast) {
+            toast.classList.remove('toast-success', 'toast-info');
+            if (variant === 'success') toast.classList.add('toast-success');
+            else if (variant === 'info') toast.classList.add('toast-info');
+            if (global.MikuShared && global.MikuShared.dom) {
+                global.MikuShared.dom.showToast(message);
+                return;
+            }
+        }
+        console[variant === 'error' ? 'error' : 'log'](message);
+    };
+
+    /**
+     * Perbarui badge jumlah deposit berstatus Pending pada sidebar admin.
+     */
+    app.updatePendingDepositBadge = function updatePendingDepositBadge(count) {
+        const safeCount = Math.max(0, Number(count) || 0);
+        app.state.pendingDepositCount = safeCount;
+        const badge = app.state.els.pendingDepositBadge || document.getElementById('pending-deposit-badge');
+        if (!badge) return;
+        badge.textContent = safeCount > 99 ? '99+' : String(safeCount);
+        badge.classList.toggle('hidden', safeCount === 0);
+        badge.setAttribute('aria-label', `${safeCount} deposit pending`);
+    };
+
+    /**
+     * Render daftar key-value ringkasan untuk modal konfirmasi/penolakan admin.
+     */
+    app.renderModalSummaryRows = function renderModalSummaryRows(containerEl, rows) {
+        const { escapeHtml } = global.MikuShared.dom;
+        if (!containerEl) return;
+        if (!Array.isArray(rows) || rows.length === 0) {
+            containerEl.innerHTML = '';
+            containerEl.classList.add('hidden');
+            return;
+        }
+        containerEl.innerHTML = rows.map(row => `
+            <div class="admin-detail-row">
+                <span>${escapeHtml(row.label)}</span>
+                <strong>${escapeHtml(row.value)}</strong>
+            </div>
+        `).join('');
+        containerEl.classList.remove('hidden');
+    };
+
+    app.closeConfirmModal = function closeConfirmModal(force = false) {
+        const { adminConfirmModal, adminConfirmAcceptBtn, adminConfirmCancelBtn } = app.state.els;
+        if (!adminConfirmModal || (app.state.confirmBusy && !force)) return;
+        app.state.pendingConfirmHandler = null;
+        adminConfirmModal.classList.add('hidden');
+        if (adminConfirmAcceptBtn) adminConfirmAcceptBtn.disabled = false;
+        if (adminConfirmCancelBtn) adminConfirmCancelBtn.disabled = false;
+    };
+
+    /**
+     * Buka modal konfirmasi eksplisit sebelum aksi destruktif/finansial/sinkronisasi.
+     */
+    app.openConfirmModal = function openConfirmModal({ title, message, details = [], confirmLabel = 'Lanjutkan', danger = false, onConfirm }) {
+        const {
+            adminConfirmModal,
+            adminConfirmTitle,
+            adminConfirmMessage,
+            adminConfirmDetails,
+            adminConfirmAcceptBtn,
+            adminConfirmCancelBtn,
+        } = app.state.els;
+        if (!adminConfirmModal || !adminConfirmAcceptBtn) return;
+        if (adminConfirmTitle) adminConfirmTitle.textContent = title || 'Konfirmasi Aksi';
+        if (adminConfirmMessage) adminConfirmMessage.textContent = message || '';
+        app.renderModalSummaryRows(adminConfirmDetails, details);
+        adminConfirmAcceptBtn.textContent = confirmLabel;
+        adminConfirmAcceptBtn.classList.toggle('admin-btn-danger', Boolean(danger));
+        adminConfirmAcceptBtn.classList.toggle('admin-btn-primary', !danger);
+        adminConfirmAcceptBtn.disabled = false;
+        if (adminConfirmCancelBtn) adminConfirmCancelBtn.disabled = false;
+        app.state.pendingConfirmHandler = onConfirm;
+        adminConfirmModal.classList.remove('hidden');
+        if (danger && adminConfirmCancelBtn && typeof adminConfirmCancelBtn.focus === 'function') {
+            adminConfirmCancelBtn.focus();
+        } else if (typeof adminConfirmAcceptBtn.focus === 'function') {
+            adminConfirmAcceptBtn.focus();
+        }
+    };
+
+    app.registerModalCloser = function registerModalCloser(fn) {
+        if (typeof fn === 'function') app.state.modalClosers.push(fn);
+    };
+
+    function bindConfirmAndEscapeEvents() {
+        const {
+            adminConfirmModal,
+            closeAdminConfirmBtn,
+            adminConfirmCancelBtn,
+            adminConfirmAcceptBtn,
+        } = app.state.els;
+
+        if (closeAdminConfirmBtn) closeAdminConfirmBtn.addEventListener('click', () => app.closeConfirmModal());
+        if (adminConfirmCancelBtn) adminConfirmCancelBtn.addEventListener('click', () => app.closeConfirmModal());
+        if (adminConfirmModal) {
+            adminConfirmModal.addEventListener('click', (e) => {
+                if (e.target === adminConfirmModal) app.closeConfirmModal();
+            });
+        }
+        if (adminConfirmAcceptBtn) {
+            adminConfirmAcceptBtn.addEventListener('click', async () => {
+                if (!app.state.pendingConfirmHandler || app.state.confirmBusy) return;
+                const action = app.state.pendingConfirmHandler;
+                app.state.confirmBusy = true;
+                adminConfirmAcceptBtn.disabled = true;
+                if (adminConfirmCancelBtn) adminConfirmCancelBtn.disabled = true;
+                try {
+                    await action();
+                } finally {
+                    app.state.confirmBusy = false;
+                    app.closeConfirmModal(true);
+                }
+            });
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            app.closeConfirmModal();
+            app.state.modalClosers.forEach(closeFn => closeFn());
+        });
     }
 
     function bindSidebarAndNavigation() {
         const { menuToggleBtn, sidebar, navLinks, sections } = app.state.els;
 
+        function setSidebarOpen(open) {
+            if (!sidebar) return;
+            sidebar.classList.toggle('active', Boolean(open));
+            document.body.classList.toggle('menu-open', Boolean(open));
+            menuToggleBtn.forEach(btn => btn.setAttribute('aria-expanded', open ? 'true' : 'false'));
+        }
+
+        app.registerModalCloser(() => setSidebarOpen(false));
+
         if (menuToggleBtn.length > 0 && sidebar) {
             menuToggleBtn.forEach(btn => btn.addEventListener('click', () => {
-                sidebar.classList.toggle('active');
-                document.body.classList.toggle('menu-open');
+                setSidebarOpen(!sidebar.classList.contains('active'));
             }));
         }
+
+        document.addEventListener('click', (e) => {
+            if (!sidebar || !sidebar.classList.contains('active')) return;
+            if (e.target.closest('#admin-sidebar') || e.target.closest('#menu-toggle-btn')) return;
+            setSidebarOpen(false);
+        });
 
         if (navLinks.length > 0 && sections.length > 0) {
             navLinks.forEach(link => {
@@ -108,22 +274,16 @@
                         section.classList.toggle('hidden', section.id !== targetId);
                     });
 
-                    if (targetId === 'promo') {
-                        app.promosAndFlashSales.fetchAndDisplayPromos();
-                    }
+                    if (targetId === 'promo') app.promosAndFlashSales.fetchAndDisplayPromos();
                     if (targetId === 'flash-sale') {
                         app.promosAndFlashSales.populateFlashSaleGameSelector(app.state.allGames);
                         app.promosAndFlashSales.fetchAndDisplayFlashSales();
                     }
-                    if (targetId === 'deposit') {
-                        app.deposits.fetchAdminDeposits();
-                    }
-                    if (targetId === 'payment-methods') {
-                        app.paymentMethods.fetchAdminPaymentMethods();
-                    }
-                    if (targetId === 'transaksi') {
-                        app.transactionsAndRoles.fetchAdminTransactions();
-                    }
+                    if (targetId === 'deposit') app.deposits.fetchAdminDeposits();
+                    if (targetId === 'payment-methods') app.paymentMethods.fetchAdminPaymentMethods();
+                    if (targetId === 'transaksi') app.transactionsAndRoles.fetchAdminTransactions();
+
+                    if (global.innerWidth <= 768) setSidebarOpen(false);
                 });
             });
         }
@@ -147,17 +307,16 @@
         const els = collectAdminElements();
         const token = requireAuthToken('index.html');
 
-        if (!token) {
-            return;
-        }
+        if (!token) return;
 
         app.state.token = token;
         app.state.els = els;
 
+        bindConfirmAndEscapeEvents();
+        bindSidebarAndNavigation();
         app.transactionsAndRoles.bindEvents();
         app.validationAndPrices.bindEvents();
         app.promosAndFlashSales.bindEvents();
-        bindSidebarAndNavigation();
         app.catalog.bindEvents();
         app.deposits.bindEvents();
         app.paymentMethods.bindEvents();
