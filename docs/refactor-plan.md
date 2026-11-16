@@ -442,3 +442,96 @@ Prinsip kerja:
 - Skrip `check` pada `backend/package.json` diperbarui agar juga memeriksa direktori `routes/admin`.
 - Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=260, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
 - Catatan cakupan tes & DB: `tests/manual/*` (`concurrency.js`, `idempotency.js`, `pool.js`) sengaja tidak dijalankan karena R6b tidak mengubah alur order/refund; tidak ada migrasi database pada tahap ini.
+
+---
+
+## R6c — Ekstraksi Route Admin Katalog, Konfigurasi, Promo, Flash Sale, & Margin (`paymentMethods`, `games`, `products`, `promos`, `flashSales`, `margins`)
+
+Prinsip kerja:
+- Nol perubahan perilaku: SQL, validasi input, aturan harga/margin/promo/flash-sale, invalidasi cache Foxy, pesan error, kode status HTTP, dan urutan pemasangan middleware dipertahankan persis apa adanya.
+- Ekspor [server.js](file:///d:/DICKY%20BELAJAR/topup-miku/backend/server.js) (`{ app, pool, startServer, server, validateEnvironment, invalidateFoxyProductCache, callbackClock, clearCallbackCooldownCache }`) dan helper/cache Foxy (`getFoxyProducts`, `invalidateFoxyProductCache`) tetap utuh di `server.js`.
+- Baseline tes tetap **`192`** sesuai [refactor-baseline-tests.txt](file:///d:/DICKY%20BELAJAR/topup-miku/docs/refactor-baseline-tests.txt); semua file memakai LF murni (`i/lf w/lf`).
+
+### Inventaris Route Sisa di `backend/server.js` Saat Memulai R6c (`2705` baris)
+
+#### A. Grup yang Dipindah di R6c
+
+1. **Commit 1 — `backend/routes/admin/paymentMethods.routes.js` (`createAdminPaymentMethodsRoutes({ pool, protectAdmin })`)**
+   Dipasang di posisi `477` (tepat setelah `createAdminDepositsRoutes`).
+
+   | Route / Helper | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | Helper `normalizePaymentMethodPayload` | `375-469` | `ALLOWED_PAYMENT_METHOD_TYPES` (`config/constants.js`), `isSafeAssetUrl`, `parseOptionalBoolean`, `parseOptionalText` (`utils/validation.js`) — hanya dipakai grup ini, ikut dipindah |
+   | `GET /api/admin/payment-methods` | `477-490` | `protectAdmin`, `pool` |
+   | `POST /api/admin/payment-methods` | `492-524` | `protectAdmin`, `pool`, `normalizePaymentMethodPayload` |
+   | `PUT /api/admin/payment-methods/:id` | `526-575` | `protectAdmin`, `pool`, `normalizePaymentMethodPayload` |
+   | `DELETE /api/admin/payment-methods/:id` | `577-592` | `protectAdmin`, `pool` |
+
+2. **Commit 2 — `backend/routes/admin/games.routes.js` (`createAdminGamesRoutes({ pool, protectAdmin })`)**
+   Dipasang di posisi `595` (tepat setelah `createAdminBalanceRoutes`). Memakai `require('axios')` langsung agar referensi objek singleton tetap sama dengan mock tes (`pgs-preview`).
+
+   | Route | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | `GET /api/admin/roles` | `595-603` | `protectAdmin`, `pool` |
+   | `PUT /api/admin/roles` | `604-627` | `protectAdmin`, `pool` |
+   | `GET /api/admin/games` | `628-637` | `protectAdmin`, `pool` |
+   | `POST /api/admin/games` | `670-682` | `protectAdmin`, `pool` |
+   | `PUT /api/admin/games/:id/status` | `765-789` | `protectAdmin`, `pool` |
+   | `PUT /api/admin/games/:id/needs-server` | `790-814` | `protectAdmin`, `pool` |
+   | `POST /api/test` | `1132-1135` | *(tanpa auth/deps eksternal)* |
+   | `GET /api/admin/validation-services/pgs-preview` | `1139-1163` | `protectAdmin`, `axios`, `process.env.PGS_KEY`, `process.env.PGS_API_KEY` |
+
+3. **Commit 3 — `backend/routes/admin/products.routes.js` (`createAdminProductsRoutes({ pool, protectAdmin })`)**
+   Dipasang di posisi blok produk admin (tepat sebelum `POST /api/admin/sync-products`). **Tidak** memindahkan `POST /api/admin/sync-products` (R7). Urutan relatif `/:id/validation` sebelum `/bulk-validation` dipertahankan identik.
+
+   | Route / Helper | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | Helper `sanitizeValidationConfig` | `820-902` | *(fungsi murni, hanya dipakai di `/validation` & `/bulk-validation`, ikut dipindah)* |
+   | `GET /api/admin/products` | `638-669` | `protectAdmin`, `pool` |
+   | `POST /api/admin/products` | `683-696` | `protectAdmin`, `pool` |
+   | `PUT /api/admin/products/:id/status` | `740-764` | `protectAdmin`, `pool` |
+   | `PUT /api/admin/products/:id/validation` | `904-922` | `protectAdmin`, `pool`, `sanitizeValidationConfig` |
+   | `PUT /api/admin/products/bulk-validation` | `923-951` | `protectAdmin`, `pool`, `sanitizeValidationConfig` |
+
+4. **Commit 4 — `backend/routes/admin/promos.routes.js` (`createAdminPromosRoutes({ pool, protectAdmin })`)**
+   Dipasang setelah blok admin sebelumnya. **Tidak** memindahkan `POST /api/promos/validate` (R7).
+
+   | Route | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | `POST /api/admin/promos` | `952-964` | `protectAdmin`, `pool` |
+   | `GET /api/admin/promos` | `967-974` | `protectAdmin`, `pool` |
+   | `PUT /api/admin/promos/:id/toggle` | `977-988` | `protectAdmin`, `pool` |
+
+5. **Commit 5 — `backend/routes/admin/flashSales.routes.js` (`createAdminFlashSalesRoutes({ pool, protectAdmin })`)**
+
+   | Route | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | `GET /api/admin/flash-sales` | `991-1008` | `protectAdmin`, `pool` |
+   | `POST /api/admin/flash-sales` | `1010-1029` | `protectAdmin`, `pool` |
+   | `DELETE /api/admin/flash-sales/:id` | `1031-1039` | `protectAdmin`, `pool` |
+
+6. **Commit 6 — `backend/routes/admin/margins.routes.js` (`createAdminMarginsRoutes({ pool, protectAdmin })`)**
+
+   | Route | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | `GET /api/admin/games/:gameId/margins` | `1042-1056` | `protectAdmin`, `pool` |
+   | `POST /api/admin/games/:gameId/margins` | `1059-1085` | `protectAdmin`, `pool` |
+   | `GET /api/admin/products/:productId/manual-prices` | `1088-1107` | `protectAdmin`, `pool` |
+   | `POST /api/admin/products/:productId/manual-prices` | `1110-1128` | `protectAdmin`, `pool` |
+
+#### B. Route & Helper yang Sengaja Ditinggal di `backend/server.js` Setelah R6c
+
+- **R7 (`5` route validasi, promo publik, produk berharga dinamis, & sinkronisasi Foxy)**:
+  - `POST /api/admin/sync-products` (`697-732`) — memanggil `syncProductsWithFoxy` dan `invalidateFoxyProductCache`.
+  - `POST /api/products/:productId/validate` (`1167-1241`) — validasi ID game via PGS / `checkMobapayMlbbEligibility`.
+  - `POST /api/full-validate` (`1244-1293`) — kombinasi validasi ID game & pengambilan daftar produk Foxy/DB.
+  - `GET /api/games/:gameId/products` (`1295-1389`) — memakai `softProtect`, margin role/game/manual, flash sale, dan harga modal real-time Foxy (`getFoxyProducts`).
+  - `POST /api/promos/validate` (`1391-1539`) — memakai `protect`, evaluasi aturan promo, flash sale, dan eligibility.
+- **R9 (`6` route alur order, transaksi H2H, & callback Foxy — menyentuh uang dan provider eksternal)**:
+  - `POST /api/order` (`1622-1963`), `POST /api/foxy/callback` (`2046-2240`), `POST /h2h/order` (`2242-2558`), `GET /h2h/products` (`2560-2651`), `PUT /h2h/profile/callback` (`2655-2673`), `GET /h2h/profile` (`2675-2688`).
+- **Helper & ekspor yang tetap di `server.js`**:
+  - Seluruh helper order/idempotency/cache/notifikasi/callback (`65-329`, `357-365`, `1546-1620`, `1970-2045`) serta `module.exports` baris `2705` (`{ app, pool, startServer, server, validateEnvironment, invalidateFoxyProductCache, callbackClock, clearCallbackCooldownCache }`).
+
+### Pembersihan Commit 7
+- Audit dan hapus import di `backend/server.js` yang tidak lagi digunakan setelah Commit 1–6 (perkiraan awal: `ALLOWED_PAYMENT_METHOD_TYPES`, `isSafeAssetUrl`, `parseOptionalBoolean`, `parseOptionalText`; dicek ulang menyeluruh sebelum hapus).
+- Perbarui bagian ini dengan hash commit aktual dan jumlah baris akhir tiap file.
