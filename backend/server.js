@@ -6,10 +6,8 @@ const {
 } = require('./config/env');
 const {
     MAX_BODY_SIZE,
-    DUPLICATE_ORDER_WINDOW_SECONDS,
     FOXY_BASE_URL,
     PROVIDER_TIMEOUT_MS,
-    FOXY_CACHE_TTL,
     CALLBACK_VERIFY_COOLDOWN_MS,
     CALLBACK_SUCCESS_RESPONSE,
 } = require('./config/constants');
@@ -48,23 +46,15 @@ const createAdminPromosRoutes = require('./routes/admin/promos.routes');
 const createAdminFlashSalesRoutes = require('./routes/admin/flashSales.routes');
 const createAdminMarginsRoutes = require('./routes/admin/margins.routes');
 const express = require('express');
-const fs = require('fs').promises;
 const { createPool } = require('./config/db');
 const axios = require('axios');
 const { validateWebhookUrl, dispatchSafeH2HWebhook } = require('./utils/webhookClient.js');
-const { syncProductsWithFoxy, rollbackTransactionResources } = require('./utils/cronUtils.js');
-const { validateGameId } = require('./utils/validators/cek-id-game.js');
-const { checkAllMobapayPromosML, checkMobapayMlbbEligibility } = require('./utils/validators/stalk-ml-promo.js');
-const { cekPromoMcggMobapay } = require('./utils/validators/stalk-mcgg.js');
+const { rollbackTransactionResources } = require('./utils/cronUtils.js');
 const {
     validateOrderGameIdIfNeeded,
     invalidateFoxyProductCache,
     getFoxyProducts,
 } = require('./services/foxyClient');
-const {
-    getGameProductsCatalog,
-    validatePromoCodeForProduct,
-} = require('./services/priceService');
 const {
     generateInvoiceId,
     generateProviderTrxId,

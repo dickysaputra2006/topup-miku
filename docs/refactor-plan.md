@@ -587,10 +587,17 @@ Prinsip kerja & kompatibilitas mock:
    - `POST /api/products/:productId/validate` (`437-511`), `POST /api/full-validate` (`514-563`), `GET /api/games/:gameId/products` (`565-659`), dan `POST /api/promos/validate` (`661-809`) -> dipindahkan ke **`backend/routes/catalog.routes.js`** (`createCatalogRoutes({ pool, protect, softProtect })`) dan dipasang pada posisi asal di `server.js` (tepat setelah `createAdminMarginsRoutes` dan sebelum `createWaBotRoutes`).
 
 5. **Commit 5 — Pembersihan, Skrip `check`, & Hasil R7**
-   - Audit & hapus import di `server.js` yang tidak lagi digunakan (`FOXY_CACHE_TTL`, `validateGameId`, `checkAllMobapayPromosML`, `checkMobapayMlbbEligibility`, `cekPromoMcggMobapay`, `syncProductsWithFoxy`, `generateInvoiceId`, `generateProviderTrxId`, `DUPLICATE_ORDER_WINDOW_SECONDS` — dicek ulang sebelum menghapus).
+   - Audit & hapus import di `server.js` yang tidak lagi digunakan (`DUPLICATE_ORDER_WINDOW_SECONDS`, `FOXY_CACHE_TTL`, `fs`, `syncProductsWithFoxy`, `validateGameId`, `checkAllMobapayPromosML`, `checkMobapayMlbbEligibility`, `cekPromoMcggMobapay`, `getGameProductsCatalog`, `validatePromoCodeForProduct`).
    - Perbarui `backend/package.json` skrip `check` agar turut memeriksa folder `services`.
    - Catat hasil commit hash & ukuran akhir di bagian bawah seksi R7.
 
 ### Sisa Route & Fungsi di `backend/server.js` Pasca R7 (untuk R8 & R9)
 - **6 Route Order/Callback/H2H (R9)**: `POST /api/order`, `POST /api/foxy/callback`, `POST /h2h/order`, `GET /h2h/products`, `PUT /h2h/profile/callback`, `GET /h2h/profile`.
 - **Helper yang masih tinggal untuk R8/R9**: `getSafeOrderErrorMessage`, `createNotification`, `isProviderTimeoutOrAmbiguous`, `finalizeOrderAfterProviderCall`, `callbackVerificationCooldown` / `callbackClock` / `clearCallbackCooldownCache`, `extractCallbackToken`, `verifyFoxyCallbackAuth`, `checkAndMarkCallbackCooldown`, `doesFoxyStatusMatchDb`, serta `startServer` & `module.exports`.
+
+### Hasil Akhir R7
+- Panjang `backend/server.js`: `1975` baris (akhir R6c) -> `1871` baris (Commit 1 `7782e18`: `services/foxyClient.js` = `125` baris) -> `1664` baris (Commit 2 `5f7924e`: `services/priceService.js` = `290` baris) -> `1556` baris (Commit 3 `734c7e9`: `services/idempotency.js` = `127` baris) -> `1356` baris (Commit 4 `4b2aa90`: `routes/admin/products.routes.js` = `271` baris, `routes/catalog.routes.js` = `194` baris; `routes/public.routes.js` tetap `368` baris) -> `1346` baris (Commit 5: pembersihan 10 import tak terpakai & pembaruan `package.json`).
+- Import tak terpakai yang dihapus di Commit 5: `DUPLICATE_ORDER_WINDOW_SECONDS`, `FOXY_CACHE_TTL`, `fs`, `syncProductsWithFoxy`, `validateGameId`, `checkAllMobapayPromosML`, `checkMobapayMlbbEligibility`, `cekPromoMcggMobapay`, `getGameProductsCatalog`, `validatePromoCodeForProduct`. Semua simbol `module.exports` pada `backend/server.js` tetap utuh.
+- Skrip `check` pada `backend/package.json` diperbarui agar turut memeriksa direktori `services`.
+- Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=279, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
+- Catatan cakupan tes & DB: `tests/manual/*` (`concurrency.js`, `idempotency.js`, `pool.js`) tidak dijalankan karena R7 tidak menyentuh eksekusi order maupun refund rollback (baru wajib pada R8–R10); tidak ada migrasi database pada tahap ini.
