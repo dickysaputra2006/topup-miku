@@ -34,6 +34,7 @@ const { requireWaBotAdminToken } = require('./middleware/waBotAuth');
 const createAuthRoutes = require('./routes/auth.routes');
 const createDepositRoutes = require('./routes/deposit.routes');
 const createPublicRoutes = require('./routes/public.routes');
+const createCatalogRoutes = require('./routes/catalog.routes');
 const createUserRoutes = require('./routes/user.routes');
 const createUserApiKeyRoutes = require('./routes/userApiKey.routes');
 const createWaBotRoutes = require('./routes/waBot.routes');
@@ -175,42 +176,6 @@ app.use(createAdminPaymentMethodsRoutes({ pool, protectAdmin }));
 app.use(createAdminBalanceRoutes({ pool, protectAdmin }));
 app.use(createAdminGamesRoutes({ pool, protectAdmin }));
 app.use(createAdminProductsRoutes({ pool, protectAdmin }));
-app.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
-    try {
-        const activeFoxyKey = process.env.FOXY_API_KEY !== undefined ? process.env.FOXY_API_KEY : FOXY_API_KEY;
-        if (!activeFoxyKey || !String(activeFoxyKey).trim()) {
-            return res.status(400).json({
-                message: 'FOXY_API_KEY belum diatur di file .env. Isi API key Foxy atau gunakan data seeder lokal untuk pengujian.'
-            });
-        }
-
-        const rawMargin = req.body ? req.body.margin_percent : undefined;
-        let effectiveMargin = null;
-
-        if (rawMargin !== undefined && rawMargin !== null && String(rawMargin).trim() !== '') {
-            const parsed = Number(rawMargin);
-            if (!Number.isFinite(parsed) || parsed < 0) {
-                return res.status(400).json({ message: 'Persentase margin tidak valid.' });
-            }
-            effectiveMargin = parsed;
-        } else {
-            const { rows: roleRows } = await pool.query(
-                "SELECT margin_percent FROM roles WHERE LOWER(name) = 'bronze' ORDER BY id ASC LIMIT 1"
-            );
-            effectiveMargin = roleRows.length > 0 && roleRows[0].margin_percent !== null
-                ? Number(roleRows[0].margin_percent)
-                : 10;
-        }
-
-        await syncProductsWithFoxy(effectiveMargin);
-        invalidateFoxyProductCache();
-
-        res.json({ message: `Sinkronisasi produk berhasil dipicu dengan margin ${effectiveMargin}%.` });
-    } catch (error) {
-        console.error('Manual sync trigger error:', error);
-        res.status(500).json({ message: 'Gagal memicu sinkronisasi manual. Cek log server.' });
-    }
-});
 
 app.use(createAdminTransactionsRoutes({
     pool,
@@ -223,172 +188,7 @@ app.use(createAdminFlashSalesRoutes({ pool, protectAdmin }));
 app.use(createAdminMarginsRoutes({ pool, protectAdmin }));
 
 // === PUBLIC ENDPOINTS ===
-
-// Endpoint pre-validasi di halaman produk
-// Phase 5C-2A HOTFIX: dispatch ke Mobapay eligibility engine jika validatornya bukan PGS
-app.post('/api/products/:productId/validate', async (req, res) => {
-    const { productId } = req.params;
-    const { userId, zoneId } = req.body;
-    if (!userId) return res.status(400).json({ success: false, message: 'User ID wajib diisi.' });
-    try {
-        // HOTFIX: needs_server_id is on the games table, not products.
-        // Use a LEFT JOIN so we never query a non-existent column on products.
-        const { rows } = await pool.query(
-            `SELECT
-                p.id,
-                p.name,
-                p.validation_config,
-                p.game_id,
-                COALESCE(g.needs_server_id, false) AS needs_server_id
-             FROM products p
-             LEFT JOIN games g ON g.id = p.game_id
-             WHERE p.id = $1`,
-            [productId]
-        );
-        if (rows.length === 0) return res.status(404).json({ success: false, message: 'Produk tidak ditemukan.' });
-        const config = rows[0].validation_config;
-
-        // Tidak ada config atau config tidak aktif → tidak perlu validasi
-        if (!config || config.enabled !== true || !config.validator) {
-            return res.json({ success: true, message: 'Produk ini tidak memerlukan validasi.' });
-        }
-
-        const validatorName = String(config.validator).trim();
-        const effectiveZoneId = rows[0].needs_server_id ? (zoneId || null) : null;
-
-        // === Phase 5C-2A: Mobapay MLBB Eligibility ===
-        if (validatorName === 'mobapay-mlbb-eligibility') {
-            let mobapayResult;
-            try {
-                mobapayResult = await checkMobapayMlbbEligibility(
-                    userId,
-                    effectiveZoneId,
-                    config.checks || [],
-                    config.rules || {},
-                    { country: config.country || 'ID', timeout: 10000 }
-                );
-            } catch (mobErr) {
-                // Network/API fatal — kembalikan pesan aman
-                console.warn('[pre-validate] Mobapay network error:', mobErr && mobErr.message);
-                return res.status(503).json({
-                    success: false,
-                    message: 'Pengecekan promo sedang tidak tersedia, coba lagi nanti.'
-                });
-            }
-
-            if (!mobapayResult.success) {
-                const safeMsg = typeof mobapayResult.message === 'string' && mobapayResult.message.length > 0
-                    ? mobapayResult.message
-                    : 'Produk tidak tersedia untuk ID ini.';
-                return res.status(400).json({ success: false, message: safeMsg });
-            }
-
-            // Sukses — kembalikan pesan aman; frontend akan tampilkan di blok "tidak memerlukan validasi"
-            return res.json({
-                success: true,
-                message: 'ID valid dan produk tersedia untuk ID ini.',
-                data: { mobapay: true }
-            });
-        }
-
-        // === PGS Validator (existing behaviour) ===
-        const result = await validateGameId(validatorName, userId, effectiveZoneId, config.rules || {});
-        if (result.success) res.json(result);
-        else res.status(400).json({ success: false, message: result.message });
-
-    } catch (error) {
-        logSafeError('[pre-validate] Error:', error);
-        res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
-    }
-});
-
-// Endpoint baru untuk halaman validasi (yang menampilkan promo)
-app.post('/api/full-validate', async (req, res) => {
-    const { gameCode, userId, zoneId, rules } = req.body;
-
-    if (!gameCode || !userId) {
-        return res.status(400).json({ success: false, message: 'Parameter tidak lengkap.' });
-    }
-
-    try {
-        let result;
-
-        // --- INI ADALAH LOGIKA YANG SEHARUSNYA ---
-        if (gameCode.includes('magic-chess-go-go')) {
-            // Logika khusus untuk Magic Chess
-            const mcggResult = await cekPromoMcggMobapay(userId, zoneId);
-            if (mcggResult.success) {
-                result = { 
-                    success: true, 
-                    data: { 
-                        username: mcggResult.nickname, 
-                        promo: { doubleDiamond: { items: mcggResult.promoProducts } } 
-                    } 
-                };
-            } else {
-                result = mcggResult; // Kembalikan hasil errornya
-            }
-
-        } else {
-            // Logika untuk semua game lain (termasuk Mobile Legends)
-            const pgsResult = await validateGameId(gameCode, userId, zoneId, rules || {});
-            if (!pgsResult.success) {
-                return res.status(400).json({ success: false, message: pgsResult.message });
-            }
-            
-            result = pgsResult;
-
-            // Jika ini ML, tambahkan data promo
-            if (gameCode.includes('mobile-legends-region')) {
-                const mobapayResult = await checkAllMobapayPromosML(userId, zoneId);
-                result.data.promo = mobapayResult.data;
-            }
-        }
-        // --- AKHIR DARI LOGIKA YANG SEHARUSNYA ---
-
-        res.json(result);
-
-    } catch (error) {
-        console.error(`Error validasi lengkap untuk ${gameCode}:`, error);
-        res.status(500).json({ success: false, message: 'Terjadi kesalahan internal.' });
-    }
-});
-
-app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
-    try {
-        const { gameId } = req.params;
-        const result = await getGameProductsCatalog({ pool, gameId, user: req.user });
-        if (result.notFound) return res.status(404).json({ message: 'Game tidak ditemukan.' });
-        res.json(result.body);
-    } catch (error) {
-        console.error("Gagal mengambil produk game (public):", error);
-        res.status(500).json({ message: 'Server error saat mengambil data produk.' });
-    }
-});
-
-app.post('/api/promos/validate', protect, async (req, res) => {
-    const { promo_code, product_id, target_game_id } = req.body;
-    const client_user_id = req.user.id;
-
-    if (!promo_code || !product_id || !target_game_id) {
-        return res.status(400).json({ valid: false, message: 'Informasi promo, produk, dan ID game dibutuhkan.' });
-    }
-
-    try {
-        const result = await validatePromoCodeForProduct({
-            pool,
-            userId: client_user_id,
-            promoCode: promo_code,
-            productId: product_id,
-            targetGameId: target_game_id,
-        });
-        return res.status(result.statusCode).json(result.body);
-    } catch (error) {
-        console.error('Error saat validasi promo:', error);
-        res.status(500).json({ valid: false, message: 'Terjadi kesalahan di server.' });
-    }
-});
-
+app.use(createCatalogRoutes({ pool, protect, softProtect }));
 
 // === WA BOT ADMIN DEPOSITS ENDPOINTS ===
 app.use(createWaBotRoutes({ pool, createNotification, requireWaBotAdminToken }));

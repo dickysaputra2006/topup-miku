@@ -1,4 +1,7 @@
 const express = require('express');
+const { FOXY_API_KEY } = require('../../config/env');
+const { syncProductsWithFoxy } = require('../../utils/cronUtils');
+const { invalidateFoxyProductCache } = require('../../services/foxyClient');
 
 /**
  * Validasi dan sanitasi objek validation_config sebelum disimpan ke DB.
@@ -224,6 +227,43 @@ module.exports = function createAdminProductsRoutes(deps) {
         } catch (error) {
             console.error('Error updating bulk product validation:', error);
             res.status(500).json({ message: 'Gagal memperbarui pengaturan validasi massal.' });
+        }
+    });
+
+    router.post('/api/admin/sync-products', protectAdmin, async (req, res) => {
+        try {
+            const activeFoxyKey = process.env.FOXY_API_KEY !== undefined ? process.env.FOXY_API_KEY : FOXY_API_KEY;
+            if (!activeFoxyKey || !String(activeFoxyKey).trim()) {
+                return res.status(400).json({
+                    message: 'FOXY_API_KEY belum diatur di file .env. Isi API key Foxy atau gunakan data seeder lokal untuk pengujian.'
+                });
+            }
+
+            const rawMargin = req.body ? req.body.margin_percent : undefined;
+            let effectiveMargin = null;
+
+            if (rawMargin !== undefined && rawMargin !== null && String(rawMargin).trim() !== '') {
+                const parsed = Number(rawMargin);
+                if (!Number.isFinite(parsed) || parsed < 0) {
+                    return res.status(400).json({ message: 'Persentase margin tidak valid.' });
+                }
+                effectiveMargin = parsed;
+            } else {
+                const { rows: roleRows } = await pool.query(
+                    "SELECT margin_percent FROM roles WHERE LOWER(name) = 'bronze' ORDER BY id ASC LIMIT 1"
+                );
+                effectiveMargin = roleRows.length > 0 && roleRows[0].margin_percent !== null
+                    ? Number(roleRows[0].margin_percent)
+                    : 10;
+            }
+
+            await syncProductsWithFoxy(effectiveMargin);
+            invalidateFoxyProductCache();
+
+            res.json({ message: `Sinkronisasi produk berhasil dipicu dengan margin ${effectiveMargin}%.` });
+        } catch (error) {
+            console.error('Manual sync trigger error:', error);
+            res.status(500).json({ message: 'Gagal memicu sinkronisasi manual. Cek log server.' });
         }
     });
 
