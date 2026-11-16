@@ -1,0 +1,689 @@
+/* MIKU Store — Product Order Page, Validation, Promo & Confirmation Modal */
+
+.order-page-wrapper {
+    flex-grow: 1;
+}
+#order-form input {
+    width: 100%;
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+.order-page-wrapper {
+    max-width: 920px;
+    margin: 2rem auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+#game-info {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+#game-info img {
+    width: 100px;
+    height: 100px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+#game-info h2 {
+    margin: 0;
+}
+#game-info p {
+    margin: 0.25rem 0 0 0;
+    color: #a7a9be;
+    font-size: 0.9rem;
+}
+.order-page-wrapper .card h3 > span {
+    background-color: var(--primary-color);
+    color: var(--bg-dark);
+    font-size: 1rem;
+    font-weight: bold;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+.order-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+#target-game-id:only-child {
+    grid-column: 1 / -1;
+}
+.product-card-selectable {
+    border: 2px solid var(--border-color);
+    padding: 0.8rem;
+    border-radius: 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 85px;
+    box-sizing: border-box;
+    background-color: rgba(31, 41, 55, 0.45);
+}
+.product-card-selectable:hover {
+    border-color: var(--primary-color);
+    background-color: rgba(6, 182, 212, 0.08);
+}
+.product-card-selectable.selected {
+    border-color: var(--primary-color);
+    background-color: rgba(6, 182, 212, 0.18);
+    transform: scale(1.02);
+    box-shadow: 0 0 16px rgba(6, 182, 212, 0.28);
+}
+.product-card-selectable span {
+    font-weight: bold;
+    font-size: 0.9rem;
+    display: block;
+    margin-bottom: 0.25rem;
+    white-space: normal;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+.product-card-selectable small {
+    color: #a7a9be;
+    font-size: 0.8rem;
+}
+#payment-info {
+    display: grid;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    font-size: 1.1rem;
+}
+#payment-info p {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0;
+}
+#payment-info hr {
+    width: 100%;
+    border: none;
+    border-top: 1px solid var(--border-color);
+}
+.order-button {
+    width: 100%;
+    padding: 1rem;
+    font-size: 1.2rem;
+    border: none;
+    background: var(--primary-color);
+    color: white;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.order-button:not(:disabled):hover {
+    filter: brightness(1.08);
+}
+.order-button:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+#server-input-container select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-color);
+    font-size: 1em;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23F3F4F6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+}
+#server-input-container select:hover,
+#server-input-container select:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.2);
+}
+.validation-result {
+   margin-top: 1rem;
+   padding: 1rem;
+   border-radius: 5px;
+}
+.validation-result.success {
+   background-color: #e6ffed;
+   border: 1px solid #a7ffa3;
+   color: #28a745;
+}
+.validation-result.error {
+   background-color: #ffe6e6;
+   border: 1px solid #ffa3a3;
+   color: #dc3545;
+}
+.validation-result-inline {
+    margin-top: 0.5rem;
+    padding: 0.8rem 1rem;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.55rem;
+    grid-column: 1 / -1;
+    line-height: 1.5;
+    word-break: break-word;
+}
+.validation-result-inline p {
+    margin: 0;
+    flex: 1;
+}
+.validation-result-inline.success {
+    background-color: #1a3a32;
+    border: 1px solid var(--success-color);
+    color: var(--success-color);
+}
+.validation-result-inline.error {
+    background-color: #3e2227;
+    border: 1px solid var(--danger-color);
+    color: var(--danger-color);
+}
+.validation-result-inline i {
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+    margin-right: 0;
+}
+.confirmation-details h4 {
+    color: var(--text-color);
+    font-size: 1rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.8rem;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+.confirmation-details p {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0.6rem 0;
+    font-size: 0.9rem;
+}
+.confirmation-details strong {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+.confirmation-details p span {
+    color: #a7a9be;
+}
+.confirmation-details .total-payment {
+    font-size: 1.1rem;
+    font-weight: bold;
+}
+.confirmation-details hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 1rem 0;
+}
+.confirmation-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+.confirmation-actions .order-button,
+.confirmation-actions .edit-btn {
+    width: auto;
+    padding: 0.8rem 1.5rem;
+}
+.promo-container {
+display: flex;
+margin-bottom: 10px;
+}
+#promo-code-input {
+flex-grow: 1;
+padding: 8px;
+border: 1px solid #ccc;
+border-radius: 5px 0 0 5px;
+font-size: 0.9rem;
+}
+#apply-promo-btn {
+padding: 8px 15px;
+background-color: var(--primary-color);
+color: white;
+border: none;
+border-radius: 0 5px 5px 0;
+cursor: pointer;
+font-size: 0.9rem;
+}
+#apply-promo-btn:hover {
+background-color: var(--primary-color-dark);
+}
+.promo-result {
+margin-top: 5px;
+font-size: 0.85rem;
+}
+.promo-result span {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    font-size: 0.85rem;
+    font-weight: bold;
+}
+.promo-result .success {
+    background-color: #1a3a32;
+    border: 1px solid var(--success-color);
+    color: var(--success-color);
+}
+.promo-result .error {
+    background-color: #3e2227;
+    border: 1px solid var(--danger-color);
+    color: var(--danger-color);
+}
+.promo-result i {
+    margin-right: 0.5rem;
+}
+.order-summary-promo {
+display: flex;
+justify-content: space-between;
+margin-bottom: 5px;
+font-size: 0.9rem;
+color: #888;
+}
+.order-summary-promo strong {
+color: green;
+}
+.promo-form-container {
+    display: flex;
+    gap: 0.5rem;
+}
+.promo-form-container input {
+    flex-grow: 1;
+    padding: 0.8rem 1rem;
+    margin: 0;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-color);
+}
+.promo-form-container button {
+    border: none;
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 0.8rem 1.5rem;
+    white-space: nowrap;
+}
+#promo-result {
+    margin-top: 1rem;
+    min-height: 20px;
+}
+.product-selection-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    color: var(--muted-color);
+    font-size: 0.9rem;
+    grid-column: 1 / -1;
+}
+.product-card-selectable.is-flash-sale {
+    border-color: var(--warning-color);
+}
+.product-card-selectable .product-tag {
+    margin-top: 0.4rem;
+    color: var(--warning-color);
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+#order-form input,
+#order-form select,
+.promo-form-container input {
+    min-height: 44px;
+}
+.order-button {
+    min-height: 40px;
+}
+@media (min-width: 900px) {
+    .order-page-wrapper {
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+        align-items: start;
+    }
+    #game-info,
+    .order-page-wrapper > .card:nth-of-type(2),
+    .order-page-wrapper > .card:nth-of-type(3) {
+        grid-column: 1;
+    }
+    .order-page-wrapper > .card:nth-of-type(4),
+    .order-page-wrapper > .card:nth-of-type(5) {
+        grid-column: 2;
+    }
+    .order-page-wrapper > .card:nth-of-type(5) {
+        position: sticky;
+        top: 1rem;
+    }
+}
+@media (max-width: 768px) {
+    #game-info {
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    #game-info img {
+        width: 72px;
+        height: 72px;
+    }
+    .product-card-selectable {
+        min-height: 78px;
+        padding: 0.65rem;
+    }
+    .promo-form-container,
+    .confirmation-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .confirmation-actions .order-button,
+    .confirmation-actions .edit-btn {
+        width: 100%;
+    }
+}
+.order-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+#order-form input,
+#server-input-container {
+  grid-column: auto;
+}
+#validation-result {
+  grid-column: 1 / -1;
+}
+.order-form-grid.single-input #target-game-id {
+  grid-column: 1 / -1;
+}
+@media (max-width: 768px) {
+    .order-form-grid {
+    grid-template-columns: 1fr;
+    }
+}
+.order-button,
+#apply-promo-btn {
+    background: var(--primary-gradient);
+    color: #ffffff;
+    border-radius: 8px;
+}
+.order-page-wrapper .card {
+    background: linear-gradient(180deg, var(--bg-surface-elevated) 0%, var(--bg-surface) 100%);
+    border: 1px solid var(--border-color);
+}
+.order-page-wrapper .card h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--text-color);
+}
+.order-page-wrapper .card h3 > span {
+    background: var(--primary-gradient);
+    color: #ffffff;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+#order-form input,
+#order-form select,
+#promo-code-input {
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+#order-form input:focus,
+#order-form select:focus,
+#promo-code-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.18);
+}
+.product-card-selectable {
+    background-color: var(--bg-surface);
+    border: 1.5px solid var(--border-color);
+    border-radius: 10px;
+}
+.product-card-selectable.selected {
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.18), rgba(59, 130, 246, 0.14));
+    border-color: var(--primary-color);
+    box-shadow: 0 0 18px rgba(6, 182, 212, 0.24);
+}
+#payment-info {
+    background: rgba(11, 15, 25, 0.55);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 1rem;
+}
+.total-payment strong {
+    color: var(--primary-color);
+}
+.order-page-wrapper {
+  max-width: min(920px, 100%);
+  margin-inline: auto;
+}
+.order-form-grid {
+  gap: 0.75rem;
+}
+@media (max-width: 600px) {
+    .order-form-grid {
+    grid-template-columns: 1fr;
+    }
+}
+#game-info img {
+  width: clamp(70px, 12vw, 100px);
+  height: clamp(70px, 12vw, 100px);
+}
+.order-button {
+  min-height: 40px;
+  cursor: pointer;
+}
+@media (max-width: 480px) {
+    .confirmation-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+    }
+    .confirmation-actions .order-button,
+    .confirmation-actions .edit-btn {
+    width: 100%;
+    }
+}
+.product-card-selectable {
+  transition: all 0.18s ease;
+}
+@media (max-width: 480px) {
+    .promo-form-container {
+    flex-direction: column;
+    }
+    .promo-form-container button {
+    width: 100%;
+    }
+}
+@media (min-width: 900px) {
+    .order-page-wrapper {
+    display: flex !important;
+    grid-template-columns: unset !important;
+    flex-direction: row;
+    gap: 1.5rem;
+    align-items: flex-start;
+    max-width: 1060px;
+    margin-inline: auto;
+    }
+    #game-info,
+    .order-page-wrapper > .card:nth-of-type(2),
+    .order-page-wrapper > .card:nth-of-type(3),
+    .order-page-wrapper > .card:nth-of-type(4),
+    .order-page-wrapper > .card:nth-of-type(5) {
+    grid-column: unset !important;
+    grid-row: unset !important;
+    position: static !important;
+    }
+    .order-main-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    }
+    .order-side-col {
+    width: 340px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    position: sticky;
+    top: 5rem;
+    align-self: flex-start;
+    }
+}
+@media (max-width: 899px) {
+    .order-page-wrapper {
+    display: block !important;
+    }
+    .order-main-col,
+    .order-side-col {
+    display: block;
+    }
+    .order-main-col .card,
+    .order-side-col .card {
+    margin-bottom: 1rem;
+    }
+}
+@media (min-width: 1200px) {
+    .order-page-wrapper {
+    max-width: 1080px !important;
+    }
+    .order-side-col {
+    width: 360px;
+    }
+}
+@media (min-width: 900px) {
+    #product-list-container.product-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.6rem;
+    }
+}
+.product-card-selectable {
+  overflow: hidden;
+  word-break: break-word;
+  min-width: 0;
+}
+.product-card-selectable span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  max-width: 100%;
+  line-clamp: 2;
+}
+.product-card-selectable small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+@media (max-width: 480px) {
+    #product-list-container.product-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    }
+}
+.product-card-selectable {
+    min-height: 72px;
+    padding: 0.6rem 0.5rem;
+}
+.product-card-selectable span {
+    font-size: 0.82rem;
+    line-height: 1.25;
+    margin-bottom: 0.2rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-clamp: 2;
+    overflow: hidden;
+    max-height: calc(1.25em * 2);
+}
+.product-card-selectable small {
+    font-size: 0.75rem;
+}
+@media (min-width: 900px) {
+    #product-list-container.product-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 0.65rem;
+    }
+}
+@media (max-width: 480px) {
+    #product-list-container.product-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+    .product-card-selectable {
+        min-height: 64px;
+        padding: 0.5rem 0.4rem;
+    }
+    .product-card-selectable span {
+        font-size: 0.78rem;
+    }
+    .product-card-selectable small {
+        font-size: 0.7rem;
+    }
+}
+@media (max-width: 360px) {
+    #product-list-container.product-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.4rem;
+    }
+    .product-card-selectable {
+        min-height: 58px;
+        padding: 0.4rem 0.3rem;
+    }
+}
+#payment-info {
+    font-size: 0.95rem;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+}
+@media (max-width: 768px) {
+    #payment-info {
+        font-size: 0.9rem;
+    }
+}
+.total-payment strong {
+    font-size: 1.05rem;
+}
+@media (min-width: 900px) {
+    #game-info {
+        gap: 1.25rem;
+        padding: 1.25rem;
+    }
+    #game-info img {
+        width: clamp(72px, 8vw, 96px);
+        height: clamp(72px, 8vw, 96px);
+    }
+    .order-page-wrapper .card h3 {
+        font-size: 1rem;
+        margin-bottom: 1rem;
+    }
+}

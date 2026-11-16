@@ -1,0 +1,265 @@
+/* MIKU Store — Storefront Search Bar, Mobile Drawer & Notifications */
+
+.search-container {
+    position: relative;
+    width: 100%;
+    max-width: 450px;
+}
+.search-input-wrapper {
+    position: relative;
+}
+.search-input-wrapper .search-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+}
+#search-input {
+    width: 100%;
+    padding: 0.7rem 1rem 0.7rem 40px;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 25px;
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+.search-results-list {
+    position: absolute;
+    top: 110%;
+    left: 0;
+    width: 100%;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    max-height: 40vh;
+    overflow-y: auto;
+    z-index: 200;
+}
+.search-results-list a {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.8rem 1rem;
+    text-decoration: none;
+    color: var(--text-color);
+}
+.search-results-list a:hover {
+    background-color: var(--primary-color);
+}
+.search-results-list a img {
+    width: 40px;
+    height: 40px;
+    border-radius: 5px;
+    object-fit: cover;
+}
+@media (max-width: 768px) {
+    #hamburger-btn {
+        display: block;
+        padding-left: 0;
+        margin-right: 0.5rem;
+    }
+    .header-right .pricelist-btn, .header-right .validate-btn { display: none; }
+    .dropdown-menu {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        width: 70%;
+        max-width: 300px;
+        height: 100vh;
+        background-color: var(--bg-dark);
+        padding: 1.5rem;
+        transition: left 0.3s ease-in-out;
+        border: none;
+        border-right: 1px solid var(--border-color);
+        box-shadow: 5px 0 15px rgba(0,0,0,0.2);
+        z-index: 200;
+    }
+    .dropdown-menu.active { left: 0; }
+    .dropdown-menu a {
+        color: var(--text-color);
+        text-decoration: none;
+        display: block;
+        padding: 1rem 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 1.1rem;
+    }
+}
+@media (min-width: 769px) {
+    #hamburger-btn { display: none; }
+}
+#game-search-input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-dark);
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+@media (min-width: 769px) {
+    #dropdown-menu {
+        display: none !important;
+    }
+}
+@media (max-width: 480px) {
+    #game-search-input {
+        font-size: 0.85rem;
+        padding: 6px 10px;
+        height: 36px;
+    }
+}
+.pricelist-search-wrapper {
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+}
+#notification-container {
+    position: relative;
+    cursor: pointer;
+}
+.badge-count {
+    position: absolute;
+    top: -5px;
+    right: -8px;
+    background-color: var(--danger-color);
+    color: white;
+    border-radius: 50%;
+    padding: 2px 6px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    border: 2px solid var(--bg-dark);
+}
+.notification-panel {
+    position: absolute;
+    top: 150%;
+    right: 0;
+    width: 320px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    z-index: 200;
+    overflow: hidden;
+}
+.notification-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.notification-header h4 {
+    margin: 0;
+}
+.notification-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+.notification-item {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    display: block;
+    text-decoration: none;
+    color: var(--text-color);
+}
+.notification-item:last-child {
+    border-bottom: none;
+}
+.notification-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.notification-item.unread {
+    background-color: rgba(6, 182, 212, 0.1);
+}
+#search-input {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+#search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.18);
+}
+.search-results-list {
+    background-color: var(--bg-surface-elevated);
+    border-color: var(--border-color);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.search-results-list a:hover {
+    background-color: rgba(6, 182, 212, 0.16);
+}
+.search-container {
+  max-width: min(450px, 100%);
+  width: 100%;
+}
+#search-input {
+  font-size: 0.9rem;
+}
+.notification-panel {
+  max-width: calc(100vw - 2rem);
+  right: 0;
+}
+.pricelist-search-wrapper {
+  padding: 0;
+  margin-bottom: 0.75rem;
+}
+#game-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+@media (min-width: 769px) {
+    #game-search-input {
+    max-width: 100%;
+    box-sizing: border-box;
+    }
+}
+@media (max-width: 640px) {
+    .validate-btn {
+    display: none;
+    }
+}
+@media (max-width: 768px) {
+    #leaderboard-nav-btn {
+        display: none !important;
+    }
+}
+#notification-container .badge-count {
+    top: -6px;
+    right: -6px;
+}
+@media (min-width: 769px) {
+    #hamburger-btn {
+        display: none !important;
+    }
+}
+@media (max-width: 768px) {
+    .search-container {
+        max-width: 100%;
+    }
+    #search-input {
+        padding: 0.55rem 1rem 0.55rem 2.5rem;
+        min-height: 40px;
+        font-size: 0.9rem;
+    }
+    #hamburger-btn {
+        display: inline-flex;
+        margin-right: 0;
+        padding: 0;
+    }
+    .dropdown-menu {
+        z-index: 999;
+        visibility: hidden;
+        pointer-events: none;
+        box-sizing: border-box;
+        height: 100vh;
+        height: 100dvh;
+        overflow-y: auto;
+        background-color: var(--bg-dark, #0b0f19);
+    }
+    .dropdown-menu.active {
+        left: 0;
+        visibility: visible;
+        pointer-events: auto;
+    }
+}
