@@ -137,8 +137,18 @@ Catatan pembaruan implementasi pasca-refaktorisasi modular backend dan batch `SE
   - `SEC-020` (`SEC-016c` bagian Redaksi Log): Menambah `redactSensitiveData` rekursif pada `backend/utils/logger.js` dan mengonversi `console.error` mentah pada `errorHandler`, `h2h.routes.js`, dan rute admin tersentuh ke `logSafeError`.
   - `SEC-012` (`SEC-016c` bagian Anti-SSRF URL Aset): Memperketat `isSafeAssetUrl` di `backend/utils/validation.js` (wajib HTTPS di production, menolak `localhost`, IP privat/loopback/link-local/metadata cloud, kredensial, dan path traversal) serta menerapkannya konsisten di `paymentMethods.routes.js`, `games.routes.js`, dan `h2h.routes.js`.
   - Teruji oleh 7 kasus baru di `backend/tests/integration/securityHardening.test.js`.
+- **Ditutup / diperkuat pada branch `sec/auth-and-validation` (Batch 2: `SEC-014` & `SEC-011`):**
+  - `SEC-014` (Autentikasi, Bcrypt Cost, & Reset Password):
+    - Cost `bcrypt.hash` ditingkatkan menjadi **`12`** pada `POST /api/auth/register`, `POST /api/auth/reset-password`, dan `PUT /api/user/password` (tetap kompatibel memverifikasi hash lama cost 10 via `bcrypt.compare`).
+    - Masa berlaku token reset `POST /api/auth/forgot-password` dipersingkat menjadi **30 menit**, token lama dibersihkan sebelum insert baru dalam transaksi, koneksi DB dilepas sebelum memanggil mailer, dan respons sukses selalu generik identik (`200`) untuk email terdaftar maupun tidak terdaftar (anti user-enumeration).
+    - `POST /api/auth/reset-password` memakai transaksi `BEGIN -> SELECT ... WHERE token = $1 FOR UPDATE -> DELETE -> UPDATE -> COMMIT` tanpa fallback token plaintext (konsumsi atomik sekali pakai).
+    - `PUT /api/user/password` memvalidasi `isValidPassword` (`8-128` karakter) + tipe string; `backend/middleware/auth.js` membatasi `jwt.verify` dengan `{ algorithms: ['HS256'] }`.
+    - *(Sisa lanjutan `SEC-014`: migrasi sesi SPA dari `Bearer` ke cookie `HttpOnly` + CSRF token & revokasi JWT berbasis `token_version` lintas frontend/backend).*
+  - `SEC-011` (Validasi Skema Input Terpusat):
+    - Menambahkan `backend/utils/schemaValidators.js` (`283` baris) serta validasi skema ketat (body plain object, panjang string, `requirePositiveInt`, `requireBoundedNumber`, enum whitelist, rentang tanggal, peta `manual_prices` & `rules`) pada 8 rute admin (`promos`, `flashSales`, `margins`, `products`, `games`, `deposits`, `transactions`, `paymentMethods`) serta rute publik/member (`user`, `catalog`, `public`).
+    - Teruji oleh 6 kasus baru pada `backend/tests/integration/authAndSchemaHardening.test.js`.
 - **Masih terbuka untuk roadmap fase berikutnya:**
   - `SEC-005` (2FA TOTP Admin & path/IP allowlist panel admin)
-  - `SEC-011` (validasi skema penuh admin mis. Zod/Joi), `SEC-014` (`bcrypt` cost 12, expiry token reset `<= 30` menit + `FOR UPDATE`, migrasi JWT ke cookie `HttpOnly` + CSRF)
+  - `SEC-011` (sisa validasi nominal `balance.routes.js`), `SEC-014` (sisa migrasi cookie `HttpOnly` + CSRF & `token_version` revokasi JWT)
   - `SEC-015` (verifikasi sertifikat DB CA `rejectUnauthorized: true`)
   - `SEC-017`, `SEC-018`, `SEC-019`, `SEC-021`, `SEC-022`, `SEC-024`, `SEC-025`, `SEC-026`, `SEC-027`, `SEC-028`, `SEC-029` (rate limit admin/publik & Turnstile, penyempurnaan cron advisory lock & guard bulk-disable, ledger `balance_before`/`balance_after`, paginasi server, penghapusan `/api/test`, validator param ID seragam).

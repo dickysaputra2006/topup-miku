@@ -189,7 +189,7 @@
   - `requireString(value, label, opts)` & `optionalTrimmedString(value, label, opts)`
   - `requirePositiveInt(value, label, opts)` & `optionalPositiveInt(value, label, opts)`
   - `requireBoundedNumber(value, label, opts)`
-  - `requireBoolean(value, label)` & `optionalBoolean(value, label, fallback)`
+  - `requireBoolean(value, label)`
   - `requireEnum(value, label, allowed, opts)`
   - `requireValidDate(value, label)`
   - `validatePromoRulesObject(rules)` & `validateManualPricesMap(manualPrices)`
@@ -199,3 +199,10 @@
 | **COMMIT 2 (`SEC-011a`)** | `backend/utils/schemaValidators.js` (baru), `promos.routes.js` (`56` baris), `flashSales.routes.js` (`71`), `margins.routes.js` (`142`), `products.routes.js` (`271`), `games.routes.js` (`223`), `deposits.routes.js` (`239`), `transactions.routes.js` (`186`), `paymentMethods.routes.js` (`274`) | Validasi body plain object, param ID integer positif (`:id`, `:gameId`, `:productId`, `:invoiceId`), string panjang terukur & enum (`type`, `status`, `action`, `promo_code`), rentang angka (`margin 0..500%`, `price/discount_price 1..100.000.000`, `percentage 0.01..100`, `depositId` positive integer tanpa float, `max_uses` int positif), tanggal valid & `end_at > start_at`, struktur `rules`/`manual_prices`, pertahankan audit log `SEC-016b` & query berparameter, serta konversi `console.error` ke `logSafeError`. *(Catatan: `balance.routes.js` tidak diubah perilaku statusnya pada batch ini; validasi lanjutan nominal saldo manual dicatat ke fase berikutnya).* |
 | **COMMIT 3 (`SEC-011b`)** | `user.routes.js` (`222` baris), `catalog.routes.js` (`194`), `public.routes.js` (`368`) | Validasi body plain object & batas string/email/telepon pada `PUT /api/user/profile`, validasi param ID & field `validate`/`full-validate`/`promos/validate` pada `catalog.routes.js` (dengan whitelist `rules.allowedRegions`/`disallowedRegions` dan `gameCode` aman), validasi `:gameId` & `:gameName` pada `public.routes.js` sambil mempertahankan kompatibilitas `publicEndpoints.test.js` (`?limit=999` clamp `50`, `?period=invalid` fallback `'all_time'`), mempertahankan batas `<= 400` baris, serta memastikan urutan middleware / `effective_chains` (`87/87`) tetap identik. |
 | **COMMIT 4 (`SEC-014/011-test`)** | `backend/tests/integration/authAndSchemaHardening.test.js` (baru, `<= 600` baris), `docs/refactor-baseline-tests.txt`, `AUDIT_SECURITY.md`, `docs/security-hardening-plan.md` | Uji otomatis bcrypt cost `>= 12`, token reset kedaluwarsa (`> 30` menit) & single-use atomik (`FOR UPDATE`/replay gagal), anti-enumeration `forgot-password`, dan penolakan HTTP `400` pada payload tipe/rentang/panjang/enum ilegal di rute admin & publik. Diikuti verifikasi manual 3 skrip PostgreSQL (`concurrency.js`, `idempotency.js`, `pool.js`). |
+
+### 5.3 Ringkasan Eksekusi & Ukuran File Aktual Batch 2
+
+- **Commit 1 (`SEC-014` — `31911af`):** `auth.routes.js` (`261` baris `<= 400`), `user.routes.js` (`237` baris `<= 400`), `auth.js` (`68` baris `<= 300`), `docs/security-hardening-plan.md`.
+- **Commit 2 (`SEC-011a` — `c37f56c`):** `schemaValidators.js` (`283` baris `<= 300`), `promos.routes.js` (`123`), `flashSales.routes.js` (`113`), `margins.routes.js` (`196`), `products.routes.js` (`312`), `games.routes.js` (`271`), `deposits.routes.js` (`253`), `transactions.routes.js` (`194`), `paymentMethods.routes.js` (`288`) — seluruh rute admin `<= 400`.
+- **Commit 3 (`SEC-011b` — `e3992b6`):** `user.routes.js` (`253`), `catalog.routes.js` (`303`), `public.routes.js` (`376`) — seluruhnya `<= 400`.
+- **Commit 4 (`SEC-014/011-test`):** `authAndSchemaHardening.test.js` (`6` kasus baru, total test suite `199 -> 205`), `docs/refactor-baseline-tests.txt`, `AUDIT_SECURITY.md`, `docs/security-hardening-plan.md`.
