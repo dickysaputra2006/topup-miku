@@ -217,8 +217,8 @@
 
             <section id="mutasi-saldo" class="dashboard-section hidden">
                 <div class="card">
-                    <h3>Riwayat Mutasi Saldo</h3>
-                    <div class="table-container">
+                    <h2 id="mutasi-heading">Riwayat Mutasi Saldo</h2>
+                    <div tabindex="0" role="region" aria-labelledby="mutasi-heading" class="table-container">
                         <table id="mutasi-table">
                             <thead>
                                 <tr>
@@ -236,63 +236,94 @@
             </section>
 
             <section id="deposit-tab" class="dashboard-section hidden">
-
-                <!-- Card instruksi metode pembayaran (dimuat dinamis dari GET /api/payment-methods) -->
                 <div class="card deposit-card">
-                    <h3><i class="fas fa-info-circle"></i> Cara Deposit Saldo</h3>
-                    <p class="form-description" style="text-align:left;">Pilih dan transfer ke salah satu metode aktif di bawah, lalu
-                        ajukan request dengan nominal yang sesuai. Saldo masuk setelah admin verifikasi.</p>
+                    <h2>Cara Deposit Saldo</h2>
+                    <p class="deposit-helper-text">Pilih metode pembayaran aktif di bawah, transfer sesuai nominal akhir, lalu ajukan permintaan deposit.</p>
                     <div id="deposit-methods-grid" class="deposit-method-grid" aria-live="polite">
                         <div class="ui-state loading">Memuat metode pembayaran...</div>
                     </div>
-                    <p class="form-description" style="text-align:left; margin-top:0.75rem; color:#ffc107;">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <strong>Penting:</strong> Saldo tidak bertambah otomatis. Admin akan memverifikasi pembayaran
-                        dan menyetujui deposit.
+                    <p class="deposit-warning-note">
+                        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                        <span><strong>Penting:</strong> Saldo masuk setelah pembayaran Anda diverifikasi oleh admin.</span>
                     </p>
                 </div>
 
-                <!-- Card form request deposit -->
-                <div class="card deposit-card" style="margin-top:1.25rem;">
-                    <h3 id="deposit-form-heading"><i class="fas fa-plus-circle"></i> Ajukan Request Deposit</h3>
+                <div class="card deposit-card">
+                    <h2 id="deposit-form-heading">Ajukan Request Deposit</h2>
                     <form id="deposit-form" aria-labelledby="deposit-form-heading">
-                        <label for="deposit-method">Metode Pembayaran <span aria-hidden="true">*</span></label>
-                        <select id="deposit-method" name="method" required class="dashboard-input"
-                            data-error="deposit-method-error"
-                            style="margin-top:0.5rem;margin-bottom:0.35rem;">
+                        <label for="deposit-method" class="deposit-field-label">Metode Pembayaran <span aria-hidden="true">*</span></label>
+                        <select id="deposit-method" name="method" required class="dashboard-input" data-error="deposit-method-error">
                             <option value="" disabled selected>-- Memuat Metode Pembayaran... --</option>
                         </select>
                         <div id="deposit-method-error" class="form-field-error">Silakan pilih metode pembayaran terlebih dahulu.</div>
                         <div id="deposit-method-info" class="deposit-selected-card hidden" aria-live="polite"></div>
 
-                        <label for="amount">Jumlah Deposit (Rp) <span aria-hidden="true">*</span></label>
-                        <div class="form-row-container" style="margin-top:0.5rem;">
-                            <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" max="100000000"
-                                step="1000" inputmode="numeric" required class="dashboard-input">
-                            <button type="submit" class="btn-submit-deposit">Ajukan Deposit</button>
+                        <label class="deposit-field-label">Pilih Nominal Cepat</label>
+                        <div id="deposit-presets" class="deposit-presets" role="group" aria-label="Pilihan nominal cepat">
+                            <button type="button" class="deposit-preset-chip" data-amount="25000" aria-pressed="false">Rp 25.000</button>
+                            <button type="button" class="deposit-preset-chip" data-amount="50000" aria-pressed="false">Rp 50.000</button>
+                            <button type="button" class="deposit-preset-chip" data-amount="100000" aria-pressed="false">Rp 100.000</button>
+                            <button type="button" class="deposit-preset-chip" data-amount="250000" aria-pressed="false">Rp 250.000</button>
+                            <button type="button" class="deposit-preset-chip" data-amount="500000" aria-pressed="false">Rp 500.000</button>
+                            <button type="button" class="deposit-preset-chip" data-amount="1000000" aria-pressed="false">Rp 1.000.000</button>
                         </div>
-                        <p id="deposit-amount-hint" class="form-description deposit-note">Minimum deposit Rp 10.000. Nominal akhir akan ditambah
-                            kode unik 3 digit (kecuali metode QRIS) untuk memudahkan verifikasi.</p>
-                        <label for="deposit-note" style="margin-top:0.75rem;display:block;">Catatan <span
-                                style="font-weight:400;color:#9ca3af;">(opsional, max 200 karakter)</span></label>
-                        <textarea id="deposit-note" name="note" maxlength="200" rows="2"
-                            placeholder="Opsional: nama pengirim / jam transfer / catatan lain" class="dashboard-input"
-                            style="margin-top:0.4rem;resize:vertical;"></textarea>
+
+                        <label for="amount" class="deposit-field-label">Jumlah Deposit (Rp) <span aria-hidden="true">*</span></label>
+                        <input
+                            type="number"
+                            id="amount"
+                            name="amount"
+                            placeholder="Contoh: 50000"
+                            min="10000"
+                            max="100000000"
+                            step="1000"
+                            inputmode="numeric"
+                            required
+                            class="dashboard-input"
+                        >
+                        <p id="deposit-amount-hint" class="deposit-note">Minimum deposit Rp 10.000. Nominal akhir ditambah kode unik 3 digit (kecuali metode QRIS) untuk memudahkan verifikasi.</p>
+
+                        <label for="deposit-note" class="deposit-field-label">Catatan <span class="optional-tag">(opsional, maks. 200 karakter)</span></label>
+                        <textarea
+                            id="deposit-note"
+                            name="note"
+                            maxlength="200"
+                            rows="2"
+                            placeholder="Opsional: nama pengirim atau jam transfer"
+                            class="dashboard-input deposit-textarea"
+                        ></textarea>
+
+                        <div class="deposit-summary-box" aria-live="polite">
+                            <div class="deposit-summary-row">
+                                <span>Nominal Deposit</span>
+                                <strong id="deposit-summary-amount" class="tabular-nums">-</strong>
+                            </div>
+                            <div class="deposit-summary-row">
+                                <span>Biaya Admin</span>
+                                <strong class="tabular-nums">Rp 0</strong>
+                            </div>
+                            <div class="deposit-summary-row">
+                                <span>Kode Unik</span>
+                                <strong id="deposit-summary-unique" class="tabular-nums">Otomatis +3 digit saat diajukan</strong>
+                            </div>
+                            <div class="deposit-summary-row total-row">
+                                <span>Estimasi Total Transfer</span>
+                                <strong id="deposit-summary-total" class="tabular-nums">-</strong>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-submit-deposit deposit-submit-btn">Ajukan Deposit</button>
                     </form>
                 </div>
 
-                <!-- Hasil instruksi setelah submit -->
-                <div id="payment-instructions" class="card deposit-card hidden" style="margin-top:1.25rem;">
-                    <h3><i class="fas fa-clipboard-list"></i> Instruksi Pembayaran</h3>
+                <div id="payment-instructions" class="card deposit-card hidden" aria-live="polite">
+                    <h2>Instruksi Pembayaran</h2>
                     <div id="instruction-text"></div>
-                    <p class="form-description" style="text-align:left; margin-top:0.75rem;">
-                        Setelah transfer, tunggu konfirmasi dari admin. Riwayat request terlihat di bawah.
-                    </p>
+                    <p class="deposit-note">Setelah transfer, tunggu verifikasi admin. Status request Anda tercatat pada tabel riwayat di bawah.</p>
                 </div>
 
-                <!-- Riwayat deposit user -->
-                <div class="card deposit-card" style="margin-top:1.25rem;">
-                    <h3 id="deposit-history-heading"><i class="fas fa-history"></i> Riwayat Deposit</h3>
+                <div class="card deposit-card">
+                    <h2 id="deposit-history-heading">Riwayat Deposit</h2>
                     <div tabindex="0" role="region" aria-labelledby="deposit-history-heading" class="table-container">
                         <table id="deposit-history-table">
                             <thead>
@@ -307,20 +338,29 @@
                             </thead>
                             <tbody id="deposit-history-body">
                                 <tr>
-                                    <td colspan="6" style="text-align:center;">Memuat riwayat...</td>
+                                    <td colspan="6">Memuat riwayat...</td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
-
             </section>
 
             <section id="transaksi-tab" class="dashboard-section hidden">
                 <div class="card">
-                    <h3>Riwayat Transaksi Anda</h3>
-                    <p class="form-description">Berikut adalah semua pembelian yang pernah Anda lakukan.</p>
-                    <div class="table-container">
+                    <h2 id="transactions-heading">Riwayat Transaksi Anda</h2>
+                    <p class="deposit-helper-text">Pantau status seluruh pesanan top up game Anda.</p>
+                    <div class="tx-toolbar">
+                        <div id="tx-filter-bar" class="tx-filter-bar" role="group" aria-label="Filter status transaksi">
+                            <button type="button" class="tx-filter-chip active" data-status="all" aria-pressed="true">Semua</button>
+                            <button type="button" class="tx-filter-chip" data-status="Success" aria-pressed="false">Berhasil</button>
+                            <button type="button" class="tx-filter-chip" data-status="Pending" aria-pressed="false">Pending</button>
+                            <button type="button" class="tx-filter-chip" data-status="Partial Refund" aria-pressed="false">Perlu Review</button>
+                            <button type="button" class="tx-filter-chip" data-status="Failed" aria-pressed="false">Gagal</button>
+                        </div>
+                        <span id="tx-filter-count" class="tx-filter-count tabular-nums"></span>
+                    </div>
+                    <div tabindex="0" role="region" aria-labelledby="transactions-heading" class="table-container">
                         <table id="transactions-table">
                             <thead>
                                 <tr>
@@ -341,16 +381,14 @@
 
             <section id="cek-pesanan" class="dashboard-section hidden">
                 <div class="card">
-                    <h3>Cek Pesanan</h3>
-                    <p class="form-description">Masukkan Nomor Invoice Anda untuk melihat detail transaksi.</p>
+                    <h2>Cek Pesanan</h2>
+                    <p class="deposit-helper-text">Masukkan Nomor Invoice Anda untuk melihat rincian status transaksi.</p>
                     <form id="cek-pesanan-form" class="form-row-container">
-                        <input type="text" id="invoice-search-input" placeholder="Contoh: TRX-1234567890" required
-                            class="dashboard-input">
+                        <input type="text" id="invoice-search-input" placeholder="Contoh: TRX-1234567890" required class="dashboard-input">
                         <button type="submit" class="btn-submit-deposit">Cari Transaksi</button>
                     </form>
                 </div>
-                <div id="hasil-cek-pesanan" class="card hidden" style="margin-top: 2rem;">
-                </div>
+                <div id="hasil-cek-pesanan" class="card hidden"></div>
             </section>
 
             <section id="integrasi" class="dashboard-section hidden">
