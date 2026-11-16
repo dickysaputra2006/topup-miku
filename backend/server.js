@@ -19,10 +19,7 @@ const {
     logSafeError,
     safeAxiosError,
 } = require('./utils/logger');
-const {
-    normalizeString,
-    escapeHtml,
-} = require('./utils/strings');
+const { normalizeString } = require('./utils/strings');
 const {
     timingSafeStringEqual,
     generateInvoiceId,

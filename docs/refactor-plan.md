@@ -435,3 +435,10 @@ Prinsip kerja:
 - Hapus import tak terpakai di `backend/server.js` setelah Commit 1–4 (`escapeHtml` yang hanya dipakai di `buildDepositPaymentInstructions`).
 - Perbarui skrip `check` di `backend/package.json` agar juga memeriksa `routes/admin` (`routes/admin/*.js`).
 - Perbarui bagian ini dengan hash commit aktual dan jumlah baris akhir setiap file.
+
+### Hasil Akhir R6b
+- Panjang `backend/server.js`: `3295` baris (akhir R6a) -> `3028` baris (Commit 1 `721057d`: `routes/deposit.routes.js` = `290` baris) -> `2863` baris (Commit 2 `77a946a`: `routes/admin/deposits.routes.js` = `189` baris) -> `2819` baris (Commit 3 `8610dfd`: `routes/admin/balance.routes.js` = `66` baris) -> `2708` baris (Commit 4 `aeae1bc`: `routes/admin/transactions.routes.js` = `152` baris) -> `2705` baris (Commit 5: pembersihan import tak terpakai).
+- Import tak terpakai yang dihapus di Commit 5: `escapeHtml`.
+- Skrip `check` pada `backend/package.json` diperbarui agar juga memeriksa direktori `routes/admin`.
+- Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=260, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
+- Catatan cakupan tes & DB: `tests/manual/*` (`concurrency.js`, `idempotency.js`, `pool.js`) sengaja tidak dijalankan karena R6b tidak mengubah alur order/refund; tidak ada migrasi database pada tahap ini.
