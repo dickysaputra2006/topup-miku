@@ -1,4 +1,17 @@
 const express = require('express');
+const { logSafeError } = require('../../utils/logger');
+const {
+    getBodyObject,
+    requireString,
+    optionalTrimmedString,
+    requirePositiveInt,
+    optionalPositiveInt,
+    requireBoundedNumber,
+    requireBoolean,
+    requireEnum,
+    requireValidDate,
+    validatePromoRulesObject,
+} = require('../../utils/schemaValidators');
 
 /**
  * Daftarkan route admin untuk manajemen kode promo.
@@ -15,15 +28,60 @@ module.exports = function createAdminPromosRoutes(deps) {
     const router = express.Router();
 
     router.post('/api/admin/promos', protectAdmin, async (req, res) => {
-        const { code, description, type, value, expires_at, rules, max_uses } = req.body;
         try {
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+            const body = bodyRes.value;
+
+            const codeRes = requireString(body.code, 'Kode promo', {
+                min: 2,
+                max: 50,
+                uppercase: true,
+                pattern: /^[A-Z0-9_-]{2,50}$/,
+                patternMessage: 'Kode promo hanya boleh berisi huruf, angka, _ atau - (2-50 karakter).',
+            });
+            if (codeRes.error) return res.status(400).json({ message: codeRes.error });
+
+            const descRes = optionalTrimmedString(body.description, 'Deskripsi promo', { max: 500 });
+            if (descRes.error) return res.status(400).json({ message: descRes.error });
+
+            const typeRes = requireEnum(body.type, 'Tipe promo', ['percentage', 'fixed']);
+            if (typeRes.error) return res.status(400).json({ message: typeRes.error });
+
+            const valueBounds = typeRes.value === 'percentage'
+                ? { min: 0.01, max: 100 }
+                : { min: 1, max: 100000000 };
+            const valueRes = requireBoundedNumber(body.value, 'Nilai diskon promo', valueBounds);
+            if (valueRes.error) return res.status(400).json({ message: valueRes.error });
+
+            let expiresAt = null;
+            if (body.expires_at !== undefined && body.expires_at !== null && String(body.expires_at).trim() !== '') {
+                const expRes = requireValidDate(body.expires_at, 'Tanggal kedaluwarsa promo');
+                if (expRes.error) return res.status(400).json({ message: expRes.error });
+                expiresAt = expRes.value;
+            }
+
+            const maxUsesRes = optionalPositiveInt(body.max_uses, 'Maksimal penggunaan promo', { min: 1, max: 1000000 });
+            if (maxUsesRes.error) return res.status(400).json({ message: maxUsesRes.error });
+
+            const rulesRes = validatePromoRulesObject(body.rules);
+            if (rulesRes.error) return res.status(400).json({ message: rulesRes.error });
+
             const sql = `INSERT INTO promo_codes (code, description, type, value, expires_at, rules, max_uses) 
                          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`;
-            const { rows } = await pool.query(sql, [code.toUpperCase(), description, type, value, expires_at, rules, max_uses]);
+            const { rows } = await pool.query(sql, [
+                codeRes.value,
+                descRes.value,
+                typeRes.value,
+                valueRes.value,
+                expiresAt,
+                rulesRes.value,
+                maxUsesRes.value,
+            ]);
             res.status(201).json(rows[0]);
         } catch (error) {
             if (error.code === '23505') return res.status(409).json({ message: 'Kode promo sudah ada.' });
-            console.error("Gagal membuat kode promo:", error);
+            logSafeError('Gagal membuat kode promo:', error);
             res.status(500).json({ message: 'Gagal membuat kode promo.' });
         }
     });
@@ -34,6 +92,7 @@ module.exports = function createAdminPromosRoutes(deps) {
             const { rows } = await pool.query('SELECT * FROM promo_codes ORDER BY created_at DESC');
             res.json(rows);
         } catch (error) {
+            logSafeError('Gagal mengambil data promo:', error);
             res.status(500).json({ message: 'Gagal mengambil data promo.' });
         }
     });
@@ -41,13 +100,21 @@ module.exports = function createAdminPromosRoutes(deps) {
     // Endpoint untuk menonaktifkan/mengaktifkan promo
     router.put('/api/admin/promos/:id/toggle', protectAdmin, async (req, res) => {
         try {
-            const { id } = req.params;
-            const { is_active } = req.body;
+            const idRes = requirePositiveInt(req.params.id, 'ID promo');
+            if (idRes.error) return res.status(400).json({ message: idRes.error });
+
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+
+            const activeRes = requireBoolean(bodyRes.value.is_active, 'is_active');
+            if (activeRes.error) return res.status(400).json({ message: activeRes.error });
+
             const sql = 'UPDATE promo_codes SET is_active = $1 WHERE id = $2 RETURNING *';
-            const { rows } = await pool.query(sql, [is_active, id]);
+            const { rows } = await pool.query(sql, [activeRes.value, idRes.value]);
             if (rows.length === 0) return res.status(404).json({ message: 'Kode promo tidak ditemukan.' });
             res.json(rows[0]);
         } catch (error) {
+            logSafeError('Gagal mengubah status promo:', error);
             res.status(500).json({ message: 'Gagal mengubah status promo.' });
         }
     });

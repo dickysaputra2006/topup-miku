@@ -1,5 +1,13 @@
 const express = require('express');
 const { FOXY_API_KEY } = require('../../config/env');
+const { logSafeError } = require('../../utils/logger');
+const {
+    getBodyObject,
+    requireString,
+    requirePositiveInt,
+    requireBoundedNumber,
+    requireEnum,
+} = require('../../utils/schemaValidators');
 const { syncProductsWithFoxy } = require('../../jobs/productSync');
 const { invalidateFoxyProductCache } = require('../../services/foxyClient');
 
@@ -134,21 +142,41 @@ module.exports = function createAdminProductsRoutes(deps) {
 
             res.json(productsWithRolePrices);
         } catch (error) {
-            console.error('Error fetching admin products with role prices:', error);
+            logSafeError('Error fetching admin products with role prices:', error);
             res.status(500).json({ message: 'Server error saat mengambil data produk dengan harga role.' });
         }
     });
 
     router.post('/api/admin/products', protectAdmin, async (req, res) => {
         try {
-            const { game_id, name, provider_sku, price, category_id } = req.body;
-            if (!game_id || !name || !provider_sku || !price || !category_id) return res.status(400).json({ message: 'Semua kolom wajib diisi.' });
-            // PostgreSQL: Menggunakan ON CONFLICT DO UPDATE
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+            const body = bodyRes.value;
+
+            const gameIdRes = requirePositiveInt(body.game_id, 'game_id');
+            if (gameIdRes.error) return res.status(400).json({ message: gameIdRes.error });
+
+            const categoryIdRes = requirePositiveInt(body.category_id, 'category_id');
+            if (categoryIdRes.error) return res.status(400).json({ message: categoryIdRes.error });
+
+            const nameRes = requireString(body.name, 'Nama produk', { min: 1, max: 200 });
+            if (nameRes.error) return res.status(400).json({ message: nameRes.error });
+
+            const skuRes = requireString(body.provider_sku, 'SKU provider', {
+                min: 1,
+                max: 100,
+                pattern: /^[A-Za-z0-9_.\-:]{1,100}$/,
+            });
+            if (skuRes.error) return res.status(400).json({ message: skuRes.error });
+
+            const priceRes = requireBoundedNumber(body.price, 'Harga produk', { min: 1, max: 100000000 });
+            if (priceRes.error) return res.status(400).json({ message: priceRes.error });
+
             const sql = 'INSERT INTO products (game_id, category_id, name, provider_sku, price, status) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (provider_sku) DO UPDATE SET name = EXCLUDED.name, price = EXCLUDED.price, game_id = EXCLUDED.game_id, category_id = EXCLUDED.category_id, status = EXCLUDED.status';
-            await pool.query(sql, [game_id, category_id, name, provider_sku, price, 'Active']); // Default status
-            res.status(201).json({ message: `Produk ${name} berhasil ditambahkan.` });
+            await pool.query(sql, [gameIdRes.value, categoryIdRes.value, nameRes.value, skuRes.value, priceRes.value, 'Active']);
+            res.status(201).json({ message: `Produk ${nameRes.value} berhasil ditambahkan.` });
         } catch (error) {
-            console.error('Error adding product:', error);
+            logSafeError('Error adding product:', error);
             if (error.code === '23505') return res.status(409).json({ message: 'SKU Provider sudah ada.' });
             res.status(500).json({ message: 'Server error saat menambah produk.' });
         }
@@ -156,53 +184,63 @@ module.exports = function createAdminProductsRoutes(deps) {
 
     router.put('/api/admin/products/:id/status', protectAdmin, async (req, res) => {
         try {
-            const { id } = req.params; // Ambil ID produk dari URL
-            const { status } = req.body; // Ambil status baru dari body request ('Active' atau 'Inactive')
+            const idRes = requirePositiveInt(req.params.id, 'ID produk');
+            if (idRes.error) return res.status(400).json({ message: idRes.error });
 
-            if (!status || (status !== 'Active' && status !== 'Inactive')) {
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+
+            const statusRes = requireEnum(bodyRes.value.status, 'Status', ['Active', 'Inactive']);
+            if (statusRes.error) {
                 return res.status(400).json({ message: "Status tidak valid. Gunakan 'Active' atau 'Inactive'." });
             }
 
             const { rowCount } = await pool.query(
                 'UPDATE products SET status = $1 WHERE id = $2',
-                [status, id]
+                [statusRes.value, idRes.value]
             );
 
             if (rowCount === 0) {
                 return res.status(404).json({ message: 'Produk tidak ditemukan.' });
             }
 
-            res.json({ message: `Status produk berhasil diubah menjadi ${status}.` });
+            res.json({ message: `Status produk berhasil diubah menjadi ${statusRes.value}.` });
 
         } catch (error) {
-            console.error('Error updating product status:', error);
+            logSafeError('Error updating product status:', error);
             res.status(500).json({ message: 'Gagal memperbarui status produk.' });
         }
     });
 
     router.put('/api/admin/products/:id/validation', protectAdmin, async (req, res) => {
         try {
-            const { id } = req.params;
-            const { validation_config } = req.body;
+            const idRes = requirePositiveInt(req.params.id, 'ID produk');
+            if (idRes.error) return res.status(400).json({ message: idRes.error });
+
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+            const { validation_config } = bodyRes.value;
 
             const { error, safe: safeConfig } = sanitizeValidationConfig(validation_config);
             if (error) return res.status(400).json({ message: error });
 
             const { rowCount } = await pool.query(
                 'UPDATE products SET validation_config = $1 WHERE id = $2',
-                [safeConfig, id]
+                [safeConfig, idRes.value]
             );
             if (rowCount === 0) return res.status(404).json({ message: 'Produk tidak ditemukan.' });
             res.json({ message: 'Pengaturan validasi produk berhasil diperbarui.' });
         } catch (error) {
-            console.error('Error updating product validation:', error);
+            logSafeError('Error updating product validation:', error);
             res.status(500).json({ message: 'Gagal memperbarui pengaturan validasi.' });
         }
     });
 
     router.put('/api/admin/products/bulk-validation', protectAdmin, async (req, res) => {
         try {
-            const { productIds, validation_config } = req.body;
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+            const { productIds, validation_config } = bodyRes.value;
 
             if (!Array.isArray(productIds) || productIds.length === 0) {
                 return res.status(400).json({ message: 'productIds harus berupa array dan tidak boleh kosong.' });
@@ -210,10 +248,13 @@ module.exports = function createAdminProductsRoutes(deps) {
             if (productIds.length > 500) {
                 return res.status(400).json({ message: 'Maksimal 500 produk dalam satu batch.' });
             }
-            // Pastikan setiap productId adalah angka positif
-            const safeIds = productIds.map(id => Number(id));
-            if (safeIds.some(id => !Number.isInteger(id) || id <= 0)) {
-                return res.status(400).json({ message: 'Setiap productId harus berupa angka positif.' });
+            const safeIds = [];
+            for (const rawId of productIds) {
+                const itemRes = requirePositiveInt(rawId, 'productId');
+                if (itemRes.error) {
+                    return res.status(400).json({ message: 'Setiap productId harus berupa angka positif.' });
+                }
+                safeIds.push(itemRes.value);
             }
 
             const { error, safe: safeConfig } = sanitizeValidationConfig(validation_config);
@@ -225,7 +266,7 @@ module.exports = function createAdminProductsRoutes(deps) {
             );
             res.json({ message: `Pengaturan validasi berhasil diperbarui untuk ${rowCount} produk.` });
         } catch (error) {
-            console.error('Error updating bulk product validation:', error);
+            logSafeError('Error updating bulk product validation:', error);
             res.status(500).json({ message: 'Gagal memperbarui pengaturan validasi massal.' });
         }
     });
@@ -243,11 +284,11 @@ module.exports = function createAdminProductsRoutes(deps) {
             let effectiveMargin = null;
 
             if (rawMargin !== undefined && rawMargin !== null && String(rawMargin).trim() !== '') {
-                const parsed = Number(rawMargin);
-                if (!Number.isFinite(parsed) || parsed < 0) {
+                const marginRes = requireBoundedNumber(rawMargin, 'Persentase margin', { min: 0, max: 500 });
+                if (marginRes.error) {
                     return res.status(400).json({ message: 'Persentase margin tidak valid.' });
                 }
-                effectiveMargin = parsed;
+                effectiveMargin = marginRes.value;
             } else {
                 const { rows: roleRows } = await pool.query(
                     "SELECT margin_percent FROM roles WHERE LOWER(name) = 'bronze' ORDER BY id ASC LIMIT 1"
@@ -262,7 +303,7 @@ module.exports = function createAdminProductsRoutes(deps) {
 
             res.json({ message: `Sinkronisasi produk berhasil dipicu dengan margin ${effectiveMargin}%.` });
         } catch (error) {
-            console.error('Manual sync trigger error:', error);
+            logSafeError('Manual sync trigger error:', error);
             res.status(500).json({ message: 'Gagal memicu sinkronisasi manual. Cek log server.' });
         }
     });

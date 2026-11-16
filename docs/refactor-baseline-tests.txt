@@ -1,3 +1,9 @@
+Auth & Schema Hardening Tests (SEC-014 & SEC-011) :: Forgot-password menghasilkan respons identik untuk email terdaftar vs tidak terdaftar dengan expiry <= 30 menit
+Auth & Schema Hardening Tests (SEC-014 & SEC-011) :: Middleware JWT menolak token alg none secara ketat
+Auth & Schema Hardening Tests (SEC-014 & SEC-011) :: Register dan ganti password memakai bcrypt cost >= 12 serta tetap kompatibel dengan hash lama cost 10
+Auth & Schema Hardening Tests (SEC-014 & SEC-011) :: Reset-password menolak token kedaluwarsa, memakai FOR UPDATE tanpa plaintext fallback, dan bersifat single-use atomik
+Auth & Schema Hardening Tests (SEC-014 & SEC-011) :: Rute admin menolak payload tipe salah, angka di luar rentang/negatif/NaN, dan enum ilegal dengan 400
+Auth & Schema Hardening Tests (SEC-014 & SEC-011) :: Rute user, catalog, dan public menolak input tidak valid dengan HTTP 400 tanpa query DB
 Auth Login Tests :: should return 200 and token on successful login
 Auth Login Tests :: should return 400 if username or password is missing
 Auth Login Tests :: should return 401 if password does not match

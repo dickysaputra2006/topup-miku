@@ -162,6 +162,47 @@
   - `backend/utils/logger.js` (`143` baris, batas `<= 300`)
   - `backend/utils/validation.js` (`189` baris, batas `<= 300`)
   - `backend/routes/h2h.routes.js` (`187` baris, batas `<= 400`) + sanitasi `logSafeError` dan anti-SSRF pada rute admin tersentuh
-- **Commit 4 (`SEC-016d`):**
+- **Commit 4 (`SEC-016d` — `aa7cbee`):**
   - `backend/tests/integration/securityHardening.test.js` (`7` kasus uji integrasi baru, batas `<= 800`)
   - Pembaruan `docs/refactor-baseline-tests.txt` (`192` -> `199` tes), `AUDIT_SECURITY.md`, dan `docs/security-hardening-plan.md`
+
+---
+
+## 5. Rencana Batch 2: Autentikasi (`SEC-014`) & Validasi Skema Input (`SEC-011`)
+
+**Branch Target:** `sec/auth-and-validation` (dari `main` @ `db8d37b`)  
+**Batas Ukuran Kode:** `route <= 400`, `service <= 600`, `middleware/util <= 300`, `test <= 800`, `app.js/server.js <= 150` baris.
+
+### 5.1 Hasil Audit Celah `SEC-014` (Autentikasi, Bcrypt Cost, & Reset Password)
+
+| File | Kondisi Sebelum `sec/auth-and-validation` | Perbaikan Batch 2 (`COMMIT 1 — SEC-014`) |
+|---|---|---|
+| `backend/routes/auth.routes.js` (`211` baris) | `register` & `reset-password` memakai `bcrypt.hash(..., 10)`; `forgot-password` destructuring `req.body` di luar `try/catch`, expiry token reset `3600000` ms (`1 jam`), tidak menghapus token lama, dan menahan koneksi DB saat `sendPasswordResetEmail`; `reset-password` destructuring `req.body` di luar `try/catch`, query `WHERE token IN ($1, $2)` (fallback plaintext) **tanpa `FOR UPDATE`** sehingga rawan pemakaian ganda paralel. | Naikkan ke `BCRYPT_SALT_ROUNDS = 12` (`register` & `reset-password`, `bcrypt.compare` tetap mendukung hash lama cost 10); cek tipe & objek body dengan aman di semua endpoint auth; pada `forgot-password`: masa berlaku token `30 * 60 * 1000` ms (`30 menit`), hapus token reset lama + simpan hash SHA-256 token baru dalam transaksi lalu release koneksi sebelum `sendPasswordResetEmail`, dan selalu kirim respons HTTP `200` generik identik untuk email terdaftar vs tidak terdaftar; pada `reset-password`: `BEGIN -> SELECT ... WHERE token = $1 FOR UPDATE` (hanya `tokenHash`, tanpa fallback plaintext) -> verifikasi `expires_at > NOW()` -> `DELETE FROM password_resets WHERE email = $1` + update password dalam satu transaksi atomik (`client.release()` di `finally`). |
+| `backend/routes/user.routes.js` (`222` baris) | `PUT /api/user/password` tidak memeriksa tipe string & `isValidPassword(newPassword)`, tidak memeriksa `!user`, memakai `bcrypt.hash(newPassword, 10)`, dan memakai `console.error`. | Validasi objek `req.body`, pastikan `currentPassword` & `newPassword` bertipe string, terapkan `isValidPassword(newPassword)` (`8-128` karakter), cek `rows.length === 0` (`404`), naikkan `bcrypt.hash` ke cost `12`, dan gunakan `logSafeError`. |
+| `backend/middleware/auth.js` (`68` baris) | `jwt.verify(token, jwtSecret)` belum membatasi `algorithms: ['HS256']`. | Terapkan `{ algorithms: ['HS256'] }` pada `protect` & `softProtect` (100% kompatibel dengan `jwt.sign` & `auth.test.js`). *(Catatan: migrasi JWT ke cookie `HttpOnly` + token revokasi penuh `token_version` lintas frontend/backend dijadwalkan fase terpisah agar tidak memutus kontrak SPA `Bearer` eksisting).* |
+
+### 5.2 Hasil Audit Celah `SEC-011` (Validasi Skema Ketat & Batas Baris File)
+
+- `backend/utils/validation.js` saat ini `189` baris dan `backend/routes/public.routes.js` saat ini `368` baris. Agar seluruh file util tetap `<= 300` baris dan route tetap `<= 400` baris, seluruh validator skema baru ditempatkan pada modul terpisah: **`backend/utils/schemaValidators.js`** (`<= 300` baris, tanpa dependensi eksternal).
+- Daftar helper pada `backend/utils/schemaValidators.js`:
+  - `getBodyObject(req)` / `requirePlainObject(value, label)`
+  - `requireString(value, label, opts)` & `optionalTrimmedString(value, label, opts)`
+  - `requirePositiveInt(value, label, opts)` & `optionalPositiveInt(value, label, opts)`
+  - `requireBoundedNumber(value, label, opts)`
+  - `requireBoolean(value, label)`
+  - `requireEnum(value, label, allowed, opts)`
+  - `requireValidDate(value, label)`
+  - `validatePromoRulesObject(rules)` & `validateManualPricesMap(manualPrices)`
+
+| Commit | File Target | Ringkasan Penguatan Skema (`SEC-011`) |
+|---|---|---|
+| **COMMIT 2 (`SEC-011a`)** | `backend/utils/schemaValidators.js` (baru), `promos.routes.js` (`56` baris), `flashSales.routes.js` (`71`), `margins.routes.js` (`142`), `products.routes.js` (`271`), `games.routes.js` (`223`), `deposits.routes.js` (`239`), `transactions.routes.js` (`186`), `paymentMethods.routes.js` (`274`) | Validasi body plain object, param ID integer positif (`:id`, `:gameId`, `:productId`, `:invoiceId`), string panjang terukur & enum (`type`, `status`, `action`, `promo_code`), rentang angka (`margin 0..500%`, `price/discount_price 1..100.000.000`, `percentage 0.01..100`, `depositId` positive integer tanpa float, `max_uses` int positif), tanggal valid & `end_at > start_at`, struktur `rules`/`manual_prices`, pertahankan audit log `SEC-016b` & query berparameter, serta konversi `console.error` ke `logSafeError`. *(Catatan: `balance.routes.js` tidak diubah perilaku statusnya pada batch ini; validasi lanjutan nominal saldo manual dicatat ke fase berikutnya).* |
+| **COMMIT 3 (`SEC-011b`)** | `user.routes.js` (`222` baris), `catalog.routes.js` (`194`), `public.routes.js` (`368`) | Validasi body plain object & batas string/email/telepon pada `PUT /api/user/profile`, validasi param ID & field `validate`/`full-validate`/`promos/validate` pada `catalog.routes.js` (dengan whitelist `rules.allowedRegions`/`disallowedRegions` dan `gameCode` aman), validasi `:gameId` & `:gameName` pada `public.routes.js` sambil mempertahankan kompatibilitas `publicEndpoints.test.js` (`?limit=999` clamp `50`, `?period=invalid` fallback `'all_time'`), mempertahankan batas `<= 400` baris, serta memastikan urutan middleware / `effective_chains` (`87/87`) tetap identik. |
+| **COMMIT 4 (`SEC-014/011-test`)** | `backend/tests/integration/authAndSchemaHardening.test.js` (baru, `<= 600` baris), `docs/refactor-baseline-tests.txt`, `AUDIT_SECURITY.md`, `docs/security-hardening-plan.md` | Uji otomatis bcrypt cost `>= 12`, token reset kedaluwarsa (`> 30` menit) & single-use atomik (`FOR UPDATE`/replay gagal), anti-enumeration `forgot-password`, dan penolakan HTTP `400` pada payload tipe/rentang/panjang/enum ilegal di rute admin & publik. Diikuti verifikasi manual 3 skrip PostgreSQL (`concurrency.js`, `idempotency.js`, `pool.js`). |
+
+### 5.3 Ringkasan Eksekusi & Ukuran File Aktual Batch 2
+
+- **Commit 1 (`SEC-014` — `31911af`):** `auth.routes.js` (`261` baris `<= 400`), `user.routes.js` (`237` baris `<= 400`), `auth.js` (`68` baris `<= 300`), `docs/security-hardening-plan.md`.
+- **Commit 2 (`SEC-011a` — `c37f56c`):** `schemaValidators.js` (`283` baris `<= 300`), `promos.routes.js` (`123`), `flashSales.routes.js` (`113`), `margins.routes.js` (`196`), `products.routes.js` (`312`), `games.routes.js` (`271`), `deposits.routes.js` (`253`), `transactions.routes.js` (`194`), `paymentMethods.routes.js` (`288`) — seluruh rute admin `<= 400`.
+- **Commit 3 (`SEC-011b` — `e3992b6`):** `user.routes.js` (`253`), `catalog.routes.js` (`303`), `public.routes.js` (`376`) — seluruhnya `<= 400`.
+- **Commit 4 (`SEC-014/011-test`):** `authAndSchemaHardening.test.js` (`6` kasus baru, total test suite `199 -> 205`), `docs/refactor-baseline-tests.txt`, `AUDIT_SECURITY.md`, `docs/security-hardening-plan.md`.

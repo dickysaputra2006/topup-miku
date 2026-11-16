@@ -1,6 +1,12 @@
 const express = require('express');
 const { logSafeError } = require('../../utils/logger');
 const {
+    getBodyObject,
+    optionalTrimmedString,
+    requirePositiveInt,
+    requireEnum,
+} = require('../../utils/schemaValidators');
+const {
     recordAdminAuditLog: defaultRecordAdminAuditLog,
 } = require('../../services/auditLogService');
 
@@ -32,11 +38,17 @@ module.exports = function createAdminDepositsRoutes(deps) {
     // GET /api/admin/deposits — list semua deposit, optional ?status=Pending
     router.get('/api/admin/deposits', protectAdmin, async (req, res) => {
         try {
-            const statusFilter = req.query.status;
+            const rawStatus = req.query.status;
             const ALLOWED_STATUSES = ['Pending', 'Approved', 'Rejected'];
+            let statusFilter = null;
+            if (rawStatus !== undefined && rawStatus !== null && String(rawStatus).trim() !== '') {
+                const statusRes = requireEnum(rawStatus, 'Status deposit', ALLOWED_STATUSES);
+                if (statusRes.error) return res.status(400).json({ message: statusRes.error });
+                statusFilter = statusRes.value;
+            }
             let sql;
             let params = [];
-            if (statusFilter && ALLOWED_STATUSES.includes(statusFilter)) {
+            if (statusFilter) {
                 sql = `SELECT d.id, d.user_id, u.username, u.email, u.nomor_wa,
                               d.amount, d.unique_code, d.status, d.method, d.note,
                               d.created_at, d.updated_at
@@ -83,14 +95,15 @@ module.exports = function createAdminDepositsRoutes(deps) {
 
     // POST /api/admin/deposits/approve — approve deposit Pending
     router.post('/api/admin/deposits/approve', protectAdmin, async (req, res) => {
+        const bodyRes = getBodyObject(req);
+        if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+        const depositIdRes = requirePositiveInt(bodyRes.value.depositId, 'Deposit ID');
+        if (depositIdRes.error) return res.status(400).json({ message: 'Deposit ID tidak valid.' });
+        const depositId = depositIdRes.value;
+
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const depositId = Number(req.body.depositId);
-            if (!depositId || !Number.isFinite(depositId) || depositId <= 0) {
-                await client.query('ROLLBACK');
-                return res.status(400).json({ message: 'Deposit ID tidak valid.' });
-            }
             // Lock baris — cegah double approve (FOR UPDATE)
             const { rows: allRows } = await client.query(
                 'SELECT * FROM deposits WHERE id = $1 FOR UPDATE',
@@ -169,14 +182,18 @@ module.exports = function createAdminDepositsRoutes(deps) {
 
     // POST /api/admin/deposits/reject — reject deposit Pending
     router.post('/api/admin/deposits/reject', protectAdmin, async (req, res) => {
+        const bodyRes = getBodyObject(req);
+        if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+        const depositIdRes = requirePositiveInt(bodyRes.value.depositId, 'Deposit ID');
+        if (depositIdRes.error) return res.status(400).json({ message: 'Deposit ID tidak valid.' });
+        const reasonRes = optionalTrimmedString(bodyRes.value.reason, 'Alasan penolakan', { max: 200 });
+        if (reasonRes.error) return res.status(400).json({ message: reasonRes.error });
+        const depositId = depositIdRes.value;
+        const rejectReason = reasonRes.value;
+
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const depositId = Number(req.body.depositId);
-            if (!depositId || !Number.isFinite(depositId) || depositId <= 0) {
-                await client.query('ROLLBACK');
-                return res.status(400).json({ message: 'Deposit ID tidak valid.' });
-            }
             // Lock baris — cegah race condition
             const { rows: allRows } = await client.query(
                 'SELECT * FROM deposits WHERE id = $1 FOR UPDATE',
@@ -200,9 +217,6 @@ module.exports = function createAdminDepositsRoutes(deps) {
             );
             // TIDAK ada UPDATE balance, TIDAK ada INSERT balance_history
             await client.query('COMMIT');
-            const rejectReason = (req.body && typeof req.body.reason === 'string' && req.body.reason.trim())
-                ? req.body.reason.trim().slice(0, 200)
-                : null;
             await recordAdminAuditLog(pool, {
                 req,
                 action: 'admin.deposit.reject',
