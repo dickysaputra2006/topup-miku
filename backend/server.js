@@ -10,7 +10,6 @@ const {
     FOXY_BASE_URL,
     PROVIDER_TIMEOUT_MS,
     FOXY_CACHE_TTL,
-    ALLOWED_PAYMENT_METHOD_TYPES,
     CALLBACK_VERIFY_COOLDOWN_MS,
     CALLBACK_SUCCESS_RESPONSE,
 } = require('./config/constants');
@@ -30,9 +29,6 @@ const {
     isValidPriceAmount,
     parseOptionalRefId,
     parseOptionalIdempotencyKeyHeader,
-    isSafeAssetUrl,
-    parseOptionalBoolean,
-    parseOptionalText,
 } = require('./utils/validation');
 const { securityHeaders, corsMiddleware } = require('./middleware/securityHeaders');
 const { createRateLimiters } = require('./middleware/rateLimiters');

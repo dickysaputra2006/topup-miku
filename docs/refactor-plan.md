@@ -533,5 +533,11 @@ Prinsip kerja:
   - Seluruh helper order/idempotency/cache/notifikasi/callback (`65-329`, `357-365`, `1546-1620`, `1970-2045`) serta `module.exports` baris `2705` (`{ app, pool, startServer, server, validateEnvironment, invalidateFoxyProductCache, callbackClock, clearCallbackCooldownCache }`).
 
 ### Pembersihan Commit 7
-- Audit dan hapus import di `backend/server.js` yang tidak lagi digunakan setelah Commit 1–6 (perkiraan awal: `ALLOWED_PAYMENT_METHOD_TYPES`, `isSafeAssetUrl`, `parseOptionalBoolean`, `parseOptionalText`; dicek ulang menyeluruh sebelum hapus).
+- Audit dan hapus import di `backend/server.js` yang tidak lagi digunakan setelah Commit 1–6 (`ALLOWED_PAYMENT_METHOD_TYPES`, `isSafeAssetUrl`, `parseOptionalBoolean`, `parseOptionalText`).
 - Perbarui bagian ini dengan hash commit aktual dan jumlah baris akhir tiap file.
+
+### Hasil Akhir R6c
+- Panjang `backend/server.js`: `2705` baris (akhir R6b) -> `2493` baris (Commit 1 `cfb3de5`: `routes/admin/paymentMethods.routes.js` = `237` baris) -> `2356` baris (Commit 2 `badd478`: `routes/admin/games.routes.js` = `163` baris) -> `2150` baris (Commit 3 `3591107`: `routes/admin/products.routes.js` = `231` baris) -> `2115` baris (Commit 4 `c34b423`: `routes/admin/promos.routes.js` = `56` baris) -> `2066` baris (Commit 5 `dc405a2`: `routes/admin/flashSales.routes.js` = `71` baris) -> `1979` baris (Commit 6 `4b3a81f`: `routes/admin/margins.routes.js` = `107` baris) -> `1975` baris (Commit 7: pembersihan 4 import tak terpakai).
+- Import tak terpakai yang dihapus di Commit 7: `ALLOWED_PAYMENT_METHOD_TYPES`, `isSafeAssetUrl`, `parseOptionalBoolean`, `parseOptionalText`. Semua ekspor `module.exports` pada `backend/server.js` (`app`, `pool`, `startServer`, `server`, `validateEnvironment`, `invalidateFoxyProductCache`, `callbackClock`, `clearCallbackCooldownCache`) tetap utuh.
+- Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=279, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
+- Catatan cakupan tes & DB: `tests/manual/*` (`concurrency.js`, `idempotency.js`, `pool.js`) tidak dijalankan karena R6c tidak menyentuh alur order maupun refund (baru wajib pada R8–R10); tidak ada migrasi database pada tahap ini.
