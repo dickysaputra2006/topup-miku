@@ -134,7 +134,7 @@ Kontrak API backend yang dijaga penuh (tanpa modifikasi folder `backend/`):
 
 - **UI-2a (`b37ab44`)**: `feat(ui): perbarui layout portal sticky, hierarki overview saldo, dan masking profil UI-2a`
 - **UI-2b (`3fd89cd`)**: `feat(ui): perbarui UX deposit, preset nominal, filter transaksi, dan empty state UI-2b`
-- **UI-2c (`HEAD` pada cabang `feat/ui-pro-standar`)**: `feat(ui): perbarui UX integrasi reseller API H2H dan dokumen rencana UI-2c`
+- **UI-2c (`68690fa`)**: `feat(ui): perbarui UX integrasi reseller API H2H dan dokumen rencana UI-2c`
 
 ### Catatan Kontrak Backend yang Dijaga Tanpa Modifikasi
 - Middleware `protectH2H` (`backend/middleware/h2hAuth.js`) membaca autentikasi reseller secara eksklusif dari header `X-API-Key` (bukan `Authorization: Bearer`), sehingga Kartu Referensi Cepat H2H mendokumentasikan `X-API-Key: <API_KEY_ANDA>` dan `PUT /h2h/profile/callback` mengirimkan header `X-API-Key` sesuai kontrak server aktif.
@@ -188,3 +188,49 @@ Kontrak API backend yang dijaga penuh (tanpa modifikasi folder `backend/`):
 | **UI-3a (Commit 1)** | `docs/ui-overhaul-plan.md`, `frontend/css/admin.css`, `frontend/css/adminModals.css` *(baru)*, `frontend/admin.html`, `frontend/js/admin/state.js`, `frontend/js/admin/deposits.js` | Tokeneisasi `admin.css` & pemisahan `adminModals.css`; sidebar sticky desktop + drawer mobile (`Escape` & `aria-expanded`); label sidebar ringkas + `#pending-deposit-badge`; wrapper `.table-container.admin-table-scroll` (`role="region" tabindex="0"`) + sticky `thead th`; modul modal konfirmasi + modal reject deposit wajib alasan + toast non-blocking; escaping & `tabular-nums` tabel deposit |
 | **UI-3b (Commit 2)** | `frontend/admin.html`, `frontend/css/admin.css`, `frontend/css/adminModals.css`, `frontend/js/admin/state.js`, `frontend/js/admin/catalog.js`, `frontend/js/admin/validationAndPrices.js`, `frontend/js/admin/paymentMethods.js`, `frontend/js/admin/promosAndFlashSales.js`, `frontend/js/admin/transactionsAndRoles.js` | Layout Game & Produk **table-first** (filter/pencarian/paginasi tabel di atas); modal Tambah Game, Tambah Produk, Validasi, Margin Game, Harga Manual dengan footer aksi sticky (`Simpan` / `Batal`); modal konfirmasi `POST /api/admin/sync-products` + ringkasan hasil sinkronisasi; konfirmasi modal untuk operasi destruktif (hapus metode bayar, hapus flash sale, validasi massal, resolusi transaksi) & `tabular-nums` menyeluruh |
 | **UI-3c (Commit 3)** | `frontend/css/publicPages.css`, `frontend/css/invoice.css` *(baru)*, `frontend/cek-transaksi.html`, `frontend/cek-transaksi.js`, `frontend/invoice.html`, `frontend/invoice.js`, `frontend/compare-prices.html`, `frontend/compare-prices.js`, `frontend/validate.html`, `frontend/validate.js`, `frontend/leaderboard.html`, `frontend/leaderboard.js`, `frontend/reset-password.html`, `frontend/reset-password.js`, `frontend/syarat-ketentuan.html`, `frontend/kebijakan-refund.html`, `frontend/kontak.html`, `docs/ui-overhaul-plan.md` | Pembersihan token & pemecahan `publicPages.css` + `invoice.css` (`@media print` bersih); penghapusan inline CSS/gradient/glow/emoji di `leaderboard` & `validate`; container `1200px` sejajar, `<h1>` semantik & viewport aksesibel di 9 halaman publik; badge status kontras tinggi, tombol salin No. Invoice, `tabular-nums`, & escaping XSS; finalisasi log & ukuran akhir file di `docs/ui-overhaul-plan.md` |
+
+---
+
+## 3. Log Commit & Ukuran Akhir File Gelombang UI-3
+
+- **UI-3a (`816f169`)**: `feat(ui): perbarui layout admin, sidebar badge deposit, tabel sticky, dan modal tolak UI-3a`
+- **UI-3b (`1fc0a0b`)**: `feat(ui): ubah admin produk table-first, modal sync foxy, dan konfirmasi UI-3b`
+- **UI-3c (`HEAD` pada cabang `feat/ui-pro-standar`)**: `feat(ui): perbarui halaman publik, cek transaksi, invoice, dan ringkasan rencana UI-3c`
+
+### Ukuran Akhir File Gelombang UI-3
+
+| File | Jenis | Jumlah Baris | Batas Maksimum | Status |
+| :--- | :--- | :---: | :---: | :--- |
+| `frontend/css/admin.css` | CSS | 713 | <= 800 | Memenuhi |
+| `frontend/css/adminModals.css` | CSS | 270 | <= 800 | Memenuhi |
+| `frontend/css/publicPages.css` | CSS | 706 | <= 800 | Memenuhi |
+| `frontend/css/invoice.css` | CSS | 493 | <= 800 | Memenuhi |
+| `frontend/js/admin/state.js` | JS | 326 | <= 600 | Memenuhi |
+| `frontend/js/admin/deposits.js` | JS | 410 | <= 600 | Memenuhi |
+| `frontend/js/admin/catalog.js` | JS | 481 | <= 600 | Memenuhi |
+| `frontend/js/admin/validationAndPrices.js` | JS | 384 | <= 600 | Memenuhi |
+| `frontend/js/admin/paymentMethods.js` | JS | 311 | <= 600 | Memenuhi |
+| `frontend/js/admin/promosAndFlashSales.js` | JS | 314 | <= 600 | Memenuhi |
+| `frontend/js/admin/transactionsAndRoles.js` | JS | 211 | <= 600 | Memenuhi |
+| `frontend/cek-transaksi.js` | JS | 183 | <= 600 | Memenuhi |
+| `frontend/invoice.js` | JS | 197 | <= 600 | Memenuhi |
+| `frontend/compare-prices.js` | JS | 120 | <= 600 | Memenuhi |
+| `frontend/validate.js` | JS | 135 | <= 600 | Memenuhi |
+| `frontend/leaderboard.js` | JS | 132 | <= 600 | Memenuhi |
+| `frontend/reset-password.js` | JS | 59 | <= 600 | Memenuhi |
+| `frontend/admin.html` | HTML | 729 | - | Terstruktur rapi |
+
+---
+
+## 4. Ringkasan Hasil Seluruh Gelombang (UI-1 .. UI-3)
+
+Seluruh perubahan dikerjakan di atas cabang `feat/ui-pro-standar` tanpa modifikasi folder `backend/`:
+
+1. **Gelombang UI-1 (`01144d2`, `e138c8b`, `ddc272f`) — Design System, Storefront, & Topup 4 Langkah**
+   - Tokenisasi tunggal di [tokens.css](file:///d:/DICKY%20BELAJAR/topup-miku/frontend/css/tokens.css) (netral 6 tingkat, aksen tunggal `#22B8CF`, skala spasi kelipatan 4, z-index terstandarisasi `50/60/70/80`), penghapusan gradient/glow dekoratif pada storefront dan kartu game ([storefront.css](file:///d:/DICKY%20BELAJAR/topup-miku/frontend/css/storefront.css), [storefrontNav.css](file:///d:/DICKY%20BELAJAR/topup-miku/frontend/css/storefrontNav.css)), serta alur topup 4 langkah dengan validasi inline, total `tabular-nums`, dan action bar mobile sticky ([product.css](file:///d:/DICKY%20BELAJAR/topup-miku/frontend/css/product.css), [productStepNav.css](file:///d:/DICKY%20BELAJAR/topup-miku/frontend/css/productStepNav.css)).
+
+2. **Gelombang UI-2 (`b37ab44`, `3fd89cd`, `68690fa`) — Dashboard Member & Integrasi API H2H**
+   - Sidebar portal sticky desktop & drawer mobile (`Escape` + `aria-expanded`), hierarki Overview `Saldo -> Transaksi Terbaru -> Statistik Ringkas`, masking privasi email/WhatsApp, UX deposit ber-preset nominal + estimasi kode unik `tabular-nums` + salin nominal/tujuan + perlindungan `Idempotency-Key`, filter riwayat & empty state ber-CTA, serta panel API Key / Webhook Secret / Callback URL `X-API-Key` / IP CIDR allowlist + Kartu Referensi Cepat H2H.
+
+3. **Gelombang UI-3 (`816f169`, `1fc0a0b`, UI-3c) — Admin Panel + Halaman Publik & Invoice**
+   - Admin Panel padat berorientasi kerja (`Produk & Game` **table-first** dengan paginasi/filter langsung di atas, modal Tambah Game/Produk/Margin Game/Validasi/Harga Manual dengan footer sticky `Simpan` & `Batal`), konfirmasi eksplisit & ringkasan hasil sinkronisasi Foxy (`POST /api/admin/sync-products`), sidebar label ringkas + `#pending-deposit-badge` dinamis, sticky table headers dalam `.table-container.admin-table-scroll`, modal persetujuan/penolakan deposit ber-alasan wajib, konfirmasi operasi destruktif, serta pembersihan token, container `1200px`, salin nomor invoice, badge status kontras tinggi, dan `@media print` bersih pada seluruh halaman publik & invoice.

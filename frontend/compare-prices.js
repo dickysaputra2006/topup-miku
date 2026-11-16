@@ -1,4 +1,5 @@
-// compare-prices.js - VERSI FINAL DENGAN PERBAIKAN
+'use strict';
+
 let allProductsData = [];
 let allGamesData = [];
 let allRolesData = [];
@@ -6,75 +7,56 @@ let displayRoles = [];
 
 document.addEventListener('DOMContentLoaded', function () {
     const { formatRupiah } = window.MikuShared.format;
+    const { escapeHtml } = window.MikuShared.dom;
     const PUBLIC_API_URL = '/api';
 
     const gameSelectorDropdown = document.getElementById('game-selector-dropdown');
     const compareProductListTitle = document.getElementById('compare-product-list-title');
-    const compareTableBody = document.querySelector("#compare-prices-table tbody");
-    const compareTableHeader = document.querySelector("#compare-prices-table thead tr");
+    const compareTableBody = document.querySelector('#compare-prices-table tbody');
+    const compareTableHeader = document.querySelector('#compare-prices-table thead tr');
     const gameSearchInput = document.getElementById('game-search-input');
-    
-    // Deklarasi untuk tombol scroll
-    const tableContainer = document.querySelector('.table-container');
-    const scrollLeftBtn = document.getElementById('scroll-left-btn');
-    const scrollRightBtn = document.getElementById('scroll-right-btn');
 
     const PUBLIC_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD'];
 
     async function fetchAllCompareData() {
-    // Diubah untuk memeriksa dropdown, bukan sidebar list
-    if (!compareTableBody || !compareTableHeader || !gameSelectorDropdown) return;
+        if (!compareTableBody || !compareTableHeader || !gameSelectorDropdown) return;
 
-    try {
-        const response = await fetch(`${PUBLIC_API_URL}/public/compare-prices`);
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Gagal memuat data perbandingan harga dari server.');
+        try {
+            const response = await fetch(`${PUBLIC_API_URL}/public/compare-prices`);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Gagal memuat data perbandingan harga dari server.');
+            }
+            const data = await response.json();
+
+            allProductsData = Array.isArray(data.products) ? data.products : [];
+            allGamesData = Array.isArray(data.games) ? data.games : [];
+            allRolesData = Array.isArray(data.roles) ? data.roles : [];
+
+            displayRoles = allRolesData
+                .filter(role => PUBLIC_ROLE_ORDER.includes(role.name))
+                .sort((a, b) => PUBLIC_ROLE_ORDER.indexOf(a.name) - PUBLIC_ROLE_ORDER.indexOf(b.name));
+
+            renderGamesDropdown(allGamesData);
+            compareProductListTitle.textContent = 'Silakan Pilih Game untuk Melihat Harga';
+            renderProductsTable([], displayRoles);
+        } catch (error) {
+            console.error('Error fetching compare prices:', error);
+            compareProductListTitle.textContent = 'Gagal Memuat Perbandingan Harga';
+            compareTableBody.innerHTML = `<tr class="table-error-row"><td colspan="5"><div class="ui-state error">Error: ${escapeHtml(error.message)}</div></td></tr>`;
         }
-        const data = await response.json();
-
-        allProductsData = data.products;
-        allGamesData = data.games;
-        allRolesData = data.roles;
-
-        displayRoles = allRolesData.filter(role =>
-            PUBLIC_ROLE_ORDER.includes(role.name)
-        ).sort((a, b) => {
-            return PUBLIC_ROLE_ORDER.indexOf(a.name) - PUBLIC_ROLE_ORDER.indexOf(b.name);
-        });
-
-        // 1. Memanggil fungsi baru untuk mengisi dropdown
-        renderGamesDropdown(allGamesData, displayRoles);
-        
-        // 2. Mengatur tampilan awal untuk meminta pengguna memilih game
-        compareProductListTitle.textContent = "Silakan Pilih Game untuk Melihat Harga";
-        renderProductsTable([], displayRoles); // Menampilkan tabel kosong
-
-    } catch (error) {
-        console.error('Error fetching compare prices:', error);
-        // Menampilkan pesan error di judul dan tabel
-        compareProductListTitle.textContent = `Error: ${error.message}`;
-        compareTableBody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: red;">Error: ${error.message}</td></tr>`;
     }
-}
 
-        function renderGamesDropdown(gamesToRender, rolesToDisplay) {
-        gameSelectorDropdown.innerHTML = ''; // Kosongkan pilihan lama
-        
-        // Tambahkan opsi default
+    function renderGamesDropdown(gamesToRender) {
+        gameSelectorDropdown.innerHTML = '';
         const defaultOption = document.createElement('option');
-        defaultOption.value = "";
-        defaultOption.textContent = "-- Pilih Game Disini --";
+        defaultOption.value = '';
+        defaultOption.textContent = gamesToRender.length === 0 ? 'Game tidak ditemukan' : '-- Pilih Game Disini --';
         gameSelectorDropdown.appendChild(defaultOption);
-
-        if (gamesToRender.length === 0) {
-            defaultOption.textContent = "Game tidak ditemukan";
-            return;
-        }
 
         gamesToRender.forEach(game => {
             const option = document.createElement('option');
-            option.value = game.id; // Gunakan ID sebagai value
+            option.value = game.id;
             option.textContent = game.name;
             gameSelectorDropdown.appendChild(option);
         });
@@ -84,46 +66,43 @@ document.addEventListener('DOMContentLoaded', function () {
         compareTableBody.innerHTML = '';
         compareTableHeader.innerHTML = '';
 
-        let headerHtml = `<th>Nama Game</th><th>Produk</th><th>SKU</th>`;
+        let headerHtml = '<th>Nama Game</th><th>Produk</th><th>SKU</th>';
         roles.forEach(role => {
-            headerHtml += `<th>Harga ${role.name}</th>`;
+            headerHtml += `<th>Harga ${escapeHtml(role.name)}</th>`;
         });
         compareTableHeader.innerHTML = headerHtml;
 
-        if (products.length === 0) {
+        if (!Array.isArray(products) || products.length === 0) {
             const colspan = 3 + roles.length;
-            compareTableBody.innerHTML = `<tr><td colspan="${colspan}" style="text-align: center;">Belum ada produk untuk game ini.</td></tr>`;
+            compareTableBody.innerHTML = `<tr class="table-empty-row"><td colspan="${colspan}"><div class="ui-state empty">Pilih game di panel samping untuk melihat daftar harga produk.</div></td></tr>`;
             return;
         }
 
-        products.sort((a, b) => parseFloat(a.base_price) - parseFloat(b.base_price));
-
-        products.forEach(product => {
+        const sorted = [...products].sort((a, b) => parseFloat(a.base_price) - parseFloat(b.base_price));
+        sorted.forEach(product => {
             const row = document.createElement('tr');
-            let rowHtml = `<td>${product.game_name}</td><td>${product.product_name}</td><td>${product.provider_sku}</td>`;
+            let rowHtml = `<td>${escapeHtml(product.game_name || '-')}</td><td>${escapeHtml(product.product_name || '-')}</td><td><code>${escapeHtml(product.provider_sku || '-')}</code></td>`;
             roles.forEach(role => {
                 const rolePriceKey = `price_${role.name.toLowerCase()}`;
-                const formattedRolePrice = formatRupiah(product[rolePriceKey] || 0);
-                rowHtml += `<td>${formattedRolePrice}</td>`;
+                rowHtml += `<td>${escapeHtml(formatRupiah(product[rolePriceKey] || 0))}</td>`;
             });
             row.innerHTML = rowHtml;
             compareTableBody.appendChild(row);
         });
     }
 
-     if (gameSelectorDropdown) {
+    if (gameSelectorDropdown) {
         gameSelectorDropdown.addEventListener('change', (e) => {
             const selectedGameId = e.target.value;
-
             if (selectedGameId) {
-                const selectedGame = allGamesData.find(game => game.id == selectedGameId);
+                const selectedGame = allGamesData.find(game => String(game.id) === String(selectedGameId));
                 if (selectedGame) {
                     compareProductListTitle.textContent = `Perbandingan Harga untuk: ${selectedGame.name}`;
                     const filteredProducts = allProductsData.filter(p => p.game_name === selectedGame.name);
                     renderProductsTable(filteredProducts, displayRoles);
                 }
             } else {
-                compareProductListTitle.textContent = "Silakan Pilih Game untuk Melihat Harga";
+                compareProductListTitle.textContent = 'Silakan Pilih Game untuk Melihat Harga';
                 renderProductsTable([], displayRoles);
             }
         });
@@ -132,14 +111,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (gameSearchInput) {
         gameSearchInput.addEventListener('input', () => {
             const searchTerm = gameSearchInput.value.toLowerCase();
-            const filteredGames = allGamesData.filter(game =>
-                game.name.toLowerCase().includes(searchTerm)
-            );
-            renderGamesDropdown(filteredGames, displayRoles);
+            const filteredGames = allGamesData.filter(game => game.name.toLowerCase().includes(searchTerm));
+            renderGamesDropdown(filteredGames);
         });
     }
-
-    
 
     fetchAllCompareData();
 });
