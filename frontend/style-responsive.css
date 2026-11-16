@@ -1,171 +1,61 @@
-/* ============================================================
-   MIKU Store — Responsive & UI Polish Patch (style-responsive.css)
-   Loaded AFTER style.css to safely override specific rules.
-   Tidak mengubah logika JS atau backend.
-   ============================================================ */
-
-/* === 1. GLOBAL: Font, Overflow, Box-sizing === */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
-:root {
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-html {
-  box-sizing: border-box;
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: inherit;
-}
-
-body {
-  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  overflow-x: clip;
-  max-width: 100vw;
-}
-
-/* === 2. CONTAINER === */
-.container {
-  width: 94%;
-  max-width: 1180px;
-  margin-inline: auto;
-}
-
-/* === 3. HEADER: More compact on desktop === */
-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background-color: var(--bg-dark);
-  border-bottom: 1px solid var(--border-color);
-  box-shadow: var(--shadow-sm);
-}
-
-.header-container {
-  height: 56px;
-  padding: 0 0.75rem;
-}
-
-.logo {
-  font-size: clamp(1.1rem, 2.5vw, 1.5rem);
-}
-
-.header-btn {
-  padding: 0.4rem 0.85rem;
-  font-size: 0.85rem;
-  border-radius: var(--radius-sm);
-}
-
-/* === 4. HERO SECTION: tidak terlalu dominan === */
 .hero-section {
   margin: 1rem 0 1.25rem;
 }
-
 .hero-placeholder {
   height: clamp(140px, 20vw, 240px);
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
-
 .hero-placeholder img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
-
-/* === 5. CONTENT SECTIONS: lebih compact === */
 .content-section {
   margin-bottom: 1.75rem;
 }
-
 .content-section h2 {
   font-size: clamp(1rem, 2.5vw, 1.35rem);
   margin-bottom: 0.85rem;
 }
-
-/* === 6. PRODUCT GRID & CARDS === */
 .product-grid {
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 0.75rem;
 }
-
 .product-card {
   height: clamp(150px, 18vw, 180px);
   border-radius: var(--radius-md);
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-  /* position:relative dan overflow:hidden sudah di style.css */
-  padding: 0; /* Override jika ada padding dari base */
+  padding: 0;
 }
-
 .product-card:hover {
   transform: translateY(-3px) scale(1.02);
   box-shadow: 0 8px 24px rgba(6, 182, 212, 0.24);
 }
-
-/* Image sudah full-cover via style.css, responsive CSS tidak perlu override height img */
 .product-card img {
-  border-radius: 0; /* Card wrapper yang punya border-radius */
+  border-radius: 0;
 }
-
-/* Overlay: font size proporsional di tiap ukuran */
 .product-card-title-text {
   font-size: clamp(0.72rem, 1.8vw, 0.85rem);
 }
-
-/* === 7. FOOTER: lebih compact === */
-footer {
-  padding: 1rem 0;
-}
-
-.footer-links {
-  gap: 1rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-
-/* === 8. CARD global === */
-.card {
-  border-radius: var(--radius-md);
-  padding: 1.25rem;
-}
-
-/* === 9. MODAL: max-height + internal scroll safe === */
 .modal-content {
   border-radius: var(--radius-md);
   max-height: min(calc(100vh - 2rem), 640px);
   overflow-y: auto;
   padding: 1.5rem;
 }
-
-/* === 10. PRICELIST / COMPARE-PRICES PAGE ===
-   KRITIS: sidebar/list game TIDAK BOLEH ikut horizontal scroll.
-   Hanya .table-container yang boleh scroll horizontal.
-*/
-
-/* Container utama: flex column on mobile, row on desktop */
 .pricelist-container {
   overflow-x: visible !important;
-  /* OVERRIDE: hapus overflow-x: auto dari parent */
   flex-wrap: nowrap;
 }
-
-/* Desktop layout */
 @media (min-width: 769px) {
-  .pricelist-container {
+    .pricelist-container {
     display: flex;
     flex-direction: row;
     align-items: flex-start;
     gap: 1.5rem;
-  }
-
-  .pricelist-container .game-selector {
+    }
+    .pricelist-container .game-selector {
     flex: 0 0 240px;
     width: 240px;
     max-width: 240px;
@@ -174,24 +64,18 @@ footer {
     min-height: auto;
     max-height: calc(100vh - 6rem);
     overflow-y: auto;
-  }
-
-  .pricelist-container .dashboard-content {
+    }
+    .pricelist-container .dashboard-content {
     flex: 1;
     min-width: 0;
-    /* PENTING: cegah flex child overflow */
-  }
+    }
 }
-
-/* Mobile layout: stack vertically */
 @media (max-width: 768px) {
-  .pricelist-container {
+    .pricelist-container {
     flex-direction: column !important;
     overflow-x: visible !important;
-    /* TIDAK ADA overflow-x di parent */
-  }
-
-  .pricelist-container .game-selector {
+    }
+    .pricelist-container .game-selector {
     position: static !important;
     left: auto !important;
     top: auto !important;
@@ -210,57 +94,40 @@ footer {
     border: 1px solid var(--border-color);
     background-color: var(--bg-surface);
     box-shadow: var(--shadow-sm);
-  }
-
-  .pricelist-container .dashboard-content {
+    }
+    .pricelist-container .dashboard-content {
     min-width: 0;
     width: 100%;
-  }
+    }
 }
-
-/* Table scroll hanya pada .table-container, BUKAN parent layout */
-.table-container {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  max-width: 100%;
-}
-
 .modern-table-wrapper {
   overflow: visible;
-  /* biarkan inner .table-container yang handle scroll */
   max-width: 100%;
 }
-
 .modern-table-wrapper .table-container {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
-
-/* Tabel bisa lebih lebar dari kontainer, tapi scrollnya terbatas di wrapper */
-table {
-  min-width: max-content;
-  /* membolehkan tabel lebih lebar dari layar */
+.dashboard-container {
+  gap: 1.5rem;
 }
-
-/* === 11. DASHBOARD & ADMIN SIDEBAR === */
-.dashboard-container,
 .admin-page-container {
   gap: 1.5rem;
 }
-
-.sidebar,
+.sidebar {
+  border-radius: var(--radius-md);
+}
 .admin-sidebar {
   border-radius: var(--radius-md);
 }
-
 @media (min-width: 769px) {
-  .dashboard-container,
-  .admin-page-container {
+    .dashboard-container {
     align-items: flex-start;
-  }
-
-  #dashboard-sidebar,
-  #admin-sidebar {
+    }
+    .admin-page-container {
+    align-items: flex-start;
+    }
+    #dashboard-sidebar {
     position: sticky;
     top: calc(56px + 1.25rem);
     align-self: flex-start;
@@ -269,318 +136,228 @@ table {
     max-height: calc(100vh - 6.5rem);
     overflow-y: auto;
     scrollbar-width: thin;
-  }
+    }
+    #admin-sidebar {
+    position: sticky;
+    top: calc(56px + 1.25rem);
+    align-self: flex-start;
+    height: auto;
+    min-height: auto;
+    max-height: calc(100vh - 6.5rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    }
 }
-
 @media (max-width: 768px) {
-
-  .dashboard-container,
-  .admin-page-container {
+    .dashboard-container {
     margin-top: 1rem;
-  }
-
-  /* table di dalam dashboard jangan menyebabkan horizontal scroll halaman */
-  .dashboard-content .table-container,
-  .admin-content .table-container {
+    }
+    .admin-page-container {
+    margin-top: 1rem;
+    }
+    .dashboard-content .table-container {
     overflow-x: auto;
     max-width: 100%;
-  }
+    }
+    .admin-content .table-container {
+    overflow-x: auto;
+    max-width: 100%;
+    }
 }
-
-/* === 12. ADMIN MASTER-DETAIL: tidak overflow === */
 .admin-master-detail {
   grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
   width: 100%;
 }
-
 .master-list,
 .detail-list {
   min-width: 0;
-  /* override min-width: 350px yang menyebabkan overflow */
 }
-
 @media (max-width: 768px) {
-  .admin-master-detail {
+    .admin-master-detail {
     grid-template-columns: 1fr;
-  }
-
-  .admin-forms-container {
+    }
+    .admin-forms-container {
     flex-direction: column;
-  }
-
-  .admin-form {
+    }
+    .admin-form {
     min-width: 0;
-  }
+    }
 }
-
-/* === 13. PRODUCT ORDER PAGE === */
 .order-page-wrapper {
   max-width: min(920px, 100%);
   margin-inline: auto;
 }
-
 .order-form-grid {
   gap: 0.75rem;
 }
-
 @media (max-width: 600px) {
-  .order-form-grid {
+    .order-form-grid {
     grid-template-columns: 1fr;
-  }
+    }
 }
-
-/* === 14. GAME INFO on product page === */
 #game-info img {
   width: clamp(70px, 12vw, 100px);
   height: clamp(70px, 12vw, 100px);
 }
-
-/* === 15. BALANCE AMOUNT — tidak terlalu besar di mobile === */
 .balance-amount {
   font-size: clamp(1.5rem, 5vw, 2.5rem);
 }
-
-/* === 16. BUTTONS — proper tap target === */
-button,
-.header-btn,
-.edit-btn,
-.topup-btn,
-.order-button,
-.btn-submit-deposit,
+.order-button {
+  min-height: 40px;
+  cursor: pointer;
+}
+.btn-submit-deposit {
+  min-height: 40px;
+  cursor: pointer;
+}
 .approve-btn {
   min-height: 40px;
   cursor: pointer;
 }
-
-/* === 17. FORM INPUTS — proper tap target === */
-input[type="text"],
-input[type="number"],
-input[type="email"],
-input[type="password"],
-input[type="datetime-local"],
-select,
-textarea {
-  min-height: 42px;
-  font-size: 1rem;
-}
-
-/* === 18. DEPOSIT WRAPPER — full width on mobile === */
 .deposit-wrapper,
-.mutasi-wrapper,
+.mutasi-wrapper {
+  max-width: min(800px, 100%);
+  margin: 1.5rem auto;
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+}
 .main-wrapper {
   max-width: min(800px, 100%);
   margin: 1.5rem auto;
   padding: 0 0.5rem;
   box-sizing: border-box;
 }
-
-/* === 19. INVOICE === */
 #invoice-details-container .card {
   overflow-wrap: break-word;
   word-break: break-word;
 }
-
-/* === 20. STATUS BADGES === */
-.status-badge,
-.badge {
-  white-space: nowrap;
-}
-
-/* === 21. SEARCH INPUT pada header — tidak overflow === */
 .search-container {
   max-width: min(450px, 100%);
   width: 100%;
 }
-
 #search-input {
   font-size: 0.9rem;
 }
-
-/* === 22. NOTIFICATION PANEL — tidak melebar keluar layar === */
 .notification-panel {
   max-width: calc(100vw - 2rem);
   right: 0;
 }
-
-/* === 23. TOAST — safe on mobile === */
-.toast {
-  max-width: calc(100vw - 2rem);
-  right: 1rem;
-  left: 1rem;
-  text-align: center;
-}
-
-@media (min-width: 600px) {
-  .toast {
-    left: auto;
-    max-width: 360px;
-  }
-}
-
-/* === 24. SIDEBAR NAV LINKS — tidak wrap aneh === */
 .sidebar-nav a {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-/* === 25. PRICELIST SEARCH WRAPPER INSIDE SIDEBAR === */
 .pricelist-search-wrapper {
   padding: 0;
   margin-bottom: 0.75rem;
 }
-
-#game-search-input,
-#game-validate-search-input,
+#game-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+#game-validate-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
+}
 #game-selector-dropdown {
   width: 100%;
   box-sizing: border-box;
   max-width: 100%;
 }
-
-/* === 26. COMPARE CARD === */
 .compare-card {
   overflow: hidden;
-  /* Pastikan tidak meluber */
 }
-
 .compare-header h3 {
   font-size: clamp(1rem, 2.5vw, 1.4rem);
   word-break: break-word;
 }
-
-/* === 27. MOBILE-SPESIFIK TAMBAHAN === */
 @media (max-width: 480px) {
-  .product-grid {
+    .product-grid {
     grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
-  }
-
-  .product-card {
+    }
+    .product-card {
     height: 140px;
-    padding: 0; /* Image cover — tidak pakai padding */
-  }
-
-  /* Tidak override .product-card img height — sekarang img full-cover via style.css */
-
-  .hero-placeholder {
+    padding: 0;
+    }
+    .hero-placeholder {
     height: clamp(120px, 40vw, 160px);
     border-radius: var(--radius-md);
-  }
-
-  .header-btn {
-    padding: 0.35rem 0.65rem;
-    font-size: 0.8rem;
-  }
-
-  .card {
-    padding: 0.9rem;
-  }
-
-  .modal-content {
+    }
+    .modal-content {
     padding: 1rem;
     width: 96%;
     max-height: calc(100dvh - 1rem);
-  }
-
-  .confirmation-actions {
+    }
+    .confirmation-actions {
     flex-direction: column;
     gap: 0.5rem;
-  }
-
-  .confirmation-actions .order-button,
-  .confirmation-actions .edit-btn {
+    }
+    .confirmation-actions .order-button,
+    .confirmation-actions .edit-btn {
     width: 100%;
-  }
-
-  .balance-amount {
+    }
+    .balance-amount {
     font-size: 1.6rem;
-  }
-
-  .footer-links {
-    gap: 0.5rem 0.75rem;
-    font-size: 0.85rem;
-  }
+    }
 }
-
-/* === 28. TABLET (769px - 1024px) === */
 @media (min-width: 769px) and (max-width: 1024px) {
-  .product-grid {
+    .product-grid {
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  }
-
-  .pricelist-container .game-selector {
+    }
+    .pricelist-container .game-selector {
     flex: 0 0 210px;
     width: 210px;
-  }
+    }
 }
-
-/* === 29. ADMIN TABLE pada mobile — hanya wrapper scroll === */
 @media (max-width: 768px) {
-
-  .admin-content .table-container table,
-  .dashboard-content .table-container table {
+    .admin-content .table-container table {
     white-space: nowrap;
     min-width: 500px;
-  }
+    }
+    .dashboard-content .table-container table {
+    white-space: nowrap;
+    min-width: 500px;
+    }
 }
-
-/* === 30. SMOOTH TRANSITIONS === */
-.product-card,
-.product-card-selectable,
-.sidebar-nav a,
-.header-btn,
-button {
+.product-card {
   transition: all 0.18s ease;
 }
-
-/* === 31. GAME SELECTOR DROPDOWN full-width on mobile === */
+.product-card-selectable {
+  transition: all 0.18s ease;
+}
+.sidebar-nav a {
+  transition: all 0.18s ease;
+}
 @media (max-width: 768px) {
-  .game-selector-form {
+    .game-selector-form {
     flex-direction: column;
-  }
-
-  .game-selector-form input,
-  .game-selector-form select {
+    }
+    .game-selector-form input,
+    .game-selector-form select {
     min-width: 0;
     width: 100%;
-  }
+    }
 }
-
-/* === 32. FORM ROWS wrapping === */
 @media (max-width: 480px) {
-  .form-row-container {
+    .form-row-container {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .form-row-container button {
+    }
+    .form-row-container button {
     width: 100%;
-  }
-
-  .promo-form-container {
+    }
+    .promo-form-container {
     flex-direction: column;
-  }
-
-  .promo-form-container button {
+    }
+    .promo-form-container button {
     width: 100%;
-  }
+    }
 }
-
-/* ============================================================
-   PHASE 2A — UI/UX QUICK FIXES (Final)
-   ============================================================ */
-
-/* ===================================================================
-   A1. PRODUCT PAGE DESKTOP — Layout 2-kolom via explicit wrappers
-   HTML sudah diubah: .order-main-col (kiri) + .order-side-col (kanan)
-   Tidak perlu lagi grid dengan nth-of-type yang rawan konflik.
-=================================================================== */
-
-/* Reset: hapus grid lama dari style.css yang pakai nth-of-type */
 @media (min-width: 900px) {
-  .order-page-wrapper {
-    /* Reset nilai dari style.css */
+    .order-page-wrapper {
     display: flex !important;
     grid-template-columns: unset !important;
     flex-direction: row;
@@ -588,30 +365,24 @@ button {
     align-items: flex-start;
     max-width: 1060px;
     margin-inline: auto;
-  }
-
-  /* Hapus grid-column placement dari style.css */
-  #game-info,
-  .order-page-wrapper > .card:nth-of-type(2),
-  .order-page-wrapper > .card:nth-of-type(3),
-  .order-page-wrapper > .card:nth-of-type(4),
-  .order-page-wrapper > .card:nth-of-type(5) {
+    }
+    #game-info,
+    .order-page-wrapper > .card:nth-of-type(2),
+    .order-page-wrapper > .card:nth-of-type(3),
+    .order-page-wrapper > .card:nth-of-type(4),
+    .order-page-wrapper > .card:nth-of-type(5) {
     grid-column: unset !important;
     grid-row: unset !important;
     position: static !important;
-  }
-
-  /* Kolom kiri: game-info + step 1 + step 2 */
-  .order-main-col {
+    }
+    .order-main-col {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
-  }
-
-  /* Kolom kanan: promo + bayar — lebar tetap, sticky */
-  .order-side-col {
+    }
+    .order-side-col {
     width: 340px;
     flex-shrink: 0;
     display: flex;
@@ -620,51 +391,40 @@ button {
     position: sticky;
     top: 5rem;
     align-self: flex-start;
-  }
+    }
 }
-
-/* Mobile: stack vertikal, wrapper jadi display block */
 @media (max-width: 899px) {
-  .order-page-wrapper {
+    .order-page-wrapper {
     display: block !important;
-  }
-  .order-main-col,
-  .order-side-col {
+    }
+    .order-main-col,
+    .order-side-col {
     display: block;
-  }
-  .order-main-col .card,
-  .order-side-col .card {
+    }
+    .order-main-col .card,
+    .order-side-col .card {
     margin-bottom: 1rem;
-  }
+    }
 }
-
-/* Desktop lebar */
 @media (min-width: 1200px) {
-  .order-page-wrapper {
+    .order-page-wrapper {
     max-width: 1080px !important;
-  }
-  .order-side-col {
+    }
+    .order-side-col {
     width: 360px;
-  }
+    }
 }
-
-/* Nominal grid di product page */
 @media (min-width: 900px) {
-  #product-list-container.product-grid {
+    #product-list-container.product-grid {
     grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
     gap: 0.6rem;
-  }
+    }
 }
-
-/* ===================================================================
-   A2. PRODUCT CARD SELECTABLE — nama panjang tidak overflow di mobile
-=================================================================== */
 .product-card-selectable {
   overflow: hidden;
   word-break: break-word;
   min-width: 0;
 }
-
 .product-card-selectable span {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -677,7 +437,6 @@ button {
   max-width: 100%;
   line-clamp: 2;
 }
-
 .product-card-selectable small {
   white-space: nowrap;
   overflow: hidden;
@@ -685,25 +444,17 @@ button {
   max-width: 100%;
   display: block;
 }
-
 @media (max-width: 480px) {
-  #product-list-container.product-grid {
+    #product-list-container.product-grid {
     grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
-  }
+    }
 }
-
-/* ===================================================================
-   A3. COMPARE-PRICES — Sidebar stretch + dropdown arrow fix
-=================================================================== */
-
-/* Desktop: sidebar stretch setinggi tabel kanan */
 @media (min-width: 769px) {
-  .pricelist-container {
+    .pricelist-container {
     align-items: stretch !important;
-  }
-
-  .pricelist-container .game-selector {
+    }
+    .pricelist-container .game-selector {
     position: sticky;
     top: 5rem;
     align-self: flex-start;
@@ -712,31 +463,24 @@ button {
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-  }
-
-  /* Dropdown: padding kanan cukup agar arrow tidak tertutup teks */
-  #game-selector-dropdown {
+    }
+    #game-selector-dropdown {
     padding-right: 2.5rem !important;
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
     max-width: 100%;
     box-sizing: border-box;
-  }
-
-  #game-search-input {
+    }
+    #game-search-input {
     max-width: 100%;
     box-sizing: border-box;
-  }
+    }
 }
-
-/* Clamp nama di tabel perbandingan */
 #compare-prices-table td:nth-child(1) { max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #compare-prices-table td:nth-child(2) { max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #compare-prices-table td:nth-child(3) { max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #compare-prices-table td:nth-child(n+4) { white-space: nowrap; }
-
-/* Tabel compare: internal scroll */
 .compare-card .modern-table-wrapper {
   max-height: min(70vh, 640px);
   overflow-y: auto;
@@ -754,24 +498,19 @@ button {
   background-color: var(--bg-surface);
   z-index: 2;
 }
-
-/* ===================================================================
-   A4. ADMIN CONTENT — overflow visible agar tombol bisa diklik
-   overflow:hidden pada ancestor akan clip hit-test area tombol!
-=================================================================== */
-.admin-content,
+.admin-content {
+  min-width: 0;
+  overflow: visible;
+}
 .dashboard-content {
   min-width: 0;
   overflow: visible;
 }
-
 .admin-content .table-container {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   max-width: 100%;
 }
-
-/* Admin products table: internal scroll */
 #product-list-container .table-container {
   max-height: min(55vh, 480px);
   overflow-y: auto;
@@ -780,15 +519,12 @@ button {
   position: relative;
   z-index: 1;
 }
-
 #products-table thead th {
   position: sticky;
   top: 0;
   background-color: var(--bg-surface);
   z-index: 2;
 }
-
-/* Pastikan tombol aksi bisa diklik: pointer-events + z-index eksplisit */
 .edit-validation-btn,
 .manual-price-btn {
   position: relative;
@@ -796,14 +532,12 @@ button {
   pointer-events: auto !important;
   cursor: pointer;
 }
-
 #products-table td:first-child {
   max-width: 180px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 #flash-sales-table td:nth-child(2),
 #promos-table td:nth-child(2) {
   max-width: 160px;
@@ -811,55 +545,40 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-/* ===================================================================
-   A5. GLOBAL overflow prevention
-=================================================================== */
-.admin-page-container,
-.dashboard-container,
+.admin-page-container {
+  min-width: 0;
+  max-width: 100%;
+}
+.dashboard-container {
+  min-width: 0;
+  max-width: 100%;
+}
 .pricelist-container {
   min-width: 0;
   max-width: 100%;
 }
-
-table td,
-table th {
-  max-width: 300px;
-  overflow-wrap: break-word;
-}
-
-/* ===================================================================
-   A6. HAMBURGER — Sembunyikan di desktop (>= 769px)
-   style.css sudah handle #menu-toggle-btn (hide di >=769px).
-   Di sini kita tangani .menu-toggle-btn (class di dalam sidebar)
-   dan juga pastikan #menu-toggle-btn konsisten.
-=================================================================== */
 @media (min-width: 769px) {
-  /* Tombol hamburger di header admin/dashboard */
-  #menu-toggle-btn {
+    #menu-toggle-btn {
     display: none !important;
-  }
-  /* Tombol hamburger di dalam sidebar (class-based) */
-  .sidebar .menu-toggle-btn,
-  .admin-sidebar .menu-toggle-btn {
+    }
+    .sidebar .menu-toggle-btn {
     display: none !important;
-  }
+    }
+    .admin-sidebar .menu-toggle-btn {
+    display: none !important;
+    }
 }
-
-/* Mobile: hamburger muncul, sidebar slide in */
 @media (max-width: 768px) {
-  #menu-toggle-btn {
+    #menu-toggle-btn {
     display: block !important;
-  }
-  .sidebar .menu-toggle-btn,
-  .admin-sidebar .menu-toggle-btn {
+    }
+    .sidebar .menu-toggle-btn {
     display: block !important;
-  }
+    }
+    .admin-sidebar .menu-toggle-btn {
+    display: block !important;
+    }
 }
-
-/* ===================================================================
-   A7. Sidebar toggle button styling
-=================================================================== */
 .menu-toggle-btn {
   background: none;
   border: none;
@@ -872,39 +591,24 @@ table th {
   align-items: center;
   justify-content: center;
 }
-
 .menu-toggle-btn:hover {
   background-color: rgba(255, 255, 255, 0.08);
 }
-
-/* ===================================================================
-   A8. GAME SELECTOR DROPDOWN — Mobile
-=================================================================== */
 @media (max-width: 480px) {
-  #game-selector-dropdown {
+    #game-selector-dropdown {
     font-size: 0.9rem;
-  }
+    }
 }
-
-/* ===================================================================
-   MOBILE STEP NAVIGATION — hanya tampil di mobile (≤768px)
-   Sticky di bawah header, tidak menutupi konten.
-=================================================================== */
-
-/* ── Sembunyikan di desktop — tidak ada perubahan layout PC ── */
 #mobile-step-nav {
   display: none;
 }
-
-/* ── Tampilkan di mobile ── */
 @media (max-width: 768px) {
-  #mobile-step-nav {
+    #mobile-step-nav {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0;
     position: sticky;
-    /* Letakkan tepat di bawah header (header ~56px) */
     top: 56px;
     z-index: 90;
     background-color: var(--bg-dark, #0b0f19);
@@ -912,17 +616,12 @@ table th {
     padding: 0.5rem 0.75rem;
     width: 100%;
     box-sizing: border-box;
-    /* Pastikan tidak overflow horizontal */
     overflow-x: hidden;
-    /* Subtle backdrop blur kalau browser mendukung */
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    /* Hapus margin/padding bawaan nav */
     margin: 0;
-  }
-
-  /* Tombol step */
-  .step-nav-btn {
+    }
+    .step-nav-btn {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -937,15 +636,12 @@ table th {
     min-width: 52px;
     flex: 1;
     max-width: 80px;
-  }
-
-  .step-nav-btn:hover {
+    }
+    .step-nav-btn:hover {
     background-color: rgba(255, 255, 255, 0.06);
     color: var(--text-color, #eee);
-  }
-
-  /* Nomor step: lingkaran kecil */
-  .step-nav-num {
+    }
+    .step-nav-num {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -958,155 +654,105 @@ table th {
     color: var(--text-muted, #888);
     transition: background-color 0.2s ease, color 0.2s ease;
     flex-shrink: 0;
-  }
-
-  /* Label step */
-  .step-nav-label {
+    }
+    .step-nav-label {
     font-size: 0.65rem;
     font-weight: 500;
     letter-spacing: 0.02em;
     white-space: nowrap;
-  }
-
-  /* State: ACTIVE (step yang sedang dilihat) */
-  .step-nav-btn.active .step-nav-num {
+    }
+    .step-nav-btn.active .step-nav-num {
     background-color: var(--primary-color, #06b6d4);
     color: #fff;
-  }
-
-  .step-nav-btn.active {
+    }
+    .step-nav-btn.active {
     color: var(--primary-color, #06b6d4);
-  }
-
-  .step-nav-btn.active .step-nav-label {
+    }
+    .step-nav-btn.active .step-nav-label {
     font-weight: 700;
-  }
-
-  /* State: COMPLETED (step yang sudah dilewati) */
-  .step-nav-btn.completed .step-nav-num {
+    }
+    .step-nav-btn.completed .step-nav-num {
     background-color: rgba(6, 182, 212, 0.22);
     color: var(--primary-color, #06b6d4);
-  }
-
-  .step-nav-btn.completed {
+    }
+    .step-nav-btn.completed {
     color: rgba(6, 182, 212, 0.78);
-  }
-
-  /* Garis pemisah antar step */
-  .step-nav-divider {
+    }
+    .step-nav-divider {
     height: 1px;
     flex: 1;
     max-width: 20px;
     background-color: var(--border-color, rgba(255,255,255,0.12));
     align-self: center;
     flex-shrink: 1;
-  }
-
-  /* Scroll anchor offset: agar section tidak tertutup header + step-nav
-     Header ~56px + step-nav ~52px = ~108px total */
-  #order-step-1,
-  #order-step-2,
-  #order-step-3,
-  #order-step-4 {
+    }
+    #order-step-1,
+    #order-step-2,
+    #order-step-3,
+    #order-step-4 {
     scroll-margin-top: 116px;
-  }
-
-  /* Tambahan: beri jarak atas main agar tidak tertutup step-nav sticky */
-  main.container {
-    /* Step-nav ~52px sudah sticky, tidak perlu extra padding */
-    padding-top: 0.5rem;
-  }
+    }
 }
-
-/* ── Respect prefers-reduced-motion ── */
 @media (prefers-reduced-motion: reduce) {
-  .step-nav-btn,
-  .step-nav-num {
+    .step-nav-btn,
+    .step-nav-num {
     transition: none;
-  }
+    }
 }
-/* ===================================================================
-   PHASE 2B — PHONE INPUT GROUP (Country Code Picker + Local Number)
-   Tampil konsisten di mobile dan desktop, di dalam modal register.
-   Semua nilai padding/border/radius/background diselaraskan dengan
-   .modal-content input di style.css (padding:0.8rem, bg:--bg-dark,
-   border-radius:5px, border:1px solid --border-color).
-=================================================================== */
-
 .phone-input-group {
   display: flex;
   gap: 0.5rem;
-  align-items: center; /* center agar tidak ada satu sisi lebih tinggi */
+  align-items: center;
   width: 100%;
-  margin-bottom: 1rem; /* sama seperti input modal yang punya margin-bottom */
+  margin-bottom: 1rem;
 }
-
-/* Wrapper ini menggantikan margin-bottom bawaan input di dalam grup */
 .phone-input-group input.phone-local-input {
-  margin-bottom: 0; /* hapus margin dari aturan .modal-content input */
+  margin-bottom: 0;
 }
-
-/* Dropdown kode negara — identik dengan input modal */
 .phone-country-code {
-  flex: 0 0 115px;      /* lebar tetap: cukup untuk "+62" + flag emoji */
+  flex: 0 0 115px;
   width: 115px;
   min-width: 100px;
   max-width: 130px;
-  /* Padding identik dengan .modal-content input */
   padding: 0.8rem 0.5rem;
-  /* Border identik */
   border: 1px solid var(--border-color, #4B5563);
-  border-radius: 5px;   /* sama dengan input modal di style.css */
-  /* Background identik dengan input modal */
+  border-radius: 5px;
   background-color: var(--bg-dark, #0b0f19);
   color: var(--text-color, #F3F4F6);
-  /* Font identik */
   font-size: 0.9rem;
   font-family: inherit;
-  /* Tinggi & box-sizing */
-  min-height: 42px;     /* sama dengan section 17 di style-responsive.css */
+  min-height: 42px;
   box-sizing: border-box;
   cursor: pointer;
-  appearance: auto;     /* tampilkan panah dropdown native */
+  appearance: auto;
   line-height: 1.4;
 }
-
 .phone-country-code:focus {
   outline: 2px solid var(--primary-color, #06b6d4);
   outline-offset: 1px;
 }
-
-/* Input nomor lokal — ambil sisa lebar */
 .phone-local-input {
   flex: 1 1 0%;
-  min-width: 0;         /* cegah overflow flex */
-  /* margin-bottom sudah dioverride di atas */
+  min-width: 0;
 }
-
-/* ── Mobile ≤480px: perkecil sedikit dropdown ── */
 @media (max-width: 480px) {
-  .phone-country-code {
+    .phone-country-code {
     flex: 0 0 110px;
     width: 110px;
     min-width: 100px;
     font-size: 0.85rem;
     padding: 0.8rem 0.35rem;
-  }
+    }
 }
-
-/* ── Status badge: Partial Refund ── */
 .status-partial-refund {
-    background-color: #F97316; /* Oranye — beda dari Pending kuning */
+    background-color: #F97316;
     color: #fff;
 }
-
-/* ── Admin resolve action buttons ── */
 .admin-resolve-actions {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
 }
-
 .resolve-btn {
     padding: 4px 10px;
     font-size: 0.78rem;
@@ -1116,31 +762,22 @@ table th {
     font-weight: 600;
     transition: opacity 0.15s;
 }
-
 .resolve-btn:hover {
     opacity: 0.85;
 }
-
 .resolve-btn-success {
     background: #22c55e;
     color: #fff;
 }
-
 .resolve-btn-refund {
     background: #ef4444;
     color: #fff;
 }
-
 .resolve-btn-review {
     background: #F97316;
     color: #fff;
 }
-
-/* ============================================================
-   CEK TRANSAKSI PAGE — class unik, tidak merusak halaman lain
-   ============================================================ */
 .transaction-check-card { margin-bottom: 0; }
-
 .trx-detail-grid {
     display: flex; flex-direction: column;
     gap: 0.6rem; margin-top: 1rem;
@@ -1158,7 +795,6 @@ table th {
     padding: 2px 6px; border-radius: 4px;
     font-size: 0.88rem;
 }
-
 .partial-refund-notice {
     margin-top: 1rem; padding: 0.75rem 1rem;
     background: rgba(249,115,22,0.12);
@@ -1167,7 +803,6 @@ table th {
     font-size: 0.9rem; line-height: 1.5;
 }
 .partial-refund-notice i { margin-right: 0.4rem; }
-
 .recent-transaction-list {
     border: 1px solid var(--border-color);
     border-radius: 10px; overflow: hidden;
@@ -1201,7 +836,6 @@ table th {
 .recent-game-name   { font-weight: 600; font-size: 0.88rem; }
 .recent-product-name { font-size: 0.78rem; color: var(--muted-color); }
 .recent-trx-date    { font-size: 0.8rem; color: var(--muted-color); }
-
 @media (max-width: 640px) {
     .recent-trx-header,
     .recent-trx-row { grid-template-columns: 1.4fr 1.6fr 1fr; }
@@ -1215,40 +849,25 @@ table th {
     .recent-trx-header > span:nth-child(2),
     .recent-trx-row > .recent-trx-product { display: none; }
 }
-
-/* ── Very small ≤360px ── */
 @media (max-width: 360px) {
-  .phone-country-code {
+    .phone-country-code {
     flex: 0 0 95px;
     width: 95px;
     min-width: 88px;
     font-size: 0.8rem;
-  }
+    }
 }
-
-/* ── Header: sembunyikan .validate-btn dan .cek-trx-btn di mobile kecil ──
-   Di mobile (≤640px) header-right sudah sempit — link ada di hamburger menu.
-   Sisakan hanya .pricelist-btn dan #user-auth-button di header-right mobile.
-   Di desktop (≥641px) semua link tampil normal.
-────────────────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .validate-btn,
-  .cek-trx-btn {
+    .validate-btn {
     display: none;
-  }
+    }
+    .cek-trx-btn {
+    display: none;
+    }
 }
-
-/* ============================================================
-   STATIC PAGES — Syarat & Ketentuan, Kebijakan Refund, Kontak
-   Class unik, tidak merusak halaman lain.
-   ============================================================ */
-
-/* Layout wrapper */
 .static-main {
     padding: 2rem 0 3rem;
 }
-
-/* Card utama konten */
 .static-card {
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
@@ -1257,45 +876,36 @@ table th {
     max-width: 800px;
     margin: 0 auto;
 }
-
-/* Section per topik */
 .static-section {
     margin-top: 1.75rem;
     padding-top: 1.25rem;
     border-top: 1px solid rgba(75, 85, 99, 0.35);
 }
-
 .static-section:first-of-type {
     margin-top: 1.25rem;
     border-top: none;
     padding-top: 0;
 }
-
 .static-section h3 {
     margin-bottom: 0.75rem;
     font-size: 1rem;
     color: var(--primary-color);
 }
-
 .static-section p,
 .static-section li {
     color: var(--text-color);
     line-height: 1.7;
     font-size: 0.95rem;
 }
-
 .static-section ul,
 .static-section ol {
     padding-left: 1.4rem;
     margin: 0.5rem 0;
 }
-
 .static-section ul li,
 .static-section ol li {
     margin-bottom: 0.4rem;
 }
-
-/* Inline link di konten static */
 .static-link {
     color: var(--primary-color);
     text-decoration: underline;
@@ -1303,8 +913,6 @@ table th {
     transition: opacity 0.15s;
 }
 .static-link:hover { opacity: 0.8; }
-
-/* Notice box (kontak.html) */
 .contact-notice {
     display: flex;
     align-items: flex-start;
@@ -1323,8 +931,6 @@ table th {
     margin-top: 2px;
     flex-shrink: 0;
 }
-
-/* Grid quick-link (kontak.html) */
 .contact-links-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1353,8 +959,6 @@ table th {
     color: var(--primary-color);
     flex-shrink: 0;
 }
-
-/* Mobile responsive untuk static pages */
 @media (max-width: 640px) {
     .static-card {
         padding: 1.25rem 1rem;
@@ -1367,35 +971,21 @@ table th {
         grid-template-columns: 1fr 1fr;
     }
 }
-
 @media (max-width: 400px) {
     .contact-links-grid {
         grid-template-columns: 1fr;
     }
 }
-
-/* ============================================================
-   PHASE 3C-1 — UI Polish: Pricelist, Product Page, Mobile
-   CSS-only. Tidak menyentuh JS, backend, atau logic.
-   ============================================================ */
-
-/* ── 1. PRICELIST / COMPARE PRICES — tabel lebih ringkas ── */
-
-/* Padding cell tabel lebih kecil agar tidak terlalu besar */
 .modern-table th,
 .modern-table td {
     padding: 0.65rem 1rem;
     font-size: 0.88rem;
 }
-
-/* Header kolom lebih kecil tapi tetap terbaca */
 .modern-table th {
     font-size: 0.78rem;
     letter-spacing: 0.04em;
     padding: 0.6rem 1rem;
 }
-
-/* Kolom nama produk: clamp agar tidak terlalu lebar */
 #compare-prices-table td:nth-child(1),
 #compare-prices-table th:nth-child(1) {
     max-width: 160px;
@@ -1406,14 +996,10 @@ table th {
     max-width: 200px;
     min-width: 130px;
 }
-
-/* Harga: monospace lebih kecil */
 #compare-prices-table td:nth-child(n+3) {
     font-size: 0.85rem;
     text-align: right;
 }
-
-/* Compare header: title + deskripsi lebih compact */
 .compare-header {
     margin-bottom: 0.75rem;
 }
@@ -1425,8 +1011,6 @@ table th {
     font-size: 0.85rem;
     margin-bottom: 0;
 }
-
-/* Mobile ≤768px: tabel compare lebih compact lagi */
 @media (max-width: 768px) {
     .modern-table th,
     .modern-table td {
@@ -1444,16 +1028,10 @@ table th {
         font-size: 1rem;
     }
 }
-
-/* ── 2. PRODUCT CARD SELECTABLE — tinggi dan nama lebih rapi ── */
-
-/* Kurangi min-height agar card tidak terlalu tinggi di mobile */
 .product-card-selectable {
     min-height: 72px;
     padding: 0.6rem 0.5rem;
 }
-
-/* Nama produk: max 2 baris dengan ellipsis — sudah ada, perkuat */
 .product-card-selectable span {
     font-size: 0.82rem;
     line-height: 1.25;
@@ -1461,25 +1039,19 @@ table th {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
-    line-clamp: 2;             /* Standard property for compatibility */
+    line-clamp: 2;
     overflow: hidden;
     max-height: calc(1.25em * 2);
 }
-
-/* Harga di bawah nama: lebih kecil */
 .product-card-selectable small {
     font-size: 0.75rem;
 }
-
-/* Product grid desktop: kolom sedikit lebih lebar agar nama tidak terpotong */
 @media (min-width: 900px) {
     #product-list-container.product-grid {
         grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
         gap: 0.65rem;
     }
 }
-
-/* Mobile ≤480px: 2 kolom (bukan 3) agar card lebih lebar dan nama terbaca */
 @media (max-width: 480px) {
     #product-list-container.product-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -1496,8 +1068,6 @@ table th {
         font-size: 0.7rem;
     }
 }
-
-/* Sangat kecil ≤360px: tetap 2 kolom tapi padding minimal */
 @media (max-width: 360px) {
     #product-list-container.product-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -1508,28 +1078,20 @@ table th {
         padding: 0.4rem 0.3rem;
     }
 }
-
-/* ── 3. PAYMENT INFO — font lebih proporsional di mobile ── */
 #payment-info {
     font-size: 0.95rem;
     gap: 0.6rem;
     margin-bottom: 1.25rem;
 }
-
 @media (max-width: 768px) {
     #payment-info {
         font-size: 0.9rem;
     }
 }
-
-/* Total: tetap bold dan terbaca */
 .total-payment strong {
     font-size: 1.05rem;
 }
-
-/* ── 4. PRODUCT PAGE DESKTOP — desktop lebih lega ── */
 @media (min-width: 900px) {
-    /* Game info card: tinggi lebih konsisten */
     #game-info {
         gap: 1.25rem;
         padding: 1.25rem;
@@ -1538,42 +1100,20 @@ table th {
         width: clamp(72px, 8vw, 96px);
         height: clamp(72px, 8vw, 96px);
     }
-    /* Step header: lebih compact */
     .order-page-wrapper .card h3 {
         font-size: 1rem;
         margin-bottom: 1rem;
     }
 }
-
-/* ── 5. GLOBAL: nama panjang dalam .card tidak meluber ── */
-.card {
-    overflow-wrap: break-word;
-    word-break: break-word;
-}
-
-/* ── 6. STEP NAV MOBILE — pastikan tidak mengganggu konten ── */
-/* Sudah ada `top: 56px`, tambahkan safety untuk berbagai header height */
 @media (max-width: 768px) and (max-height: 700px) {
-    /* Landscape di HP kecil: kurangi padding step nav */
     #mobile-step-nav {
         padding: 0.3rem 0.5rem;
     }
 }
-
-/* ============================================================
-   PHASE 3C-2 — Homepage Game Card: Marquee Overlay (FIXED)
-   Hanya .product-card-title-track yang bergerak.
-   .product-card-overlay tetap diam dan full lebar.
-   ============================================================ */
-
-/* Keyframe: gerakkan track dari posisi 0 ke kiri */
 @keyframes marquee-scroll {
     0%   { transform: translateX(0); }
     100% { transform: translateX(-50%); }
-    /* -50% karena track = teks + clone, masing-masing 50% total width */
 }
-
-/* DESKTOP: has-long-title — animasi paused, running saat hover */
 .product-card.has-long-title .product-card-title-track {
     animation: marquee-scroll 7s linear infinite;
     animation-play-state: paused;
@@ -1581,42 +1121,35 @@ table th {
 .product-card.has-long-title:hover .product-card-title-track {
     animation-play-state: running;
 }
-
-/* Nama pendek: tidak ada animasi sama sekali */
 .product-card:not(.has-long-title) .product-card-title-track {
     animation: none;
     transform: none;
 }
-
-/* prefers-reduced-motion: matikan semua animasi card */
 @media (prefers-reduced-motion: reduce) {
     .product-card .product-card-title-track {
         animation: none !important;
         transform: none !important;
     }
 }
-
-/* MOBILE (<=768px): has-long-title auto-play tanpa hover */
 @media (max-width: 768px) {
     .product-card.has-long-title .product-card-title-track {
         animation-play-state: running;
         animation-duration: 8s;
     }
-    /* Font overlay sedikit lebih kecil */
     .product-card-title-text {
         font-size: 0.75rem;
     }
     .product-card-overlay {
         padding: 0.4rem 0.5rem 0.35rem;
     }
+}
+@media (max-width: 768px) {
     @media (prefers-reduced-motion: reduce) {
         .product-card .product-card-title-track {
-            animation: none !important;
-        }
+                    animation: none !important;
+                }
     }
 }
-
-/* <=480px: overlay lebih compact */
 @media (max-width: 480px) {
     .product-card-title-text {
         font-size: 0.7rem;
@@ -1628,26 +1161,15 @@ table th {
         animation-duration: 6s;
     }
 }
-
-/* ============================================================
-   PHASE 4A — Manual Deposit CSS
-   Semua class unik dengan prefix .deposit-
-   Tidak mengganggu halaman lain.
-   ============================================================ */
-
-/* Card deposit: sedikit lebih lega dari card biasa */
 .deposit-card {
     border-left: 3px solid var(--primary-color);
 }
-
-/* Grid metode pembayaran: 2 kolom di desktop */
 .deposit-method-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 0.75rem;
     margin-top: 0.75rem;
 }
-
 .deposit-method-item {
     background: rgba(255,255,255,0.04);
     border: 1px solid var(--border-color);
@@ -1657,7 +1179,6 @@ table th {
     flex-direction: column;
     gap: 0.3rem;
 }
-
 .deposit-method-label {
     font-weight: 700;
     font-size: 0.92rem;
@@ -1666,14 +1187,11 @@ table th {
     align-items: center;
     gap: 0.45rem;
 }
-
 .deposit-method-number {
     font-size: 0.82rem;
     color: var(--text-muted, #aaa);
     word-break: break-all;
 }
-
-/* Mobile: 1 kolom */
 @media (max-width: 600px) {
     .deposit-method-grid {
         grid-template-columns: 1fr;
@@ -1683,20 +1201,6 @@ table th {
         padding: 0.6rem 0.75rem;
     }
 }
-
-/* ============================================================
-   PHASE 4A-1 — Dashboard Mobile Responsive Fix
-   Target: Deposit, Riwayat Transaksi, Mutasi Saldo
-   Metode: scroll internal di .table-container, CSS-only.
-   Tidak mengubah backend, dashboard.js, atau layout PC.
-   ============================================================ */
-
-/* ── 1. DASHBOARD TABLE SCROLL BOX ──────────────────────────
-   Semua .table-container di dalam dashboard-content:
-   - Tidak overflow ke luar card/viewport
-   - Isi bisa digeser kiri-kanan di dalam box
-   - Tabel punya min-width agar kolom tidak gepeng
-*/
 .dashboard-content .table-container {
     width: 100%;
     max-width: 100%;
@@ -1707,8 +1211,6 @@ table th {
     scrollbar-color: var(--primary-color) rgba(255,255,255,0.06);
     border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
 }
-
-/* Scrollbar tipis WebKit */
 .dashboard-content .table-container::-webkit-scrollbar {
     height: 5px;
 }
@@ -1720,90 +1222,63 @@ table th {
     background: var(--primary-color);
     border-radius: 4px;
 }
-
-/* Tabel di dalam dashboard: min-width agar tidak gepeng */
 .dashboard-content .table-container table {
     min-width: 580px;
     width: 100%;
     white-space: nowrap;
 }
-
-/* Riwayat Transaksi: lebih banyak kolom */
 #transaksi-tab .table-container table {
     min-width: 680px;
 }
-
-/* Mutasi Saldo: 4 kolom */
 #mutasi-saldo .table-container table {
     min-width: 540px;
 }
-
-/* Deposit history: 5 kolom compact */
 #deposit-history-table {
     min-width: 480px;
 }
-
-/* ── 2. MOBILE <=768px ─────────────────────────────────────── */
 @media (max-width: 768px) {
-
-    /* Dashboard content: tidak overflow horizontal */
     .dashboard-content {
         min-width: 0;
         max-width: 100%;
         overflow-x: hidden;
     }
-
     .dashboard-section {
         max-width: 100%;
         overflow-x: hidden;
     }
-
     .dashboard-content .card {
         max-width: 100%;
         box-sizing: border-box;
     }
-
-    /* Deposit form: column stack */
     #deposit-form .form-row-container {
         flex-direction: column;
         align-items: stretch;
         gap: 0.6rem;
     }
-
     #deposit-form .form-row-container .dashboard-input {
         width: 100%;
         min-width: 0;
         box-sizing: border-box;
     }
-
     #deposit-form .form-row-container .btn-submit-deposit {
         width: 100%;
     }
-
-    /* Instruksi pembayaran: tidak overflow */
     #instruction-text {
         word-break: break-word;
         overflow-wrap: break-word;
     }
-
-    /* Metode 1 kolom di mobile */
     .deposit-method-grid {
         grid-template-columns: 1fr;
     }
-
     .deposit-note {
         white-space: normal;
         word-break: break-word;
     }
-
-    /* Table container display block untuk scroll aktif */
     .dashboard-content .table-container {
         display: block;
         width: 100%;
         max-width: 100%;
     }
-
-    /* Badge status tidak gepeng */
     .dashboard-content .badge,
     .dashboard-content .status-badge,
     .dashboard-content .status-pending,
@@ -1813,51 +1288,34 @@ table th {
         display: inline-block;
     }
 }
-
-/* ── 3. <=480px: extra compact ─────────────────────────────── */
 @media (max-width: 480px) {
-
     #payment-instructions.deposit-card {
         padding: 1rem;
     }
-
     .deposit-method-item {
         padding: 0.5rem 0.65rem;
     }
-
     .deposit-method-number {
         white-space: normal;
         word-break: break-word;
     }
-
     .dashboard-content .table-container table {
         min-width: 500px;
     }
-
     #transaksi-tab .table-container table {
         min-width: 560px;
     }
-
     #deposit-history-table {
         min-width: 360px;
     }
-
     .order-stats {
         flex-wrap: wrap;
         gap: 0.5rem;
     }
-
     .stat-item {
         min-width: 60px;
     }
 }
-
-/* ============================================================
-   PHASE 4C-UI — Deposit Method Card: Label, Nomor, Copy Button
-   Class unik, tidak mengganggu halaman lain.
-   ============================================================ */
-
-/* Label kecil di atas nama metode (E-Wallet / Bank Transfer • A/N) */
 .deposit-method-type-label {
     display: block;
     font-size: 0.75rem;
@@ -1865,8 +1323,6 @@ table th {
     margin-bottom: 0.3rem;
     letter-spacing: 0.01em;
 }
-
-/* Override .deposit-method-number dari Phase 4A agar tampil sebagai nomor tegas */
 .deposit-method-number {
     margin: 0.4rem 0 0.7rem;
     font-weight: 700;
@@ -1875,8 +1331,6 @@ table th {
     font-size: 0.95rem;
     line-height: 1.4;
 }
-
-/* Tombol Copy Nomor */
 .copy-deposit-number-btn {
     display: inline-flex;
     align-items: center;
@@ -1894,167 +1348,57 @@ table th {
     width: fit-content;
     min-height: 36px;
 }
-
 .copy-deposit-number-btn:hover {
     opacity: 0.88;
 }
-
 .copy-deposit-number-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
 }
-
-/* Mobile: tombol full width agar mudah ditekan */
 @media (max-width: 640px) {
     .copy-deposit-number-btn {
         width: 100%;
         justify-content: center;
     }
 }
-
-/* === Phase 6A: LEADERBOARD BUTTON — mobile hide ===
-   Desktop header button (#leaderboard-nav-btn) disembunyikan di mobile.
-   Pola ini konsisten dengan .pricelist-btn dan .validate-btn yang sudah
-   hidden di style.css line 1182.
-   Link Leaderboard di #dropdown-menu (hamburger) TIDAK terpengaruh karena
-   berada di struktur HTML yang berbeda (.header-left bukan .header-right).
-*/
 @media (max-width: 768px) {
     #leaderboard-nav-btn {
         display: none !important;
     }
 }
-
-
-/* ============================================================
-   PAKET 1: RESPONSIVE POLISH — DARK GAMING THEME, HERO, COUNTDOWN & INVOICE
-   ============================================================ */
-
-header {
-    background-color: #0b0f19;
-}
-
-.header-icon-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    width: 38px;
-    height: 38px;
-    min-width: 38px;
-    min-height: 38px;
-    padding: 0;
-    background-color: var(--bg-surface-elevated, #161f33);
-    border: 1px solid var(--border-color, #1f2937);
-    border-radius: 8px;
-    color: var(--text-color, #f8fafc);
-    font-size: 1.05rem;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.header-icon-btn:hover,
-.header-icon-btn:focus-visible {
-    background-color: rgba(6, 182, 212, 0.14);
-    border-color: var(--primary-color, #06b6d4);
-    color: var(--primary-color, #06b6d4);
-    outline: none;
-}
-
 #notification-container .badge-count {
     top: -6px;
     right: -6px;
 }
-
 @media (min-width: 769px) {
     #hamburger-btn {
         display: none !important;
     }
 }
-
 .hero-placeholder.miku-hero-banner {
     height: auto;
     min-height: clamp(165px, 21vw, 230px);
 }
-
 .product-card {
     aspect-ratio: 4 / 5;
     height: auto;
     min-height: 155px;
     border-radius: var(--radius-md);
 }
-
 @media (max-width: 768px) {
-    .header-container {
-        width: 100%;
-        height: auto;
-        min-height: 56px;
-        padding: 0.55rem 0.85rem;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 0.55rem 0.5rem;
-    }
-
-    .header-left {
-        flex: 1 1 auto;
-        min-width: 0;
-        gap: 0.5rem;
-    }
-
-    .logo {
-        font-size: clamp(1.05rem, 4.5vw, 1.3rem);
-        white-space: nowrap;
-    }
-
-    .header-right {
-        flex: 0 1 auto;
-        min-width: 0;
-        gap: 0.5rem;
-        margin-left: auto;
-    }
-
-    .header-center {
-        order: 3;
-        flex: 1 0 100%;
-        width: 100%;
-        padding: 0;
-    }
-
     .search-container {
         max-width: 100%;
     }
-
     #search-input {
         padding: 0.55rem 1rem 0.55rem 2.5rem;
         min-height: 40px;
         font-size: 0.9rem;
     }
-
     #hamburger-btn {
         display: inline-flex;
         margin-right: 0;
         padding: 0;
     }
-
-    #user-auth-button {
-        display: inline-block;
-        max-width: min(40vw, 145px);
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        padding: 0.42rem 0.72rem;
-        min-height: 36px;
-        font-size: 0.8rem;
-        line-height: 1.35;
-        vertical-align: middle;
-    }
-
-    #user-auth-button i {
-        margin-right: 0.25rem;
-        vertical-align: -1px;
-    }
-
     .dropdown-menu {
         z-index: 999;
         visibility: hidden;
@@ -2065,45 +1409,37 @@ header {
         overflow-y: auto;
         background-color: var(--bg-dark, #0b0f19);
     }
-
     .dropdown-menu.active {
         left: 0;
         visibility: visible;
         pointer-events: auto;
     }
-
     .hero-placeholder.miku-hero-banner {
         height: auto;
         min-height: 155px;
         padding: 1.25rem 1.25rem;
         gap: 1rem;
     }
-
     .miku-hero-svg {
         width: 80px;
         height: 80px;
     }
-
     .flash-sale-header {
         align-items: center;
     }
-
     .flash-sale-countdown {
         padding: 0.35rem 0.6rem;
         gap: 0.45rem;
     }
-
     .countdown-label {
         font-size: 0.75rem;
     }
-
     .countdown-unit {
         min-width: 24px;
         height: 24px;
         font-size: 0.8rem;
     }
 }
-
 @media (max-width: 480px) {
     .hero-placeholder.miku-hero-banner {
         height: auto;
@@ -2112,44 +1448,26 @@ header {
         flex-direction: column;
         align-items: flex-start;
     }
-
     .miku-hero-visual {
         display: none;
     }
-
     .miku-badge {
         font-size: 0.7rem;
         padding: 0.25rem 0.6rem;
     }
-
     .product-card {
         aspect-ratio: 4 / 5;
         height: auto;
         min-height: 132px;
     }
-
     .invoice-actions {
         flex-direction: column;
     }
-
     .invoice-btn {
         width: 100%;
         flex: none;
     }
 }
-
-@media (max-width: 380px) {
-    .logo {
-        font-size: 1.02rem;
-    }
-
-    #user-auth-button {
-        max-width: min(36vw, 122px);
-        padding: 0.38rem 0.6rem;
-        font-size: 0.76rem;
-    }
-}
-
 @media print {
     header,
     footer,
@@ -2161,47 +1479,34 @@ header {
         display: none !important;
     }
 }
-
-
-/* ============================================================
-   MIKU MEMBER DASHBOARD — RESPONSIVE DESKTOP & MOBILE RULES
-   ============================================================ */
-
 @media (min-width: 769px) {
     #dashboard-sidebar {
         flex: 0 0 260px;
         max-width: 260px;
     }
-
     .sidebar-top-header .menu-toggle-btn {
         display: none !important;
     }
 }
-
 @media (max-width: 960px) and (min-width: 769px) {
     .dashboard-split-grid {
         grid-template-columns: 1fr;
     }
 }
-
 @media (max-width: 768px) {
     .dashboard-header #menu-toggle-btn,
     #dashboard-sidebar .menu-toggle-btn {
         display: inline-flex !important;
     }
-
     .dashboard-header .header-back-home {
         display: none;
     }
-
     .dashboard-header .header-user-meta {
         display: none;
     }
-
     .dashboard-header .header-user-chip {
         padding: 0.15rem;
     }
-
     #dashboard-sidebar {
         width: min(82vw, 290px);
         max-width: 290px;
@@ -2214,55 +1519,44 @@ header {
         z-index: 999;
         border-radius: 0 14px 14px 0;
     }
-
     body.menu-open::after {
         z-index: 998;
     }
-
     .dashboard-kpi-card .order-stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 0.75rem;
     }
-
     .dashboard-split-grid {
         grid-template-columns: 1fr;
         gap: 1rem;
     }
-
     .dashboard-quick-banner {
         flex-direction: column;
         align-items: flex-start;
     }
 }
-
 @media (max-width: 480px) {
     .dashboard-kpi-card .stat-item {
         padding: 0.85rem 0.9rem;
     }
-
     .profile-contact-row {
         padding: 0.6rem 0.75rem;
     }
-
     .quick-banner-actions {
         width: 100%;
     }
-
     .quick-action-btn {
         flex: 1 1 calc(50% - 0.3rem);
         justify-content: center;
     }
-
     .selected-target-row {
         flex-direction: column;
         align-items: flex-start;
     }
-
     .selected-target-row .copy-deposit-number-btn {
         width: 100%;
         justify-content: center;
     }
-
     .pm-form-actions button {
         width: 100%;
     }
