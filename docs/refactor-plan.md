@@ -726,3 +726,72 @@ Prinsip kerja & kompatibilitas mock:
   - `node tests/manual/idempotency.js`: **`[PASS]`** semua 5 skenario (`A` 20x H2H paralel, `B` 20x Web paralel, `C` 20x Deposit paralel, `D` 409 conflict, `E` Failed/refund replay vs `ref_id` baru; exit code `0`).
   - `node tests/manual/pool.js`: **`[PASS]`** (`http201=30/30, peakInFlightFoxy=30, dbProbeDuringFoxy=true, orphanNullProvider=0, withProviderTrxId=30`; exit code `0`).
 - Tidak ada migrasi database pada tahap ini.
+
+---
+
+## R10 — Pemisahan `backend/app.js`, Pembersihan Ekspor `backend/server.js`, Perapian Root & Audit Akhir
+
+### A. Audit Simbol Ekspor `backend/server.js` & Seluruh Pemanggilnya
+Saat memulai R10, `backend/server.js` (`126` baris) mengekspor 8 simbol:
+
+| Simbol `server.js` | Modul Asal Kanonik | File Pemanggil Saat Ini | Target Arah Import (Commit 2) |
+|---|---|---|---|
+| `app` | `backend/app.js` (`createApp`) | `scripts/dump-routes.js` (`{ app, pool }`) | `scripts/dump-routes.js` -> `backend/app.js` (`createApp()`, fallback `server.js` untuk `--root`/`--target`) |
+| `pool` | `backend/config/db.js` (`pool`) | `backend/tests/helpers/appFactory.js`, `backend/tests/manual/concurrency.js`, `idempotency.js`, `pool.js`, `scripts/dump-routes.js` | Langsung dari `config/db.js` |
+| `startServer` | `backend/server.js` (`startServer`) | `backend/tests/helpers/appFactory.js`, `backend/tests/manual/concurrency.js`, `idempotency.js`, `pool.js` | Tetap dari `server.js` (fungsi resmi entry point HTTP) |
+| `server` | `backend/server.js` (`server`) | Tidak dipakai langsung di tes/skrip mana pun | Hapus dari `module.exports` `server.js` di Commit 3 |
+| `validateEnvironment` | `backend/config/env.js` | `backend/tests/integration/foxyCallback.test.js` (via `serverMod`) | Langsung dari `config/env.js` |
+| `invalidateFoxyProductCache` | `backend/services/foxyClient.js` | `connectionPoolCronAndTimeouts.test.js`, `connectionPoolOrders.test.js`, `idempotencyConcurrencyAndRetry.test.js`, `idempotencyOrders.test.js` (via `serverMod`); `h2hSecurity.test.js`, `orderPriceGuardAndLock.test.js`, `tests/manual/idempotency.js`, `tests/manual/pool.js` (langsung `require('../../server')`) | Langsung dari `services/foxyClient.js` |
+| `callbackClock` | `backend/routes/foxyCallback.routes.js` | `backend/tests/integration/foxyCallback.test.js` (via `serverMod`) | Langsung dari `routes/foxyCallback.routes.js` |
+| `clearCallbackCooldownCache` | `backend/routes/foxyCallback.routes.js` | `connectionPoolCronAndTimeouts.test.js`, `connectionPoolOrders.test.js`, `foxyCallback.test.js` (via `serverMod`) | Langsung dari `routes/foxyCallback.routes.js` |
+
+Catatan tambahan pemanggil lain:
+- `backend/tests/manual/concurrency.js:51` masih mengambil `rollbackTransactionResources` dari `../../utils/cronUtils.js` -> ikut diarahkan ke modul kanonik `../../services/refundService.js` di Commit 2.
+- `backend/tests/helpers/appFactory.js` menghapus properti `serverMod` dari ekspornya setelah ke-5 file tes integrasi diarahkan ke modul kanonik.
+
+### B. Audit File Non-Modul di Root `backend/`
+
+| File di Root `backend/` | Ukuran | Jenis / Status | Rencana Aksi (Commit 4) |
+|---|---|---|---|
+| `server.js` | `126` baris | Entry point produksi | Ditipiskan (`<= 150` baris) di Commit 1 & Commit 3, tetap di root `backend/` |
+| `cron_job_script.js` | `3` baris | Wrapper CLI resmi cron | Tetap di root `backend/` (jangan dipindah) |
+| `package.json`, `package-lock.json`, `.env.example` | - | Manifes npm & template env | Tetap di root `backend/` |
+| `seed_local_dummy.js` | `261` baris | Skrip seeder lokal | Pindah via `git mv` -> `backend/scripts/seed_local_dummy.js`; sesuaikan `.env` ke `path.resolve(__dirname, '..', '.env')` dan perbarui `package.json` (`seed`, `check`) |
+| `benchmark_roles_update.js` | `60` baris | Skrip benchmark ad-hoc | Pindah via `git mv` -> `backend/scripts/benchmark_roles_update.js` |
+| `ENV_ANALYSIS.md` | `59` baris | Dokumen analisis env lama | Pindah via `git mv` -> `docs/ENV_ANALYSIS.md` |
+| `diff_tes.txt` | `0` byte | Artefak kosong pra-refactor | Dicatat apa adanya (tidak dipindah/dihapus) |
+
+### C. Audit Ukuran Seluruh File Kode `backend/` vs Batas Keras Bagian 1
+- Entry point (`<= 150`): `server.js` (`126` -> target `<= 150`).
+- Routes (`<= 400`, 19 file): seluruh 19 file route `51`–`368` baris (`public.routes.js` maks `368`, semuanya aman). Catatan: seluruh 19 router (`10` di `routes/` + `9` di `routes/admin/`) dipasang identik di `app.js`.
+- Services (`<= 600`, 6 file): `23`–`595` baris (`orderService.js` `595`, semuanya aman).
+- Jobs (`<= 300/600`, 3 file): `156`–`285` baris (`pendingTransactions.js` `285`, aman).
+- Config (`<= 300`, 3 file): `32`–`64` baris (aman).
+- Middleware (`<= 300`, 5 file): `27`–`130` baris (aman).
+- Tests & helpers (`<= 800`, 26 file + 3 manual): `27`–`679` baris (`mockDb.js` `679`, `manual/idempotency.js` `646`, semuanya aman).
+- Utils (`<= 300`, 11 file): `15`–`293` baris untuk 10 file, namun **`backend/utils/validators/stalk-ml-promo.js` tercatat `406` baris (melebihi batas keras `300` baris)**.
+  - **Mitigasi di Commit 4**: Memindahkan bagian `PHASE 5C-2A: Mobapay MLBB Eligibility Engine` (baris `191-406`, `checkMobapayMlbbEligibility` + `_internal`) apa adanya ke `backend/utils/validators/mobapayEligibility.js` (`~220` baris), dan me-re-export keduanya di `backend/utils/validators/stalk-ml-promo.js` (`~195` baris) sehingga semua pemanggil/tes tetap kompatibel dan tidak ada satu pun file util di atas `300` baris.
+
+### D. Catatan Desain Penting (Nol Perubahan Perilaku)
+1. **Tidak menambahkan global `errorHandler` baru**: Saat ini `backend/server.js` belum memiliki `middleware/errorHandler.js` maupun global error middleware (pekerjaan keamanan `SEC-016` nanti). Oleh karena itu `backend/app.js` merakit persis urutan middleware + static frontend + `applyRateLimiters` + 19 router tanpa menambah error handler baru agar perilaku error default Express dan `effective_chains=87/87` tetap identik 100%.
+2. **Satu `pool` aplikasi di `config/db.js` + `cronPool` terpisah sesuai koreksi R2/R8**: `config/db.js` mengekspor singleton `pool` (beserta listener `SET TIME ZONE 'Asia/Jakarta'`) yang dipakai tunggal oleh `app.js`, semua router/service HTTP, `tests/helpers/appFactory.js`, `tests/manual/*`, dan `scripts/dump-routes.js`. Sesuai koreksi R2 & arsitektur R8, `jobs/pendingTransactions.js` (`cronPool`) tetap memanggil `createPool()` dari `config/db.js` agar 5 file integration tests yang mem-mock `pool` dan `cronPool` bersamaan (`orderPriceGuardAndLock.test.js`, `orderCompensation.test.js`, `connectionPoolCronAndTimeouts.test.js`, `h2hSecurity.test.js`, `h2hWebhook.test.js`) tetap berjalan tanpa mengubah ekspektasi tes.
+3. **Baseline tes tetap `192`**: Tidak mengubah `describe`/`it`/`test` maupun ekspektasi tes di [refactor-baseline-tests.txt](file:///d:/DICKY%20BELAJAR/topup-miku/docs/refactor-baseline-tests.txt).
+
+### E. Peta 5 Commit R10
+1. **Commit 1 (`backend/app.js`, `backend/config/db.js`, `backend/server.js`)**:
+   - Tambahkan singleton `pool` aplikasi (+ `SET TIME ZONE 'Asia/Jakarta'`) di `backend/config/db.js` dengan tetap menjaga `createPool`.
+   - Buat `backend/app.js` yang mengekspor `createApp({ pool = defaultPool } = {})` berisi perakitan identik seluruh middleware, static frontend, `applyRateLimiters`, dan 19 grup router.
+   - Tipiskan `backend/server.js` agar memanggil `createApp({ pool })`, mempertahankan `startServer`, `require.main === module`, serta re-export kompatibilitas simbol lama sementara sampai Commit 3.
+2. **Commit 2 (Arahkan impor tes & skrip ke modul kanonik)**:
+   - Update `require` di `backend/tests/helpers/appFactory.js`, 7 file `tests/integration/*.test.js`, 3 file `tests/manual/*.js`, dan `scripts/dump-routes.js` agar mengimpor langsung dari `config/db.js`, `config/env.js`, `services/foxyClient.js`, `services/refundService.js`, `routes/foxyCallback.routes.js`, `app.js`, dan `server.js` (hanya `startServer`).
+3. **Commit 3 (`backend/server.js`, `backend/package.json`)**:
+   - Bersihkan ekspor lama di `backend/server.js` (`module.exports = { startServer }`) dan hapus import `server.js` yang tak lagi terpakai.
+   - Perbarui `backend/package.json` skrip `"check"` agar memeriksa `app.js`, `server.js`, `cron_job_script.js`, dan seluruh subdirektori (`config`, `jobs`, `middleware`, `routes`, `routes/admin`, `services`, `utils`, `utils/validators`, `tests/helpers`, `tests/unit`, `tests/integration`).
+4. **Commit 4 (Perapian root `backend/` & pemecahan validator `406` baris)**:
+   - `git mv backend/seed_local_dummy.js backend/scripts/seed_local_dummy.js` (+ update path `.env`), `git mv backend/benchmark_roles_update.js backend/scripts/benchmark_roles_update.js`, `git mv backend/ENV_ANALYSIS.md docs/ENV_ANALYSIS.md`.
+   - Perbarui `backend/package.json` (`"seed": "node scripts/seed_local_dummy.js"` dan tambahkan `'scripts'` ke `"check"`).
+   - Pecah `backend/utils/validators/stalk-ml-promo.js` menjadi `stalk-ml-promo.js` + `mobapayEligibility.js` (`<= 300` baris masing-masing, re-export utuh).
+5. **Commit 5 (Audit akhir, `README.md`, & `docs/refactor-plan.md`)**:
+   - Audit 0 circular dependency (graf `require` Node), ketunggalan `pool` aplikasi / `callbackClock` / `foxyProductCache`, dan eksekusi mandiri setiap file `tests/unit/*.test.js` dan `tests/integration/*.test.js`.
+   - Jalankan ketiga skrip PostgreSQL manual (`tests/manual/concurrency.js`, `idempotency.js`, `pool.js`).
+   - Perbarui `README.md` (peta struktur backend & panduan tes unit/integrasi/manual) serta lengkapi hasil R10 + Checklist Akhir Refactor di `docs/refactor-plan.md`.

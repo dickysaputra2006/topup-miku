@@ -35,9 +35,17 @@ function createPool(overrides = {}) {
     });
 }
 
+// Instance pool tunggal aplikasi HTTP/Web/H2H (cron memakai createPool() terpisah agar mock tes terisolasi)
+const pool = createPool();
+
+pool.on('connect', (client) => {
+    client.query("SET TIME ZONE 'Asia/Jakarta'");
+});
+
 module.exports = {
     dbSslEnabled,
     dbConfig,
     getDbConfig,
     createPool,
+    pool,
 };
