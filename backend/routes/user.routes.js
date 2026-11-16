@@ -2,7 +2,9 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { logSafeError } = require('../utils/logger');
 const { normalizeString, normalizeProfilePhone } = require('../utils/strings');
-const { isValidEmail, isValidInvoiceId } = require('../utils/validation');
+const { isValidEmail, isValidPassword, isValidInvoiceId } = require('../utils/validation');
+
+const BCRYPT_SALT_ROUNDS = 12;
 
 /**
  * Daftarkan route pengguna: profil, kata sandi, saldo, transaksi, dan notifikasi.
@@ -71,19 +73,32 @@ module.exports = function createUserRoutes(deps) {
 
     router.put('/api/user/password', protect, async (req, res) => {
         try {
-            const { currentPassword, newPassword } = req.body;
-            if (!currentPassword || !newPassword) return res.status(400).json({ message: 'Semua kolom wajib diisi!' });
+            const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : null;
+            if (!body) {
+                return res.status(400).json({ message: 'Payload request tidak valid.' });
+            }
+            const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
+            const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+            if (!currentPassword || !newPassword) {
+                return res.status(400).json({ message: 'Semua kolom wajib diisi!' });
+            }
+            if (!isValidPassword(newPassword)) {
+                return res.status(400).json({ message: 'Password baru minimal 8 karakter dan maksimal 128 karakter.' });
+            }
             const sqlSelect = 'SELECT password FROM users WHERE id = $1';
             const { rows } = await pool.query(sqlSelect, [req.user.id]);
+            if (!rows || rows.length === 0) {
+                return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+            }
             const user = rows[0];
             const isPasswordMatch = await bcrypt.compare(currentPassword, user.password);
             if (!isPasswordMatch) return res.status(401).json({ message: 'Password saat ini salah.' });
-            const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+            const hashedNewPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
             const sqlUpdate = 'UPDATE users SET password = $1 WHERE id = $2';
             await pool.query(sqlUpdate, [hashedNewPassword, req.user.id]);
             res.json({ message: 'Password berhasil diubah.' });
         } catch (error) {
-            console.error('Error changing password:', error);
+            logSafeError('Error changing password:', error);
             res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
         }
     });

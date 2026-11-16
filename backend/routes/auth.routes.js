@@ -9,6 +9,10 @@ const { normalizeString, normalizePhone } = require('../utils/strings');
 const { hashResetToken } = require('../utils/crypto');
 const { isValidEmail, isValidPassword } = require('../utils/validation');
 
+const BCRYPT_SALT_ROUNDS = 12;
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 menit
+const GENERIC_FORGOT_PASSWORD_MESSAGE = 'Jika email Anda terdaftar, Anda akan menerima link reset password.';
+
 /**
  * Daftarkan route autentikasi (register, login, forgot-password, reset-password).
  */
@@ -22,35 +26,41 @@ module.exports = function createAuthRoutes(deps) {
 
     router.post('/api/auth/register', async (req, res) => {
         try {
-            const fullName  = normalizeString(req.body.fullName, 255);
-            const username  = normalizeString(req.body.username, 80);
-            const email     = normalizeString(req.body.email, 255).toLowerCase();
+            const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+            const fullName = normalizeString(body.fullName, 255);
+            const username = normalizeString(body.username, 80);
+            const email = normalizeString(body.email, 255).toLowerCase();
             // Phase 2B: accept countryCode + nomorWa separately
-            const countryCode  = normalizeString(req.body.countryCode || '+62', 5);
-            const rawNomorWa   = normalizeString(req.body.nomorWa, 30);
-            const { password } = req.body;
+            const countryCode = normalizeString(body.countryCode || '+62', 5);
+            const rawNomorWa = normalizeString(body.nomorWa, 30);
+            const password = typeof body.password === 'string' ? body.password : '';
 
             // --- Basic presence checks ---
-            if (!fullName)    return res.status(400).json({ message: 'Nama lengkap wajib diisi.' });
-            if (!username)    return res.status(400).json({ message: 'Username wajib diisi.' });
-            if (!email)       return res.status(400).json({ message: 'Email wajib diisi.' });
-            if (!rawNomorWa)  return res.status(400).json({ message: 'Nomor WhatsApp wajib diisi.' });
-            if (!password)    return res.status(400).json({ message: 'Password wajib diisi.' });
+            if (!fullName) return res.status(400).json({ message: 'Nama lengkap wajib diisi.' });
+            if (!username) return res.status(400).json({ message: 'Username wajib diisi.' });
+            if (!email) return res.status(400).json({ message: 'Email wajib diisi.' });
+            if (!rawNomorWa) return res.status(400).json({ message: 'Nomor WhatsApp wajib diisi.' });
+            if (!password) return res.status(400).json({ message: 'Password wajib diisi.' });
 
             // --- Field validation ---
-            if (!/^[a-zA-Z0-9_.-]{3,80}$/.test(username))
+            if (!/^[a-zA-Z0-9_.-]{3,80}$/.test(username)) {
                 return res.status(400).json({ message: 'Username hanya boleh berisi huruf, angka, titik, strip, dan underscore (3-80 karakter).' });
-            if (!isValidEmail(email))
+            }
+            if (!isValidEmail(email)) {
                 return res.status(400).json({ message: 'Format email tidak valid.' });
-            if (!isValidPassword(password))
+            }
+            if (!isValidPassword(password)) {
                 return res.status(400).json({ message: 'Password minimal 8 karakter dan maksimal 128 karakter.' });
+            }
 
             // --- Phone normalization (Phase 2B) ---
-            if (!/^\+[0-9]{1,3}$/.test(countryCode.trim()))
+            if (!/^\+[0-9]{1,3}$/.test(countryCode.trim())) {
                 return res.status(400).json({ message: 'Kode negara tidak valid. Contoh: +62' });
+            }
             const normalizedPhone = normalizePhone(countryCode, rawNomorWa);
-            if (!normalizedPhone)
+            if (!normalizedPhone) {
                 return res.status(400).json({ message: 'Nomor WhatsApp tidak valid. Masukkan nomor lokal tanpa angka 0 di depan. Contoh: 81234567890' });
+            }
 
             // --- Pre-check duplicates (user-friendly, specific messages) ---
             const dupCheck = await pool.query(
@@ -58,15 +68,18 @@ module.exports = function createAuthRoutes(deps) {
                 [username, email, normalizedPhone]
             );
             for (const row of dupCheck.rows) {
-                if (row.username === username)
+                if (row.username === username) {
                     return res.status(409).json({ message: 'Username sudah digunakan. Silakan pilih username lain.' });
-                if (row.email === email)
+                }
+                if (row.email === email) {
                     return res.status(409).json({ message: 'Email sudah terdaftar. Silakan gunakan email lain atau login.' });
-                if (row.nomor_wa === normalizedPhone)
+                }
+                if (row.nomor_wa === normalizedPhone) {
                     return res.status(409).json({ message: 'Nomor WhatsApp sudah terdaftar. Gunakan nomor lain atau hubungi admin.' });
+                }
             }
 
-            const hashedPassword = await bcrypt.hash(password, 10);
+            const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
             const { rows: bronzeRole } = await pool.query("SELECT id FROM roles WHERE name = 'BRONZE'");
             let defaultRoleId = 1;
             if (bronzeRole.length > 0) defaultRoleId = bronzeRole[0].id;
@@ -78,9 +91,9 @@ module.exports = function createAuthRoutes(deps) {
             // Fallback for race condition on unique constraint
             if (error.code === '23505') {
                 const detail = error.detail || '';
-                if (detail.includes('username'))  return res.status(409).json({ message: 'Username sudah digunakan.' });
-                if (detail.includes('email'))     return res.status(409).json({ message: 'Email sudah terdaftar.' });
-                if (detail.includes('nomor_wa'))  return res.status(409).json({ message: 'Nomor WhatsApp sudah terdaftar.' });
+                if (detail.includes('username')) return res.status(409).json({ message: 'Username sudah digunakan.' });
+                if (detail.includes('email')) return res.status(409).json({ message: 'Email sudah terdaftar.' });
+                if (detail.includes('nomor_wa')) return res.status(409).json({ message: 'Nomor WhatsApp sudah terdaftar.' });
                 return res.status(409).json({ message: 'Data yang Anda masukkan sudah digunakan. Periksa kembali username, email, atau nomor WhatsApp.' });
             }
             logSafeError('Error during registration:', error);
@@ -90,15 +103,22 @@ module.exports = function createAuthRoutes(deps) {
 
     router.post('/api/auth/login', async (req, res) => {
         try {
-            const username = normalizeString(req.body.username, 255);
-            const { password } = req.body;
-            if (!username || !password) return res.status(400).json({ message: 'Input tidak boleh kosong.' });
+            const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+            const username = normalizeString(body.username, 255);
+            const password = typeof body.password === 'string' ? body.password : '';
+            if (!username || !password) {
+                return res.status(400).json({ message: 'Input tidak boleh kosong.' });
+            }
             const sql = 'SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = $1 OR u.email = $2';
             const { rows } = await pool.query(sql, [username, username]);
-            if (rows.length === 0) return res.status(401).json({ message: 'Username atau password salah.' });
+            if (rows.length === 0) {
+                return res.status(401).json({ message: 'Username atau password salah.' });
+            }
             const user = rows[0];
             const isPasswordMatch = await bcrypt.compare(password, user.password);
-            if (!isPasswordMatch) return res.status(401).json({ message: 'Username atau password salah.' });
+            if (!isPasswordMatch) {
+                return res.status(401).json({ message: 'Username atau password salah.' });
+            }
             const token = jwt.sign({ id: user.id, username: user.username, role: user.role_name }, JWT_SECRET, { expiresIn: '1d' });
             res.status(200).json({ message: 'Login berhasil!', token });
         } catch (error) {
@@ -108,7 +128,8 @@ module.exports = function createAuthRoutes(deps) {
     });
 
     router.post('/api/auth/forgot-password', async (req, res) => {
-        const email = normalizeString(req.body.email, 255).toLowerCase();
+        const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+        const email = normalizeString(body.email, 255).toLowerCase();
         if (!email) {
             return res.status(400).json({ message: 'Alamat email wajib diisi.' });
         }
@@ -117,45 +138,60 @@ module.exports = function createAuthRoutes(deps) {
         }
 
         const client = await pool.connect();
+        let inTransaction = false;
+        let resetTokenPlain = null;
         try {
-            // Cek apakah email terdaftar
-            const { rows: users } = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+            const { rows: users } = await client.query('SELECT id FROM users WHERE email = $1', [email]);
             if (users.length === 0) {
-                // Kirim respons sukses palsu untuk keamanan, agar orang tidak bisa menebak email terdaftar
-                return res.json({ message: 'Jika email Anda terdaftar, Anda akan menerima link reset password.' });
+                // Respons generik agar tidak membocorkan apakah email terdaftar
+                return res.json({ message: GENERIC_FORGOT_PASSWORD_MESSAGE });
             }
 
-            // Buat token reset yang aman
             const token = crypto.randomBytes(32).toString('hex');
             const tokenHash = hashResetToken(token);
-            const expires = new Date(Date.now() + 3600000); // Token berlaku selama 1 jam
+            const expires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
 
-            // Simpan token ke database
+            await client.query('BEGIN');
+            inTransaction = true;
+            await client.query('DELETE FROM password_resets WHERE email = $1', [email]);
             await client.query(
                 'INSERT INTO password_resets (email, token, expires_at) VALUES ($1, $2, $3)',
                 [email, tokenHash, expires]
             );
-
-            // Kirim email menggunakan fungsi dari mailer.js
-            await sendPasswordResetEmail(email, token);
-
-            res.json({ message: 'Jika email Anda terdaftar, Anda akan menerima link reset password.' });
-
+            await client.query('COMMIT');
+            inTransaction = false;
+            resetTokenPlain = token;
         } catch (error) {
+            if (inTransaction) {
+                await client.query('ROLLBACK').catch(() => {});
+            }
             logSafeError('Error saat proses lupa password:', error);
-            res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+            return res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
         } finally {
             client.release();
         }
+
+        if (resetTokenPlain) {
+            try {
+                await sendPasswordResetEmail(email, resetTokenPlain);
+            } catch (mailError) {
+                // Jangan bocorkan kegagalan pengiriman email sebagai sinyal eksistensi akun
+                logSafeError('Error saat mengirim email reset password:', mailError);
+            }
+        }
+
+        return res.json({ message: GENERIC_FORGOT_PASSWORD_MESSAGE });
     });
 
     router.post('/api/auth/reset-password', async (req, res) => {
-        const { token, newPassword } = req.body;
+        const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+        const token = typeof body.token === 'string' ? body.token.trim() : '';
+        const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
 
         if (!token || !newPassword) {
             return res.status(400).json({ message: 'Token dan password baru wajib diisi.' });
         }
-        if (typeof token !== 'string' || !/^[a-f0-9]{64}$/i.test(token)) {
+        if (!/^[a-f0-9]{64}$/i.test(token)) {
             return res.status(400).json({ message: 'Token tidak valid atau sudah kadaluarsa.' });
         }
         if (!isValidPassword(newPassword)) {
@@ -163,45 +199,59 @@ module.exports = function createAuthRoutes(deps) {
         }
 
         const client = await pool.connect();
+        let inTransaction = false;
         try {
-            await client.query('BEGIN'); // Mulai transaksi untuk keamanan data
+            await client.query('BEGIN');
+            inTransaction = true;
             const tokenHash = hashResetToken(token);
 
-            // 1. Cari token di database dan pastikan belum kadaluarsa
+            // Kunci baris token dengan FOR UPDATE untuk konsumsi atomik sekali pakai
             const { rows: resets } = await client.query(
-                'SELECT * FROM password_resets WHERE token IN ($1, $2) AND expires_at > NOW()',
-                [tokenHash, token]
+                'SELECT id, email, expires_at, (expires_at > NOW()) AS is_valid FROM password_resets WHERE token = $1 FOR UPDATE',
+                [tokenHash]
             );
 
-            if (resets.length === 0) {
-                // Hapus token yang mungkin sudah kadaluarsa untuk kebersihan
-                await client.query('DELETE FROM password_resets WHERE token IN ($1, $2)', [tokenHash, token]);
-                await client.query('COMMIT'); // Simpan perubahan penghapusan
+            const resetRow = resets && resets[0];
+            const expiresMs = resetRow && resetRow.expires_at ? new Date(resetRow.expires_at).getTime() : NaN;
+            const hasNotExpired = Boolean(resetRow)
+                && resetRow.is_valid !== false
+                && (resetRow.is_valid === true || (Number.isFinite(expiresMs) && expiresMs > Date.now()))
+                && (!Number.isFinite(expiresMs) || expiresMs > Date.now());
+
+            if (!resetRow || !hasNotExpired) {
+                await client.query('DELETE FROM password_resets WHERE token = $1', [tokenHash]);
+                await client.query('COMMIT');
+                inTransaction = false;
                 return res.status(400).json({ message: 'Token tidak valid atau sudah kadaluarsa.' });
             }
 
-            const userEmail = resets[0].email;
+            const userEmail = resetRow.email;
+            const consumeRes = await client.query(
+                'DELETE FROM password_resets WHERE email = $1 RETURNING id',
+                [userEmail]
+            );
+            if (consumeRes && typeof consumeRes.rowCount === 'number' && consumeRes.rowCount === 0) {
+                await client.query('COMMIT');
+                inTransaction = false;
+                return res.status(400).json({ message: 'Token tidak valid atau sudah kadaluarsa.' });
+            }
 
-            // 2. Hash password baru
-            const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-            // 3. Update password di tabel users
+            const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
             await client.query(
                 'UPDATE users SET password = $1 WHERE email = $2',
                 [hashedPassword, userEmail]
             );
 
-            // 4. Hapus semua token reset untuk email tersebut agar tidak bisa dipakai lagi
-            await client.query('DELETE FROM password_resets WHERE email = $1', [userEmail]);
+            await client.query('COMMIT');
+            inTransaction = false;
 
-            await client.query('COMMIT'); // Selesaikan transaksi jika semua berhasil
-
-            res.json({ message: 'Password berhasil direset! Silakan login dengan password baru Anda.' });
-
+            return res.json({ message: 'Password berhasil direset! Silakan login dengan password baru Anda.' });
         } catch (error) {
-            await client.query('ROLLBACK'); // Batalkan semua perubahan jika ada error di tengah jalan
+            if (inTransaction) {
+                await client.query('ROLLBACK').catch(() => {});
+            }
             logSafeError('Error saat reset password:', error);
-            res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
+            return res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
         } finally {
             client.release();
         }

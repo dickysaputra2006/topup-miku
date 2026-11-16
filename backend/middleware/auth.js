@@ -15,7 +15,7 @@ function createAuthMiddleware({ pool, jwtSecret = JWT_SECRET }) {
         if (!authHeader || !authHeader.startsWith('Bearer ')) return res.status(401).json({ message: 'Akses ditolak, tidak ada token.' });
         try {
             const token = authHeader.split(' ')[1];
-            req.user = jwt.verify(token, jwtSecret);
+            req.user = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] });
             next();
         } catch (error) {
             res.status(401).json({ message: 'Token tidak valid.' });
@@ -48,7 +48,7 @@ function createAuthMiddleware({ pool, jwtSecret = JWT_SECRET }) {
         if (authHeader && authHeader.startsWith('Bearer ')) {
             try {
                 const token = authHeader.split(' ')[1];
-                req.user = jwt.verify(token, jwtSecret);
+                req.user = jwt.verify(token, jwtSecret, { algorithms: ['HS256'] });
             } catch (error) {
                 req.user = null;
             }
