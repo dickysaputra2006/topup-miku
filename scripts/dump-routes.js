@@ -31,25 +31,21 @@ function parseArgs(argv) {
 
 const args = parseArgs(process.argv.slice(2));
 
-if (!process.env.JWT_SECRET) {
-    process.env.JWT_SECRET = 'dump-routes-inspection-placeholder';
-}
-
-const serverPath = args.target
-    ? path.resolve(args.target)
-    : args.root
-        ? path.resolve(args.root, 'backend', 'server.js')
-        : path.resolve(__dirname, '..', 'backend', 'server.js');
-const { app, pool } = require(serverPath);
-
 function extractMountPath(layer) {
     if (layer.path) return layer.path;
     if (!layer.regexp || layer.regexp.fast_slash) return '';
-    const src = layer.regexp.source
+    let src = layer.regexp.source
         .replace(/^\^/, '')
         .replace(/\\\/\?\(\?=\\\/\|\$\)$/, '')
-        .replace(/\(\?=\\\/\|\$\)$/, '')
-        .replace(/\\\//g, '/');
+        .replace(/\(\?=\\\/\|\$\)$/, '');
+    if (Array.isArray(layer.keys) && layer.keys.length > 0) {
+        let keyIdx = 0;
+        src = src.replace(/\(\?:\\\/\(\[\^\/\]\+\?\)\)/g, () => {
+            const key = layer.keys[keyIdx++];
+            return key && key.name ? `\\/:${key.name}` : '\\/:param';
+        });
+    }
+    src = src.replace(/\\\//g, '/');
     return src.startsWith('/') ? src : '';
 }
 
@@ -83,7 +79,7 @@ function collectRoutes(stack, prefix = '', inheritedMiddlewares = [], output = [
         } else if (layer.name === 'router' && layer.handle && Array.isArray(layer.handle.stack)) {
             const mountPrefix = joinPaths(prefix, extractMountPath(layer));
             collectRoutes(layer.handle.stack, mountPrefix, activeMiddlewares, output);
-        } else if (prefix) {
+        } else if (prefix && !extractMountPath(layer)) {
             activeMiddlewares.push(formatHandlerName(layer));
         }
     }
@@ -120,6 +116,17 @@ function collectLayers(stack, prefix = '', output = []) {
 }
 
 async function main() {
+    if (!process.env.JWT_SECRET) {
+        process.env.JWT_SECRET = 'dump-routes-inspection-placeholder';
+    }
+
+    const serverPath = args.target
+        ? path.resolve(args.target)
+        : args.root
+            ? path.resolve(args.root, 'backend', 'server.js')
+            : path.resolve(__dirname, '..', 'backend', 'server.js');
+    const { app, pool } = require(serverPath);
+
     const timer = setTimeout(() => {
         console.error('dump-routes timed out after 60 seconds');
         process.exit(124);
@@ -138,7 +145,17 @@ async function main() {
     }
 }
 
-main().catch((err) => {
-    console.error(err);
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch((err) => {
+        console.error(err);
+        process.exit(1);
+    });
+}
+
+module.exports = {
+    extractMountPath,
+    joinPaths,
+    formatHandlerName,
+    collectRoutes,
+    collectLayers,
+};

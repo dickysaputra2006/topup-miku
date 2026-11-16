@@ -215,3 +215,70 @@ Catatan baseline layer:
 | `backend/middleware/h2hAuth.js` (`createH2HAuthMiddleware({ pool })`) | `protectH2H`, `protectH2HIp` | `838-944` | Route `/h2h/balance`, `/h2h/products`, `/h2h/order`, `/h2h/status/:invoiceId`, `/h2h/profile` di `server.js` |
 
 - Keduanya menerima objek `pool` yang sama dari `backend/server.js` (tidak pernah me-`require('../server')` agar bebas siklus dan kompatibel dengan mock `pool.query` pada seluruh suite tes).
+
+---
+
+## R5 — Ekstraksi Route Publik & Route User (`routes/public.routes.js`, `routes/user.routes.js`)
+
+Prinsip kerja:
+- Nol perubahan perilaku; handler, SQL, kode status HTTP, dan pesan error dipindahkan apa adanya (`router.get('/api/...', ...)` menuliskan path penuh tanpa memisah prefix).
+- Dilarang `require('../server')`; seluruh dependensi eksternal (`pool`, `protect`) disuntikkan melalui parameter factory.
+- Semua file menggunakan LF murni (`\n`), dan setelah tiap commit diverifikasi dengan `npm run check`, `npm test`, `node scripts/check-route-overlap.js`, kesetaraan himpunan 87 route dengan `docs/routes.baseline.txt`, serta `git ls-files --eol`.
+
+### Commit 0 — Penguatan Alat Verifikasi & Bukti R4
+- Audit `timingSafeStringEqual` (`92492f4` baris `174-180` vs definisi aktif `4229-4240` di `backend/utils/crypto.js`) serta penambahan unit test [crypto.test.js](file:///d:/DICKY%20BELAJAR/topup-miku/backend/tests/unit/crypto.test.js) karena sebelumnya belum ada di `backend/tests/unit/`.
+- Verifikasi ulang `middleware/auth.js` dan `middleware/h2hAuth.js` terhadap `92492f4` (`process.env.NODE_ENV` dibaca per-request pada `protectH2HIp`; fungsi yang diekspor memiliki nama eksplisit).
+- Uji perataan nested `express.Router()` pada `scripts/dump-routes.js --layers` menggunakan skrip sementara di `%TEMP%`.
+- Tambah `scripts/check-route-overlap.js` untuk memvalidasi himpunan route identik (87 route), daftar middleware per route identik setelah diratakan, dan mendeteksi pasangan route bermetode sama yang berubah urutan serta berpotensi mencocokkan URL yang sama.
+
+### Pemetaan Commit 1 — `backend/routes/public.routes.js` (`createPublicRoutes({ pool })`)
+
+Dipasang di `backend/server.js` dengan `app.use(createPublicRoutes({ pool }))` pada posisi route pertama yang dipindah (`GET /healthz`, setelah inisialisasi `pool` dan sebelum `applyRateLimiters(app)`).
+
+| Route | Baris Asal `server.js` | Dependensi |
+|---|---|---|
+| `GET /healthz` | `424-426` | `-` |
+| `GET /api/games` | `2271-2280` | `pool` |
+| `GET /api/games/validatable` | `2282-2300` | `fs.promises`, `path`, `sanitizeValidationServiceName` (`utils/validation.js`) |
+| `GET /api/games/:gameId/servers` | `2555-2566` | `pool` |
+| `GET /api/public/compare-prices` | `2568-2623` | `pool` |
+| `GET /api/public/flash-sales` | `2777-2807` | `pool` |
+| `GET /api/public/bot-products/:gameName` | `2809-2847` | `pool` |
+| `GET /api/public/bot-games` | `2849-2875` | `pool`, `BOT_PRODUCT_BLACKLIST` (`config/constants.js`) |
+| `GET /api/public/transaction/:invoiceId` | `2880-2919` | `pool`, `isValidInvoiceId`, `publicStatusLabel`, `logSafeError` |
+| `GET /api/public/recent-transactions` | `2922-2950` | `pool`, `maskInvoiceId`, `publicStatusLabel`, `logSafeError` |
+| `GET /api/public/leaderboard` | `2955-3009` | `pool`, `maskLeaderboardName`, `leaderboardRankLabel`, `logSafeError` |
+
+Catatan path aset JSON di `GET /api/games/validatable`: karena `public.routes.js` berada di `backend/routes/`, pembacaan `data_cekid.json` disesuaikan dari `path.resolve(__dirname, 'utils', ...)` menjadi `path.resolve(__dirname, '..', 'utils', 'validators', 'data_cekid.json')`.
+
+**Route publik/validasi yang sengaja ditinggal di `server.js` pada R5:**
+- `POST /api/products/:productId/validate` (`2331-2407`) — memakai alur validasi game ID (`validateGameId`, R7).
+- `POST /api/full-validate` (`2408-2458`) — memakai `validateGameId` & cek validasi ID (R7).
+- `GET /api/games/:gameId/products` (`2459-2554`) — memakai `softProtect` dan kalkulasi harga/margin/flash sale (R7 `priceService`).
+- `POST /api/promos/validate` (`2625-2775`) — memakai `protect` dan evaluasi eligibilitas promo/order (R7).
+
+### Pemetaan Commit 2 — `backend/routes/user.routes.js` (`createUserRoutes({ pool, protect })`)
+
+Dipasang di `backend/server.js` dengan `app.use(createUserRoutes({ pool, protect }))` pada posisi route pertama yang dipindah (`GET /api/user/profile`).
+
+| Route | Baris Asal `server.js` | Dependensi |
+|---|---|---|
+| `GET /api/user/profile` | `643-653` | `protect`, `pool` |
+| `PUT /api/user/profile` | `654-691` | `protect`, `pool`, `normalizeString`, `normalizeProfilePhone`, `isValidEmail`, `logSafeError` |
+| `PUT /api/user/password` | `692-709` | `protect`, `pool`, `bcrypt` |
+| `GET /api/user/balance-history` | `710-720` | `protect`, `pool` |
+| `GET /api/user/transactions` | `834-855` | `protect`, `pool` |
+| `GET /api/user/transaction/:invoiceId` | `856-893` | `protect`, `pool`, `isValidInvoiceId` |
+| `GET /api/user/transaction-summary` | `894-912` | `protect`, `pool` |
+| `GET /api/user/notifications` | `914-924` | `protect`, `pool` |
+| `GET /api/user/notifications/unread-count` | `927-937` | `protect`, `pool` |
+| `POST /api/user/notifications/mark-as-read` | `940-947` | `protect`, `pool` |
+
+**Route `/api/user/*` yang sengaja ditinggal di `server.js` pada R5:**
+- `POST /api/user/generate-apikey`, `POST /api/user/apikey/regenerate`, `GET /api/user/apikey`, `DELETE /api/user/apikey`, `POST /api/user/apikey/revoke`, `GET /api/user/webhook-secret`, `POST /api/user/webhook-secret/rotate`, `GET /api/user/whitelisted-ips`, `PUT /api/user/whitelisted-ips` (`721-1084`) — bagian grup manajemen H2H/auth pada R6.
+- `GET /api/user/deposits` (`1267-1284`) — bagian grup deposit pada R6.
+
+### Pembersihan Commit 3
+- Audit import di `backend/server.js` yang tidak lagi digunakan setelah Commit 1 & 2 (`publicStatusLabel`, `maskInvoiceId`, `maskLeaderboardName`, `leaderboardRankLabel`, `sanitizeValidationServiceName`, `BOT_PRODUCT_BLACKLIST`, dll. — dicek satu per satu agar hanya yang benar-benar tak dipakai yang dihapus).
+- Perbarui `backend/package.json` `check` agar mencakup direktori `routes`.
+- Catat hasil akhir panjang `server.js` dan hasil verifikasi pada bagian akhir dokumen ini.
