@@ -64,6 +64,10 @@ const {
     invalidateFoxyProductCache,
     getFoxyProducts,
 } = require('./services/foxyClient');
+const {
+    getGameProductsCatalog,
+    validatePromoCodeForProduct,
+} = require('./services/priceService');
 const path = require('path');
 
 const app = express();
@@ -461,93 +465,9 @@ app.post('/api/full-validate', async (req, res) => {
 app.get('/api/games/:gameId/products', softProtect, async (req, res) => {
     try {
         const { gameId } = req.params;
-        let userRoleId = 1;
-        let userRoleName = 'bronze';
-
-        if (req.user) {
-            const { rows: userRows } = await pool.query('SELECT role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1', [req.user.id]);
-            if (userRows.length > 0) {
-                userRoleId = userRows[0].role_id;
-                userRoleName = userRows[0].role_name.toLowerCase();
-            }
-        }
-
-        const { rows: games } = await pool.query("SELECT name, image_url, needs_server_id, target_id_label FROM games WHERE id = $1 AND status = 'Active'", [gameId]);
-        if (games.length === 0) return res.status(404).json({ message: 'Game tidak ditemukan.' });
-        
-        // server.js - PERBAIKAN SEKITAR BARIS 1272
-
-        const { rows: products } = await pool.query(`
-            SELECT p.id, p.name, p.provider_sku, p.price as base_price, 
-                   p.use_manual_prices, p.manual_prices,
-                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
-            FROM products p
-            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
-            WHERE p.game_id = $1 AND p.status = 'Active'
-            ORDER BY p.price ASC
-        `, [gameId]);
-        
-        // --- AWAL PERBAIKAN ---
-        // 1. Ambil semua item flash sale yang sedang aktif
-        const { rows: activeFlashSales } = await pool.query(`
-            SELECT product_id, discount_price FROM flash_sales
-            WHERE is_active = true AND NOW() BETWEEN start_at AND end_at
-        `);
-        // 2. Buat Peta (Map) untuk pencarian cepat berdasarkan ID produk
-        const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, fs.discount_price]));
-        // --- AKHIR PERBAIKAN ---
-        
-        const { rows: globalMargins } = await pool.query('SELECT name, margin_percent FROM roles');
-        const globalMarginsMap = globalMargins.reduce((acc, role) => {
-            acc[role.name.toLowerCase()] = role.margin_percent;
-            return acc;
-        }, {});
-
-        const finalProducts = products.map(p => {
-            let finalPrice;
-            let originalPrice = null;
-            let isFlashSale = false;
-
-            // --- PERUBAHAN LOGIKA UTAMA ---
-            // PRIORITAS 0: FLASH SALE
-            if (flashSaleMap.has(p.id)) {
-                isFlashSale = true;
-                finalPrice = flashSaleMap.get(p.id); // Harga langsung dari flash sale
-                
-                // Hitung harga asli sebelum diskon untuk ditampilkan (dicoret)
-                const margin = globalMarginsMap[userRoleName] || 0; 
-                originalPrice = Math.ceil(p.base_price * (1 + margin / 100));
-
-            } else {
-                const manualPrice = p.manual_prices ? p.manual_prices[userRoleName] : null;
-                // PRIORITAS 1: HARGA MANUAL
-                if (p.use_manual_prices && manualPrice) {
-                    finalPrice = manualPrice;
-                } else {
-                    let margin = globalMarginsMap[userRoleName] || 0; // Default: margin global
-                    // PRIORITAS 2: MARGIN PER GAME
-                    if (p.use_custom_margin) {
-                        const customMargin = p[`${userRoleName}_margin`];
-                        if (customMargin !== null && customMargin !== undefined) {
-                            margin = customMargin;
-                        }
-                    }
-                    finalPrice = Math.ceil(p.base_price * (1 + margin / 100));
-                }
-            }
-            
-            return { 
-                id: p.id, 
-                name: p.name, 
-                provider_sku: p.provider_sku, 
-                price: finalPrice,
-                // Kirim data tambahan ini ke frontend
-                isFlashSale: isFlashSale,
-                originalPrice: originalPrice 
-            };
-        });
-
-        res.json({ game: games[0], products: finalProducts });
+        const result = await getGameProductsCatalog({ pool, gameId, user: req.user });
+        if (result.notFound) return res.status(404).json({ message: 'Game tidak ditemukan.' });
+        res.json(result.body);
     } catch (error) {
         console.error("Gagal mengambil produk game (public):", error);
         res.status(500).json({ message: 'Server error saat mengambil data produk.' });
@@ -562,145 +482,18 @@ app.post('/api/promos/validate', protect, async (req, res) => {
         return res.status(400).json({ valid: false, message: 'Informasi promo, produk, dan ID game dibutuhkan.' });
     }
 
-    const client = await pool.connect();
     try {
-        const promoRes = await client.query('SELECT * FROM promo_codes WHERE code = $1 AND is_active = true', [promo_code.toUpperCase()]);
-        if (promoRes.rows.length === 0) {
-            return res.status(404).json({ valid: false, message: 'Kode promo tidak ditemukan atau tidak aktif.' });
-        }
-        const promo = promoRes.rows[0];
-        const rules = promo.rules || {};
-
-        if (promo.expires_at && new Date(promo.expires_at) < new Date()) {
-            return res.status(400).json({ valid: false, message: 'Kode promo sudah kedaluwarsa.' });
-        }
-        if (promo.max_uses && promo.uses_count >= promo.max_uses) {
-            return res.status(400).json({ valid: false, message: 'Kuota penggunaan promo ini sudah habis.' });
-        }
-
-        if (rules.max_uses_per_user) {
-            const usageRes = await client.query(
-                'SELECT COUNT(*) FROM promo_usages WHERE promo_code_id = $1 AND (user_id = $2 OR customer_game_id = $3)',
-                [promo.id, client_user_id, target_game_id]
-            );
-            const userUsageCount = parseInt(usageRes.rows[0].count, 10);
-            if (userUsageCount >= Number(rules.max_uses_per_user)) {
-                return res.status(400).json({ valid: false, message: `Anda sudah mencapai batas maksimal penggunaan kode ini (${rules.max_uses_per_user}x).` });
-            }
-        }
-        
-        // Ambil produk lengkap dengan game_margins untuk hitung harga efektif
-        const productRes = await client.query(`
-            SELECT p.*, g.id as game_id,
-                   p.use_manual_prices, p.manual_prices,
-                   gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
-            FROM products p
-            JOIN games g ON p.game_id = g.id
-            LEFT JOIN game_margins gm ON p.game_id = gm.game_id
-            WHERE p.id = $1 AND p.status = 'Active' AND g.status = 'Active'
-        `, [product_id]);
-        if (productRes.rows.length === 0) {
-            return res.status(404).json({ valid: false, message: 'Produk tidak ditemukan.' });
-        }
-        const product = productRes.rows[0];
-
-        // --- Hitung harga efektif backend (manual > custom margin > global margin > flash sale) ---
-        const { rows: userRows } = await client.query(
-            'SELECT role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1',
-            [client_user_id]
-        );
-        const userRoleName = (userRows.length > 0 ? userRows[0].role_name : 'bronze').toLowerCase();
-        const userRoleId = userRows.length > 0 ? userRows[0].role_id : 1;
-
-        let effectivePrice;
-        const manualPrice = product.manual_prices ? product.manual_prices[userRoleName] : null;
-        if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
-            effectivePrice = Number(manualPrice);
-        } else {
-            const { rows: roleRows } = await client.query('SELECT margin_percent FROM roles WHERE id = $1', [userRoleId]);
-            let margin = roleRows.length > 0 ? Number(roleRows[0].margin_percent) : 0;
-            if (product.use_custom_margin) {
-                const customMargin = product[`${userRoleName}_margin`];
-                if (customMargin !== null && customMargin !== undefined) {
-                    margin = Number(customMargin);
-                }
-            }
-            effectivePrice = Math.ceil(Number(product.price) * (1 + (margin / 100)));
-        }
-
-        // Flash sale override
-        const { rows: fsRows } = await client.query(
-            `SELECT discount_price FROM flash_sales WHERE product_id = $1 AND is_active = true AND NOW() BETWEEN start_at AND end_at AND (max_uses IS NULL OR uses_count < max_uses) LIMIT 1`,
-            [product_id]
-        );
-        if (fsRows.length > 0) {
-            const flashPrice = Number(fsRows[0].discount_price);
-            if (flashPrice > 0 && flashPrice < effectivePrice) {
-                effectivePrice = flashPrice;
-            }
-        }
-        // --- Akhir hitung harga efektif ---
-
-        if (rules.min_price && effectivePrice < rules.min_price) {
-            return res.status(400).json({ valid: false, message: `Promo ini hanya berlaku untuk pembelian minimal Rp ${rules.min_price}.` });
-        }
-        if (rules.allowed_game_ids && !rules.allowed_game_ids.includes(product.game_id)) {
-            return res.status(400).json({ valid: false, message: 'Promo ini tidak berlaku untuk game ini.' });
-        }
-        if (rules.allowed_product_ids && !rules.allowed_product_ids.includes(product.id)) {
-            return res.status(400).json({ valid: false, message: 'Promo ini tidak berlaku untuk produk ini.' });
-        }
-
-        let discount = 0;
-        if (promo.type === 'percentage') {
-            discount = Math.floor(effectivePrice * Number(promo.value) / 100);
-            if (rules.max_discount_amount && Number(rules.max_discount_amount) > 0 && discount > Number(rules.max_discount_amount)) {
-                discount = Math.floor(Number(rules.max_discount_amount));
-            }
-        } else if (promo.type === 'fixed') {
-            discount = Math.floor(Number(promo.value));
-        }
-        // Cap discount so final price is at least 1
-        if (discount >= effectivePrice) {
-            discount = effectivePrice - 1;
-        }
-        if (discount < 0) discount = 0;
-        const finalPrice = effectivePrice - discount;
-
-        // Konsisten dengan checkout (SEC-003): harga akhir setelah promo tidak boleh di bawah modal provider
-        let providerCost = Number(product.price) || 0;
-        try {
-            const providerProducts = await getFoxyProducts();
-            const currentFoxyProduct = providerProducts
-                ? providerProducts.find(p => p.product_code === product.provider_sku)
-                : null;
-            if (currentFoxyProduct && Number.isFinite(Number(currentFoxyProduct.product_price))) {
-                providerCost = Number(currentFoxyProduct.product_price);
-            }
-        } catch (_foxyErr) {
-            // Fallback ke product.price lokal jika Foxy tidak dapat diakses saat validasi promo
-        }
-        if (finalPrice < providerCost) {
-            return res.status(400).json({
-                valid: false,
-                message: 'Kode promo tidak dapat digunakan karena membuat harga akhir di bawah harga modal produk.'
-            });
-        }
-
-        res.json({
-            valid: true,
-            message: 'Kode promo berhasil digunakan!',
-            promo_code: promo.code,
-            discount: discount,
-            original_price: effectivePrice,
-            final_price: finalPrice
+        const result = await validatePromoCodeForProduct({
+            pool,
+            userId: client_user_id,
+            promoCode: promo_code,
+            productId: product_id,
+            targetGameId: target_game_id,
         });
-
+        return res.status(result.statusCode).json(result.body);
     } catch (error) {
         console.error('Error saat validasi promo:', error);
         res.status(500).json({ valid: false, message: 'Terjadi kesalahan di server.' });
-    } finally {
-        client.release();
     }
 });
 
