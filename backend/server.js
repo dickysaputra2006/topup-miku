@@ -51,6 +51,7 @@ const createAdminTransactionsRoutes = require('./routes/admin/transactions.route
 const createAdminPaymentMethodsRoutes = require('./routes/admin/paymentMethods.routes');
 const createAdminGamesRoutes = require('./routes/admin/games.routes');
 const createAdminProductsRoutes = require('./routes/admin/products.routes');
+const createAdminPromosRoutes = require('./routes/admin/promos.routes');
 const express = require('express');
 const fs = require('fs').promises;
 const { createPool } = require('./config/db');
@@ -427,43 +428,7 @@ app.use(createAdminTransactionsRoutes({
     createNotification,
     rollbackTransactionResources,
 }));
-app.post('/api/admin/promos', protectAdmin, async (req, res) => {
-    const { code, description, type, value, expires_at, rules, max_uses } = req.body;
-    try {
-        const sql = `INSERT INTO promo_codes (code, description, type, value, expires_at, rules, max_uses) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`;
-        const { rows } = await pool.query(sql, [code.toUpperCase(), description, type, value, expires_at, rules, max_uses]);
-        res.status(201).json(rows[0]);
-    } catch (error) {
-        if (error.code === '23505') return res.status(409).json({ message: 'Kode promo sudah ada.' });
-        console.error("Gagal membuat kode promo:", error);
-        res.status(500).json({ message: 'Gagal membuat kode promo.' });
-    }
-});
-
-// Endpoint untuk melihat semua kode promo
-app.get('/api/admin/promos', protectAdmin, async (req, res) => {
-    try {
-        const { rows } = await pool.query('SELECT * FROM promo_codes ORDER BY created_at DESC');
-        res.json(rows);
-    } catch (error) {
-        res.status(500).json({ message: 'Gagal mengambil data promo.' });
-    }
-});
-
-// Endpoint untuk menonaktifkan/mengaktifkan promo
-app.put('/api/admin/promos/:id/toggle', protectAdmin, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { is_active } = req.body;
-        const sql = 'UPDATE promo_codes SET is_active = $1 WHERE id = $2 RETURNING *';
-        const { rows } = await pool.query(sql, [is_active, id]);
-        if (rows.length === 0) return res.status(404).json({ message: 'Kode promo tidak ditemukan.' });
-        res.json(rows[0]);
-    } catch (error) {
-        res.status(500).json({ message: 'Gagal mengubah status promo.' });
-    }
-});
+app.use(createAdminPromosRoutes({ pool, protectAdmin }));
 
 // Endpoint untuk melihat semua item flash sale di admin panel
 app.get('/api/admin/flash-sales', protectAdmin, async (req, res) => {
