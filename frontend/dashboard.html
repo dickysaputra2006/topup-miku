@@ -395,8 +395,8 @@
                 <div class="card h2h-card">
                     <div class="h2h-card-header">
                         <div>
-                            <h3>API Key H2H</h3>
-                            <p class="h2h-muted">Hubungkan sistem atau bot Anda dengan header <code>X-API-Key</code>.</p>
+                            <h2>API Key H2H</h2>
+                            <p class="h2h-muted">Autentikasi endpoint reseller menggunakan header <code>X-API-Key</code>.</p>
                         </div>
                         <span id="h2h-apikey-status-badge" class="status-badge status-pending">Memuat...</span>
                     </div>
@@ -409,15 +409,15 @@
                     </div>
 
                     <p class="h2h-inline-note">
-                        Untuk keamanan, API Key penuh hanya ditampilkan satu kali saat dibuat atau dibuat ulang.
+                        Demi keamanan, API Key penuh hanya ditampilkan satu kali setelah dibuat atau diputar ulang (Rotate).
                     </p>
 
                     <div class="h2h-action-group">
                         <button type="button" id="generate-api-key-btn" class="h2h-btn h2h-btn-primary">
-                            <i class="fas fa-key"></i> Buat API Key
+                            <i class="fas fa-key" aria-hidden="true"></i> Buat API Key
                         </button>
                         <button type="button" id="revoke-api-key-btn" class="h2h-btn h2h-btn-danger hidden">
-                            <i class="fas fa-ban"></i> Revoke API Key
+                            <i class="fas fa-ban" aria-hidden="true"></i> Revoke API Key
                         </button>
                     </div>
                 </div>
@@ -425,46 +425,112 @@
                 <div class="card h2h-card">
                     <div class="h2h-card-header">
                         <div>
-                            <h3>Webhook Secret (HMAC-SHA256)</h3>
-                            <p class="h2h-muted">Secret untuk memverifikasi header <code>X-Signature</code> dan <code>X-Timestamp</code> pada webhook callback.</p>
+                            <h2>Webhook Secret &amp; Callback URL</h2>
+                            <p class="h2h-muted">Verifikasi callback dengan header <code>X-Signature</code> (HMAC-SHA256 atas <code>${X-Timestamp}.${rawBody}</code>) &amp; <code>X-Timestamp</code> (&le; 5 menit).</p>
                         </div>
                         <span id="h2h-webhook-status-badge" class="status-badge status-pending">Memuat...</span>
                     </div>
 
                     <div class="h2h-credential-box">
                         <div class="h2h-credential-meta">
-                            <span class="h2h-field-label">Status &amp; Prefix Secret</span>
+                            <span class="h2h-field-label">Status &amp; Secret</span>
                             <code id="webhook-secret-display" class="h2h-code-value">Memuat...</code>
+                        </div>
+                        <div class="h2h-action-group">
+                            <button type="button" id="toggle-webhook-secret-btn" class="h2h-btn h2h-btn-secondary h2h-btn-compact hidden" aria-pressed="false">Tampilkan</button>
+                            <button type="button" id="copy-webhook-secret-btn" class="h2h-btn h2h-btn-secondary h2h-btn-compact hidden">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin
+                            </button>
                         </div>
                     </div>
 
                     <p class="h2h-inline-note">
-                        Signature dihitung via HMAC-SHA256 atas <code>${X-Timestamp}.${rawBody}</code>. Tolak webhook dengan selisih timestamp &gt; 5 menit.
+                        Setelah muat ulang halaman, hanya prefix secret yang terlihat; putar secret untuk menyalin nilai baru.
                     </p>
 
                     <div class="h2h-action-group">
                         <button type="button" id="rotate-webhook-secret-btn" class="h2h-btn h2h-btn-secondary">
-                            <i class="fas fa-rotate"></i> Rotasi Webhook Secret
+                            <i class="fas fa-rotate" aria-hidden="true"></i> Rotate Webhook Secret
                         </button>
                     </div>
+
+                    <form id="h2h-callback-form" class="h2h-callback-form" novalidate>
+                        <div class="h2h-form-field">
+                            <label for="h2h-callback-url-input">URL Callback Webhook (HTTPS)</label>
+                            <input type="url" id="h2h-callback-url-input" placeholder="https://server-anda.com/callback/miku" class="dashboard-input" required>
+                        </div>
+                        <div class="h2h-form-field">
+                            <label for="h2h-callback-apikey-input">X-API-Key Verifikasi <span class="optional-tag">(otomatis terisi bila baru dibuat di sesi ini)</span></label>
+                            <input type="password" id="h2h-callback-apikey-input" placeholder="Tempel X-API-Key untuk simpan langsung via PUT /h2h/profile/callback" class="dashboard-input" autocomplete="off">
+                        </div>
+                        <div class="h2h-action-group">
+                            <button type="submit" class="h2h-btn h2h-btn-secondary">Simpan Callback URL</button>
+                        </div>
+                        <div id="h2h-callback-result" class="h2h-status-feedback" aria-live="polite"></div>
+                    </form>
                 </div>
 
                 <div class="card h2h-card">
-                    <h3>Whitelist IP Address</h3>
-                    <p class="h2h-muted" style="margin-bottom: 1rem;">
-                        Batasi akses seluruh endpoint H2H menggunakan IP tunggal atau CIDR (IPv4/IPv6). Pisahkan dengan koma.
+                    <h2>IP Allowlist H2H</h2>
+                    <p class="h2h-muted">
+                        Batasi akses seluruh endpoint <code>/h2h/*</code> memakai IP tunggal atau CIDR IPv4/IPv6 (pisahkan dengan koma, maksimal 20 entri).
                     </p>
 
-                    <form id="whitelist-ip-form" class="form-row-container">
-                        <input type="text" id="whitelist-ip-input" placeholder="Contoh: 203.0.113.10, 203.0.113.0/24, 2001:db8::/48"
-                            class="dashboard-input">
+                    <form id="whitelist-ip-form" class="form-row-container" novalidate>
+                        <input
+                            type="text"
+                            id="whitelist-ip-input"
+                            placeholder="Contoh: 203.0.113.10, 203.0.113.0/24"
+                            aria-label="Tambah IP atau rentang CIDR"
+                            class="dashboard-input"
+                        >
                         <button type="submit" class="h2h-btn h2h-btn-primary">Simpan IP</button>
                     </form>
-                    <div id="current-ips-container" style="margin-top: 1.5rem;">
-                        <p><strong>IP yang Terdaftar:</strong></p>
-                        <div id="current-ips-list"
-                            style="display: flex; flex-wrap: wrap; gap: 0.5rem; min-height: 24px;">
+                    <p id="whitelist-ip-error" class="ip-error-msg hidden" role="alert"></p>
+
+                    <div id="current-ips-container" class="current-ips-wrap">
+                        <p class="current-ips-title">IP yang Terdaftar</p>
+                        <div id="current-ips-list" aria-live="polite">
                             <p class="h2h-muted">Memuat...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="h2h-quick-ref-card" class="card h2h-card">
+                    <h2>Referensi Cepat API H2H</h2>
+                    <p class="h2h-muted">Ringkasan integrasi reseller ke server MIKU Store dengan proteksi <code>ref_id</code> idempoten.</p>
+                    <div class="h2h-ref-grid">
+                        <div class="h2h-ref-item">
+                            <span class="h2h-field-label">Base URL Server</span>
+                            <div class="h2h-ref-row">
+                                <code id="h2h-base-url" class="h2h-code-value">-</code>
+                                <button type="button" id="h2h-copy-baseurl-btn" class="h2h-btn h2h-btn-secondary h2h-btn-compact">
+                                    <i class="fas fa-copy" aria-hidden="true"></i> Salin
+                                </button>
+                            </div>
+                        </div>
+                        <div class="h2h-ref-item">
+                            <span class="h2h-field-label">Header Autentikasi Wajib</span>
+                            <div class="h2h-ref-row">
+                                <code class="h2h-code-value">X-API-Key: &lt;API_KEY_ANDA&gt;</code>
+                                <button type="button" id="h2h-copy-header-btn" class="h2h-btn h2h-btn-secondary h2h-btn-compact">
+                                    <i class="fas fa-copy" aria-hidden="true"></i> Salin
+                                </button>
+                            </div>
+                        </div>
+                        <div class="h2h-ref-item">
+                            <div class="h2h-ref-row">
+                                <span class="h2h-field-label">Contoh Payload Minimal (POST /h2h/order)</span>
+                                <button type="button" id="h2h-copy-payload-btn" class="h2h-btn h2h-btn-secondary h2h-btn-compact">
+                                    <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
+                                </button>
+                            </div>
+                            <pre id="h2h-sample-payload" class="h2h-ref-code"></pre>
+                            <ul class="h2h-endpoints-list">
+                                <li><code>GET /h2h/products</code> &mdash; Daftar SKU produk &amp; harga reseller aktif</li>
+                                <li><code>GET /h2h/profile</code> &mdash; Info username, role, dan saldo akun saat ini</li>
+                                <li><code>PUT /h2h/profile/callback</code> &mdash; Atur URL callback JSON <code>{"callback_url": "https://..."}</code></li>
+                            </ul>
                         </div>
                     </div>
                 </div>
@@ -478,8 +544,8 @@
             <button type="button" id="close-h2h-secret-modal-btn" class="close-modal" aria-label="Tutup modal">&times;</button>
             <h3 id="h2h-secret-modal-title">Kredensial Baru Berhasil Dibuat</h3>
             <div class="h2h-once-warning" role="alert">
-                <i class="fas fa-triangle-exclamation"></i>
-                <span><strong>Simpan sekarang, tidak akan ditampilkan lagi</strong> setelah jendela ini ditutup.</span>
+                <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+                <span><strong>Simpan sekarang, kunci tidak akan ditampilkan lagi</strong> setelah jendela ini ditutup.</span>
             </div>
 
             <div class="h2h-secret-block">

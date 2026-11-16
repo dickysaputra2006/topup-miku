@@ -127,3 +127,32 @@ Kontrak API backend yang dijaga penuh (tanpa modifikasi folder `backend/`):
 | **UI-2a (Commit 1)** | `docs/ui-overhaul-plan.md`, `frontend/css/portal.css`, `frontend/css/dashboard.css`, `frontend/css/dashboardOverview.css`, `frontend/dashboard.html`, `frontend/js/dashboard/state.js`, `frontend/js/dashboard/overview.js`, `frontend/js/dashboard/profile.js` | Sidebar sticky desktop (`top: 61px; height: calc(100dvh - 61px)`), drawer mobile slide-in + backdrop + `Esc` + target `>= 44x44px`, tata hierarki Overview (`Saldo Utama -> Transaksi Terbaru -> Statistik Ringkas 24px/12px`), hapus duplikasi tombol `Top Up Saldo` & banner akses cepat, masking default email/WA + tombol `Tampilkan`/`Sembunyikan` (`aria-pressed`) |
 | **UI-2b (Commit 2)** | `frontend/css/dashboardDeposit.css`, `frontend/js/dashboard/deposit.js`, `frontend/js/dashboard/transactions.js`, `frontend/dashboard.html` | Preset nominal cepat + input `>= 16px`, pratinjau nominal + estimasi kode unik `tabular-nums`, tombol submit disable + spinner (jaga rotasi `Idempotency-Key`), panel instruksi transfer & tombol salin; tabel transaksi & mutasi terisolasi di `.table-container` aman di `360px`, filter status transaksi, escaping XSS, empty state ber-CTA |
 | **UI-2c (Commit 3)** | `frontend/css/dashboardH2H.css`, `frontend/js/dashboard/h2hIntegration.js`, `frontend/dashboard.html`, `docs/ui-overhaul-plan.md` | Manajemen API Key (`Prefix` ter-mask, modal tampil sekali saat buat/regenerate + konfirmasi eksplisit Rotate/Revoke), Webhook Secret (status ter-mask, toggle/salin sesi setelah rotasi + konfirmasi Rotate), form Callback URL tervalidasi HTTPS (`PUT /h2h/profile/callback` dengan header `X-API-Key` atau salin snippet siap pakai), form IP/CIDR allowlist dengan validasi inline + list rapi + empty state terarah, dan Kartu Referensi Cepat H2H (`Base URL`, header `X-API-Key`, payload minimal ber-`ref_id` + tombol salin); pembaruan hash commit & ukuran akhir file di `docs/ui-overhaul-plan.md` |
+
+---
+
+## 3. Log Commit & Ukuran Akhir File Gelombang UI-2
+
+- **UI-2a (`b37ab44`)**: `feat(ui): perbarui layout portal sticky, hierarki overview saldo, dan masking profil UI-2a`
+- **UI-2b (`3fd89cd`)**: `feat(ui): perbarui UX deposit, preset nominal, filter transaksi, dan empty state UI-2b`
+- **UI-2c (`HEAD` pada cabang `feat/ui-pro-standar`)**: `feat(ui): perbarui UX integrasi reseller API H2H dan dokumen rencana UI-2c`
+
+### Catatan Kontrak Backend yang Dijaga Tanpa Modifikasi
+- Middleware `protectH2H` (`backend/middleware/h2hAuth.js`) membaca autentikasi reseller secara eksklusif dari header `X-API-Key` (bukan `Authorization: Bearer`), sehingga Kartu Referensi Cepat H2H mendokumentasikan `X-API-Key: <API_KEY_ANDA>` dan `PUT /h2h/profile/callback` mengirimkan header `X-API-Key` sesuai kontrak server aktif.
+- Endpoint `GET /api/user/webhook-secret` hanya mengembalikan prefix (`hasWebhookSecret`, `status`, `prefix`); secret penuh hanya dikembalikan satu kali pada respons `POST /api/user/generate-apikey` atau `POST /api/user/webhook-secret/rotate`. Tombol `Tampilkan`/`Sembunyikan` dan `Salin` di panel Webhook Secret menampilkan secret penuh dari state sesi tepat setelah rotasi dan memberi informasi jujur setelah muat ulang halaman.
+
+### Ukuran Akhir File Gelombang UI-2
+
+| File | Jenis | Jumlah Baris | Batas Maksimum | Status |
+| :--- | :--- | :---: | :---: | :--- |
+| `frontend/css/portal.css` | CSS | 202 | <= 800 | Memenuhi |
+| `frontend/css/dashboard.css` | CSS | 323 | <= 800 | Memenuhi |
+| `frontend/css/dashboardOverview.css` | CSS | 364 | <= 800 | Memenuhi |
+| `frontend/css/dashboardDeposit.css` | CSS | 524 | <= 800 | Memenuhi |
+| `frontend/css/dashboardH2H.css` | CSS | 442 | <= 800 | Memenuhi |
+| `frontend/js/dashboard/state.js` | JS | 219 | <= 600 | Memenuhi |
+| `frontend/js/dashboard/overview.js` | JS | 240 | <= 600 | Memenuhi |
+| `frontend/js/dashboard/profile.js` | JS | 135 | <= 600 | Memenuhi |
+| `frontend/js/dashboard/deposit.js` | JS | 505 | <= 600 | Memenuhi |
+| `frontend/js/dashboard/transactions.js` | JS | 269 | <= 600 | Memenuhi |
+| `frontend/js/dashboard/h2hIntegration.js` | JS | 542 | <= 600 | Memenuhi |
+| `frontend/dashboard.html` | HTML | 660 | - | Terstruktur rapi |
