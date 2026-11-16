@@ -1,6 +1,5 @@
 const {
     PORT,
-    JWT_SECRET,
     FOXY_API_KEY,
     FOXY_CALLBACK_URL,
     validateEnvironment,
@@ -22,20 +21,14 @@ const {
 } = require('./utils/logger');
 const {
     normalizeString,
-    normalizePhone,
     escapeHtml,
-    formatRupiahBot,
 } = require('./utils/strings');
 const {
-    hashResetToken,
-    hashApiKey,
     timingSafeStringEqual,
     generateInvoiceId,
     generateProviderTrxId,
 } = require('./utils/crypto');
 const {
-    isValidEmail,
-    isValidPassword,
     parsePositiveQuota,
     isValidPriceAmount,
     parseOptionalRefId,
@@ -57,12 +50,7 @@ const createWaBotRoutes = require('./routes/waBot.routes');
 const express = require('express');
 const fs = require('fs').promises;
 const { createPool } = require('./config/db');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const axios = require('axios');
-const crypto = require('crypto');
-const { sendPasswordResetEmail } = require('./utils/mailer.js');
-const { isValidIpOrCidr } = require('./utils/networkSecurity.js');
 const { validateWebhookUrl, dispatchSafeH2HWebhook } = require('./utils/webhookClient.js');
 const { syncProductsWithFoxy, rollbackTransactionResources } = require('./utils/cronUtils.js');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');

@@ -348,3 +348,9 @@ Dipasang di `backend/server.js` dengan `app.use(createUserApiKeyRoutes({ pool, p
 
 ### Pembersihan Commit 4
 - Audit dan hapus import yang tidak lagi dipakai di `backend/server.js` (`hashResetToken`, `normalizePhone`, dll. — dicek satu per satu), verifikasi `backend/package.json` `check`, dan catat hasil akhir R6a di `docs/refactor-plan.md`.
+
+### Hasil Akhir R6a
+- Panjang `backend/server.js`: `3984` baris (akhir R5) -> `3800` baris (Commit 1: `routes/auth.routes.js` = `211` baris) -> `3651` baris (Commit 2: `routes/userApiKey.routes.js` = `175` baris) -> `3307` baris (Commit 3: `middleware/waBotAuth.js` = `51` baris, `routes/waBot.routes.js` = `330` baris) -> `3295` baris (Commit 4: penghapusan `12` import tak terpakai).
+- Import tak terpakai yang dihapus di Commit 4: `JWT_SECRET`, `normalizePhone`, `formatRupiahBot`, `hashResetToken`, `hashApiKey`, `isValidEmail`, `isValidPassword`, `bcrypt`, `jwt`, `crypto`, `sendPasswordResetEmail`, `isValidIpOrCidr`.
+- Skrip `check` pada `backend/package.json` sudah mencakup direktori `middleware`, `routes`, serta `../scripts/dump-routes.js` dan `../scripts/check-route-overlap.js`.
+- Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=260, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
