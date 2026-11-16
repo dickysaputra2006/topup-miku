@@ -1,6 +1,9 @@
 const express = require('express');
 const { normalizeString } = require('../../utils/strings');
 const { logSafeError } = require('../../utils/logger');
+const {
+    rollbackTransactionResources: defaultRollbackTransactionResources,
+} = require('../../services/refundService');
 
 /**
  * Daftarkan route admin untuk daftar riwayat dan resolve manual transaksi.
@@ -10,7 +13,7 @@ module.exports = function createAdminTransactionsRoutes(deps) {
         pool,
         protectAdmin,
         createNotification,
-        rollbackTransactionResources,
+        rollbackTransactionResources = defaultRollbackTransactionResources,
     } = deps || {};
 
     if (!pool || typeof pool.query !== 'function' || typeof pool.connect !== 'function') {

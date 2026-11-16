@@ -601,3 +601,50 @@ Prinsip kerja & kompatibilitas mock:
 - Skrip `check` pada `backend/package.json` diperbarui agar turut memeriksa direktori `services`.
 - Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=279, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
 - Catatan cakupan tes & DB: `tests/manual/*` (`concurrency.js`, `idempotency.js`, `pool.js`) tidak dijalankan karena R7 tidak menyentuh eksekusi order maupun refund rollback (baru wajib pada R8–R10); tidak ada migrasi database pada tahap ini.
+
+---
+
+## R8 — Ekstraksi Jalur Tunggal Refund (`services/refundService.js`) & Pekerjaan Latar Belakang (`jobs/pendingTransactions.js`, `jobs/productSync.js`, `jobs/cronJob.js`)
+
+### Analisis Risiko Sebelum Perubahan (Wajib untuk Jalur Saldo/Refund & Cron)
+1. **Risiko divergensi jalur refund (`rollbackTransactionResources`)**:
+   - Bila ada modul yang memakai salinan terpisah, perubahan di masa depan berisiko menyebabkan double-refund atau gagal memulihkan kuota `promo_usages`/`flash_sales`.
+   - **Mitigasi**: `rollbackTransactionResources` hanya hidup di `backend/services/refundService.js` (dipindahkan utuh karakter demi karakter: validasi `ALLOWED_ROLLBACK_STATUSES`, cek anti-double-refund di `balance_history`, `UPDATE transactions SET status = 'Failed' ... WHERE ... status IN ('Pending', 'Processing', 'Partial Refund')`, pengembalian `users.balance` + insert `balance_history`, pemulihan `promo_usages` + `promo_codes.uses_count`, serta pemulihan `flash_sales.uses_count` + `flash_sale_restored = TRUE`). Seluruh pemanggil (`server.js`, `routes/admin/transactions.routes.js`, `jobs/pendingTransactions.js`, dan re-export `utils/cronUtils.js`) mengarah ke satu fungsi tersebut.
+2. **Risiko putusnya mock `cronPool` pada tes integrasi**:
+   - Suite tes (`appFactory.js`, `connectionPoolCronAndTimeouts.test.js`, `h2hSecurity.test.js`, `h2hWebhook.test.js`, `orderCompensation.test.js`, `orderPriceGuardAndLock.test.js`) mengimpor `cronUtils.pool` dan mem-mock `cronPool.query` serta `cronPool.connect`.
+   - **Mitigasi**: Satu instance `pool` cron dibuat di `backend/jobs/pendingTransactions.js`, dipakai bersama oleh `backend/jobs/productSync.js`, dan di-re-export oleh `backend/utils/cronUtils.js` sehingga `cronUtils.pool === pendingTransactions.pool === productSync.pool`.
+3. **Risiko efek samping saat `jobs/cronJob.js` di-`require`**:
+   - Pada `backend/cron_job_script.js` lama, `setTimeout` global, signal handler, dan `main()` dieksekusi langsung saat file dimuat.
+   - **Mitigasi**: Di `backend/jobs/cronJob.js`, eksekusi CLI dibungkus dalam `runCronCli()` (otomatis jalan jika `require.main === module`), sedangkan `backend/cron_job_script.js` menjadi wrapper tipis yang memanggil `runCronCli()`.
+
+### Inventaris Asal & Pemetaan Commit R8
+
+1. **Commit 1 — `backend/services/refundService.js`**
+   - Memindahkan `rollbackTransactionResources(client, tx, options = {})` dari `backend/utils/cronUtils.js` (`93-204`) utuh apa adanya ke `backend/services/refundService.js`.
+   - Memperbarui pemanggil agar mengimpor dari `services/refundService.js`:
+     - [server.js](file:///d:/DICKY%20BELAJAR/topup-miku/backend/server.js) (`finalizeOrderAfterProviderCall` baris `234`, `/api/foxy/callback` baris `815`, serta pengoperan ke `createAdminTransactionsRoutes`).
+     - [transactions.routes.js](file:///d:/DICKY%20BELAJAR/topup-miku/backend/routes/admin/transactions.routes.js) (mengimpor `rollbackTransactionResources` dari `../../services/refundService` sebagai default bila tidak dioper via `deps`, tetap mendukung override `deps.rollbackTransactionResources`).
+     - [cronUtils.js](file:///d:/DICKY%20BELAJAR/topup-miku/backend/utils/cronUtils.js) (mengimpor dari `../services/refundService` untuk dipakai `checkPendingTransactions` dan tetap me-re-export `rollbackTransactionResources` di `module.exports`).
+
+2. **Commit 2 — `backend/jobs/pendingTransactions.js` & `backend/jobs/productSync.js`**
+   - `backend/jobs/pendingTransactions.js`: memindahkan utuh dari `backend/utils/cronUtils.js` (`1-92`, `206-387`):
+     - Pembuatan `pool = createPool()` (`config/db.js`), konstanta & header Foxy (`FOXY_BASE_URL`, `FOXY_API_KEY`, `PROVIDER_TIMEOUT_MS`, `foxyApiHeaders`), helper `safeAxiosError` & `safeErrorDetail`, serta `PENDING_IN_FLIGHT_GRACE_MS`, `isWithinInFlightGracePeriod`, dan `checkPendingTransactions`.
+     - Mengimpor `rollbackTransactionResources` dari `../services/refundService` dan `dispatchSafeH2HWebhook` dari `../utils/webhookClient.js`.
+   - `backend/jobs/productSync.js`: memindahkan utuh `syncProductsWithFoxy` dari `backend/utils/cronUtils.js` (`389-529`), memakai `pool`, `FOXY_BASE_URL`, `PROVIDER_TIMEOUT_MS`, `foxyApiHeaders`, `safeAxiosError`, dan `safeErrorDetail` yang diekspor `./pendingTransactions`.
+   - Memperbarui [products.routes.js](file:///d:/DICKY%20BELAJAR/topup-miku/backend/routes/admin/products.routes.js) agar mengimpor `syncProductsWithFoxy` dari `../../jobs/productSync`, serta memperbarui `backend/utils/cronUtils.js` agar mengimpor dan me-re-export `checkPendingTransactions`, `syncProductsWithFoxy`, dan `pool` dari `../jobs/*`.
+
+3. **Commit 3 — `backend/jobs/cronJob.js` & `backend/cron_job_script.js`**
+   - Memindahkan `runAllCronJobs` dari `backend/utils/cronUtils.js` (`531-565`) dan seluruh logika runner CLI (`LOCK_FILE`, `LOCK_STALE_MS`, `GLOBAL_TIMEOUT_MS`, `acquireLock`, `releaseLock`, signal handlers, global timeout, mode `--pending-only` / `--sync-only`, dan `main()`) dari `backend/cron_job_script.js` (`1-170`) ke `backend/jobs/cronJob.js`, terhubung langsung ke `./pendingTransactions`, `./productSync`, dan `../services/refundService`.
+   - Menjadikan `backend/cron_job_script.js` delegasi tipis ke `./jobs/cronJob` (`runCronCli()`), dan menjadikan `backend/utils/cronUtils.js` re-export murni (`{ checkPendingTransactions, syncProductsWithFoxy, runAllCronJobs, rollbackTransactionResources, pool }`).
+
+4. **Commit 4 — Pembersihan, Skrip `check`, & Dokumentasi Hasil R8**
+   - Audit import di `backend/server.js` dan file terkait, pastikan `module.exports` di `server.js` dan `utils/cronUtils.js` tetap utuh.
+   - Perbarui skrip `check` pada `backend/package.json` agar mencakup direktori `'jobs'`.
+   - Catat hash commit aktual, jumlah baris tiap file, dan hasil eksekusi 3 skrip `tests/manual/*` di akhir seksi R8.
+
+### Arah Dependensi Satu Arah (Tanpa Siklus)
+- `jobs/cronJob.js -> jobs/pendingTransactions.js, jobs/productSync.js, services/refundService.js`
+- `jobs/productSync.js -> jobs/pendingTransactions.js`
+- `jobs/pendingTransactions.js -> services/refundService.js, config/db.js, utils/webhookClient.js`
+- `services/refundService.js -> (murni memakai client pg yang dioper)`
+- `utils/cronUtils.js (facade kompatibilitas tes) -> jobs/cronJob.js, jobs/pendingTransactions.js, jobs/productSync.js, services/refundService.js` (tidak ada modul di `jobs/` atau `services/` yang mengimpor `utils/cronUtils.js`).

@@ -49,7 +49,7 @@ const express = require('express');
 const { createPool } = require('./config/db');
 const axios = require('axios');
 const { validateWebhookUrl, dispatchSafeH2HWebhook } = require('./utils/webhookClient.js');
-const { rollbackTransactionResources } = require('./utils/cronUtils.js');
+const { rollbackTransactionResources } = require('./services/refundService');
 const {
     validateOrderGameIdIfNeeded,
     invalidateFoxyProductCache,
