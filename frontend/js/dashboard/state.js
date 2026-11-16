@@ -9,14 +9,25 @@
         apiKeyFetched: false,
         currentHasApiKey: false,
         currentHasWebhookSecret: false,
+        sessionApiKey: '',
+        sessionWebhookSecret: '',
+        showSessionWebhookSecret: false,
         h2hActionBusy: false,
         mutasiLoaded: false,
         transaksiLoaded: false,
+        cachedTransactions: [],
+        txStatusFilter: 'all',
         depositFormSetup: false,
         activePaymentMethods: [],
         depositIdempotencyKey: null,
         depositAttemptSignature: null,
         pendingConfirmHandler: null,
+        profileContact: {
+            email: '',
+            phone: '',
+            showEmail: false,
+            showPhone: false,
+        },
         els: {},
     };
 
@@ -26,6 +37,7 @@
     function collectDashboardElements() {
         return {
             sidebar: document.querySelector('.sidebar'),
+            menuToggleBtn: document.getElementById('menu-toggle-btn'),
             logoutButton: document.getElementById('logout-button'),
             editProfileBtn: document.querySelector('.edit-btn'),
             editModal: document.getElementById('edit-profile-modal'),
@@ -43,6 +55,12 @@
             webhookSecretDisplay: document.getElementById('webhook-secret-display'),
             webhookStatusBadge: document.getElementById('h2h-webhook-status-badge'),
             rotateWebhookSecretBtn: document.getElementById('rotate-webhook-secret-btn'),
+            toggleWebhookSecretBtn: document.getElementById('toggle-webhook-secret-btn'),
+            copyWebhookSecretBtn: document.getElementById('copy-webhook-secret-btn'),
+            h2hCallbackForm: document.getElementById('h2h-callback-form'),
+            h2hCallbackUrlInput: document.getElementById('h2h-callback-url-input'),
+            h2hCallbackApiKeyInput: document.getElementById('h2h-callback-apikey-input'),
+            h2hCallbackResultEl: document.getElementById('h2h-callback-result'),
             h2hSecretModal: document.getElementById('h2h-secret-modal'),
             closeH2HSecretModalBtn: document.getElementById('close-h2h-secret-modal-btn'),
             h2hAckSecretModalBtn: document.getElementById('h2h-ack-secret-modal-btn'),
@@ -80,21 +98,36 @@
         });
     };
 
+    function setSidebarOpen(sidebar, open) {
+        if (!sidebar) return;
+        sidebar.classList.toggle('active', open);
+        document.body.classList.toggle('menu-open', open);
+        const toggleBtn = document.getElementById('menu-toggle-btn');
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
     function setupSidebarMenu(sidebar) {
         document.querySelectorAll('#menu-toggle-btn, .menu-toggle-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                sidebar.classList.toggle('active');
-                document.body.classList.toggle('menu-open');
+                if (!sidebar) return;
+                setSidebarOpen(sidebar, !sidebar.classList.contains('active'));
             });
         });
 
         document.addEventListener('click', function (event) {
             if (sidebar && sidebar.classList.contains('active')) {
                 if (!sidebar.contains(event.target) && !event.target.closest('#menu-toggle-btn') && !event.target.closest('.menu-toggle-btn')) {
-                    sidebar.classList.remove('active');
-                    document.body.classList.remove('menu-open');
+                    setSidebarOpen(sidebar, false);
                 }
+            }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && sidebar && sidebar.classList.contains('active')) {
+                setSidebarOpen(sidebar, false);
+                const toggleBtn = document.getElementById('menu-toggle-btn');
+                if (toggleBtn && typeof toggleBtn.focus === 'function') toggleBtn.focus();
             }
         });
     }
@@ -111,8 +144,7 @@
                     if (!targetId) return;
 
                     if (sidebar && sidebar.classList.contains('active')) {
-                        sidebar.classList.remove('active');
-                        document.body.classList.remove('menu-open');
+                        setSidebarOpen(sidebar, false);
                     }
 
                     dashboardNavLinks.forEach(navLink => navLink.classList.remove('active'));
@@ -157,14 +189,11 @@
         const { requireAuthToken } = global.MikuShared.auth;
         const { generateIdempotencyKey } = global.MikuShared.api;
 
-        // --- KODE UNTUK MENU HAMBURGER DI DASHBOARD ---
         const sidebar = document.querySelector('.sidebar');
         setupSidebarMenu(sidebar);
 
         const token = requireAuthToken('index.html');
-        if (!token) {
-            return;
-        }
+        if (!token) return;
 
         app.state.token = token;
         app.state.els = collectDashboardElements();
@@ -182,6 +211,7 @@
 
         app.overview.fetchProfileData();
         app.overview.fetchTransactionSummary();
+        app.overview.fetchRecentTransactions();
 
         setupPasswordToggles();
         app.deposit.bindCopyDelegation();
