@@ -648,3 +648,21 @@ Prinsip kerja & kompatibilitas mock:
 - `jobs/pendingTransactions.js -> services/refundService.js, config/db.js, utils/webhookClient.js`
 - `services/refundService.js -> (murni memakai client pg yang dioper)`
 - `utils/cronUtils.js (facade kompatibilitas tes) -> jobs/cronJob.js, jobs/pendingTransactions.js, jobs/productSync.js, services/refundService.js` (tidak ada modul di `jobs/` atau `services/` yang mengimpor `utils/cronUtils.js`).
+
+### Hasil Akhir R8
+- Panjang `backend/server.js`: `1346` baris (akhir R7) -> `1346` baris (Commit 1 `bfeb528`: pengalihan import `rollbackTransactionResources` ke `services/refundService.js`) -> `1346` baris (Commit 2 `84f4f95` & Commit 3 `33bc000`) -> `1344` baris (Commit 4: pembersihan komentar deprecated `checkPendingTransactions`).
+- Ukuran modul R8 baru/diubah:
+  - `backend/services/refundService.js`: `116` baris
+  - `backend/jobs/pendingTransactions.js`: `285` baris
+  - `backend/jobs/productSync.js`: `156` baris
+  - `backend/jobs/cronJob.js`: `232` baris
+  - `backend/cron_job_script.js`: `170` -> `3` baris (wrapper tipis `runCronCli()`)
+  - `backend/utils/cronUtils.js`: `567` -> `15` baris (facade kompatibilitas re-export untuk suite tes)
+  - `backend/routes/admin/transactions.routes.js`: `155` baris; `backend/routes/admin/products.routes.js`: `271` baris
+- Skrip `check` pada `backend/package.json` diperbarui agar turut memeriksa direktori `jobs`.
+- Hasil verifikasi otomatis akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=279, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
+- Hasil verifikasi 3 skrip PostgreSQL manual (`tests/manual/*` terhadap `topup_miku_local@127.0.0.1`):
+  - `node tests/manual/concurrency.js`: **`[PASS]`** semua 3 skenario (`Skenario A`: `status=Success, refundRows=0, balance=75000`; `Skenario B`: `status=Failed, refundRows=1, balance=100000, flashSaleRestored=true`; `Skenario C`: `Balapan acak 15x: Pelanggaran=0`; exit code `0`).
+  - `node tests/manual/idempotency.js`: **`[PASS]`** semua 5 skenario (`A` 20x H2H paralel, `B` 20x Web paralel, `C` 20x Deposit paralel, `D` 409 conflict, `E` Failed/refund replay vs `ref_id` baru; exit code `0`).
+  - `node tests/manual/pool.js`: **`[PASS]`** (`http201=30/30, peakInFlightFoxy=30, dbProbeDuringFoxy=true, orphanNullProvider=0, withProviderTrxId=30`; exit code `0`).
+- Tidak ada migrasi database pada tahap ini.

@@ -1291,8 +1291,6 @@ app.get('/h2h/products', protectH2HIp, protectH2H, h2hUserLimiter, async (req, r
     }
 });
 
-/* Deprecated checkPendingTransactions removed in Phase 3B */
-
 app.put('/h2h/profile/callback', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res) => {
     try {
         const callback_url = normalizeString(req.body.callback_url, 2048);
