@@ -1,8 +1,16 @@
 const express = require('express');
 const axios = require('axios');
 const { logSafeError } = require('../../utils/logger');
-const { normalizeString } = require('../../utils/strings');
 const { isSafeAssetUrl } = require('../../utils/validation');
+const {
+    getBodyObject,
+    requirePlainObject,
+    requireString,
+    requirePositiveInt,
+    requireBoundedNumber,
+    requireBoolean,
+    requireEnum,
+} = require('../../utils/schemaValidators');
 const {
     recordAdminAuditLog: defaultRecordAdminAuditLog,
 } = require('../../services/auditLogService');
@@ -39,18 +47,33 @@ module.exports = function createAdminGamesRoutes(deps) {
     });
 
     router.put('/api/admin/roles', protectAdmin, async (req, res) => {
+        if (!Array.isArray(req.body) || req.body.length > 50) {
+            return res.status(400).json({ message: 'Format data role margin tidak valid.' });
+        }
+        const safeMargins = [];
+        for (const item of req.body) {
+            const objRes = requirePlainObject(item, 'Item role');
+            if (objRes.error) return res.status(400).json({ message: objRes.error });
+
+            const idRes = requirePositiveInt(item.id, 'ID role');
+            if (idRes.error) return res.status(400).json({ message: idRes.error });
+
+            const marginRes = requireBoundedNumber(item.margin, 'Margin role', { min: 0, max: 500 });
+            if (marginRes.error) return res.status(400).json({ message: marginRes.error });
+
+            safeMargins.push({ id: idRes.value, margin: marginRes.value });
+        }
+
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const margins = req.body;
-            if (!Array.isArray(margins)) throw new Error('Format data tidak valid.');
-            if (margins.length > 0) {
+            if (safeMargins.length > 0) {
                 await client.query(`
                     UPDATE roles AS r
                     SET margin_percent = d.margin::numeric
                     FROM jsonb_to_recordset($1::jsonb) AS d(id int, margin numeric)
                     WHERE r.id = d.id
-                `, [JSON.stringify(margins)]);
+                `, [JSON.stringify(safeMargins)]);
             }
             await client.query('COMMIT');
             await recordAdminAuditLog(pool, {
@@ -59,7 +82,7 @@ module.exports = function createAdminGamesRoutes(deps) {
                 targetType: 'roles',
                 targetId: 'global',
                 beforeData: null,
-                afterData: { margins },
+                afterData: { margins: safeMargins },
             });
             res.json({ message: 'Margin berhasil diperbarui.' });
         } catch (error) {
@@ -84,12 +107,23 @@ module.exports = function createAdminGamesRoutes(deps) {
 
     router.post('/api/admin/games', protectAdmin, async (req, res) => {
         try {
-            const name = normalizeString(req.body && req.body.name, 120);
-            const category = normalizeString(req.body && req.body.category, 80);
-            const imageUrl = normalizeString(req.body && req.body.imageUrl, 1000);
-            if (!name || !category || !imageUrl) {
-                return res.status(400).json({ message: 'Semua kolom wajib diisi.' });
-            }
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+            const body = bodyRes.value;
+
+            const nameRes = requireString(body.name, 'Nama game', { min: 1, max: 120 });
+            if (nameRes.error) return res.status(400).json({ message: nameRes.error });
+
+            const categoryRes = requireString(body.category, 'Kategori game', { min: 1, max: 80 });
+            if (categoryRes.error) return res.status(400).json({ message: categoryRes.error });
+
+            const imageUrlRes = requireString(body.imageUrl, 'URL gambar game', { min: 1, max: 1000 });
+            if (imageUrlRes.error) return res.status(400).json({ message: imageUrlRes.error });
+
+            const name = nameRes.value;
+            const category = categoryRes.value;
+            const imageUrl = imageUrlRes.value;
+
             if (!isSafeAssetUrl(imageUrl, { allowEmpty: false })) {
                 return res.status(400).json({
                     message: 'URL gambar game tidak valid. Gunakan URL HTTPS publik yang aman atau path /...'
@@ -115,12 +149,19 @@ module.exports = function createAdminGamesRoutes(deps) {
 
     router.put('/api/admin/games/:id/status', protectAdmin, async (req, res) => {
         try {
-            const { id } = req.params;
-            const { status } = req.body;
+            const idRes = requirePositiveInt(req.params.id, 'ID game');
+            if (idRes.error) return res.status(400).json({ message: idRes.error });
 
-            if (!status || (status !== 'Active' && status !== 'Inactive')) {
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+
+            const statusRes = requireEnum(bodyRes.value.status, 'Status', ['Active', 'Inactive']);
+            if (statusRes.error) {
                 return res.status(400).json({ message: "Status tidak valid. Gunakan 'Active' atau 'Inactive'." });
             }
+
+            const id = idRes.value;
+            const status = statusRes.value;
 
             const prevRes = await pool.query('SELECT status FROM games WHERE id = $1 LIMIT 1', [id]).catch(() => ({ rows: [] }));
             const { rowCount } = await pool.query(
@@ -151,12 +192,19 @@ module.exports = function createAdminGamesRoutes(deps) {
 
     router.put('/api/admin/games/:id/needs-server', protectAdmin, async (req, res) => {
         try {
-            const { id } = req.params;
-            const { needsServer } = req.body; // Menerima nilai boolean (true/false)
+            const idRes = requirePositiveInt(req.params.id, 'ID game');
+            if (idRes.error) return res.status(400).json({ message: idRes.error });
 
-            if (typeof needsServer !== 'boolean') {
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+
+            const needsRes = requireBoolean(bodyRes.value.needsServer, 'needsServer');
+            if (needsRes.error) {
                 return res.status(400).json({ message: "Nilai 'needsServer' harus boolean." });
             }
+
+            const id = idRes.value;
+            const needsServer = needsRes.value;
 
             const prevRes = await pool.query('SELECT needs_server_id FROM games WHERE id = $1 LIMIT 1', [id]).catch(() => ({ rows: [] }));
             const { rowCount } = await pool.query(

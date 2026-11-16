@@ -1,6 +1,7 @@
 const express = require('express');
-const { normalizeString } = require('../../utils/strings');
 const { logSafeError } = require('../../utils/logger');
+const { isValidInvoiceId } = require('../../utils/validation');
+const { getBodyObject, requireEnum } = require('../../utils/schemaValidators');
 const {
     rollbackTransactionResources: defaultRollbackTransactionResources,
 } = require('../../services/refundService');
@@ -57,16 +58,23 @@ module.exports = function createAdminTransactionsRoutes(deps) {
 
     // Admin manual resolve: mark berhasil, refund/gagalkan, atau keep_review
     router.put('/api/admin/transactions/:invoiceId/resolve', protectAdmin, async (req, res) => {
+        const invoiceId = String(req.params.invoiceId || '').trim();
+        if (!isValidInvoiceId(invoiceId)) {
+            return res.status(400).json({ message: 'Format invoice tidak valid.' });
+        }
+
+        const bodyRes = getBodyObject(req);
+        if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+
+        const actionRes = requireEnum(bodyRes.value.action, 'Aksi', ['success', 'refund', 'keep_review']);
+        if (actionRes.error) {
+            return res.status(400).json({ message: 'Aksi tidak valid. Gunakan: success, refund, keep_review.' });
+        }
+        const action = actionRes.value;
+
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const invoiceId = normalizeString(req.params.invoiceId, 100);
-            const action = normalizeString(req.body.action || '', 20);
-
-            if (!['success', 'refund', 'keep_review'].includes(action)) {
-                await client.query('ROLLBACK');
-                return res.status(400).json({ message: 'Aksi tidak valid. Gunakan: success, refund, keep_review.' });
-            }
 
             // Lock baris untuk hindari race condition
             const { rows } = await client.query(

@@ -7,6 +7,10 @@ const {
     parseOptionalText,
 } = require('../../utils/validation');
 const {
+    getBodyObject,
+    requirePositiveInt,
+} = require('../../utils/schemaValidators');
+const {
     recordAdminAuditLog: defaultRecordAdminAuditLog,
 } = require('../../services/auditLogService');
 
@@ -143,7 +147,11 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
     });
 
     router.post('/api/admin/payment-methods', protectAdmin, async (req, res) => {
-        const validated = normalizePaymentMethodPayload(req.body);
+        const bodyRes = getBodyObject(req);
+        if (bodyRes.error) {
+            return res.status(400).json({ message: bodyRes.error });
+        }
+        const validated = normalizePaymentMethodPayload(bodyRes.value);
         if (validated.error) {
             return res.status(400).json({ message: validated.error });
         }
@@ -186,16 +194,21 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
     });
 
     router.put('/api/admin/payment-methods/:id', protectAdmin, async (req, res) => {
-        const methodId = parseInt(req.params.id, 10);
-        if (!Number.isInteger(methodId) || methodId <= 0) {
+        const idRes = requirePositiveInt(req.params.id, 'ID metode pembayaran');
+        if (idRes.error) {
             return res.status(400).json({ message: 'ID metode pembayaran tidak valid.' });
         }
+        const bodyRes = getBodyObject(req);
+        if (bodyRes.error) {
+            return res.status(400).json({ message: bodyRes.error });
+        }
+        const methodId = idRes.value;
         try {
             const existingRes = await pool.query('SELECT * FROM payment_methods WHERE id = $1 LIMIT 1', [methodId]);
             if (!existingRes || !existingRes.rows || existingRes.rows.length === 0) {
                 return res.status(404).json({ message: 'Metode pembayaran tidak ditemukan.' });
             }
-            const validated = normalizePaymentMethodPayload(req.body, existingRes.rows[0]);
+            const validated = normalizePaymentMethodPayload(bodyRes.value, existingRes.rows[0]);
             if (validated.error) {
                 return res.status(400).json({ message: validated.error });
             }
@@ -246,10 +259,11 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
     });
 
     router.delete('/api/admin/payment-methods/:id', protectAdmin, async (req, res) => {
-        const methodId = parseInt(req.params.id, 10);
-        if (!Number.isInteger(methodId) || methodId <= 0) {
+        const idRes = requirePositiveInt(req.params.id, 'ID metode pembayaran');
+        if (idRes.error) {
             return res.status(400).json({ message: 'ID metode pembayaran tidak valid.' });
         }
+        const methodId = idRes.value;
         try {
             const { rows } = await pool.query('DELETE FROM payment_methods WHERE id = $1 RETURNING id, name', [methodId]);
             if (!rows || rows.length === 0) {
