@@ -1,8 +1,13 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { logSafeError } = require('../utils/logger');
-const { normalizeString, normalizeProfilePhone } = require('../utils/strings');
+const { normalizeProfilePhone } = require('../utils/strings');
 const { isValidEmail, isValidPassword, isValidInvoiceId } = require('../utils/validation');
+const {
+    getBodyObject,
+    requireString,
+    optionalTrimmedString,
+} = require('../utils/schemaValidators');
 
 const BCRYPT_SALT_ROUNDS = 12;
 
@@ -27,32 +32,43 @@ module.exports = function createUserRoutes(deps) {
             if (rows.length === 0) return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
             res.json(rows[0]);
         } catch (error) {
-            console.error('Error fetching user profile:', error);
+            logSafeError('Error fetching user profile:', error);
             res.status(500).json({ message: 'Terjadi kesalahan pada server.' });
         }
     });
 
     router.put('/api/user/profile', protect, async (req, res) => {
         try {
-            const fullName = normalizeString(req.body.fullName, 255);
-            const email = normalizeString(req.body.email, 255).toLowerCase();
-            const rawNomorWa = normalizeString(req.body.nomorWa, 30);
-            const rawCountryCode = req.body.countryCode !== undefined ? normalizeString(req.body.countryCode, 5) : '';
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+            const body = bodyRes.value;
 
-            if (!fullName || !email || !rawNomorWa) {
-                return res.status(400).json({ message: 'Semua kolom wajib diisi!' });
+            const fullNameRes = requireString(body.fullName, 'Nama lengkap', { min: 1, max: 255 });
+            if (fullNameRes.error) return res.status(400).json({ message: fullNameRes.error });
+
+            const emailRes = requireString(body.email, 'Email', { min: 3, max: 255, lowercase: true });
+            if (emailRes.error) return res.status(400).json({ message: emailRes.error });
+
+            const waRes = requireString(body.nomorWa, 'Nomor WhatsApp', { min: 6, max: 30 });
+            if (waRes.error) return res.status(400).json({ message: waRes.error });
+
+            const ccRes = optionalTrimmedString(body.countryCode, 'Kode negara', { max: 5, defaultValue: '', allowNewlines: false });
+            if (ccRes.error) return res.status(400).json({ message: ccRes.error });
+            if (ccRes.value && !/^\+[0-9]{1,3}$/.test(ccRes.value)) {
+                return res.status(400).json({ message: 'Kode negara tidak valid. Contoh: +62' });
             }
-            if (!isValidEmail(email)) {
+
+            if (!isValidEmail(emailRes.value)) {
                 return res.status(400).json({ message: 'Format email tidak valid.' });
             }
 
-            const normalizedPhone = normalizeProfilePhone(rawNomorWa, rawCountryCode);
+            const normalizedPhone = normalizeProfilePhone(waRes.value, ccRes.value);
             if (!normalizedPhone) {
                 return res.status(400).json({ message: 'Nomor WhatsApp tidak valid. Gunakan format +628xxx atau 08xxx.' });
             }
 
             const sql = 'UPDATE users SET full_name = $1, email = $2, nomor_wa = $3 WHERE id = $4';
-            await pool.query(sql, [fullName, email, normalizedPhone, req.user.id]);
+            await pool.query(sql, [fullNameRes.value, emailRes.value, normalizedPhone, req.user.id]);
             res.json({ message: 'Profil berhasil diperbarui.' });
         } catch (error) {
             if (error.code === '23505') {
@@ -110,7 +126,7 @@ module.exports = function createUserRoutes(deps) {
             const { rows } = await pool.query(sql, [req.user.id]);
             res.json(rows);
         } catch (error) {
-            console.error('Error fetching balance history:', error);
+            logSafeError('Error fetching balance history:', error);
             res.status(500).json({ message: 'Server error saat mengambil riwayat saldo.' });
         }
     });
@@ -133,7 +149,7 @@ module.exports = function createUserRoutes(deps) {
             const { rows } = await pool.query(sql, [userId]);
             res.json(rows);
         } catch (error) {
-            console.error("Gagal mengambil riwayat transaksi pengguna:", error);
+            logSafeError("Gagal mengambil riwayat transaksi pengguna:", error);
             res.status(500).json({ message: 'Server error saat mengambil riwayat transaksi pengguna.' });
         }
     });
@@ -172,7 +188,7 @@ module.exports = function createUserRoutes(deps) {
 
             res.json(rows[0]);
         } catch (error) {
-            console.error("Gagal mengambil detail transaksi:", error);
+            logSafeError("Gagal mengambil detail transaksi:", error);
             res.status(500).json({ message: 'Server error saat mengambil detail transaksi.' });
         }
     });
@@ -192,7 +208,7 @@ module.exports = function createUserRoutes(deps) {
             const { rows } = await pool.query(sql, [userId]);
             res.json(rows[0]);
         } catch (error) {
-            console.error("Gagal mengambil ringkasan transaksi:", error);
+            logSafeError("Gagal mengambil ringkasan transaksi:", error);
             res.status(500).json({ message: 'Server error saat mengambil ringkasan transaksi.' });
         }
     });

@@ -10,6 +10,7 @@ const {
     leaderboardRankLabel,
 } = require('../utils/strings');
 const { isValidInvoiceId, sanitizeValidationServiceName } = require('../utils/validation');
+const { requirePositiveInt, requireString } = require('../utils/schemaValidators');
 
 /**
  * Daftarkan seluruh route publik read-only (tanpa autentikasi).
@@ -32,7 +33,7 @@ module.exports = function createPublicRoutes(deps) {
             const { rows } = await pool.query(sql);
             res.json(rows);
         } catch (error) {
-            console.error('Error fetching public games:', error);
+            logSafeError('Error fetching public games:', error);
             res.status(500).json({ message: 'Server error saat mengambil data game.' });
         }
     });
@@ -52,20 +53,22 @@ module.exports = function createPublicRoutes(deps) {
 
             res.json(finalResult);
         } catch (error) {
-            console.error("Error fetching validatable games from JSON:", error);
+            logSafeError("Error fetching validatable games from JSON:", error);
             res.status(500).json({ message: 'Server error saat mengambil data game dari file.' });
         }
     });
 
     router.get('/api/games/:gameId/servers', async (req, res) => {
         try {
-            const { gameId } = req.params;
+            const gameIdRes = requirePositiveInt(req.params.gameId, 'Game ID');
+            if (gameIdRes.error) return res.status(400).json({ message: gameIdRes.error });
+
             const sql = "SELECT server_name FROM game_servers WHERE game_id = $1 ORDER BY server_name ASC";
-            const { rows } = await pool.query(sql, [gameId]);
+            const { rows } = await pool.query(sql, [gameIdRes.value]);
             // Kirim array nama server, e.g., ["America", "Asia", "Europe"]
             res.json(rows.map(row => row.server_name));
         } catch (error) {
-            console.error('Error fetching game servers:', error);
+            logSafeError('Error fetching game servers:', error);
             res.status(500).json({ message: 'Server error saat mengambil data server game.' });
         }
     });
@@ -122,7 +125,7 @@ module.exports = function createPublicRoutes(deps) {
 
             res.json({ products: productsWithRolePrices, roles: roles, games: games });
         } catch (error) {
-            console.error('Error fetching public compare prices:', error);
+            logSafeError('Error fetching public compare prices:', error);
             res.status(500).json({ message: 'Server error saat mengambil data perbandingan harga.' });
         }
     });
@@ -155,7 +158,7 @@ module.exports = function createPublicRoutes(deps) {
             const { rows } = await pool.query(sql);
             res.json(rows);
         } catch (error) {
-            console.error("Error fetching flash sales:", error);
+            logSafeError("Error fetching flash sales:", error);
             res.status(500).json({ message: 'Gagal mengambil data flash sale.' });
         }
     });
@@ -163,7 +166,11 @@ module.exports = function createPublicRoutes(deps) {
     // ambil pl dari role bronze di web untuk bot tele
     router.get('/api/public/bot-products/:gameName', async (req, res) => {
         try {
-            const { gameName } = req.params;
+            const gameNameRes = requireString(req.params.gameName, 'Nama game', { min: 1, max: 100 });
+            if (gameNameRes.error) {
+                return res.status(400).json({ success: false, message: gameNameRes.error });
+            }
+            const gameName = gameNameRes.value;
 
             // 1. Dapatkan margin untuk role 'BRONZE' (INI YANG DIUBAH)
             const { rows: roleRows } = await pool.query("SELECT margin_percent FROM roles WHERE name = 'BRONZE'");
@@ -196,7 +203,7 @@ module.exports = function createPublicRoutes(deps) {
             res.json({ success: true, data: finalProducts });
 
         } catch (error) {
-            console.error("Error di endpoint bot-products:", error);
+            logSafeError("Error di endpoint bot-products:", error);
             res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
         }
     });
@@ -225,7 +232,7 @@ module.exports = function createPublicRoutes(deps) {
 
             res.json({ success: true, data: groupedGames });
         } catch (error) {
-            console.error("Error di endpoint bot-games:", error);
+            logSafeError("Error di endpoint bot-games:", error);
             res.status(500).json({ success: false, message: 'Gagal mengambil daftar game.' });
         }
     });
@@ -311,13 +318,14 @@ module.exports = function createPublicRoutes(deps) {
     router.get('/api/public/leaderboard', async (req, res) => {
         try {
             // Limit: default 10, max 50
-            const rawLimit = parseInt(req.query.limit, 10);
-            const limit = (Number.isFinite(rawLimit) && rawLimit > 0 && rawLimit <= 50) ? rawLimit : 10;
+            const rawLimitVal = typeof req.query.limit === 'string' ? req.query.limit.trim() : '';
+            const parsedLimit = /^\d+$/.test(rawLimitVal) ? parseInt(rawLimitVal, 10) : NaN;
+            const limit = (Number.isInteger(parsedLimit) && parsedLimit > 0) ? Math.min(parsedLimit, 50) : 10;
 
             // Period: all_time (default), monthly, weekly
-            const period = String(req.query.period || 'all_time').toLowerCase();
+            const rawPeriod = typeof req.query.period === 'string' ? req.query.period.trim().toLowerCase() : 'all_time';
             const VALID_PERIODS = ['all_time', 'monthly', 'weekly'];
-            const safePeriod = VALID_PERIODS.includes(period) ? period : 'all_time';
+            const safePeriod = VALID_PERIODS.includes(rawPeriod) ? rawPeriod : 'all_time';
 
             let periodClause = '';
             if (safePeriod === 'monthly') {
