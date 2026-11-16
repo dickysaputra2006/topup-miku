@@ -1,87 +1,125 @@
-/* MIKU Store — Base Reset, Typography & Layout Containers */
+/* MIKU Store — Base Reset, Typography & Unified Layout Container */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-body {
-    background-color: var(--bg-dark);
-    color: var(--text-color);
-    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-    margin: 0;
-    overflow-x: clip;
-}
-.container {
-    width: 95%;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-h2, h3, h4 {
-    color: var(--primary-color);
-}
-h2 {
-    margin-bottom: 1.5rem;
-    font-size: 1.5rem;
-}
-h3 {
-    margin-bottom: 1.5rem;
-    font-size: 1.2rem;
-}
-h4 {
-    margin-top: 0;
-    margin-bottom: 1rem;
-}
 html {
     height: 100%;
+    box-sizing: border-box;
+    scrollbar-gutter: stable;
+    color-scheme: dark;
 }
-body {
-    min-height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-.hidden {
-    display: none !important;
-}
-@media (max-width: 480px) {
-    h2 {
-        font-size: 1.2rem;
-    }
-}
-@media (max-width: 768px) {
-    .container {
-        width: 100%;
-        padding: 0 1rem;
-        box-sizing: border-box;
-    }
-    .container {
-        width: min(94%, 100% - 1rem);
-    }
-}
-body {
-    background-color: var(--bg-dark);
-    background-image:
-        radial-gradient(ellipse 80% 45% at 50% -10%, rgba(6, 182, 212, 0.12), transparent),
-        radial-gradient(circle at 85% 15%, rgba(59, 130, 246, 0.08), transparent 40%);
-    color: var(--text-color);
-}
-html {
-  box-sizing: border-box;
-}
+
 *,
 *::before,
 *::after {
-  box-sizing: inherit;
+    box-sizing: inherit;
 }
+
 body {
-  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-  overflow-x: clip;
-  max-width: 100vw;
+    min-height: 100%;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.5;
+    overflow-x: clip;
+    -webkit-font-smoothing: antialiased;
 }
+
 .container {
-  width: 94%;
-  max-width: 1180px;
-  margin-inline: auto;
+    width: 100%;
+    max-width: var(--container-max);
+    margin-inline: auto;
+    padding-inline: var(--space-4);
 }
+
+@media (min-width: 769px) {
+    .container {
+        padding-inline: var(--space-6);
+    }
+}
+
+main.container {
+    flex: 1 0 auto;
+    padding-block: var(--space-6) var(--space-12);
+}
+
+h1, h2, h3, h4 {
+    color: var(--text);
+    margin-top: 0;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+}
+
+h1 {
+    font-size: var(--text-xl);
+    margin-bottom: var(--space-4);
+}
+
+h2 {
+    font-size: var(--text-xl);
+    margin-bottom: var(--space-4);
+}
+
+h3 {
+    font-size: var(--text-lg);
+    margin-bottom: var(--space-3);
+}
+
+h4 {
+    font-size: var(--text-base);
+    margin-bottom: var(--space-2);
+}
+
 @media (max-width: 768px) {
     main.container {
-    padding-top: 0.5rem;
+        padding-block: var(--space-4) var(--space-8);
+    }
+
+    h1 {
+        font-size: var(--text-lg);
+    }
+
+    h2 {
+        font-size: var(--text-lg);
+    }
+}
+
+.tabular-nums {
+    font-variant-numeric: tabular-nums;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.visually-hidden:where(:not(:focus-within, :active)) {
+    position: absolute !important;
+    clip-path: inset(50%) !important;
+    overflow: hidden !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: -1px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    white-space: nowrap !important;
+}
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }

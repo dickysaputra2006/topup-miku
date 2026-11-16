@@ -1,24 +1,81 @@
-/* MIKU Store — Design Tokens (CSS Custom Properties) */
+/* MIKU Store — Design System Tokens (UI-1 Pro Standar) */
 
 :root {
-    --bg-dark: #0b0f19;
-    --bg-surface: #111827;
-    --bg-surface-elevated: #161f33;
-    --primary-color: #06b6d4;
-    --primary-color-dark: #0891b2;
-    --accent-blue: #3b82f6;
-    --primary-gradient: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
-    --success-color: #10B981;
-    --danger-color: #F43F5E;
-    --warning-color: #F59E0B;
-    --muted-color: #94a3b8;
-    --text-color: #f8fafc;
-    --border-color: #1f2937;
-}
-:root {
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    /* 1. Neutral Scale (6 Levels) */
+    --bg: #0B0F17;
+    --surface: #121826;
+    --surface-2: #1A2233;
+    --border: #263043;
+    --text: #E6EAF2;
+    --text-muted: #8B95A7;
+
+    /* 2. Brand Accent (Single Accent) */
+    --accent: #22B8CF;
+    --accent-hover: #1AA3B8;
+    --accent-fg: #06222A;
+    --accent-soft: rgba(34, 184, 207, 0.14);
+
+    /* 3. Semantic Status Colors */
+    --success: #22C55E;
+    --success-soft: rgba(34, 197, 94, 0.14);
+    --warning: #F59E0B;
+    --warning-soft: rgba(245, 158, 11, 0.14);
+    --danger: #EF4444;
+    --danger-text: #FCA5A5;
+    --danger-soft: rgba(239, 68, 68, 0.14);
+    --info: #60A5FA;
+    --info-soft: rgba(96, 165, 250, 0.14);
+    --overlay-backdrop: rgba(11, 15, 23, 0.8);
+
+    /* 4. Typography Scale */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
+    --text-xs: 0.75rem;    /* 12px */
+    --text-sm: 0.875rem;   /* 14px */
+    --text-base: 1rem;     /* 16px */
+    --text-lg: 1.25rem;    /* 20px */
+    --text-xl: 1.5rem;     /* 24px */
+    --text-2xl: 2rem;      /* 32px */
+
+    /* 5. Spacing Scale */
+    --space-1: 0.25rem;    /* 4px */
+    --space-2: 0.5rem;     /* 8px */
+    --space-3: 0.75rem;    /* 12px */
+    --space-4: 1rem;       /* 16px */
+    --space-6: 1.5rem;     /* 24px */
+    --space-8: 2rem;       /* 32px */
+    --space-12: 3rem;      /* 48px */
+
+    /* 6. Radius & Elevation */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-pill: 999px;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
+
+    /* 7. Z-Index Scale (Terstandarisasi) */
+    --z-navbar: 50;
+    --z-dropdown: 60;
+    --z-modal: 70;
+    --z-toast: 80;
+
+    /* 8. Layout & Motion */
+    --container-max: 1200px;
+    --transition-fast: 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+    /* 9. Alias Kompatibilitas Halaman Gelombang 2 (Dashboard, Admin, Portal, Public Pages) */
+    --bg-dark: var(--bg);
+    --bg-surface: var(--surface);
+    --bg-surface-elevated: var(--surface-2);
+    --border-color: var(--border);
+    --text-color: var(--text);
+    --muted-color: var(--text-muted);
+    --primary-color: var(--accent);
+    --primary-color-dark: var(--accent-hover);
+    --primary-gradient: var(--accent);
+    --accent-blue: var(--info);
+    --success-color: var(--success);
+    --warning-color: var(--warning);
+    --danger-color: var(--danger);
+    --radius-lg: var(--radius-md);
 }
