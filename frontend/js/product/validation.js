@@ -3,270 +3,360 @@
 
     const app = (global.MikuProduct = global.MikuProduct || {});
 
-    function handleProductSelection(selectedCard, productId, productPrice) {
-        const { uiState } = global.MikuShared.dom;
-        const { promoCodeInput, validationResultEl, submitOrderBtn } = app.state.els;
+    let validationReqSeq = 0;
 
-        document.querySelectorAll('.product-card-selectable').forEach(card => card.classList.remove('selected'));
-        selectedCard.classList.add('selected');
-        app.state.selectedProductId = productId;
-        app.state.appliedPromo = null; // Reset promo saat produk baru dipilih
-        promoCodeInput.value = '';
+    function getInitials(name) {
+        const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+        return (words[0] || 'MG').slice(0, 2).toUpperCase();
+    }
+
+    function applyHeroImage(game) {
+        const { isSafeImageUrl } = global.MikuShared.dom;
+        const { gameImageEl, gameImageFallbackEl } = app.state.els;
+        const initials = getInitials(game && game.name);
+        if (gameImageFallbackEl) gameImageFallbackEl.textContent = initials;
+        if (!gameImageEl) return;
+
+        const safeUrl = game && isSafeImageUrl(game.image_url) ? game.image_url : '';
+        if (!safeUrl) {
+            gameImageEl.classList.add('hidden');
+            if (gameImageFallbackEl) gameImageFallbackEl.classList.remove('hidden');
+            return;
+        }
+
+        gameImageEl.alt = game.name ? `Logo ${game.name}` : 'Logo game';
+        gameImageEl.classList.remove('hidden');
+        if (gameImageFallbackEl) gameImageFallbackEl.classList.add('hidden');
+        gameImageEl.onerror = () => {
+            gameImageEl.classList.add('hidden');
+            if (gameImageFallbackEl) gameImageFallbackEl.classList.remove('hidden');
+        };
+        gameImageEl.src = safeUrl;
+    }
+
+    function resetValidationState(hintMessage = '') {
+        validationReqSeq += 1;
+        const { uiState } = global.MikuShared.dom;
+        const { validationResultEl } = app.state.els;
         app.state.isValidationSuccess = false;
-        app.state.lastValidationErrorMessage = ''; // reset pesan error saat ganti produk
-        validationResultEl.innerHTML = uiState('Isi User ID lalu keluar dari kolom untuk validasi otomatis.', 'loading');
-        app.checkout.updatePrice(); // Panggil fungsi ini, bukan set textContent langsung
-        submitOrderBtn.disabled = false;
-        submitOrderBtn.textContent = 'Beli Sekarang';
+        app.state.validatedNickname = '';
+        app.state.lastValidationErrorMessage = '';
+        if (validationResultEl) {
+            validationResultEl.innerHTML = hintMessage ? uiState(hintMessage, 'loading') : '';
+        }
+        if (app.checkout && typeof app.checkout.syncActionState === 'function') {
+            app.checkout.syncActionState();
+        }
+    }
+
+    /**
+     * Jalankan pre-validasi akun game berdasarkan produk terpilih & ID tujuan.
+     */
+    async function runValidation() {
+        const { uiState, escapeHtml } = global.MikuShared.dom;
+        const { validationResultEl, targetGameIdInput } = app.state.els;
+        const targetIdEl = targetGameIdInput || document.getElementById('target-game-id');
+        const serverIdEl = document.getElementById('target-server-id');
+
+        app.state.isValidationSuccess = false;
+        app.state.validatedNickname = '';
+        app.state.lastValidationErrorMessage = '';
+
+        const userId = targetIdEl ? String(targetIdEl.value || '').trim() : '';
+        const zoneId = serverIdEl ? String(serverIdEl.value || '').trim() : null;
+
+        if (!userId) {
+            if (validationResultEl) validationResultEl.innerHTML = uiState('Masukkan User ID untuk memvalidasi akun tujuan.', 'loading');
+            app.checkout.syncActionState();
+            return;
+        }
+
+        if (app.state.needsServerId && !zoneId) {
+            if (validationResultEl) validationResultEl.innerHTML = uiState('Lengkapi Server / Zone ID terlebih dahulu.', 'loading');
+            app.checkout.syncActionState();
+            return;
+        }
+
+        if (!app.state.selectedProductId) {
+            if (validationResultEl) validationResultEl.innerHTML = uiState('Pilih nominal di Langkah 2 untuk memvalidasi ID tujuan.', 'loading');
+            app.checkout.syncActionState();
+            return;
+        }
+
+        validationReqSeq += 1;
+        const reqSeq = validationReqSeq;
+        if (validationResultEl) validationResultEl.innerHTML = uiState('Mengecek nickname akun...', 'loading');
+        app.checkout.syncActionState();
+
+        try {
+            const response = await fetch(`${app.PUBLIC_API_URL}/products/${app.state.selectedProductId}/validate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, zoneId }),
+            });
+            const result = await response.json();
+            if (reqSeq !== validationReqSeq) return;
+
+            if (result.message && result.message.includes('tidak memerlukan validasi')) {
+                app.state.isValidationSuccess = true;
+                app.state.validatedNickname = 'Terverifikasi (otomatis)';
+                if (validationResultEl) {
+                    validationResultEl.innerHTML = `<div class="validation-result-inline success">
+                        <i class="fas fa-check-circle" aria-hidden="true"></i> <span>${escapeHtml(result.message)}</span>
+                    </div>`;
+                }
+                app.checkout.syncActionState();
+                return;
+            }
+
+            if (!response.ok) {
+                const errMsg = result.message || 'Validasi ID gagal.';
+                app.state.lastValidationErrorMessage = errMsg;
+                if (validationResultEl) {
+                    validationResultEl.innerHTML = `<div class="validation-result-inline error">
+                        <i class="fas fa-times-circle" aria-hidden="true"></i> <span>${escapeHtml(errMsg)}</span>
+                    </div>`;
+                }
+                app.checkout.syncActionState();
+                return;
+            }
+
+            if (result.success && result.data && result.data.mobapay === true) {
+                app.state.isValidationSuccess = true;
+                app.state.validatedNickname = 'ID Memenuhi Syarat';
+                if (validationResultEl) {
+                    validationResultEl.innerHTML = `<div class="validation-result-inline success">
+                        <i class="fas fa-check-circle" aria-hidden="true"></i> <span>${escapeHtml(result.message)}</span>
+                    </div>`;
+                }
+                app.checkout.syncActionState();
+                return;
+            }
+
+            const nickname = (result.data && result.data.username) ? String(result.data.username) : 'Terverifikasi';
+            const region = (result.data && result.data.region) ? String(result.data.region) : '';
+            app.state.isValidationSuccess = true;
+            app.state.validatedNickname = nickname;
+            let html = `<div class="validation-result-inline success">
+                <i class="fas fa-check-circle" aria-hidden="true"></i>
+                <div><p>Nickname: <strong>${escapeHtml(nickname)}</strong></p>`;
+            if (region) {
+                html += `<p>Region: <strong>${escapeHtml(region)}</strong></p>`;
+            }
+            html += '</div></div>';
+            if (validationResultEl) validationResultEl.innerHTML = html;
+        } catch (error) {
+            if (reqSeq !== validationReqSeq) return;
+            const errMsg = (error && error.message) || 'Terjadi kesalahan koneksi.';
+            app.state.lastValidationErrorMessage = errMsg;
+            if (validationResultEl) {
+                validationResultEl.innerHTML = `<div class="validation-result-inline error">
+                    <i class="fas fa-times-circle" aria-hidden="true"></i> <span>${escapeHtml(errMsg)}</span>
+                </div>`;
+            }
+        } finally {
+            app.checkout.syncActionState();
+        }
+    }
+
+    function handleProductSelection(selectedCard, productId, productPrice, productName) {
+        const { promoCodeInput, targetGameIdInput } = app.state.els;
+
+        document.querySelectorAll('.product-card-selectable').forEach((card) => {
+            card.classList.remove('selected');
+            card.setAttribute('aria-pressed', 'false');
+        });
+        selectedCard.classList.add('selected');
+        selectedCard.setAttribute('aria-pressed', 'true');
+
+        app.state.selectedProductId = productId;
+        app.state.selectedProductPrice = Number(productPrice) || 0;
+        app.state.selectedProductName = productName || (selectedCard.querySelector('.product-card-name') ? selectedCard.querySelector('.product-card-name').textContent : '');
+        app.state.appliedPromo = null;
+        if (promoCodeInput) promoCodeInput.value = '';
+
+        app.checkout.updatePrice();
+
+        const hasUserId = Boolean(targetGameIdInput && String(targetGameIdInput.value || '').trim());
+        const serverIdEl = document.getElementById('target-server-id');
+        const hasServerId = !app.state.needsServerId || Boolean(serverIdEl && String(serverIdEl.value || '').trim());
+
+        if (hasUserId && hasServerId) {
+            runValidation();
+        } else {
+            resetValidationState('Nominal dipilih. Isi ID tujuan di Langkah 1 untuk validasi otomatis.');
+        }
     }
 
     function renderProducts(products) {
         const { formatRupiah } = global.MikuShared.format;
-        const { uiState } = global.MikuShared.dom;
+        const { uiState, escapeHtml } = global.MikuShared.dom;
         const { productListContainer } = app.state.els;
+        if (!productListContainer) return;
 
+        app.state.products = Array.isArray(products) ? products : [];
         productListContainer.innerHTML = '';
-        if (products.length === 0) {
+
+        if (app.state.products.length === 0) {
             productListContainer.innerHTML = uiState('Saat ini belum ada produk aktif untuk game ini.', 'empty');
             return;
         }
+
         const toolbar = document.createElement('div');
         toolbar.className = 'product-selection-toolbar';
-        toolbar.innerHTML = `<span>${products.length} pilihan tersedia</span><span>Pilih nominal, lalu isi ID tujuan.</span>`;
+        toolbar.innerHTML = `<span class="tabular-nums">${app.state.products.length} pilihan nominal tersedia</span><span>Pilih nominal untuk cek harga &amp; ID.</span>`;
         productListContainer.appendChild(toolbar);
-        products.forEach(product => {
-            const card = document.createElement('div');
+
+        app.state.products.forEach((product) => {
+            const card = document.createElement('button');
+            card.type = 'button';
             card.className = 'product-card-selectable';
+            card.setAttribute('aria-pressed', 'false');
             if (product.isFlashSale) card.classList.add('is-flash-sale');
-            card.dataset.productId = product.id;
-            card.dataset.price = product.price;
+            card.dataset.productId = String(product.id);
+            card.dataset.price = String(product.price);
+            card.dataset.name = String(product.name);
+
+            const origPrice = Number(product.original_price || product.originalPrice || 0);
+            const hasStrike = origPrice > Number(product.price);
+
             card.innerHTML = `
-                <span>${product.name}</span>
-                <small>${formatRupiah(product.price)}</small>
-                ${product.isFlashSale ? '<em class="product-tag">Flash Sale</em>' : ''}
+                <span class="product-card-name">${escapeHtml(product.name)}</span>
+                <span class="product-card-pricing">
+                    <span class="product-card-price">${escapeHtml(formatRupiah(product.price))}</span>
+                    ${hasStrike ? `<span class="product-card-strike">${escapeHtml(formatRupiah(origPrice))}</span>` : ''}
+                    ${product.isFlashSale ? '<em class="product-tag">Flash Sale</em>' : ''}
+                </span>
             `;
-            card.addEventListener('click', () => handleProductSelection(card, product.id, product.price));
+            card.addEventListener('click', () => {
+                handleProductSelection(card, card.dataset.productId, card.dataset.price, card.dataset.name);
+            });
             productListContainer.appendChild(card);
         });
     }
 
     function applyFlashSaleSelection() {
-        const { uiState } = global.MikuShared.dom;
+        const { formatRupiah } = global.MikuShared.format;
         const { fsProductId, fsPrice } = app.state;
-        const { productListContainer, submitOrderBtn, validationResultEl } = app.state.els;
+        const { productListContainer } = app.state.els;
+        if (!fsProductId || !fsPrice || !productListContainer) return;
 
-        if (fsProductId && fsPrice) {
-            const fsCard = productListContainer.querySelector(`[data-product-id="${fsProductId}"]`);
-            if (fsCard) {
-                // Hapus seleksi dari kartu lain dan pilih kartu flash sale
-                document.querySelectorAll('.product-card-selectable').forEach(card => card.classList.remove('selected'));
-                fsCard.classList.add('selected');
-                fsCard.classList.add('is-flash-sale');
+        const fsCard = productListContainer.querySelector(`[data-product-id="${fsProductId}"]`);
+        if (!fsCard) return;
 
-                // Atur ID produk yang terpilih secara global
-                app.state.selectedProductId = fsProductId;
+        fsCard.classList.add('is-flash-sale');
+        fsCard.dataset.price = String(fsPrice);
+        const priceEl = fsCard.querySelector('.product-card-price');
+        if (priceEl) priceEl.textContent = formatRupiah(Number(fsPrice));
 
-                // PENTING: Timpa harga asli kartu dengan harga flash sale
-                fsCard.dataset.price = fsPrice;
-
-                // Perbarui tampilan harga dan aktifkan tombol beli
-                app.checkout.updatePrice();
-                submitOrderBtn.disabled = false;
-                submitOrderBtn.textContent = 'Beli Sekarang';
-                validationResultEl.innerHTML = uiState('Flash sale dipilih. Isi User ID lalu validasi tujuan top up.', 'loading');
-                fsCard.dispatchEvent(new Event('click', { bubbles: true }));
-            }
-        }
+        handleProductSelection(fsCard, fsProductId, fsPrice, fsCard.dataset.name);
     }
 
-    /**
-     * Ambil informasi game, daftar server (jika ada), dan produk aktif untuk halaman pemesanan.
-     */
     async function fetchGameData() {
-        const { uiState } = global.MikuShared.dom;
+        const { uiState, escapeHtml } = global.MikuShared.dom;
         const { gameId, token } = app.state;
         const {
             productListContainer,
             validationResultEl,
-            gameImageEl,
             gameNameEl,
             targetGameIdInput,
+            targetGameIdLabelEl,
             serverInputContainer,
             orderForm,
         } = app.state.els;
 
-        productListContainer.innerHTML = uiState('Memuat daftar produk...', 'loading');
-        validationResultEl.innerHTML = '';
+        if (productListContainer) productListContainer.innerHTML = uiState('Memuat daftar produk...', 'loading');
+        if (validationResultEl) validationResultEl.innerHTML = '';
+
         try {
             const headers = {};
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
-            const response = await fetch(`${app.PUBLIC_API_URL}/games/${gameId}/products`, { headers });
+            if (token) headers.Authorization = `Bearer ${token}`;
+            const response = await fetch(`${app.PUBLIC_API_URL}/games/${encodeURIComponent(gameId)}/products`, { headers });
             if (!response.ok) throw new Error('Gagal memuat data produk game.');
             const data = await response.json();
 
-            gameImageEl.src = data.game.image_url;
-            gameNameEl.textContent = data.game.name;
+            applyHeroImage(data.game);
+            if (gameNameEl) gameNameEl.textContent = data.game.name || 'Produk Game';
 
             if (data.game.target_id_label) {
-                targetGameIdInput.placeholder = data.game.target_id_label;
+                if (targetGameIdLabelEl) targetGameIdLabelEl.textContent = data.game.target_id_label;
+                if (targetGameIdInput) targetGameIdInput.placeholder = data.game.target_id_label;
             }
 
-            serverInputContainer.innerHTML = '';
-
-            if (data.game.needs_server_id) {
-                orderForm.classList.remove('single-input');
-                // Panggil API untuk cek apakah ada daftar server tetap
-                const serverListResponse = await fetch(`${app.PUBLIC_API_URL}/games/${gameId}/servers`);
-                const serverList = await serverListResponse.json();
-
-                if (serverList.length > 0) {
-                    // Jika ada daftar server, buat dropdown
-                    let optionsHtml = serverList.map(server => `<option value="${server}">${server}</option>`).join('');
-                    serverInputContainer.innerHTML = `
-                        <select id="target-server-id" required>
-                            <option value="" disabled selected>-- Pilih Server --</option>
-                            ${optionsHtml}
-                        </select>
-                    `;
+            app.state.needsServerId = Boolean(data.game.needs_server_id);
+            if (serverInputContainer) {
+                serverInputContainer.innerHTML = '';
+                if (app.state.needsServerId) {
+                    serverInputContainer.classList.remove('hidden');
+                    if (orderForm) orderForm.classList.remove('single-input');
+                    const serverListResponse = await fetch(`${app.PUBLIC_API_URL}/games/${encodeURIComponent(gameId)}/servers`);
+                    const serverList = await serverListResponse.json();
+                    const labelHtml = '<label for="target-server-id">Server / Zone ID</label>';
+                    if (Array.isArray(serverList) && serverList.length > 0) {
+                        const optionsHtml = serverList.map((s) => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+                        serverInputContainer.innerHTML = `${labelHtml}
+                            <select id="target-server-id" name="targetServerId" required>
+                                <option value="" disabled selected>-- Pilih Server --</option>
+                                ${optionsHtml}
+                            </select>`;
+                    } else {
+                        serverInputContainer.innerHTML = `${labelHtml}
+                            <input type="text" id="target-server-id" name="targetServerId" placeholder="Masukkan Server / Zone ID" autocomplete="off" required>`;
+                    }
+                    const serverEl = document.getElementById('target-server-id');
+                    if (serverEl) {
+                        if (serverEl.tagName === 'SELECT') {
+                            serverEl.addEventListener('change', () => {
+                                resetValidationState();
+                                runValidation();
+                            });
+                        } else {
+                            serverEl.addEventListener('input', () => resetValidationState());
+                            serverEl.addEventListener('blur', () => {
+                                if (String(serverEl.value || '').trim().length > 0) runValidation();
+                                else app.checkout.syncActionState();
+                            });
+                        }
+                    }
                 } else {
-                    // Jika tidak ada, buat input teks biasa
-                    serverInputContainer.innerHTML = `<input type="text" id="target-server-id" placeholder="Masukkan Server ID" required>`;
+                    serverInputContainer.classList.add('hidden');
+                    if (orderForm) orderForm.classList.add('single-input');
                 }
-            } else {
-                // TAMBAHAN: Tambahkan kelas .single-input jika game TIDAK butuh server
-                orderForm.classList.add('single-input');
             }
 
             renderProducts(data.products);
             applyFlashSaleSelection();
+            app.checkout.syncActionState();
         } catch (error) {
             console.error('Error fetching game data:', error);
-            productListContainer.innerHTML = uiState(`Gagal memuat produk. ${error.message}`, 'error');
+            if (productListContainer) productListContainer.innerHTML = uiState(`Gagal memuat produk. ${escapeHtml(error.message)}`, 'error');
         }
     }
 
-    /**
-     * Pasang live validation ID tujuan ketika produk diklik atau input ID/Zone ID kehilangan fokus.
-     */
-    async function setupLiveValidation() {
-        const { uiState } = global.MikuShared.dom;
-        const targetIdInput = document.getElementById('target-game-id');
-        const serverIdInputContainer = document.getElementById('server-input-container');
-        const resultContainer = document.getElementById('validation-result');
-        const productListContainer = document.getElementById('product-list-container');
+    function setupLiveValidation() {
+        const { targetGameIdInput, validateIdBtn, orderForm } = app.state.els;
 
-        // Pindahkan selectedProductId ke dalam scope fungsi ini agar tidak bentrok
-        let currentSelectedProductId = null;
-
-        // Fungsi inti yang akan menjalankan validasi
-        const handleValidation = async () => {
-            app.state.isValidationSuccess = false; // Reset status setiap kali validasi baru dimulai
-            app.state.lastValidationErrorMessage = ''; // reset pesan error lama
-            if (!currentSelectedProductId) {
-                resultContainer.innerHTML = '';
-                return;
-            }
-
-            if (!targetIdInput.value) {
-                resultContainer.innerHTML = uiState('Masukkan User ID untuk memvalidasi tujuan top up.', 'loading');
-                return;
-            }
-
-            const userId = targetIdInput.value;
-            const serverIdInput = document.getElementById('target-server-id');
-            const zoneId = serverIdInput ? serverIdInput.value : null;
-
-            resultContainer.innerHTML = uiState('Mengecek nickname...', 'loading');
-
-            try {
-                const response = await fetch(`${app.PUBLIC_API_URL}/products/${currentSelectedProductId}/validate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId, zoneId }),
-                });
-
-                const result = await response.json();
-
-                // Tampilan jika produk tidak memerlukan validasi
-                if (result.message && result.message.includes('tidak memerlukan validasi')) {
-                    resultContainer.innerHTML = `<div class="validation-result-inline success">
-                        <i class="fas fa-check-circle"></i> ${result.message}
-                    </div>`;
-                    app.state.isValidationSuccess = true;
-                    return;
-                }
-
-                // Tampilan jika validasi gagal
-                if (!response.ok) {
-                    const errMsg = result.message || 'Validasi gagal.';
-                    app.state.lastValidationErrorMessage = errMsg; // simpan untuk alert Beli Sekarang
-                    resultContainer.innerHTML = `<div class="validation-result-inline error">
-                        <i class="fas fa-times-circle"></i><span>${errMsg}</span>
-                    </div>`;
-                    return;
-                }
-
-                // Tampilan sukses Mobapay (tidak ada username, hanya message konfirmasi)
-                if (result.success && result.data && result.data.mobapay === true) {
-                    resultContainer.innerHTML = `<div class="validation-result-inline success">
-                        <i class="fas fa-check-circle"></i> ${result.message}
-                    </div>`;
-                    app.state.isValidationSuccess = true;
-                    return;
-                }
-                // Tampilan jika validasi sukses
-                let message = `<div class="validation-result-inline success">
-                            <p><i class="fas fa-check-circle"></i> Nickname: <strong>${result.data.username}</strong></p>`;
-                if (result.data.region) {
-                    message += `<p style="margin-top: 0.25rem;">Region: <strong>${result.data.region}</strong></p>`;
-                }
-
-                if (!response.ok) {
-                    app.state.isValidationSuccess = false;
-                    resultContainer.innerHTML = `<div class="validation-result error">...</div>`;
-                    return;
-                }
-
-                message += `</div>`;
-                resultContainer.innerHTML = message;
-                app.state.isValidationSuccess = true;
-            } catch (error) {
-                const errMsg = error.message || 'Terjadi kesalahan koneksi.';
-                app.state.lastValidationErrorMessage = errMsg;
-                resultContainer.innerHTML = `<div class="validation-result-inline error">
-                    <i class="fas fa-times-circle"></i><span>${errMsg}</span>
-                </div>`;
-                app.state.isValidationSuccess = false;
-            }
-        };
-
-        // Saat pengguna memilih kartu produk
-        if (productListContainer) {
-            productListContainer.addEventListener('click', (e) => {
-                const card = e.target.closest('.product-card-selectable');
-                if (card && card.dataset.productId) {
-                    currentSelectedProductId = card.dataset.productId;
-                    handleValidation();
+        if (orderForm) {
+            orderForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                runValidation();
+            });
+        }
+        if (targetGameIdInput) {
+            targetGameIdInput.addEventListener('input', () => {
+                resetValidationState();
+            });
+            targetGameIdInput.addEventListener('blur', () => {
+                if (String(targetGameIdInput.value || '').trim().length > 0) {
+                    runValidation();
+                } else {
+                    app.checkout.syncActionState();
                 }
             });
         }
-
-        // Saat pengguna selesai mengetik di kolom ID atau Zone ID
-        if (targetIdInput) {
-            targetIdInput.addEventListener('blur', handleValidation);
-        }
-
-        if (serverIdInputContainer) {
-            const observer = new MutationObserver(() => {
-                const serverIdInput = document.getElementById('target-server-id');
-                if (serverIdInput) {
-                    serverIdInput.addEventListener('blur', handleValidation);
-                    observer.disconnect();
-                }
-            });
-            observer.observe(serverIdInputContainer, { childList: true, subtree: true });
+        if (validateIdBtn) {
+            validateIdBtn.addEventListener('click', () => runValidation());
         }
     }
 
@@ -276,5 +366,6 @@
         handleProductSelection,
         setupLiveValidation,
         applyFlashSaleSelection,
+        runValidation,
     };
 })(window);

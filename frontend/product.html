@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Top Up - MIKU Store</title>
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/base.css">
@@ -13,210 +13,264 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
-<body>
+<body class="product-page">
+<a href="#main-content" class="skip-link visually-hidden">Lewati ke form pemesanan</a>
+
 <header>
     <div class="header-container container">
         <div class="header-left">
-            <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
+            <a href="index.html" class="logo-link">
+                <span class="logo">MIKU<span class="logo-accent">Store</span></span>
+            </a>
         </div>
-        <div class="header-right">
+        <nav class="header-right" aria-label="Navigasi halaman produk">
+            <a href="index.html" class="header-btn">Katalog</a>
+            <a href="cek-transaksi.html" class="header-btn cek-trx-link">Cek Transaksi</a>
             <a href="#" id="user-auth-button" class="header-btn">Masuk</a>
-        </div>
+        </nav>
     </div>
 </header>
 
-    <!-- Step Navigation Mobile (only visible on mobile via CSS) -->
-    <nav id="mobile-step-nav" aria-label="Step navigation" role="navigation">
-        <button class="step-nav-btn active" data-step="1" aria-label="Langkah 1: Masukkan User ID">
-            <span class="step-nav-num">1</span>
-            <span class="step-nav-label">ID</span>
-        </button>
-        <span class="step-nav-divider" aria-hidden="true"></span>
-        <button class="step-nav-btn" data-step="2" aria-label="Langkah 2: Pilih Nominal">
-            <span class="step-nav-num">2</span>
-            <span class="step-nav-label">Produk</span>
-        </button>
-        <span class="step-nav-divider" aria-hidden="true"></span>
-        <button class="step-nav-btn" data-step="3" aria-label="Langkah 3: Kode Promo">
-            <span class="step-nav-num">3</span>
-            <span class="step-nav-label">Promo</span>
-        </button>
-        <span class="step-nav-divider" aria-hidden="true"></span>
-        <button class="step-nav-btn" data-step="4" aria-label="Langkah 4: Bayar & Proses">
-            <span class="step-nav-num">4</span>
-            <span class="step-nav-label">Bayar</span>
-        </button>
-    </nav>
+<nav id="mobile-step-nav" aria-label="Navigasi langkah pemesanan">
+    <button type="button" class="step-nav-btn active" data-step="1" aria-label="Langkah 1: Masukkan ID">
+        <span class="step-nav-num">1</span>
+        <span class="step-nav-label">ID</span>
+    </button>
+    <span class="step-nav-divider" aria-hidden="true"></span>
+    <button type="button" class="step-nav-btn" data-step="2" aria-label="Langkah 2: Pilih Nominal">
+        <span class="step-nav-num">2</span>
+        <span class="step-nav-label">Nominal</span>
+    </button>
+    <span class="step-nav-divider" aria-hidden="true"></span>
+    <button type="button" class="step-nav-btn" data-step="3" aria-label="Langkah 3: Metode dan Promo">
+        <span class="step-nav-num">3</span>
+        <span class="step-nav-label">Metode</span>
+    </button>
+    <span class="step-nav-divider" aria-hidden="true"></span>
+    <button type="button" class="step-nav-btn" data-step="4" aria-label="Langkah 4: Konfirmasi dan Bayar">
+        <span class="step-nav-num">4</span>
+        <span class="step-nav-label">Bayar</span>
+    </button>
+</nav>
 
-    <main class="container">
-        <div class="order-page-wrapper">
+<main id="main-content" class="container product-main" tabindex="-1">
+    <div class="order-page-wrapper">
+        <div class="order-main-col">
+            <section id="game-info" class="card" aria-label="Informasi game">
+                <div class="game-hero-thumb">
+                    <img id="game-image" src="" alt="Logo game" fetchpriority="high" class="hidden">
+                    <span id="game-image-fallback" class="game-hero-fallback" aria-hidden="true">MG</span>
+                </div>
+                <div class="game-info-text">
+                    <span class="game-badge">Proses Otomatis 24/7</span>
+                    <h1 id="game-name">Memuat nama game...</h1>
+                    <p>Isi ID tujuan, pilih nominal, dan selesaikan pembayaran secara langsung.</p>
+                </div>
+            </section>
 
-            <!-- Kolom Kiri: Game Info + Step 1 + Step 2 -->
-            <div class="order-main-col">
-
-                <div id="game-info" class="card">
-                    <img id="game-image" src="https://via.placeholder.com/200" alt="Game Logo">
-                    <div class="game-info-text">
-                        <h2 id="game-name">Memuat nama game...</h2>
-                        <p>Pengiriman Cepat &amp; Terpercaya</p>
+            <section id="order-step-1" class="card">
+                <h2 class="step-heading"><span class="step-num">1</span> Masukkan ID Akun</h2>
+                <form id="order-form" class="order-form-grid single-input" novalidate>
+                    <div class="field-group">
+                        <label id="target-game-id-label" for="target-game-id">User ID</label>
+                        <input
+                            type="text"
+                            id="target-game-id"
+                            name="targetGameId"
+                            placeholder="Masukkan User ID"
+                            autocomplete="off"
+                            autocorrect="off"
+                            autocapitalize="none"
+                            spellcheck="false"
+                            required
+                        >
                     </div>
-                </div>
-
-                <div id="order-step-1" class="card">
-                    <h3><span>1</span> Masukkan User ID</h3>
-                    <form id="order-form" class="order-form-grid">
-                        <input type="text" id="target-game-id" placeholder="Masukkan User ID" required>
-                        <div id="server-input-container"></div>
-                        <div id="validation-result" style="margin-top: 1rem; min-height: 24px;"></div>
-                    </form>
-                </div>
-
-                <div id="order-step-2" class="card">
-                    <h3><span>2</span> Pilih Nominal Top Up</h3>
-                    <div id="product-list-container" class="product-grid">
-                        <p>Memuat produk...</p>
+                    <div id="server-input-container" class="field-group hidden"></div>
+                    <div class="step-1-actions">
+                        <button type="button" id="validate-id-btn" class="edit-btn validate-inline-btn">Cek ID Akun</button>
+                        <span class="field-hint">ID divalidasi otomatis saat selesai diketik atau klik Cek ID Akun.</span>
                     </div>
+                    <div id="validation-result" class="validation-slot" aria-live="polite"></div>
+                </form>
+            </section>
+
+            <section id="order-step-2" class="card">
+                <h2 class="step-heading"><span class="step-num">2</span> Pilih Nominal</h2>
+                <div id="product-list-container" class="product-grid">
+                    <div class="ui-state loading">Memuat produk...</div>
+                </div>
+            </section>
+
+            <section id="order-step-3" class="card">
+                <h2 class="step-heading"><span class="step-num">3</span> Pilih Metode Pembayaran</h2>
+                <div id="payment-method-list" class="payment-method-list" role="group" aria-label="Pilihan metode pembayaran">
+                    <button type="button" class="payment-method-card selected" data-method="balance" aria-pressed="true">
+                        <span class="payment-method-info">
+                            <strong>Saldo Akun MIKU Store</strong>
+                            <small>Proses instan dari saldo akun Anda</small>
+                        </span>
+                        <span class="payment-method-fee tabular-nums">Biaya Rp 0</span>
+                    </button>
                 </div>
 
-            </div><!-- /.order-main-col -->
-
-            <!-- Kolom Kanan: Step 3 + Step 4 (Sticky Summary) -->
-            <div class="order-side-col">
-
-                <div id="order-step-3" class="card">
-                    <h3><span>3</span> Punya Kode Promo?</h3>
+                <div class="promo-box">
                     <form id="promo-form" class="promo-form-container">
-                        <input type="text" id="promo-code-input" placeholder="Masukkan Kode di Sini">
-                        <button type="submit" id="apply-promo-btn">Terapkan</button>
+                        <label for="promo-code-input" class="promo-label">Kode Promo (Opsional)</label>
+                        <div class="promo-input-row">
+                            <input
+                                type="text"
+                                id="promo-code-input"
+                                name="promoCode"
+                                placeholder="Masukkan kode promo"
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="characters"
+                                spellcheck="false"
+                            >
+                            <button type="submit" id="apply-promo-btn">Terapkan</button>
+                        </div>
                     </form>
-                    <div id="promo-result" class="promo-result"></div>
+                    <div id="promo-result" class="promo-result" aria-live="polite"></div>
                 </div>
+            </section>
+        </div>
 
-                <div id="order-step-4" class="card">
-                    <h3><span>4</span> Bayar &amp; Proses</h3>
-                    <div id="payment-info">
-                        <p><span>Metode Pembayaran</span> <strong>Saldo Akun</strong></p>
-                        <hr>
-                        <p class="total-payment"><span>Total Bayar</span> <strong id="total-price">-</strong></p>
-                    </div>
-                    <button id="submit-order-btn" class="order-button" disabled>Pilih Nominal Dahulu</button>
+        <aside class="order-side-col" aria-label="Ringkasan pesanan">
+            <section id="order-step-4" class="card">
+                <h2 class="step-heading"><span class="step-num">4</span> Konfirmasi &amp; Bayar</h2>
+                <div id="payment-info">
+                    <p><span>Game</span> <strong id="summary-game">-</strong></p>
+                    <p><span>Tujuan</span> <strong id="summary-target">-</strong></p>
+                    <p><span>Nickname</span> <strong id="summary-ign">-</strong></p>
+                    <p><span>Nominal</span> <strong id="summary-product">-</strong></p>
+                    <p><span>Metode Pembayaran</span> <strong id="summary-method">Saldo Akun</strong></p>
+                    <p id="summary-discount-row" class="hidden"><span>Potongan Promo</span> <strong id="summary-discount" class="tabular-nums">-</strong></p>
+                    <hr>
+                    <p class="total-payment"><span>Total Bayar</span> <strong id="total-price" class="tabular-nums">-</strong></p>
                 </div>
-
-            </div><!-- /.order-side-col -->
-
-        </div><!-- /.order-page-wrapper -->
-    </main>
-
-    <div id="auth-modal" class="modal-overlay hidden">
-        <div class="modal-content">
-            <button id="close-modal-btn" class="close-modal">&times;</button>
-            <div id="login-container">
-                <h3>Masuk Akun</h3>
-                <p class="form-description">Selamat datang kembali! Silakan masuk.</p>
-                <form id="login-form">
-                    <input name="username" type="text" placeholder="Masukkan Username atau Email Anda" required>
-                    <div class="password-wrapper">
-                        <input name="password" type="password" placeholder="Masukkan Kata Sandi Anda" required>
-                        <i class="fas fa-eye-slash toggle-password"></i>
-                    </div>
-                    <a href="#" class="forgot-password">Lupa Password?</a>
-                    <button type="submit">Masuk</button>
-                </form>
-                <p class="switch-form">Belum punya akun? <a href="#" id="show-register">Daftar di sini</a></p>
-            </div>
-            <div id="register-container" class="hidden">
-                <h3>Daftar Akun Baru</h3>
-                <p class="form-description">Masukkan data Anda untuk membuat akun baru.</p>
-                <form id="register-form">
-                    <input name="fullName" type="text" placeholder="Nama Lengkap (Contoh: John Doe)" required>
-                    <input name="username" type="text" placeholder="Username (untuk login)" required>
-                    <input name="email" type="email" placeholder="Email" required>
-                    <div class="phone-input-group">
-                        <select name="countryCode" class="phone-country-code" aria-label="Kode negara">
-                            <option value="+62" selected>&#x1F1EE;&#x1F1E9; +62</option>
-                            <option value="+60">&#x1F1F2;&#x1F1FE; +60</option>
-                            <option value="+65">&#x1F1F8;&#x1F1EC; +65</option>
-                            <option value="+63">&#x1F1F5;&#x1F1ED; +63</option>
-                            <option value="+66">&#x1F1F9;&#x1F1ED; +66</option>
-                            <option value="+84">&#x1F1FB;&#x1F1F3; +84</option>
-                            <option value="+1">&#x1F1FA;&#x1F1F8; +1</option>
-                        </select>
-                        <input name="nomorWa" type="tel" placeholder="81234567890 (tanpa 0 di depan)" required class="phone-local-input">
-                    </div>
-                    <div class="password-wrapper">
-                        <input name="password" type="password" placeholder="Password" required>
-                        <i class="fas fa-eye-slash toggle-password"></i>
-                    </div>
-                    <div class="password-wrapper">
-                        <input name="confirmPassword" type="password" placeholder="Konfirmasi Password" required>
-                        <i class="fas fa-eye-slash toggle-password"></i>
-                    </div>
-                    <div class="terms">
-                        <input type="checkbox" id="terms-product" name="terms" required>
-                        <label for="terms-product">Dengan mendaftar, Anda setuju dengan <a href="/syarat-ketentuan.html" target="_blank" rel="noopener">syarat dan ketentuan</a> kami.</label>
-                    </div>
-                    <button type="submit">Daftar</button>
-                </form>
-                <p class="switch-form">Sudah punya akun? <a href="#" id="show-login">Masuk</a></p>
-            </div>
-            <div id="forgot-password-container" class="hidden">
-                <h3>Lupa Password</h3>
-                <p class="form-description">Masukkan email Anda untuk menerima link reset password.</p>
-                <form id="forgot-password-form">
-                    <input name="email" type="email" placeholder="Masukkan Email Anda" required>
-                    <button type="submit">Kirim Link Reset</button>
-                </form>
-                <p class="switch-form">Ingat password? <a href="#" class="show-login-from-forgot">Masuk di sini</a></p>
-            </div>
-        </div>
+                <p id="checkout-status-hint" class="checkout-status-hint" aria-live="polite">Lengkapi ID akun dan pilih nominal untuk melanjutkan.</p>
+                <button type="button" id="submit-order-btn" class="order-button" disabled>Masukkan User ID dulu</button>
+            </section>
+        </aside>
     </div>
+</main>
 
-    <script defer src="js/shared/format.js"></script>
-    <script defer src="js/shared/dom.js"></script>
-    <script defer src="js/shared/auth.js"></script>
-    <script defer src="js/shared/api.js"></script>
-    <script defer src="js/product/state.js"></script>
-    <script defer src="js/product/validation.js"></script>
-    <script defer src="js/product/checkout.js"></script>
-    <script defer src="js/product/mobileStepNav.js"></script>
-
-<div id="order-confirmation-modal" class="modal-overlay hidden">
-    <div class="modal-content">
-        <button id="close-confirm-modal-btn" class="close-modal">&times;</button>
-        <h3>Konfirmasi Pesanan</h3>
-        <p class="form-description">
-            <i class="fas fa-info-circle"></i> Harap periksa kembali pesanan Anda sebelum melanjutkan ke proses pembayaran. Pastikan data yang Anda masukkan sudah benar.
-        </p>
-        <div class="confirmation-details">
-            <h4>Informasi Akun</h4>
-            <p><span>IGN:</span> <strong id="confirm-ign">-</strong></p>
-            <p><span>User ID:</span> <strong id="confirm-userid">-</strong></p>
-            <p><span>Server ID:</span> <strong id="confirm-serverid">-</strong></p>
-            <h4>Ringkasan Pesanan</h4>
-            <p><span>Kategori:</span> <strong id="confirm-kategori">-</strong></p>
-            <p><span>Produk:</span> <strong id="confirm-produk">-</strong></p>
-            <p><span>Harga:</span> <strong id="confirm-harga">-</strong></p>
-            <p><span>Metode Pembayaran:</span> <strong>Saldo Akun</strong></p>
-            <hr>
-            <p class="total-payment"><span>Total Pembayaran</span> <strong id="confirm-total">-</strong></p>
-        </div>
-        <div class="confirmation-actions">
-            <button id="cancel-order-btn" class="edit-btn">Batalkan</button>
-            <button id="confirm-order-btn" class="order-button">Bayar Sekarang <i class="fas fa-arrow-right"></i></button>
-        </div>
+<div id="mobile-checkout-bar" class="mobile-checkout-bar" aria-label="Ringkasan pembayaran mobile">
+    <div class="mobile-bar-total">
+        <span class="mobile-bar-label">Total Bayar</span>
+        <strong id="mobile-total-price" class="mobile-bar-amount tabular-nums">-</strong>
     </div>
+    <button type="button" id="mobile-submit-order-btn" class="order-button mobile-pay-btn" disabled>Masukkan User ID dulu</button>
 </div>
 
-    <footer>
+<footer>
     <div class="container footer-content">
         <div class="footer-links">
             <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
             <a href="/kebijakan-refund.html">Kebijakan Refund</a>
             <a href="/kontak.html">Kontak Kami</a>
+            <a href="/cek-transaksi.html">Cek Transaksi</a>
         </div>
-        <p>&copy; 2026 MIKU Store. Dibuat dengan ❤️</p>
+        <p>&copy; 2026 MIKU Store. Seluruh hak cipta dilindungi.</p>
     </div>
 </footer>
 
+<div id="auth-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="auth-modal-heading">
+    <div class="modal-content">
+        <button type="button" id="close-modal-btn" class="close-modal" aria-label="Tutup dialog">&times;</button>
+        <div id="login-container">
+            <h3 id="auth-modal-heading">Masuk Akun</h3>
+            <p class="form-description">Selamat datang kembali! Silakan masuk.</p>
+            <form id="login-form">
+                <input name="username" type="text" placeholder="Username atau Email" autocomplete="username" required>
+                <div class="password-wrapper">
+                    <input name="password" type="password" placeholder="Kata Sandi" autocomplete="current-password" required>
+                    <i class="fas fa-eye-slash toggle-password"></i>
+                </div>
+                <a href="#" class="forgot-password">Lupa Password?</a>
+                <button type="submit">Masuk</button>
+            </form>
+            <p class="switch-form">Belum punya akun? <a href="#" id="show-register">Daftar di sini</a></p>
+        </div>
+        <div id="register-container" class="hidden">
+            <h3>Daftar Akun Baru</h3>
+            <p class="form-description">Masukkan data Anda untuk membuat akun baru.</p>
+            <form id="register-form">
+                <input name="fullName" type="text" placeholder="Nama Lengkap (Contoh: John Doe)" autocomplete="name" required>
+                <input name="username" type="text" placeholder="Username (untuk login)" autocomplete="username" required>
+                <input name="email" type="email" placeholder="Email" autocomplete="email" required>
+                <div class="phone-input-group">
+                    <select name="countryCode" class="phone-country-code" aria-label="Kode negara">
+                        <option value="+62" selected>+62</option>
+                        <option value="+60">+60</option>
+                        <option value="+65">+65</option>
+                        <option value="+63">+63</option>
+                        <option value="+66">+66</option>
+                        <option value="+84">+84</option>
+                        <option value="+1">+1</option>
+                    </select>
+                    <input name="nomorWa" type="tel" placeholder="81234567890" class="phone-local-input" autocomplete="tel-national" required>
+                </div>
+                <div class="password-wrapper">
+                    <input name="password" type="password" placeholder="Password" autocomplete="new-password" required>
+                    <i class="fas fa-eye-slash toggle-password"></i>
+                </div>
+                <div class="password-wrapper">
+                    <input name="confirmPassword" type="password" placeholder="Konfirmasi Password" autocomplete="new-password" required>
+                    <i class="fas fa-eye-slash toggle-password"></i>
+                </div>
+                <div class="terms">
+                    <input type="checkbox" id="terms-product" name="terms" required>
+                    <label for="terms-product">Dengan mendaftar, Anda setuju dengan <a href="/syarat-ketentuan.html" target="_blank" rel="noopener">syarat dan ketentuan</a> kami.</label>
+                </div>
+                <button type="submit">Daftar</button>
+            </form>
+            <p class="switch-form">Sudah punya akun? <a href="#" id="show-login">Masuk</a></p>
+        </div>
+        <div id="forgot-password-container" class="hidden">
+            <h3>Lupa Password</h3>
+            <p class="form-description">Masukkan email Anda untuk menerima link reset password.</p>
+            <form id="forgot-password-form">
+                <input name="email" type="email" placeholder="Masukkan Email Anda" autocomplete="email" required>
+                <button type="submit">Kirim Link Reset</button>
+            </form>
+            <p class="switch-form">Ingat password? <a href="#" class="show-login-from-forgot">Masuk di sini</a></p>
+        </div>
+    </div>
+</div>
+
+<div id="order-confirmation-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-heading">
+    <div class="modal-content">
+        <button type="button" id="close-confirm-modal-btn" class="close-modal" aria-label="Tutup dialog konfirmasi">&times;</button>
+        <h3 id="confirm-modal-heading">Konfirmasi Pesanan</h3>
+        <p class="form-description">Periksa kembali data akun dan nominal sebelum membayar.</p>
+        <div class="confirmation-details">
+            <h4>Informasi Akun</h4>
+            <p><span>IGN / Validasi:</span> <strong id="confirm-ign">-</strong></p>
+            <p><span>User ID:</span> <strong id="confirm-userid">-</strong></p>
+            <p><span>Server ID:</span> <strong id="confirm-serverid">-</strong></p>
+            <h4>Ringkasan Pesanan</h4>
+            <p><span>Game:</span> <strong id="confirm-kategori">-</strong></p>
+            <p><span>Produk:</span> <strong id="confirm-produk">-</strong></p>
+            <p><span>Harga:</span> <strong id="confirm-harga" class="tabular-nums">-</strong></p>
+            <p><span>Metode Pembayaran:</span> <strong id="confirm-method">Saldo Akun</strong></p>
+            <hr>
+            <p class="total-payment"><span>Total Pembayaran</span> <strong id="confirm-total" class="tabular-nums">-</strong></p>
+        </div>
+        <div class="confirmation-actions">
+            <button type="button" id="cancel-order-btn" class="edit-btn">Batalkan</button>
+            <button type="button" id="confirm-order-btn" class="order-button">Bayar Sekarang</button>
+        </div>
+    </div>
+</div>
+
+<script defer src="js/shared/format.js"></script>
+<script defer src="js/shared/dom.js"></script>
+<script defer src="js/shared/auth.js"></script>
+<script defer src="js/shared/api.js"></script>
+<script defer src="js/product/state.js"></script>
+<script defer src="js/product/validation.js"></script>
+<script defer src="js/product/checkout.js"></script>
+<script defer src="js/product/mobileStepNav.js"></script>
 </body>
 </html>

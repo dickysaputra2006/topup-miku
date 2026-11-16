@@ -6,49 +6,98 @@
     const statusLabel = (status) => global.MikuShared.format.statusLabel(status, 'Perlu Review');
 
     /**
-     * Render baris tabel riwayat transaksi user.
+     * Render baris tabel riwayat transaksi user sesuai filter status aktif.
      */
     function renderTransactionsTable(transactions, tableBody) {
         const { formatRupiah, formatDateId, statusClass } = global.MikuShared.format;
-        const { escapeHtml, tableState } = global.MikuShared.dom;
+        const { escapeHtml } = global.MikuShared.dom;
         if (!tableBody) return;
+
+        const filter = app.state.txStatusFilter || 'all';
+        const filtered = filter === 'all'
+            ? transactions
+            : transactions.filter(tx => String(tx.status || '').toLowerCase() === filter.toLowerCase());
+
+        const countEl = document.getElementById('tx-filter-count');
+        if (countEl) {
+            countEl.textContent = transactions.length > 0 ? `${filtered.length} dari ${transactions.length} transaksi` : '';
+        }
+
         tableBody.innerHTML = '';
         if (transactions.length === 0) {
-            tableBody.innerHTML = tableState(6, 'Belum ada transaksi. Pesanan baru akan muncul di sini.', 'empty');
+            tableBody.innerHTML = `
+                <tr class="table-empty-row">
+                    <td colspan="6">
+                        <div class="table-empty-cta">
+                            <p>Belum ada transaksi. Mulai top up pertama Anda.</p>
+                            <a href="index.html" class="topup-btn empty-cta-btn">Mulai Top Up</a>
+                        </div>
+                    </td>
+                </tr>
+            `;
             return;
         }
-        transactions.forEach(tx => {
+
+        if (filtered.length === 0) {
+            tableBody.innerHTML = `
+                <tr class="table-empty-row">
+                    <td colspan="6">
+                        <div class="table-empty-cta">
+                            <p>Tidak ada transaksi untuk filter status ini.</p>
+                            <button type="button" class="edit-btn reset-tx-filter-btn">Reset Filter</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        filtered.forEach(tx => {
             const row = document.createElement('tr');
             const formattedPrice = formatRupiah(tx.price);
             row.innerHTML = `
-                    <td><a href="invoice.html?id=${encodeURIComponent(tx.invoice_id)}" class="history-link">${escapeHtml(tx.invoice_id)}</a></td>
-                    <td>${formatDateId(tx.created_at)}</td>
-                    <td>${tx.product_name}</td>
-                    <td>${tx.target_game_id}</td>
-                    <td>${formattedPrice}</td>
-                    <td><span class="status-badge ${statusClass(tx.status)}">${statusLabel(tx.status)}</span></td>
-                `;
+                <td><a href="invoice.html?id=${encodeURIComponent(tx.invoice_id)}" class="history-link">${escapeHtml(tx.invoice_id)}</a></td>
+                <td class="tabular-nums">${escapeHtml(formatDateId(tx.created_at))}</td>
+                <td>${escapeHtml(tx.product_name)}</td>
+                <td>${escapeHtml(tx.target_game_id)}</td>
+                <td class="tabular-nums">${escapeHtml(formattedPrice)}</td>
+                <td><span class="status-badge ${statusClass(tx.status)}">${escapeHtml(statusLabel(tx.status))}</span></td>
+            `;
             tableBody.appendChild(row);
         });
+    }
+
+    function setTxStatusFilter(statusValue) {
+        app.state.txStatusFilter = statusValue || 'all';
+        document.querySelectorAll('.tx-filter-chip').forEach(chip => {
+            const isMatch = chip.dataset.status === app.state.txStatusFilter;
+            chip.classList.toggle('active', isMatch);
+            chip.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
+        });
+        const tableBody = document.querySelector('#transactions-table tbody');
+        if (tableBody && app.state.transaksiLoaded) {
+            renderTransactionsTable(app.state.cachedTransactions || [], tableBody);
+        }
     }
 
     /**
      * Ambil dan tampilkan riwayat transaksi user pada tab Riwayat Transaksi.
      */
     async function fetchTransactions() {
-        const { tableState } = global.MikuShared.dom;
+        const { escapeHtml, tableState } = global.MikuShared.dom;
         const { apiFetch } = global.MikuShared.api;
-        const tableBody = document.querySelector("#transactions-table tbody");
+        const tableBody = document.querySelector('#transactions-table tbody');
         if (!tableBody) return;
         tableBody.innerHTML = tableState(6, 'Memuat riwayat transaksi...', 'loading');
         try {
             const response = await apiFetch(`${app.API_URL}/transactions`, { auth: true, token: app.state.token });
             if (!response.ok) throw new Error('Gagal mengambil data transaksi.');
             const transactions = await response.json();
-            renderTransactionsTable(transactions, tableBody);
+            app.state.cachedTransactions = Array.isArray(transactions) ? transactions : [];
             app.state.transaksiLoaded = true;
+            renderTransactionsTable(app.state.cachedTransactions, tableBody);
         } catch (error) {
-            tableBody.innerHTML = tableState(6, error.message, 'error');
+            tableBody.innerHTML = tableState(6, escapeHtml(error.message), 'error');
         }
     }
 
@@ -57,22 +106,32 @@
      */
     function renderMutasiTable(history, tableBody) {
         const { formatRupiah, formatDateId } = global.MikuShared.format;
-        const { tableState } = global.MikuShared.dom;
+        const { escapeHtml } = global.MikuShared.dom;
         if (!tableBody) return;
         tableBody.innerHTML = '';
-        if (history.length === 0) {
-            tableBody.innerHTML = tableState(4, 'Belum ada mutasi saldo.', 'empty');
+        if (!Array.isArray(history) || history.length === 0) {
+            tableBody.innerHTML = `
+                <tr class="table-empty-row">
+                    <td colspan="4">
+                        <div class="table-empty-cta">
+                            <p>Belum ada mutasi saldo. Mutasi tercetak otomatis saat deposit disetujui atau order diproses.</p>
+                            <a href="#" data-target="deposit-tab" class="edit-btn dashboard-nav-link">Isi Saldo</a>
+                        </div>
+                    </td>
+                </tr>
+            `;
             return;
         }
         history.forEach(item => {
             const row = document.createElement('tr');
             const amountClass = item.amount > 0 ? 'amount-in' : 'amount-out';
             const amountSign = item.amount > 0 ? '+' : '';
+            const safeType = String(item.type || 'Mutasi');
             row.innerHTML = `
-                <td>${formatDateId(item.created_at)}</td>
-                <td><span class="badge type-${item.type.toLowerCase()}">${item.type}</span></td>
-                <td>${item.description}</td>
-                <td class="${amountClass}">${amountSign} ${formatRupiah(item.amount, { withDecimals: true })}</td>
+                <td class="tabular-nums">${escapeHtml(formatDateId(item.created_at))}</td>
+                <td><span class="badge type-${escapeHtml(safeType.toLowerCase())}">${escapeHtml(safeType)}</span></td>
+                <td>${escapeHtml(item.description)}</td>
+                <td class="${amountClass} tabular-nums">${amountSign} ${escapeHtml(formatRupiah(item.amount, { withDecimals: true }))}</td>
             `;
             tableBody.appendChild(row);
         });
@@ -82,9 +141,9 @@
      * Ambil dan tampilkan riwayat mutasi saldo user.
      */
     async function fetchBalanceHistory() {
-        const { tableState } = global.MikuShared.dom;
+        const { escapeHtml, tableState } = global.MikuShared.dom;
         const { apiFetch } = global.MikuShared.api;
-        const tableBody = document.querySelector("#mutasi-table tbody");
+        const tableBody = document.querySelector('#mutasi-table tbody');
         if (!tableBody) return;
         tableBody.innerHTML = tableState(4, 'Memuat riwayat mutasi saldo...', 'loading');
         try {
@@ -94,49 +153,76 @@
             renderMutasiTable(history, tableBody);
             app.state.mutasiLoaded = true;
         } catch (error) {
-            tableBody.innerHTML = tableState(4, error.message, 'error');
+            tableBody.innerHTML = tableState(4, escapeHtml(error.message), 'error');
         }
     }
 
     function renderHasilPencarian(tx) {
         const { formatRupiah, formatDateId, statusClass } = global.MikuShared.format;
+        const { escapeHtml } = global.MikuShared.dom;
         const { hasilCekPesanan } = app.state.els;
         const formattedPrice = formatRupiah(tx.price, { withDecimals: true });
         const formattedDate = formatDateId(tx.created_at, { dateStyle: 'full', timeStyle: 'short' });
 
         hasilCekPesanan.innerHTML = `
-        <h4>Detail Transaksi</h4>
-            <div class="table-container">
-                <table style="white-space: nowrap;">
+            <h4>Detail Transaksi</h4>
+            <div tabindex="0" role="region" aria-label="Detail transaksi pesanan" class="table-container">
+                <table>
                     <tbody>
-                        <tr><td>No. Invoice</td><td><strong>${tx.invoice_id}</strong></td></tr>
-                        <tr><td>Tanggal</td><td><strong>${formattedDate}</strong></td></tr>
-                        <tr><td>Produk</td><td><strong>${tx.product_name} (${tx.game_name})</strong></td></tr>
-                        <tr><td>ID Tujuan</td><td><strong>${tx.target_game_id.replace('|', ' ')}</strong></td></tr>
-                        <tr><td>Total Bayar</td><td><strong>${formattedPrice}</strong></td></tr>
-                        <tr><td>Status</td><td><strong><span class="status-badge ${statusClass(tx.status)}">${statusLabel(tx.status)}</span></strong></td></tr>
+                        <tr><td>No. Invoice</td><td><strong>${escapeHtml(tx.invoice_id)}</strong></td></tr>
+                        <tr><td>Tanggal</td><td><strong>${escapeHtml(formattedDate)}</strong></td></tr>
+                        <tr><td>Produk</td><td><strong>${escapeHtml(tx.product_name)} (${escapeHtml(tx.game_name)})</strong></td></tr>
+                        <tr><td>ID Tujuan</td><td><strong>${escapeHtml(String(tx.target_game_id || '').replace('|', ' '))}</strong></td></tr>
+                        <tr><td>Total Bayar</td><td class="tabular-nums"><strong>${escapeHtml(formattedPrice)}</strong></td></tr>
+                        <tr><td>Status</td><td><span class="status-badge ${statusClass(tx.status)}">${escapeHtml(statusLabel(tx.status))}</span></td></tr>
                     </tbody>
                 </table>
             </div>
-            <a href="invoice.html?id=${tx.invoice_id}" class="history-link" style="margin-top: 1rem; display: inline-block;">Lihat Halaman Invoice &rarr;</a>
+            <a href="invoice.html?id=${encodeURIComponent(tx.invoice_id)}" class="history-link detail-invoice-link">Lihat Halaman Invoice &rarr;</a>
         `;
         hasilCekPesanan.classList.remove('hidden');
     }
 
     /**
-     * Pasang listener pencarian pesanan berdasarkan nomor invoice.
+     * Pasang listener filter status transaksi, reset filter, dan pencarian invoice pesanan.
      */
     function bindEvents() {
         const { escapeHtml } = global.MikuShared.dom;
         const { apiFetch } = global.MikuShared.api;
         const { cekPesananForm, hasilCekPesanan } = app.state.els;
 
+        const filterBar = document.getElementById('tx-filter-bar');
+        if (filterBar) {
+            filterBar.addEventListener('click', (e) => {
+                const chip = e.target.closest('.tx-filter-chip');
+                if (chip) setTxStatusFilter(chip.dataset.status || 'all');
+            });
+        }
+
+        const txTable = document.getElementById('transactions-table');
+        if (txTable) {
+            txTable.addEventListener('click', (e) => {
+                if (e.target.closest('.reset-tx-filter-btn')) setTxStatusFilter('all');
+            });
+        }
+
+        const mutasiTable = document.getElementById('mutasi-table');
+        if (mutasiTable) {
+            mutasiTable.addEventListener('click', (e) => {
+                const link = e.target.closest('.dashboard-nav-link[data-target]');
+                if (!link) return;
+                e.preventDefault();
+                const sidebarTarget = document.querySelector(`.sidebar-nav .dashboard-nav-link[data-target="${link.dataset.target}"]`);
+                if (sidebarTarget) sidebarTarget.click();
+            });
+        }
+
         if (cekPesananForm) {
             cekPesananForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const invoiceInput = document.getElementById('invoice-search-input');
                 const invoiceId = invoiceInput.value.trim();
-                const submitButton = cekPesananForm.querySelector('button');
+                const submitButton = cekPesananForm.querySelector('button[type="submit"]');
 
                 if (!invoiceId) return;
                 if (!/^[A-Za-z0-9_-]{3,64}$/.test(invoiceId)) {
@@ -146,27 +232,21 @@
                 }
 
                 submitButton.disabled = true;
-                submitButton.textContent = 'Mencari...';
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Mencari...';
                 hasilCekPesanan.classList.remove('hidden');
                 hasilCekPesanan.innerHTML = '<div class="ui-state loading">Mencari transaksi...</div>';
 
                 try {
-                    // Kita gunakan endpoint yang sudah ada
                     const response = await apiFetch(`${app.API_URL}/transaction/${encodeURIComponent(invoiceId)}`, {
                         auth: true,
-                        token: app.state.token
+                        token: app.state.token,
                     });
-
                     if (response.status === 404) {
                         throw new Error(`Transaksi dengan Invoice ID "${invoiceId}" tidak ditemukan.`);
                     }
-                    if (!response.ok) {
-                        throw new Error('Gagal mengambil data transaksi.');
-                    }
-
+                    if (!response.ok) throw new Error('Gagal mengambil data transaksi.');
                     const tx = await response.json();
                     renderHasilPencarian(tx);
-
                 } catch (error) {
                     hasilCekPesanan.classList.remove('hidden');
                     hasilCekPesanan.innerHTML = `<div class="ui-state error">${escapeHtml(error.message)}</div>`;
@@ -181,6 +261,9 @@
     app.transactions = {
         fetchTransactions,
         fetchBalanceHistory,
+        renderTransactionsTable,
+        renderMutasiTable,
+        setTxStatusFilter,
         bindEvents,
     };
 })(window);

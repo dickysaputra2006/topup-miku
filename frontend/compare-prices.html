@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Perbandingan Harga - MIKU Store</title>
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/base.css">
@@ -16,46 +16,51 @@
     <header>
         <div class="header-container container">
             <div class="header-left">
-                 <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
+                <a href="index.html" class="logo-link">
+                    <span class="logo">MIKU<span class="logo-accent">Store</span></span>
+                </a>
             </div>
-            <div class="header-right">
-                <a href="validate.html" class="header-btn">Validasi ID</a> <a href="index.html" class="header-btn">Kembali ke Toko</a>
-            </div>
+            <nav class="header-right" aria-label="Navigasi pricelist">
+                <a href="validate.html" class="header-btn">Validasi ID</a>
+                <a href="index.html" class="header-btn">Kembali ke Toko</a>
+            </nav>
         </div>
     </header>
 
-    <div class="dashboard-container container pricelist-container">
-        <aside class="sidebar game-selector">
-
+    <div class="container pricelist-container">
+        <aside class="sidebar game-selector" aria-label="Filter game">
             <nav class="sidebar-nav">
-                <h4><i class="fas fa-gamepad"></i> Pilih Game</h4>
-                    <div class="pricelist-search-wrapper">
-                      <input type="text" id="game-search-input" placeholder="Cari nama game...">
-                    </div>
-
-                <div class="form-group" style="margin-top: 1rem;">
-                    <select id="game-selector-dropdown" class="dashboard-input">
-                        <option value="">-- Pilih Game Disini --</option>
-                        </select>
+                <h4><i class="fas fa-gamepad" aria-hidden="true"></i> Pilih Game</h4>
+                <div class="pricelist-search-wrapper">
+                    <input type="text" id="game-search-input" placeholder="Cari nama game..." aria-label="Cari nama game">
                 </div>
-
+                <div class="pricelist-field-group">
+                    <select id="game-selector-dropdown" class="dashboard-input" aria-label="Pilih game untuk dibandingkan">
+                        <option value="">-- Pilih Game Disini --</option>
+                    </select>
+                </div>
             </nav>
         </aside>
 
         <main class="dashboard-content">
-            <section class="card compare-card">
+            <div class="public-page-header">
+                <h1 class="public-page-title">Perbandingan Harga Produk</h1>
+                <p class="public-page-subtitle">Bandingkan harga jual untuk setiap level akun (Bronze, Partner, Silver, dan Gold).</p>
+            </div>
+
+            <section class="card compare-card" aria-labelledby="compare-product-list-title">
                 <div class="compare-header">
-                    <h3 id="compare-product-list-title">Pilih Game untuk Melihat Perbandingan Harga</h3>
-                    <p class="form-description">Lihat perbedaan harga jual untuk setiap jenis akun (role) kami. Dapatkan harga terbaik dengan menjadi reseller!</p>
+                    <h2 id="compare-product-list-title">Pilih Game untuk Melihat Perbandingan Harga</h2>
+                    <p class="form-description">Pilih game di panel samping atau kolom filter untuk memuat daftar harga SKU aktif.</p>
                 </div>
                 <div class="modern-table-wrapper">
-                    <div class="table-container">
+                    <div tabindex="0" role="region" aria-labelledby="compare-product-list-title" class="table-container">
                         <table id="compare-prices-table" class="modern-table">
                             <thead>
                                 <tr></tr>
                             </thead>
                             <tbody>
-                                <tr><td colspan="5" style="text-align: center;">...</td></tr>
+                                <tr class="table-loading-row"><td colspan="5"><div class="ui-state loading">Memuat data harga...</div></td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -64,19 +69,23 @@
         </main>
     </div>
 
-    <script defer src="js/shared/format.js"></script>
-    <script defer src="compare-prices.js"></script>
-
     <footer>
-    <div class="container footer-content">
-        <div class="footer-links">
-            <a href="/syarat-ketentuan.html">Syarat & Ketentuan</a>
-            <a href="/kebijakan-refund.html">Kebijakan Refund</a>
-            <a href="/kontak.html">Kontak Kami</a>
+        <div class="container footer-content">
+            <div class="footer-links">
+                <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
+                <a href="/kebijakan-refund.html">Kebijakan Refund</a>
+                <a href="/kontak.html">Kontak Kami</a>
+                <a href="/cek-transaksi.html">Cek Transaksi</a>
+                <a href="/compare-prices.html">Pricelist</a>
+                <a href="/validate.html">Validasi ID</a>
+                <a href="/leaderboard.html">Leaderboard</a>
+            </div>
+            <p>&copy; 2026 MIKU Store. Seluruh hak cipta dilindungi.</p>
         </div>
-        <p>&copy; 2026 MIKU Store. Dibuat dengan ❤️</p>
-    </div>
-</footer>
+    </footer>
 
+    <script defer src="js/shared/format.js"></script>
+    <script defer src="js/shared/dom.js"></script>
+    <script defer src="compare-prices.js"></script>
 </body>
 </html>

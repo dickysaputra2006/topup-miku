@@ -1,34 +1,21 @@
 document.addEventListener('DOMContentLoaded', function () {
     const { formatRupiah, formatDateId } = window.MikuShared.format;
-    const { escapeHtml, setupPasswordToggles } = window.MikuShared.dom;
-    const {
-        getAuthToken,
-        setAuthToken,
-        clearAuthToken,
-        consumeLogoutMessage,
-    } = window.MikuShared.auth;
+    const { escapeHtml, isSafeImageUrl, uiState, setupPasswordToggles } = window.MikuShared.dom;
+    const { getAuthToken, setAuthToken, clearAuthToken, consumeLogoutMessage } = window.MikuShared.auth;
     const { apiFetch } = window.MikuShared.api;
 
     const logoutMessage = consumeLogoutMessage();
-    if (logoutMessage) {
-        // Kita gunakan alert() sederhana di sini, atau Anda bisa buat toast juga
-        alert(logoutMessage);
-    }
-    // === 1. DEKLARASI KONSTANTA & ELEMEN ===
+    if (logoutMessage) alert(logoutMessage);
+
     const API_URL_AUTH = '/api/auth';
     const API_URL = '/api';
-    const PUBLIC_API_URL = '/api';
-    // Token dibaca fresh setiap kali diperlukan (bukan di-capture sebagai const global)
-    // agar setelah localStorage.removeItem('authToken') nilainya langsung terlihat kosong.
 
-    // Elemen Header & Dropdown
-    const header = document.querySelector('header');
     const hamburgerBtn = document.getElementById('hamburger-btn');
+    const closeDrawerBtn = document.getElementById('close-drawer-btn');
     const dropdownMenu = document.getElementById('dropdown-menu');
-    const userAuthButton = document.getElementById('user-auth-button');
-    const headerRight = document.querySelector('.header-right');
-
-    // Elemen Modal Login/Register
+    const drawerBackdrop = document.getElementById('drawer-backdrop');
+    const moreNavBtn = document.getElementById('more-nav-btn');
+    const moreNavMenu = document.getElementById('more-nav-menu');
     const modal = document.getElementById('auth-modal');
     const closeModalButton = document.getElementById('close-modal-btn');
     const loginContainer = document.getElementById('login-container');
@@ -37,42 +24,84 @@ document.addEventListener('DOMContentLoaded', function () {
     const showLoginLink = document.getElementById('show-login');
     const loginForm = document.getElementById('login-form');
     const registerForm = document.getElementById('register-form');
-    const dropdownLoginBtn = document.getElementById('dropdown-login-btn');
     const forgotPasswordContainer = document.getElementById('forgot-password-container');
     const forgotPasswordForm = document.getElementById('forgot-password-form');
     const forgotPasswordLink = document.querySelector('.forgot-password');
 
-    // Elemen Search
     const searchInput = document.getElementById('search-input');
     const searchResults = document.getElementById('search-results');
-    
     const notificationContainer = document.getElementById('notification-container');
+    const notificationToggleBtn = document.getElementById('notification-toggle-btn');
     const notificationBadge = document.getElementById('notification-badge');
     const notificationPanel = document.getElementById('notification-panel');
     const notificationList = document.getElementById('notification-list');
+    const categoryChips = document.querySelectorAll('.category-chip');
+    const catalogCountEl = document.getElementById('catalog-count');
 
     let allGamesData = [];
-
-    // Guard: cegah concurrent / recursive call ke /api/user/profile
+    let activeCategory = 'all';
     let isFetchingProfile = false;
+    let searchDebounceTimer = null;
+    let flashSaleTimerInterval = null;
 
-    // === 2. DEFINISI SEMUA FUNGSI ===
+    function getInitials(name) {
+        const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+        return (words[0] || 'MG').slice(0, 2).toUpperCase();
+    }
+
+    function attachThumbFallback(container, imageUrl, altText, fallbackClass, initialsText) {
+        const safeUrl = isSafeImageUrl(imageUrl) ? imageUrl : '';
+        if (!safeUrl) {
+            const fb = document.createElement('span');
+            fb.className = fallbackClass;
+            fb.setAttribute('aria-hidden', 'true');
+            fb.textContent = initialsText;
+            container.appendChild(fb);
+            return;
+        }
+        const img = document.createElement('img');
+        img.src = safeUrl;
+        img.alt = altText;
+        img.loading = 'lazy';
+        const fb = document.createElement('span');
+        fb.className = `${fallbackClass} hidden`;
+        fb.setAttribute('aria-hidden', 'true');
+        fb.textContent = initialsText;
+        img.addEventListener('error', () => {
+            img.classList.add('hidden');
+            fb.classList.remove('hidden');
+        });
+        container.appendChild(img);
+        container.appendChild(fb);
+    }
 
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
 
-   
+    function setDrawerOpen(open) {
+        if (!dropdownMenu) return;
+        dropdownMenu.classList.toggle('active', open);
+        if (drawerBackdrop) drawerBackdrop.classList.toggle('hidden', !open);
+        if (hamburgerBtn) hamburgerBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
 
-    /**
-     * Reset semua UI ke state logged-out.
-     * Hapus token dari storage dan update tombol — TANPA memanggil /api/user/profile lagi.
-     */
+    function setMoreNavOpen(open) {
+        if (!moreNavMenu || !moreNavBtn) return;
+        moreNavMenu.classList.toggle('hidden', !open);
+        moreNavBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    function setNotificationOpen(open) {
+        if (!notificationPanel || !notificationToggleBtn) return;
+        notificationPanel.classList.toggle('hidden', !open);
+        notificationToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
     function setLoggedOutUI() {
         clearAuthToken();
-
         const userAuthButton = document.getElementById('user-auth-button');
         const dropdownAuthButton = document.getElementById('dropdown-auth-btn');
-
         if (userAuthButton) {
             userAuthButton.textContent = 'Masuk';
             userAuthButton.href = '#';
@@ -81,58 +110,29 @@ document.addEventListener('DOMContentLoaded', function () {
         if (dropdownAuthButton) {
             dropdownAuthButton.textContent = 'Masuk';
             dropdownAuthButton.href = '#';
-            dropdownAuthButton.onclick = (e) => { e.preventDefault(); showModal(); };
+            dropdownAuthButton.onclick = (e) => { e.preventDefault(); setDrawerOpen(false); showModal(); };
         }
-        // Sembunyikan notification badge jika ada
         if (notificationBadge) notificationBadge.classList.add('hidden');
     }
 
     async function updateAuthButton() {
-        // Baca token fresh setiap kali — agar removal di setLoggedOutUI langsung terlihat
         const currentToken = getAuthToken();
-
         const userAuthButton = document.getElementById('user-auth-button');
         const dropdownAuthButton = document.getElementById('dropdown-auth-btn');
-
         if (!userAuthButton || !dropdownAuthButton) return;
-
-        if (!currentToken) {
-            // Tidak ada token — langsung set logged-out UI, tidak perlu fetch
-            setLoggedOutUI();
-            return;
-        }
-
-        // Guard: hanya satu fetch /api/user/profile yang boleh berjalan sekaligus
+        if (!currentToken) { setLoggedOutUI(); return; }
         if (isFetchingProfile) return;
         isFetchingProfile = true;
 
         try {
             const response = await apiFetch(`${API_URL}/user/profile`, { auth: true, token: currentToken });
-
-            // Token expired / invalid — logout bersih, tidak retry
-            if (response.status === 401 || response.status === 403) {
+            if (response.status === 401 || response.status === 403 || response.status === 429) {
                 setLoggedOutUI();
                 return;
             }
-
-            // Rate-limited — diam saja, jangan retry
-            if (response.status === 429) {
-                console.warn('[auth] Rate limited saat cek profil. Tampilkan logged-out UI.');
-                setLoggedOutUI();
-                return;
-            }
-
-            if (!response.ok) {
-                // Error server lain — silent fail, jangan hapus token
-                console.warn('[auth] Profile fetch gagal:', response.status);
-                return;
-            }
-
+            if (!response.ok) return;
             const user = await response.json();
-
-            // --- UPDATE KEDUA TOMBOL SAAT LOGIN ---
-            const loggedInHtml = `<i class="fas fa-user-circle"></i> ${user.username}`;
-            userAuthButton.innerHTML = loggedInHtml;
+            userAuthButton.innerHTML = `<i class="fas fa-user-circle" aria-hidden="true"></i> ${escapeHtml(user.username)}`;
             userAuthButton.href = 'dashboard.html';
             userAuthButton.onclick = null;
 
@@ -143,44 +143,65 @@ document.addEventListener('DOMContentLoaded', function () {
                 clearAuthToken();
                 window.location.reload();
             };
-            // --------------------------------------
-
         } catch (error) {
-            // Network error / fetch threw — silent fail, jangan hapus token, jangan retry
             console.warn('[auth] Network error saat cek profil:', error.message);
         } finally {
             isFetchingProfile = false;
         }
     }
 
-    function renderGameGrid(games, containerId) {
+    function renderGameGrid(games, containerId, forceHidden = false) {
         const gridContainer = document.getElementById(containerId);
-        if (!gridContainer) return;
+        if (!gridContainer) return 0;
         gridContainer.innerHTML = '';
         const parentSection = gridContainer.closest('.content-section');
-        if (games.length === 0) {
+        if (forceHidden || games.length === 0) {
             if (parentSection) parentSection.classList.add('hidden');
-        } else {
-            if (parentSection) parentSection.classList.remove('hidden');
+            return 0;
         }
-        games.forEach(game => {
+        if (parentSection) parentSection.classList.remove('hidden');
+
+        games.forEach((game) => {
             const card = document.createElement('a');
-            card.href = 'product.html?gameId=' + game.id;
-            const isLong = game.name.length > 16;
-            card.className = 'product-card' + (isLong ? ' has-long-title' : '');
-            const safeName = escapeHtml(game.name);
-            const imgSrc  = escapeHtml(game.image_url || 'https://via.placeholder.com/150');
-            const cloneSpan = isLong
-                ? '<span class="product-card-title-text" aria-hidden="true">' + safeName + '</span>'
-                : '';
-            card.innerHTML =
-                '<img src="' + imgSrc + '" alt="' + safeName + '"'+ '>'
-                + '<span class="product-card-overlay" aria-label="' + safeName + '">' 
-                + '<span class="product-card-title-track">'
-                + '<span class="product-card-title-text">' + safeName + '</span>'
-                + cloneSpan
-                + '</span></span>';
+            card.href = `product.html?gameId=${encodeURIComponent(game.id)}`;
+            card.className = 'product-card';
+
+            const media = document.createElement('div');
+            media.className = 'game-card-media';
+            attachThumbFallback(media, game.image_url, game.name, 'game-card-fallback', getInitials(game.name));
+
+            const body = document.createElement('div');
+            body.className = 'game-card-body';
+            const title = document.createElement('span');
+            title.className = 'game-card-title';
+            title.textContent = game.name;
+            body.appendChild(title);
+
+            card.appendChild(media);
+            card.appendChild(body);
             gridContainer.appendChild(card);
+        });
+        return games.length;
+    }
+
+    function renderCatalogByCategory(category) {
+        activeCategory = category;
+        const mobileGames = allGamesData.filter((g) => g.category === 'Mobile Game' || g.category === 'Special MLBB');
+        const pcGames = allGamesData.filter((g) => g.category === 'PC Game');
+        const voucherGames = allGamesData.filter((g) => g.category === 'Voucher' || g.category === 'Life Style');
+
+        let visibleCount = 0;
+        visibleCount += renderGameGrid(mobileGames, 'mobile-games-grid', category !== 'all' && category !== 'mobile');
+        visibleCount += renderGameGrid(pcGames, 'pc-games-grid', category !== 'all' && category !== 'pc');
+        visibleCount += renderGameGrid(voucherGames, 'voucher-grid', category !== 'all' && category !== 'voucher');
+
+        if (catalogCountEl) {
+            catalogCountEl.textContent = allGamesData.length > 0 ? `${visibleCount} game ditampilkan` : '';
+        }
+        categoryChips.forEach((chip) => {
+            const isMatch = chip.dataset.category === category;
+            chip.classList.toggle('active', isMatch);
+            chip.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
         });
     }
 
@@ -189,59 +210,69 @@ document.addEventListener('DOMContentLoaded', function () {
             const response = await fetch(`${API_URL}/games`);
             if (!response.ok) throw new Error('Gagal mengambil data game');
             allGamesData = await response.json();
-            const mobileGames = allGamesData.filter(g => g.category === 'Mobile Game' || g.category === 'Special MLBB');
-            const pcGames = allGamesData.filter(g => g.category === 'PC Game');
-            const voucherGames = allGamesData.filter(g => g.category === 'Voucher' || g.category === 'Life Style');
-            renderGameGrid(mobileGames, 'mobile-games-grid');
-            renderGameGrid(pcGames, 'pc-games-grid');
-            renderGameGrid(voucherGames, 'voucher-grid');
+            renderCatalogByCategory(activeCategory);
         } catch (error) {
             console.error('Gagal menampilkan game:', error);
-            document.getElementById('mobile-games-grid').innerHTML = '<p>Gagal memuat game. Coba lagi nanti.</p>';
+            const mobileGrid = document.getElementById('mobile-games-grid');
+            if (mobileGrid) mobileGrid.innerHTML = uiState('Gagal memuat katalog game. Silakan muat ulang halaman.', 'error');
         }
     }
 
     function handleSearch(term) {
         if (!searchResults) return;
-        const lowerTerm = term.toLowerCase();
-        
+        const lowerTerm = String(term || '').trim().toLowerCase();
         if (lowerTerm.length < 1) {
             searchResults.classList.add('hidden');
+            searchResults.innerHTML = '';
             return;
         }
-        
-        const filtered = allGamesData.filter(game => game.name.toLowerCase().includes(lowerTerm));
+        const filtered = allGamesData.filter((game) => String(game.name || '').toLowerCase().includes(lowerTerm));
         searchResults.innerHTML = '';
         searchResults.classList.remove('hidden');
 
         if (filtered.length === 0) {
-            searchResults.innerHTML = '<p style="padding: 1rem; text-align: center; color: #aaa;">Game tidak ditemukan.</p>';
+            const empty = document.createElement('p');
+            empty.className = 'search-results-empty';
+            empty.textContent = 'Game tidak ditemukan.';
+            searchResults.appendChild(empty);
             return;
         }
 
-        filtered.forEach(game => {
+        filtered.forEach((game) => {
             const item = document.createElement('a');
-            item.href = `product.html?gameId=${game.id}`;
+            item.href = `product.html?gameId=${encodeURIComponent(game.id)}`;
             item.className = 'search-result-item';
-            item.innerHTML = `<img src="${game.image_url || 'https://via.placeholder.com/40'}" alt="${game.name}"><span>${game.name}</span>`;
+
+            const thumb = document.createElement('div');
+            thumb.className = 'search-result-thumb';
+            attachThumbFallback(thumb, game.image_url, game.name, 'search-result-initials', getInitials(game.name));
+
+            const meta = document.createElement('div');
+            meta.className = 'search-result-meta';
+            const nameEl = document.createElement('span');
+            nameEl.className = 'search-result-name';
+            nameEl.textContent = game.name;
+            const catEl = document.createElement('span');
+            catEl.className = 'search-result-cat';
+            catEl.textContent = game.category || 'Game';
+
+            meta.appendChild(nameEl);
+            meta.appendChild(catEl);
+            item.appendChild(thumb);
+            item.appendChild(meta);
             searchResults.appendChild(item);
         });
     }
 
     async function checkUnreadNotifications() {
         const currentToken = getAuthToken();
-        if (!currentToken) return; // Hanya jalankan jika user login
+        if (!currentToken) return;
         try {
-            const response = await apiFetch(`${API_URL}/user/notifications/unread-count`, {
-                auth: true,
-                token: currentToken
-            });
-            // Token invalid — tidak perlu update badge, cukup return
-            if (response.status === 401 || response.status === 403) return;
-            if (!response.ok) return;
+            const response = await apiFetch(`${API_URL}/user/notifications/unread-count`, { auth: true, token: currentToken });
+            if (response.status === 401 || response.status === 403 || !response.ok) return;
             const data = await response.json();
             if (data.count > 0) {
-                notificationBadge.textContent = data.count;
+                notificationBadge.textContent = String(data.count);
                 notificationBadge.classList.remove('hidden');
             } else {
                 notificationBadge.classList.add('hidden');
@@ -253,57 +284,51 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function showNotifications() {
         const currentToken = getAuthToken();
-        if (!currentToken) return;
-        notificationList.innerHTML = '<p style="text-align: center; padding: 1rem;">Memuat...</p>';
+        if (!currentToken) {
+            notificationList.innerHTML = '<p class="notification-state">Masuk terlebih dahulu untuk melihat notifikasi.</p>';
+            return;
+        }
+        notificationList.innerHTML = '<p class="notification-state">Memuat...</p>';
         try {
-            const response = await apiFetch(`${API_URL}/user/notifications`, {
-                auth: true,
-                token: currentToken
-            });
+            const response = await apiFetch(`${API_URL}/user/notifications`, { auth: true, token: currentToken });
             if (response.status === 401 || response.status === 403) {
                 notificationList.innerHTML = '';
                 return;
             }
             const notifications = await response.json();
-            notificationList.innerHTML = ''; // Kosongkan
-            if (notifications.length === 0) {
-                notificationList.innerHTML = '<p style="text-align: center; padding: 1rem;">Tidak ada notifikasi.</p>';
+            notificationList.innerHTML = '';
+            if (!Array.isArray(notifications) || notifications.length === 0) {
+                notificationList.innerHTML = '<p class="notification-state">Tidak ada notifikasi.</p>';
             } else {
-                notifications.forEach(notif => {
+                notifications.forEach((notif) => {
                     const notifLink = document.createElement('a');
-                    notifLink.href = notif.link || '#';
-                    notifLink.className = 'notification-item';
-                    if (!notif.is_read) {
-                        notifLink.classList.add('unread');
-                    }
-                    notifLink.innerHTML = `<p style="margin:0; font-size: 0.9rem;">${notif.message}</p>
-                                           <small style="color: #a7a9be;">${formatDateId(notif.created_at)}</small>`;
+                    const rawLink = String(notif.link || '#');
+                    notifLink.href = (rawLink.startsWith('/') || rawLink.startsWith('http') || rawLink === '#') ? rawLink : '#';
+                    notifLink.className = notif.is_read ? 'notification-item' : 'notification-item unread';
+                    notifLink.innerHTML = `<p class="notification-item-msg">${escapeHtml(notif.message)}</p>
+                        <small class="notification-item-date">${escapeHtml(formatDateId(notif.created_at))}</small>`;
                     notificationList.appendChild(notifLink);
                 });
             }
-            // Tandai sudah dibaca di backend
             const tokenForMark = getAuthToken();
             if (tokenForMark) {
                 await apiFetch(`${API_URL}/user/notifications/mark-as-read`, {
                     method: 'POST',
                     auth: true,
-                    token: tokenForMark
-                }).catch(() => {}); // silent fail
+                    token: tokenForMark,
+                }).catch(() => {});
             }
-            notificationBadge.classList.add('hidden'); // Sembunyikan badge
-        } catch (error) {
-            notificationList.innerHTML = '<p style="text-align: center; padding: 1rem; color: red;">Gagal memuat.</p>';
+            if (notificationBadge) notificationBadge.classList.add('hidden');
+        } catch (_) {
+            notificationList.innerHTML = '<p class="notification-state error">Gagal memuat notifikasi.</p>';
         }
     }
-
-    let flashSaleTimerInterval = null;
 
     function startFlashSaleCountdown(flashSales) {
         if (flashSaleTimerInterval) {
             clearInterval(flashSaleTimerInterval);
             flashSaleTimerInterval = null;
         }
-
         const countdownEl = document.getElementById('flash-sale-countdown');
         const hoursEl = document.getElementById('fs-hours');
         const minutesEl = document.getElementById('fs-minutes');
@@ -312,16 +337,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const now = Date.now();
         const futureEndTimes = Array.isArray(flashSales)
-            ? flashSales
-                .map(sale => Date.parse(sale.end_time || sale.end_at || ''))
-                .filter(ts => Number.isFinite(ts) && ts > now)
+            ? flashSales.map((s) => Date.parse(s.end_time || s.end_at || '')).filter((ts) => Number.isFinite(ts) && ts > now)
             : [];
-
         if (futureEndTimes.length === 0) {
             countdownEl.classList.add('hidden');
             return;
         }
-
         const nearestEndTime = Math.min(...futureEndTimes);
         countdownEl.classList.remove('hidden');
 
@@ -337,108 +358,95 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (section) section.classList.add('hidden');
                 return;
             }
-
             const totalSeconds = Math.floor(diff / 1000);
-            const hours = Math.floor(totalSeconds / 3600);
-            const minutes = Math.floor((totalSeconds % 3600) / 60);
-            const seconds = totalSeconds % 60;
-
-            hoursEl.textContent = String(hours).padStart(2, '0');
-            minutesEl.textContent = String(minutes).padStart(2, '0');
-            secondsEl.textContent = String(seconds).padStart(2, '0');
+            hoursEl.textContent = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            minutesEl.textContent = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            secondsEl.textContent = String(totalSeconds % 60).padStart(2, '0');
         };
-
         updateCountdown();
         flashSaleTimerInterval = setInterval(updateCountdown, 1000);
     }
 
     async function displayFlashSales() {
-    const flashSaleTrack = document.querySelector('.flash-sale-track');
-    if (!flashSaleTrack) return;
+        const flashSaleTrack = document.querySelector('.flash-sale-track');
+        if (!flashSaleTrack) return;
+        const section = flashSaleTrack.closest('.content-section');
+        try {
+            const response = await fetch(`${API_URL}/public/flash-sales`);
+            const flashSales = await response.json();
+            flashSaleTrack.innerHTML = '';
+            if (!Array.isArray(flashSales) || flashSales.length === 0) {
+                startFlashSaleCountdown([]);
+                if (section) section.classList.add('hidden');
+                return;
+            }
+            if (section) section.classList.remove('hidden');
+            startFlashSaleCountdown(flashSales);
 
-    try {
-        const response = await fetch(`${PUBLIC_API_URL}/public/flash-sales`);
-        const flashSales = await response.json();
-        
-        flashSaleTrack.innerHTML = ''; // Kosongkan placeholder
-        if (!Array.isArray(flashSales) || flashSales.length === 0) {
-            startFlashSaleCountdown([]);
-            flashSaleTrack.closest('.content-section').classList.add('hidden'); // Sembunyikan section jika tidak ada FS
-            return;
-        }
+            flashSales.forEach((product) => {
+                const card = document.createElement('div');
+                card.className = 'flash-sale-card';
+                const link = document.createElement('a');
+                link.className = 'flash-sale-link';
+                link.href = `product.html?gameId=${encodeURIComponent(product.game_id)}&fsProductId=${encodeURIComponent(product.product_id)}&fsPrice=${encodeURIComponent(product.discount_price)}`;
 
-        flashSaleTrack.closest('.content-section').classList.remove('hidden');
-        startFlashSaleCountdown(flashSales);
+                const media = document.createElement('div');
+                media.className = 'flash-sale-media';
+                attachThumbFallback(media, product.game_image_url, product.product_name, 'game-card-fallback', getInitials(product.game_name || product.product_name));
 
-        const createFlashSaleCard = (product) => {
-            const card = document.createElement('div');
-            card.className = 'flash-sale-card';
-            card.innerHTML = `
-                <a href="product.html?gameId=${product.game_id}&fsProductId=${product.product_id}&fsPrice=${product.discount_price}" style="text-decoration: none; color: inherit;">
-                    <img src="${product.game_image_url}" alt="${product.product_name}">
-                    <div class="flash-sale-info">
-                        <span class="fs-product-name">${product.product_name}</span>
-                        <span class="fs-price-discounted">${formatRupiah(product.discount_price, { withDecimals: true })}</span>
-                        <span class="fs-price-original">${formatRupiah(product.original_price, { withDecimals: true })}</span>
+                const info = document.createElement('div');
+                info.className = 'flash-sale-info';
+                info.innerHTML = `
+                    <span class="fs-product-name">${escapeHtml(product.product_name)}</span>
+                    <div class="fs-price-row">
+                        <span class="fs-price-discounted">${escapeHtml(formatRupiah(product.discount_price, { withDecimals: true }))}</span>
+                        <span class="fs-price-original">${escapeHtml(formatRupiah(product.original_price, { withDecimals: true }))}</span>
                     </div>
-                </a>
-            `;
-            return card;
-        };
-
-        flashSales.forEach(product => {
-            const card = createFlashSaleCard(product);
-            flashSaleTrack.appendChild(card);
-        });
-        
-        // Duplikasi kartu untuk efek scroll tak terbatas jika item cukup
-        if (flashSales.length > 2) {
-            flashSales.forEach(product => {
-                const card = createFlashSaleCard(product);
+                `;
+                link.appendChild(media);
+                link.appendChild(info);
+                card.appendChild(link);
                 flashSaleTrack.appendChild(card);
             });
+        } catch (error) {
+            console.error('Gagal memuat flash sale:', error);
+            if (section) section.classList.add('hidden');
         }
-
-    } catch (error) {
-        console.error("Gagal memuat flash sale:", error);
     }
-}
 
-    if (notificationContainer) {
-        notificationContainer.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isHidden = notificationPanel.classList.toggle('hidden');
-            if (!isHidden) { // Jika panel baru saja ditampilkan
-                showNotifications();
-            }
-        });
-    }
-    // Sembunyikan panel jika klik di luar
-    window.addEventListener('click', (e) => {
-        if (notificationPanel && !notificationPanel.classList.contains('hidden') && !notificationContainer.contains(e.target)) {
-            notificationPanel.classList.add('hidden');
-        }
+    categoryChips.forEach((chip) => {
+        chip.addEventListener('click', () => renderCatalogByCategory(chip.dataset.category || 'all'));
     });
 
-    // === 3. EVENT LISTENERS & PANGGILAN AWAL ===
-
-    if (hamburgerBtn) {
-        hamburgerBtn.addEventListener('click', (e) => {
+    if (moreNavBtn && moreNavMenu) {
+        moreNavBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (dropdownMenu) dropdownMenu.classList.toggle('active');
+            setNotificationOpen(false);
+            setMoreNavOpen(moreNavMenu.classList.contains('hidden'));
         });
     }
-    
-if (dropdownLoginBtn) {
-    dropdownLoginBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        showModal(); // Panggil fungsi untuk menampilkan modal login
-    });
-}
+
+    if (notificationToggleBtn && notificationPanel) {
+        notificationToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setMoreNavOpen(false);
+            const willOpen = notificationPanel.classList.contains('hidden');
+            setNotificationOpen(willOpen);
+            if (willOpen) showNotifications();
+        });
+    }
+
+    if (hamburgerBtn) hamburgerBtn.addEventListener('click', (e) => { e.stopPropagation(); setDrawerOpen(!dropdownMenu.classList.contains('active')); });
+    if (closeDrawerBtn) closeDrawerBtn.addEventListener('click', () => setDrawerOpen(false));
+    if (drawerBackdrop) drawerBackdrop.addEventListener('click', () => setDrawerOpen(false));
 
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
     if (showRegisterLink) showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginContainer.classList.add('hidden'); registerContainer.classList.remove('hidden'); });
     if (showLoginLink) showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); });
+    if (forgotPasswordLink) forgotPasswordLink.addEventListener('click', (e) => { e.preventDefault(); loginContainer.classList.add('hidden'); forgotPasswordContainer.classList.remove('hidden'); });
+    document.querySelectorAll('.show-login-from-forgot').forEach((link) => {
+        link.addEventListener('click', (e) => { e.preventDefault(); forgotPasswordContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); });
+    });
 
     if (registerForm) {
         registerForm.addEventListener('submit', async (e) => {
@@ -457,19 +465,19 @@ if (dropdownLoginBtn) {
                 email: registerForm.querySelector('input[name="email"]').value,
                 countryCode: registerForm.querySelector('select[name="countryCode"]').value,
                 nomorWa: registerForm.querySelector('input[name="nomorWa"]').value,
-                password: passwordInput.value
+                password: passwordInput.value,
             };
             try {
                 const response = await fetch(`${API_URL_AUTH}/register`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify(data),
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
                 alert(result.message);
                 registerForm.reset();
-                if(showLoginLink) showLoginLink.click();
+                if (showLoginLink) showLoginLink.click();
             } catch (error) {
                 alert(`Error Registrasi: ${error.message}`);
             }
@@ -477,50 +485,43 @@ if (dropdownLoginBtn) {
     }
 
     if (forgotPasswordForm) {
-    forgotPasswordForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = forgotPasswordForm.querySelector('input[name="email"]').value;
-        const submitButton = forgotPasswordForm.querySelector('button');
-        submitButton.disabled = true;
-        submitButton.textContent = 'Mengirim...';
-
-        try {
-            // Menggunakan AUTH_API_URL atau API_URL_AUTH sesuai nama variabel di file Anda
-            const response = await fetch(`${API_URL_AUTH || AUTH_API_URL}/forgot-password`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email })
-            });
-            const result = await response.json();
-
-            // Selalu tampilkan pesan sukses untuk keamanan
-            alert(result.message);
-
-            // Arahkan kembali ke form login
-            document.querySelector('.show-login-from-forgot').click();
-
-        } catch (error) {
-            alert('Terjadi kesalahan. Silakan coba lagi.');
-        } finally {
-            submitButton.disabled = false;
-            submitButton.textContent = 'Kirim Link Reset';
-            forgotPasswordForm.reset();
-        }
-    });
-}
+        forgotPasswordForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = forgotPasswordForm.querySelector('input[name="email"]').value;
+            const submitButton = forgotPasswordForm.querySelector('button');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Mengirim...';
+            try {
+                const response = await fetch(`${API_URL_AUTH}/forgot-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email }),
+                });
+                const result = await response.json();
+                alert(result.message);
+                document.querySelector('.show-login-from-forgot').click();
+            } catch (_) {
+                alert('Terjadi kesalahan. Silakan coba lagi.');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Kirim Link Reset';
+                forgotPasswordForm.reset();
+            }
+        });
+    }
 
     if (loginForm) {
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const data = {
                 username: loginForm.querySelector('input[name="username"]').value,
-                password: loginForm.querySelector('input[name="password"]').value
+                password: loginForm.querySelector('input[name="password"]').value,
             };
             try {
                 const response = await fetch(`${API_URL_AUTH}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify(data),
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
@@ -533,54 +534,47 @@ if (dropdownLoginBtn) {
         });
     }
 
-        // Tampilkan form lupa password saat link di-klik
-    if (forgotPasswordLink) {
-        forgotPasswordLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            loginContainer.classList.add('hidden');
-            forgotPasswordContainer.classList.remove('hidden');
-        });
-    }
-
-    // Sembunyikan form lupa password dan tampilkan form login
-    document.querySelectorAll('.show-login-from-forgot').forEach(link => {
-        link.addEventListener('click', (e) => {
-            e.preventDefault();
-            forgotPasswordContainer.classList.add('hidden');
-            loginContainer.classList.remove('hidden');
-        });
-    });
-
     setupPasswordToggles();
 
     if (searchInput) {
-        searchInput.addEventListener('input', () => handleSearch(searchInput.value));
-        searchInput.addEventListener('focus', () => handleSearch(searchInput.value));
-    }
-
-    if (headerRight) {
-        headerRight.addEventListener('click', (e) => {
-            if (e.target === headerRight && window.getComputedStyle(headerRight, '::after').getPropertyValue('content') !== 'none') {
-                const headerCenter = document.querySelector('.header-center');
-                if (headerCenter) {
-                    const isDisplayed = window.getComputedStyle(headerCenter).display === 'flex';
-                    headerCenter.style.display = isDisplayed ? 'none' : 'flex';
-                    if (!isDisplayed) searchInput.focus();
-                }
-            }
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => handleSearch(searchInput.value), 250);
+        });
+        searchInput.addEventListener('focus', () => {
+            if (searchInput.value.trim().length > 0) handleSearch(searchInput.value);
         });
     }
-    
-    window.addEventListener('click', (e) => {
-    if (dropdownMenu && dropdownMenu.classList.contains('active') && !dropdownMenu.contains(e.target) && !hamburgerBtn.contains(e.target)) {
-        dropdownMenu.classList.remove('active');
-    }
-    if (searchResults && !searchResults.classList.contains('hidden') && !searchInput.contains(e.target)) {
-        searchResults.classList.add('hidden');
-    }
-});
 
-    // === 4. PANGGILAN FUNGSI AWAL ===
+    document.addEventListener('keydown', (e) => {
+        if (e.key === '/' && searchInput) {
+            const tag = document.activeElement && document.activeElement.tagName;
+            const isEditable = document.activeElement && document.activeElement.isContentEditable;
+            if (!isEditable && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+                e.preventDefault();
+                searchInput.focus();
+            }
+        } else if (e.key === 'Escape') {
+            if (searchResults && !searchResults.classList.contains('hidden')) searchResults.classList.add('hidden');
+            setMoreNavOpen(false);
+            setNotificationOpen(false);
+            setDrawerOpen(false);
+            hideModal();
+        }
+    });
+
+    window.addEventListener('click', (e) => {
+        if (notificationPanel && !notificationPanel.classList.contains('hidden') && notificationContainer && !notificationContainer.contains(e.target)) {
+            setNotificationOpen(false);
+        }
+        if (moreNavMenu && !moreNavMenu.classList.contains('hidden') && moreNavBtn && !moreNavBtn.contains(e.target) && !moreNavMenu.contains(e.target)) {
+            setMoreNavOpen(false);
+        }
+        if (searchResults && !searchResults.classList.contains('hidden') && searchInput && !searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+            searchResults.classList.add('hidden');
+        }
+    });
+
     updateAuthButton();
     displayGames();
     checkUnreadNotifications();

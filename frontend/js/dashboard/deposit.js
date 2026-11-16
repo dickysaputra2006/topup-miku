@@ -45,6 +45,43 @@
         ) || null;
     }
 
+    function updateDepositPreview() {
+        const amountEl = document.getElementById('amount');
+        const methodSelect = document.getElementById('deposit-method');
+        const amountSummaryEl = document.getElementById('deposit-summary-amount');
+        const uniqueSummaryEl = document.getElementById('deposit-summary-unique');
+        const totalSummaryEl = document.getElementById('deposit-summary-total');
+        const presetBtns = document.querySelectorAll('.deposit-preset-chip');
+
+        const rawAmount = amountEl ? Number(amountEl.value) : 0;
+        const validAmount = Number.isFinite(rawAmount) && rawAmount > 0 ? Math.trunc(rawAmount) : 0;
+        const pm = findPaymentMethod(methodSelect ? methodSelect.value : '');
+
+        presetBtns.forEach(btn => {
+            const match = Number(btn.dataset.amount) === validAmount;
+            btn.classList.toggle('active', match);
+            btn.setAttribute('aria-pressed', match ? 'true' : 'false');
+        });
+
+        if (amountSummaryEl) {
+            amountSummaryEl.textContent = validAmount > 0 ? formatRupiahId(validAmount) : '-';
+        }
+        if (uniqueSummaryEl) {
+            uniqueSummaryEl.textContent = pm && pm.is_qris
+                ? 'Rp 0 (QRIS tanpa kode unik)'
+                : 'Otomatis +3 digit saat diajukan';
+        }
+        if (totalSummaryEl) {
+            if (validAmount > 0) {
+                totalSummaryEl.textContent = pm && pm.is_qris
+                    ? formatRupiahId(validAmount)
+                    : `${formatRupiahId(validAmount)} + kode unik`;
+            } else {
+                totalSummaryEl.textContent = '-';
+            }
+        }
+    }
+
     function renderDepositMethodsGrid(selectedCode) {
         const { escapeHtml } = global.MikuShared.dom;
         const grid = document.getElementById('deposit-methods-grid');
@@ -55,25 +92,25 @@
         }
         grid.innerHTML = app.state.activePaymentMethods.map(pm => {
             const meta = getMethodVisualMeta(pm.name, pm.type);
-            const isSelected = selectedCode && String(pm.code).toLowerCase() === String(selectedCode).toLowerCase();
+            const isSelected = Boolean(selectedCode && String(pm.code).toLowerCase() === String(selectedCode).toLowerCase());
             const minFormatted = formatRupiahId(pm.min_amount || 10000);
-            const ownerSuffix = pm.account_name ? ` &bull; A/N ${escapeHtml(pm.account_name)}` : '';
+            const ownerSuffix = pm.account_name ? ` • A/N ${escapeHtml(pm.account_name)}` : '';
             const acctNumber = pm.account_number ? escapeHtml(pm.account_number) : '';
             const numberOrQrisHtml = acctNumber
                 ? `<p class="deposit-method-number">${acctNumber}</p>
                    <button type="button" class="copy-deposit-number-btn" data-number="${acctNumber}">
-                       <i class="fas fa-copy"></i> Copy Nomor
+                       <i class="fas fa-copy" aria-hidden="true"></i> Salin Nomor
                    </button>`
                 : (pm.is_qris
-                    ? '<p class="deposit-method-number">Scan QRIS pada detail tujuan di bawah</p>'
+                    ? '<p class="deposit-method-number">Scan QRIS pada rincian metode di bawah</p>'
                     : '<p class="deposit-method-number">-</p>');
 
             return `
-                <div class="deposit-method-item deposit-method-selectable ${isSelected ? 'is-selected' : ''}" data-method-code="${escapeHtml(pm.code)}">
+                <div class="deposit-method-item deposit-method-selectable ${isSelected ? 'is-selected' : ''}" role="button" tabindex="0" aria-pressed="${isSelected ? 'true' : 'false'}" data-method-code="${escapeHtml(pm.code)}">
                     <small class="deposit-method-type-label">${escapeHtml(meta.typeLabel)}${ownerSuffix}</small>
-                    <span class="deposit-method-label"><i class="${meta.iconClass}"></i> ${escapeHtml(pm.name)}</span>
+                    <span class="deposit-method-label"><i class="${meta.iconClass}" aria-hidden="true"></i> ${escapeHtml(pm.name)}</span>
                     ${numberOrQrisHtml}
-                    <small class="deposit-method-min-label">Min. ${minFormatted}${pm.is_qris ? ' &bull; Tanpa kode unik' : ''}</small>
+                    <small class="deposit-method-min-label">Min. ${escapeHtml(minFormatted)}${pm.is_qris ? ' • Tanpa kode unik' : ''}</small>
                 </div>
             `;
         }).join('');
@@ -87,6 +124,7 @@
         const pm = findPaymentMethod(selectedValue);
 
         renderDepositMethodsGrid(pm ? pm.code : '');
+        updateDepositPreview();
 
         if (!methodInfo) return;
         if (!pm) {
@@ -94,7 +132,7 @@
             methodInfo.innerHTML = '';
             if (amountInput) amountInput.min = '10000';
             if (amountHint) {
-                amountHint.textContent = 'Minimum deposit Rp 10.000. Nominal akhir akan ditambah kode unik 3 digit (kecuali metode QRIS) untuk memudahkan verifikasi.';
+                amountHint.textContent = 'Minimum deposit Rp 10.000. Nominal akhir ditambah kode unik 3 digit (kecuali metode QRIS) untuk memudahkan verifikasi.';
             }
             return;
         }
@@ -110,17 +148,17 @@
         if (amountHint) {
             amountHint.textContent = pm.is_qris
                 ? `Minimum deposit ${minFormatted}. Metode QRIS tidak memakai kode unik 3 digit.`
-                : `Minimum deposit ${minFormatted}. Nominal akhir akan ditambah kode unik 3 digit untuk memudahkan verifikasi.`;
+                : `Minimum deposit ${minFormatted}. Nominal akhir ditambah kode unik 3 digit untuk memudahkan verifikasi.`;
         }
 
         const acctNumberHtml = pm.account_number
             ? `<div class="selected-target-row">
                    <div>
-                       <span class="selected-meta-label">NOMOR REKENING / HP TUJUAN</span>
+                       <span class="selected-meta-label">Nomor Rekening / HP Tujuan</span>
                        <strong class="selected-account-number">${escapeHtml(pm.account_number)}</strong>
                    </div>
                    <button type="button" class="copy-deposit-number-btn" data-number="${escapeHtml(pm.account_number)}">
-                       <i class="fas fa-copy"></i> Salin
+                       <i class="fas fa-copy" aria-hidden="true"></i> Salin
                    </button>
                </div>`
             : '';
@@ -133,7 +171,7 @@
         if (pm.is_qris || pm.type === 'qris') {
             if (isSafeImageUrl(pm.qris_image_url)) {
                 qrisHtml = `<div class="selected-qris-box">
-                    <span class="selected-meta-label">SCAN QRIS PEMBAYARAN</span>
+                    <span class="selected-meta-label">Scan QRIS Pembayaran</span>
                     <img src="${escapeHtml(pm.qris_image_url)}" alt="Kode QRIS ${escapeHtml(pm.name)}" class="deposit-qris-image" loading="lazy">
                 </div>`;
             } else {
@@ -143,7 +181,7 @@
 
         const instructionsHtml = pm.instructions
             ? `<div class="selected-instructions-box">
-                   <strong><i class="fas fa-info-circle"></i> Instruksi Transfer:</strong>
+                   <strong><i class="fas fa-info-circle" aria-hidden="true"></i> Instruksi Transfer:</strong>
                    <p>${escapeHtml(pm.instructions)}</p>
                </div>`
             : '';
@@ -151,12 +189,12 @@
         methodInfo.innerHTML = `
             <div class="selected-card-head">
                 <div class="selected-method-title">
-                    <i class="${meta.iconClass}"></i>
+                    <i class="${meta.iconClass}" aria-hidden="true"></i>
                     <span>${escapeHtml(pm.name)}</span>
                 </div>
                 <div class="selected-method-badges">
                     <span class="method-type-badge">${escapeHtml(meta.typeLabel)}</span>
-                    <span class="method-min-badge">Min. ${minFormatted}</span>
+                    <span class="method-min-badge">Min. ${escapeHtml(minFormatted)}</span>
                 </div>
             </div>
             ${acctNumberHtml}
@@ -196,29 +234,20 @@
                     methodSelect.appendChild(option);
                 });
                 const stillExists = findPaymentMethod(previousVal);
-                if (stillExists) {
-                    methodSelect.value = stillExists.code;
-                } else {
-                    methodSelect.value = '';
-                }
+                methodSelect.value = stillExists ? stillExists.code : '';
                 renderSelectedDepositMethodInfo(methodSelect.value);
             } else {
                 renderDepositMethodsGrid('');
             }
         } catch (error) {
-            if (grid) {
-                grid.innerHTML = `<div class="ui-state error">${escapeHtml(error.message)}</div>`;
-            }
-            if (methodSelect) {
-                methodSelect.innerHTML = '<option value="" disabled selected>-- Gagal memuat metode --</option>';
-            }
+            if (grid) grid.innerHTML = `<div class="ui-state error">${escapeHtml(error.message)}</div>`;
+            if (methodSelect) methodSelect.innerHTML = '<option value="" disabled selected>-- Gagal memuat metode --</option>';
         }
     }
 
     function prepareDepositIdempotencyKey(payload) {
         const { generateIdempotencyKey } = global.MikuShared.api;
         const signature = JSON.stringify(payload);
-        // Rotasi key jika payload berubah dibanding percobaan submit sebelumnya
         if (app.state.depositAttemptSignature !== null && app.state.depositAttemptSignature !== signature) {
             app.state.depositIdempotencyKey = generateIdempotencyKey();
             app.state.depositAttemptSignature = null;
@@ -229,8 +258,35 @@
         return signature;
     }
 
+    function renderSubmittedDepositInstructions(deposit, selectedPm) {
+        const { escapeHtml } = global.MikuShared.dom;
+        const targetAcct = selectedPm && selectedPm.account_number
+            ? `<button type="button" class="copy-deposit-number-btn" data-number="${escapeHtml(selectedPm.account_number)}">
+                   <i class="fas fa-copy" aria-hidden="true"></i> Salin Tujuan
+               </button>`
+            : '';
+        return `
+            <div class="ui-state success" style="text-align:left;">
+                <p><strong>Permintaan Deposit #${escapeHtml(deposit.id)} berhasil dibuat</strong></p>
+                <div class="deposit-instruction-amount-row">
+                    <div>
+                        <span class="selected-meta-label">Total Yang Harus Ditransfer</span>
+                        <span class="deposit-instruction-amount">${escapeHtml(formatRupiahId(deposit.amount))}</span>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button type="button" class="copy-deposit-number-btn" data-number="${escapeHtml(String(deposit.amount))}">
+                            <i class="fas fa-copy" aria-hidden="true"></i> Salin Nominal
+                        </button>
+                        ${targetAcct}
+                    </div>
+                </div>
+                <p class="deposit-instruction-copy">${deposit.paymentInstructions}</p>
+            </div>
+        `;
+    }
+
     /**
-     * Siapkan event listener form pengajuan deposit user dan pemilihan metode via kartu.
+     * Siapkan event listener form pengajuan deposit, preset nominal, dan pilihan metode via kartu.
      */
     function setupDepositForm() {
         const { escapeHtml } = global.MikuShared.dom;
@@ -241,9 +297,21 @@
         const methodSelect = document.getElementById('deposit-method');
         const methodError = document.getElementById('deposit-method-error');
         const methodsGrid = document.getElementById('deposit-methods-grid');
-        if (!depositForm) return;
+        const amountInput = document.getElementById('amount');
+        const presetsContainer = document.getElementById('deposit-presets');
+        if (!depositForm || app.state.depositFormSetup) return;
 
-        if (app.state.depositFormSetup) return;
+        if (presetsContainer && amountInput) {
+            presetsContainer.addEventListener('click', (event) => {
+                const chip = event.target.closest('.deposit-preset-chip');
+                if (!chip || !chip.dataset.amount) return;
+                amountInput.value = chip.dataset.amount;
+                updateDepositPreview();
+            });
+        }
+        if (amountInput) {
+            amountInput.addEventListener('input', updateDepositPreview);
+        }
 
         if (methodSelect) {
             methodSelect.setAttribute('aria-invalid', 'false');
@@ -257,22 +325,33 @@
         }
 
         if (methodsGrid && methodSelect) {
-            methodsGrid.addEventListener('click', (event) => {
-                if (event.target.closest('.copy-deposit-number-btn')) return;
-                const card = event.target.closest('.deposit-method-selectable');
+            const selectCard = (card) => {
                 if (!card || !card.dataset.methodCode) return;
                 methodSelect.value = card.dataset.methodCode;
                 syncSelectAriaState(methodSelect, methodError, true);
                 renderSelectedDepositMethodInfo(methodSelect.value);
+            };
+            methodsGrid.addEventListener('click', (event) => {
+                if (event.target.closest('.copy-deposit-number-btn')) return;
+                selectCard(event.target.closest('.deposit-method-selectable'));
+            });
+            methodsGrid.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    const card = event.target.closest('.deposit-method-selectable');
+                    if (card && !event.target.closest('.copy-deposit-number-btn')) {
+                        event.preventDefault();
+                        selectCard(card);
+                    }
+                }
             });
         }
 
         depositForm.addEventListener('submit', async function (e) {
             e.preventDefault();
-            const amountInput = this.querySelector('input[name="amount"]');
+            const amtEl = this.querySelector('input[name="amount"]');
             const noteEl = this.querySelector('textarea[name="note"]');
             const method = methodSelect ? methodSelect.value : '';
-            const amount = amountInput ? amountInput.value : '';
+            const amount = amtEl ? amtEl.value : '';
             const note = noteEl ? noteEl.value.trim() : '';
             const submitButton = this.querySelector('button[type="submit"]');
 
@@ -283,9 +362,9 @@
             }
             const selectedPm = findPaymentMethod(method);
             const minRequired = selectedPm ? Math.max(10000, Number(selectedPm.min_amount) || 10000) : 10000;
-            if (!amountInput || !Number.isFinite(Number(amount)) || Number(amount) < minRequired) {
+            if (!amtEl || !Number.isFinite(Number(amount)) || Number(amount) < minRequired) {
                 alert(`Minimal deposit untuk metode ini adalah ${formatRupiahId(minRequired)}.`);
-                if (amountInput) amountInput.focus();
+                if (amtEl) amtEl.focus();
                 return;
             }
             if (note.length > 200) {
@@ -294,25 +373,22 @@
                 return;
             }
 
-            paymentInstructionsSection.classList.remove('hidden');
-            instructionText.innerHTML = '<div class="ui-state loading">Memproses permintaan deposit...</div>';
+            if (paymentInstructionsSection) paymentInstructionsSection.classList.remove('hidden');
+            if (instructionText) instructionText.innerHTML = '<div class="ui-state loading">Memproses permintaan deposit...</div>';
             if (submitButton) {
                 submitButton.disabled = true;
-                submitButton.textContent = 'Memproses...';
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Memproses...';
             }
             try {
                 const body = { amount: parseInt(amount, 10), method };
                 if (note) body.note = note;
-                const currentSignature = prepareDepositIdempotencyKey(body);
-                app.state.depositAttemptSignature = currentSignature;
+                app.state.depositAttemptSignature = prepareDepositIdempotencyKey(body);
                 const response = await apiFetch('/api/deposit/request', {
                     method: 'POST',
                     auth: true,
                     token: app.state.token,
-                    headers: {
-                        'Idempotency-Key': app.state.depositIdempotencyKey
-                    },
-                    jsonBody: body
+                    headers: { 'Idempotency-Key': app.state.depositIdempotencyKey },
+                    jsonBody: body,
                 });
                 let result = null;
                 let hasDefinitiveJson = false;
@@ -323,28 +399,22 @@
                     hasDefinitiveJson = false;
                 }
 
-                // Rotasi key hanya pada respons definitif 2xx/4xx JSON agar user bisa mengajukan ulang dengan key baru.
-                // Pertahankan key pada 5xx (meski JSON) dan error jaringan/timeout karena kondisi server bisa
-                // ambigu (mis. transaksi sudah/sedang diproses), sehingga retry aman tanpa duplikasi deposit.
+                // Pertahankan Idempotency-Key pada 5xx/jaringan error agar retry aman tanpa double request.
                 if (response.status >= 200 && response.status < 500 && hasDefinitiveJson) {
                     app.state.depositIdempotencyKey = generateIdempotencyKey();
                     app.state.depositAttemptSignature = null;
                 }
-
                 if (!response.ok) {
                     throw new Error((result && result.message) ? result.message : `Gagal mengajukan deposit (HTTP ${response.status}).`);
                 }
-                instructionText.innerHTML = `<div class="ui-state success">
-                        <p><strong>Request #${escapeHtml(result.deposit.id)} berhasil dibuat!</strong></p>
-                        <p style="margin-top:0.5rem;">${result.deposit.paymentInstructions}</p>
-                        <p style="margin-top:0.5rem; color:#ffc107;"><i class="fas fa-clock"></i> Saldo akan masuk setelah admin memverifikasi pembayaran Anda.</p>
-                    </div>`;
+
+                if (instructionText) instructionText.innerHTML = renderSubmittedDepositInstructions(result.deposit, selectedPm);
                 depositForm.reset();
                 syncSelectAriaState(methodSelect, methodError, false);
                 renderSelectedDepositMethodInfo('');
                 setTimeout(loadDepositHistory, 500);
             } catch (error) {
-                instructionText.innerHTML = `<div class="ui-state error"><strong>Error:</strong> ${escapeHtml(error.message)}</div>`;
+                if (instructionText) instructionText.innerHTML = `<div class="ui-state error"><strong>Error:</strong> ${escapeHtml(error.message)}</div>`;
             } finally {
                 if (submitButton) {
                     submitButton.disabled = false;
@@ -352,6 +422,8 @@
                 }
             }
         });
+
+        updateDepositPreview();
         app.state.depositFormSetup = true;
     }
 
@@ -359,17 +431,17 @@
      * Fetch dan render riwayat deposit user.
      */
     async function loadDepositHistory() {
-        const { escapeHtml } = global.MikuShared.dom;
+        const { escapeHtml, tableState } = global.MikuShared.dom;
         const { apiFetch } = global.MikuShared.api;
         const tbody = document.getElementById('deposit-history-body');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Memuat...</td></tr>';
+        tbody.innerHTML = tableState(6, 'Memuat riwayat deposit...', 'loading');
         try {
             const response = await apiFetch('/api/user/deposits', { auth: true, token: app.state.token });
-            if (!response.ok) throw new Error('Gagal memuat riwayat');
+            if (!response.ok) throw new Error('Gagal memuat riwayat deposit.');
             const deposits = await response.json();
-            if (deposits.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#aaa;">Belum ada riwayat deposit.</td></tr>';
+            if (!Array.isArray(deposits) || deposits.length === 0) {
+                tbody.innerHTML = tableState(6, 'Belum ada riwayat deposit. Ajukan isi saldo pada formulir di atas.', 'empty');
                 return;
             }
             const statusClassMap = { 'Pending': 'status-pending', 'Success': 'status-success', 'Approved': 'status-success', 'Rejected': 'status-failed' };
@@ -378,27 +450,26 @@
                 const nominal = formatRupiahId(d.amount);
                 const cls = statusClassMap[d.status] || 'status-pending';
                 const uniqueLabel = Number(d.unique_code) > 0 ? `+${Number(d.unique_code)}` : '-';
-                const methodCell = d.method ? escapeHtml(d.method) : '<span style="color:#6b7280;">-</span>';
+                const methodCell = d.method ? escapeHtml(d.method) : '<span class="muted">-</span>';
                 return `<tr>
-                        <td>${escapeHtml(d.id)}</td>
-                        <td>${escapeHtml(tgl)}</td>
-                        <td>${escapeHtml(nominal)}</td>
-                        <td>${escapeHtml(uniqueLabel)}</td>
-                        <td style="white-space:nowrap;">${methodCell}</td>
-                        <td><span class="badge ${cls}">${escapeHtml(d.status)}</span></td>
-                    </tr>`;
+                    <td class="tabular-nums">${escapeHtml(d.id)}</td>
+                    <td class="tabular-nums">${escapeHtml(tgl)}</td>
+                    <td class="tabular-nums">${escapeHtml(nominal)}</td>
+                    <td class="tabular-nums">${escapeHtml(uniqueLabel)}</td>
+                    <td>${methodCell}</td>
+                    <td><span class="status-badge ${cls}">${escapeHtml(d.status)}</span></td>
+                </tr>`;
             }).join('');
         } catch (err) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:#f87171;">Gagal memuat riwayat deposit.</td></tr>`;
+            tbody.innerHTML = tableState(6, escapeHtml(err.message || 'Gagal memuat riwayat deposit.'), 'error');
         }
     }
 
     /**
-     * Pasang delegasi klik tombol salin nomor rekening / e-wallet deposit.
+     * Pasang delegasi klik tombol salin nomor rekening / e-wallet / nominal deposit.
      */
     function bindCopyDelegation() {
         const { copyToClipboard } = global.MikuShared.dom;
-        // Copy nomor deposit — event delegation untuk .copy-deposit-number-btn
         document.addEventListener('click', async function (event) {
             const button = event.target.closest('.copy-deposit-number-btn');
             if (!button) return;
@@ -412,14 +483,14 @@
             const originalHTML = button.innerHTML;
             try {
                 await copyToClipboard(number);
-                button.innerHTML = '<i class="fas fa-check"></i> Tersalin!';
+                button.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i> Tersalin';
                 button.disabled = true;
                 setTimeout(() => {
                     button.innerHTML = originalHTML;
                     button.disabled = false;
                 }, 1500);
-            } catch (err) {
-                alert('Gagal menyalin nomor. Silakan salin manual.');
+            } catch (_) {
+                alert('Gagal menyalin teks. Silakan salin secara manual.');
             }
         });
     }
@@ -429,5 +500,6 @@
         setupDepositForm,
         loadDepositHistory,
         bindCopyDelegation,
+        updateDepositPreview,
     };
 })(window);

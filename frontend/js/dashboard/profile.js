@@ -4,7 +4,7 @@
     const app = (global.MikuDashboard = global.MikuDashboard || {});
 
     /**
-     * Pasang listener tombol logout, modal edit profil, tab edit data/password, dan submit form profil/password.
+     * Pasang listener toggle privasi kontak, logout, modal edit profil, tab edit data/password, dan submit form.
      */
     function bindEvents() {
         const { clearAuthToken } = global.MikuShared.auth;
@@ -20,6 +20,22 @@
             changePasswordForm,
         } = app.state.els;
 
+        const emailToggleBtn = document.getElementById('toggle-email-visibility');
+        if (emailToggleBtn) {
+            emailToggleBtn.addEventListener('click', () => {
+                app.state.profileContact.showEmail = !app.state.profileContact.showEmail;
+                app.overview.renderMaskedContactFields();
+            });
+        }
+
+        const phoneToggleBtn = document.getElementById('toggle-phone-visibility');
+        if (phoneToggleBtn) {
+            phoneToggleBtn.addEventListener('click', () => {
+                app.state.profileContact.showPhone = !app.state.profileContact.showPhone;
+                app.overview.renderMaskedContactFields();
+            });
+        }
+
         if (logoutButton) {
             logoutButton.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -31,14 +47,26 @@
         if (editProfileBtn && editModal && closeEditModalBtn) {
             editProfileBtn.addEventListener('click', () => editModal.classList.remove('hidden'));
             closeEditModalBtn.addEventListener('click', () => editModal.classList.add('hidden'));
+            editModal.addEventListener('click', (e) => {
+                if (e.target === editModal) editModal.classList.add('hidden');
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !editModal.classList.contains('hidden')) {
+                    editModal.classList.add('hidden');
+                }
+            });
         }
 
         if (tabLinks.length > 0 && tabContents.length > 0) {
             tabLinks.forEach(link => {
                 link.addEventListener('click', () => {
-                    tabLinks.forEach(l => l.classList.remove('active'));
+                    tabLinks.forEach(l => {
+                        l.classList.remove('active');
+                        l.setAttribute('aria-selected', 'false');
+                    });
                     tabContents.forEach(c => c.classList.add('hidden'));
                     link.classList.add('active');
+                    link.setAttribute('aria-selected', 'true');
                     document.getElementById(link.dataset.tab).classList.remove('hidden');
                 });
             });
@@ -57,7 +85,7 @@
                         method: 'PUT',
                         auth: true,
                         token: app.state.token,
-                        jsonBody: data
+                        jsonBody: data,
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);
@@ -87,7 +115,7 @@
                         method: 'PUT',
                         auth: true,
                         token: app.state.token,
-                        jsonBody: data
+                        jsonBody: data,
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);

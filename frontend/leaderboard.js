@@ -1,7 +1,6 @@
 /**
  * leaderboard.js — Phase 6A MIKU Store
- * Public read-only. No auth. No sensitive data display.
- * All username text from API is escaped before rendering.
+ * Public read-only. No auth. All username values escaped before rendering.
  */
 (function () {
     'use strict';
@@ -14,36 +13,22 @@
 
     let currentPeriod = 'all_time';
 
-    /* ── Utilities ─────────────────────────────────────────── */
-
-    /**
-     * Return rank badge HTML for position 1/2/3 (emoji + class), else number.
-     * @param {number} rank
-     * @returns {{ icon: string, cls: string }}
-     */
     function rankBadge(rank) {
-        if (rank === 1) return { icon: '🥇', cls: 'gold' };
-        if (rank === 2) return { icon: '🥈', cls: 'silver' };
-        if (rank === 3) return { icon: '🥉', cls: 'bronze' };
-        return { icon: String(rank), cls: '' };
+        if (rank === 1) return { label: '#1', cls: 'gold' };
+        if (rank === 2) return { label: '#2', cls: 'silver' };
+        if (rank === 3) return { label: '#3', cls: 'bronze' };
+        return { label: String(rank), cls: '' };
     }
 
-    /**
-     * CSS class for rank label badge.
-     * @param {string} label
-     * @returns {string}
-     */
     function rankLabelClass(label) {
         if (!label) return '';
-        return 'label-' + escapeHtml(label.toLowerCase());
+        return 'label-' + escapeHtml(String(label).toLowerCase().replace(/[^a-z0-9_-]/g, ''));
     }
-
-    /* ── Render ─────────────────────────────────────────────── */
 
     function renderLoading() {
         container.innerHTML = `
             <div class="lb-state">
-                <span class="lb-icon"><i class="fas fa-spinner fa-spin"></i></span>
+                <span class="lb-icon"><i class="fas fa-spinner fa-spin" aria-hidden="true"></i></span>
                 Memuat leaderboard...
             </div>`;
     }
@@ -51,7 +36,7 @@
     function renderError(msg) {
         container.innerHTML = `
             <div class="lb-state">
-                <span class="lb-icon"><i class="fas fa-exclamation-circle"></i></span>
+                <span class="lb-icon"><i class="fas fa-exclamation-circle" aria-hidden="true"></i></span>
                 ${escapeHtml(msg || 'Gagal memuat leaderboard. Silakan coba lagi.')}
             </div>`;
     }
@@ -59,9 +44,9 @@
     function renderEmpty() {
         container.innerHTML = `
             <div class="lb-state">
-                <span class="lb-icon"><i class="fas fa-trophy"></i></span>
+                <span class="lb-icon"><i class="fas fa-trophy" aria-hidden="true"></i></span>
                 Belum ada data leaderboard untuk periode ini.<br>
-                <small>Jadilah yang pertama topup!</small>
+                <small>Jadilah yang pertama menyelesaikan topup.</small>
             </div>`;
     }
 
@@ -77,17 +62,16 @@
             const badge = rankBadge(rank);
             const entryClass = rank <= 3 ? ` rank-${rank}` : '';
 
-            // Safe: all values from API are escaped before use in innerHTML
-            const safeName   = escapeHtml(String(entry.display_name || 'User***'));
-            const safeLabel  = escapeHtml(String(entry.rank_label || 'Bronze'));
-            const labelCls   = rankLabelClass(safeLabel);
+            const safeName = escapeHtml(String(entry.display_name || 'User***'));
+            const safeLabel = escapeHtml(String(entry.rank_label || 'Bronze'));
+            const labelCls = rankLabelClass(entry.rank_label || 'Bronze');
             const safeOrders = Number(entry.total_success_orders) || 0;
-            const safeSpent  = formatRupiah(entry.total_spent);
+            const safeSpent = formatRupiah(entry.total_spent);
 
             return `
                 <div class="lb-entry${entryClass}" role="listitem">
-                    <div class="lb-rank-badge ${badge.cls}" aria-label="Rank ${rank}">
-                        ${escapeHtml(badge.icon)}
+                    <div class="lb-rank-badge ${badge.cls}" aria-label="Peringkat ${rank}">
+                        ${escapeHtml(badge.label)}
                     </div>
                     <div class="lb-info">
                         <div class="lb-name">${safeName}</div>
@@ -96,7 +80,7 @@
                         </div>
                     </div>
                     <div class="lb-stats">
-                        <div class="lb-spent">${safeSpent}</div>
+                        <div class="lb-spent">${escapeHtml(safeSpent)}</div>
                         <div class="lb-orders">${safeOrders} transaksi berhasil</div>
                     </div>
                 </div>`;
@@ -105,34 +89,26 @@
         container.innerHTML = `<div class="leaderboard-list" role="list">${items}</div>`;
     }
 
-    /* ── Fetch ──────────────────────────────────────────────── */
-
     async function loadLeaderboard(period) {
         renderLoading();
         try {
             const url = `${API_BASE}?period=${encodeURIComponent(period)}&limit=20`;
             const res = await fetch(url);
             if (!res.ok) {
-                // Server returned error
                 let errMsg = 'Gagal memuat leaderboard.';
                 try {
                     const errData = await res.json();
-                    if (errData && typeof errData.message === 'string') {
-                        errMsg = errData.message;
-                    }
-                } catch (_) { /* ignore */ }
+                    if (errData && typeof errData.message === 'string') errMsg = errData.message;
+                } catch (_) { /* abaikan */ }
                 renderError(errMsg);
                 return;
             }
             const data = await res.json();
             renderLeaderboard(data);
-        } catch (err) {
-            // Network error
+        } catch (_) {
             renderError('Koneksi bermasalah. Silakan periksa internet Anda.');
         }
     }
-
-    /* ── Tab switching ──────────────────────────────────────── */
 
     function setActiveTab(period) {
         tabs.forEach((tab) => {
@@ -152,7 +128,5 @@
         });
     });
 
-    /* ── Init ───────────────────────────────────────────────── */
     loadLeaderboard(currentPeriod);
-
 })();

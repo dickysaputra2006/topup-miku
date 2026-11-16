@@ -2,13 +2,15 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - MIKU Store</title>
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/modalsAndForms.css">
     <link rel="stylesheet" href="css/portal.css">
     <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/adminModals.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
@@ -16,211 +18,173 @@
     <header>
         <div class="header-container container">
             <div class="header-left">
-                <button id="menu-toggle-btn" class="header-icon-btn" aria-label="Toggle menu">
-                    <i class="fas fa-bars"></i>
+                <button type="button" id="menu-toggle-btn" class="header-icon-btn" aria-label="Buka menu navigasi" aria-controls="admin-sidebar" aria-expanded="false">
+                    <i class="fas fa-bars" aria-hidden="true"></i>
                 </button>
-                <h1 class="logo">Admin Panel</h1>
+                <a href="admin.html" class="logo-link">
+                    <span class="logo">MIKU Store <span class="logo-accent">Admin</span></span>
+                </a>
             </div>
             <div class="header-right">
-                <a href="index.html" class="header-btn">Kembali ke Toko</a>
+                <a href="index.html" class="header-btn store-link-btn">Kembali ke Toko</a>
             </div>
         </div>
     </header>
 
     <div class="admin-page-container container">
-    <aside class="admin-sidebar" id="admin-sidebar">
-        <button class="menu-toggle-btn header-icon-btn" aria-label="Toggle menu">
-            <i class="fas fa-bars"></i>
-        </button>
-        <nav class="sidebar-nav">
-            <a href="#" class="admin-nav-link active" data-target="produk-dan-game"><i class="fas fa-gamepad"></i> Produk &amp; Game</a>
-            <a href="#" class="admin-nav-link" data-target="deposit"><i class="fas fa-hand-holding-usd"></i> Persetujuan Deposit</a>
-            <a href="#" class="admin-nav-link" data-target="payment-methods"><i class="fas fa-credit-card"></i> Metode Pembayaran</a>
-            <a href="#" class="admin-nav-link" data-target="saldo"><i class="fas fa-wallet"></i> Manajemen Saldo</a>
-            <a href="#" class="admin-nav-link" data-target="margin"><i class="fas fa-percentage"></i> Manajemen Margin</a>
-            <a href="#" class="admin-nav-link" data-target="promo"><i class="fas fa-tags"></i> Manajemen Promo</a>
-            <a href="#" class="admin-nav-link" data-target="flash-sale"><i class="fas fa-bolt"></i> Manajemen Flash Sale</a>
-            <a href="#" class="admin-nav-link" data-target="transaksi"><i class="fas fa-receipt"></i> Transaksi</a>
-        </nav>
-    </aside>
+        <aside class="sidebar admin-sidebar" id="admin-sidebar" aria-label="Navigasi Panel Admin">
+            <button type="button" class="menu-toggle-btn header-icon-btn" aria-label="Tutup menu navigasi" aria-controls="admin-sidebar" aria-expanded="false">
+                <i class="fas fa-times" aria-hidden="true"></i>
+            </button>
+            <nav class="sidebar-nav">
+                <a href="#produk-dan-game" class="admin-nav-link active" data-target="produk-dan-game">
+                    <i class="fas fa-gamepad" aria-hidden="true"></i>
+                    <span class="admin-nav-label">Produk &amp; Game</span>
+                </a>
+                <a href="#deposit" class="admin-nav-link" data-target="deposit">
+                    <i class="fas fa-hand-holding-usd" aria-hidden="true"></i>
+                    <span class="admin-nav-label">Deposit</span>
+                    <span id="pending-deposit-badge" class="nav-count-badge hidden" aria-label="Deposit pending">0</span>
+                </a>
+                <a href="#payment-methods" class="admin-nav-link" data-target="payment-methods">
+                    <i class="fas fa-credit-card" aria-hidden="true"></i>
+                    <span class="admin-nav-label">Pembayaran</span>
+                </a>
+                <a href="#saldo" class="admin-nav-link" data-target="saldo">
+                    <i class="fas fa-wallet" aria-hidden="true"></i>
+                    <span class="admin-nav-label">Saldo</span>
+                </a>
+                <a href="#margin" class="admin-nav-link" data-target="margin">
+                    <i class="fas fa-percentage" aria-hidden="true"></i>
+                    <span class="admin-nav-label">Margin</span>
+                </a>
+                <a href="#promo" class="admin-nav-link" data-target="promo">
+                    <i class="fas fa-tags" aria-hidden="true"></i>
+                    <span class="admin-nav-label">Promo</span>
+                </a>
+                <a href="#flash-sale" class="admin-nav-link" data-target="flash-sale">
+                    <i class="fas fa-bolt" aria-hidden="true"></i>
+                    <span class="admin-nav-label">Flash Sale</span>
+                </a>
+                <a href="#transaksi" class="admin-nav-link" data-target="transaksi">
+                    <i class="fas fa-receipt" aria-hidden="true"></i>
+                    <span class="admin-nav-label">Transaksi</span>
+                </a>
+                <a href="index.html" class="store-link-btn-mobile">
+                    <i class="fas fa-store" aria-hidden="true"></i>
+                    <span class="admin-nav-label">Kembali ke Toko</span>
+                </a>
+            </nav>
+        </aside>
 
         <main class="admin-content">
+            <div class="admin-portal-header">
+                <div>
+                    <h1 class="admin-portal-title">Panel Operasional Admin</h1>
+                    <p class="admin-portal-subtitle">Kelola katalog produk, persetujuan deposit, metode pembayaran, margin, dan transaksi.</p>
+                </div>
+            </div>
+
             <section id="produk-dan-game" class="admin-section">
                 <div class="card">
-                    <h3>Sinkronisasi Produk Otomatis</h3>
-       <form id="sync-products-form">
-            <div class="form-group">
-                <label for="margin-percent">Margin Harga (%)</label>
-                <input type="number" id="margin-percent" value="10" required>
-            </div>
-            <button type="submit">Sinkronkan Sekarang</button>
-        </form>
-                </div>
-                <div class="card">
-                    <h3>Manajemen Game &amp; Produk</h3>
-                    <div class="admin-forms-container">
-                        <form id="add-game-form" class="admin-form">
-                            <h4>Tambah Game Baru</h4>
-                            <label for="game-name">Nama Game</label>
-                            <input type="text" id="game-name" placeholder="Contoh: Mobile Legends" required>
-                            <label for="game-category">Kategori</label>
-                            <select id="game-category" required>
-                                <option value="Mobile Game" selected>Mobile Game</option>
-                                <option value="PC Game">PC Game</option>
-                                <option value="Voucher">Voucher</option>
-                            </select>
-                            <label for="game-image">URL Gambar</label>
-                            <input type="text" id="game-image" placeholder="https://..." required>
-                            <button type="submit">Tambah Game</button>
-                        </form>
-                        <form id="add-product-form" class="admin-form">
-                            <h4>Tambah Produk Baru</h4>
-                            <label for="product-game">Pilih Game</label>
-                            <select id="product-game" required>
-                                <option value="">Memuat game...</option>
-                            </select>
-                            <label for="product-name">Nama Produk</label>
-                            <input type="text" id="product-name" placeholder="Contoh: 100 Diamonds" required>
-                            <label for="product-sku">SKU Provider</label>
-                            <input type="text" id="product-sku" placeholder="Kode unik dari Foxy" required>
-                            <label for="product-price">Harga Jual</label>
-                            <input type="number" id="product-price" placeholder="Contoh: 25000" required>
-                            <button type="submit">Tambah Produk</button>
-                        </form>
+                    <div class="admin-toolbar">
+                        <div class="admin-toolbar-heading">
+                            <h2 id="product-list-title"><i class="fas fa-gamepad" aria-hidden="true"></i> Katalog Produk &amp; Game</h2>
+                            <span id="catalog-stats-pill" class="catalog-stats-pill">Memuat katalog...</span>
+                        </div>
+                        <div class="admin-toolbar-controls">
+                            <button type="button" id="open-add-game-modal-btn" class="admin-btn-primary">
+                                <i class="fas fa-plus" aria-hidden="true"></i> Tambah Game
+                            </button>
+                            <button type="button" id="open-add-product-modal-btn" class="admin-btn-secondary">
+                                <i class="fas fa-box-open" aria-hidden="true"></i> Tambah Produk
+                            </button>
+                            <button type="button" id="open-sync-modal-btn" class="admin-btn-secondary">
+                                <i class="fas fa-sync-alt" aria-hidden="true"></i> Sinkronkan Foxy
+                            </button>
+                        </div>
                     </div>
-                </div>
-                <div class="card">
-                    <h3>Daftar Game &amp; Produk</h3>
-                    <div class="admin-game-manager">
-                        <h4><i class="fas fa-search"></i> Pilih Game untuk Dikelola</h4>
-                        <div class="game-selector-form">
-                            <input type="text" id="game-search-input" placeholder="Ketik untuk mencari game...">
-                            <select id="game-selector-dropdown">
-                                <option value="">-- Silakan Pilih Game --</option>
-                            </select>
+
+                    <div id="sync-result-banner" class="admin-sync-summary hidden" aria-live="polite"></div>
+
+                    <div class="catalog-filter-grid">
+                        <input type="text" id="game-search-input" class="admin-input" placeholder="Cari nama game..." aria-label="Cari nama game">
+                        <select id="game-selector-dropdown" class="admin-input" aria-label="Filter game">
+                            <option value="">Semua Game</option>
+                        </select>
+                        <input type="text" id="product-search-input" class="admin-input" placeholder="Cari produk atau SKU..." aria-label="Cari produk atau SKU">
+                        <select id="product-status-filter" class="admin-input" aria-label="Filter status produk">
+                            <option value="">Semua Status</option>
+                            <option value="Active">Aktif</option>
+                            <option value="Inactive">Nonaktif</option>
+                        </select>
+                    </div>
+
+                    <div id="game-info-container" class="card hidden"></div>
+
+                    <div id="product-list-container">
+                        <div tabindex="0" role="region" aria-labelledby="product-list-title" class="table-container admin-table-scroll">
+                            <table id="products-table">
+                                <thead>
+                                    <tr>
+                                        <th>Game</th>
+                                        <th>Nama Produk</th>
+                                        <th class="td-numeric">Harga Pokok</th>
+                                        <th>SKU</th>
+                                        <th>Status</th>
+                                        <th>Validasi</th>
+                                        <th>Harga Manual</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="table-loading-row"><td colspan="7"><div class="ui-state loading">Memuat daftar produk...</div></td></tr>
+                                </tbody>
+                            </table>
                         </div>
-
-                        <div id="game-info-container" class="card hidden" style="margin-top: 2rem;">
-                        </div>
-
-                        <div id="game-margin-container" class="card hidden" style="margin-top: 2rem;">
-    <h4><i class="fas fa-percent"></i> Manajemen Margin Khusus Game</h4>
-    <form id="game-margin-form" class="admin-form" style="padding: 0; background: none;">
-        <div class="game-info-toggle">
-            <strong>Gunakan Margin Khusus untuk Game Ini?</strong>
-            <label class="switch">
-                <input type="checkbox" id="use-custom-margin-toggle">
-                <span class="slider"></span>
-            </label>
-        </div>
-
-        <div id="custom-margin-fields" class="hidden" style="margin-top: 1rem;">
-            <p class="form-description">Isi margin dalam persen (%). Nilai ini akan menimpa margin global.</p>
-            <label for="margin-bronze">Margin Bronze</label>
-            <input type="number" id="margin-bronze" step="0.01" placeholder="Contoh: 5.50">
-
-            <label for="margin-partner">Margin Partner</label>
-            <input type="number" id="margin-partner" step="0.01" placeholder="Contoh: 4.00">
-      
-            <label for="margin-silver">Margin Silver</label>
-            <input type="number" id="margin-silver" step="0.01" placeholder="Contoh: 4.50">
-
-            <label for="margin-gold">Margin Gold</label>
-            <input type="number" id="margin-gold" step="0.01" placeholder="Contoh: 3.50">
-            
-            
-        </div>
-
-        <button type="submit" style="margin-top: 1.5rem;">Simpan Margin Game</button>
-    </form>
-                        </div>
-
-                        <div id="product-list-container" class="hidden" style="margin-top: 2rem;">
-                            <h4 id="product-list-title">Produk</h4>
-                            <div class="table-container">
-                                <table id="products-table">
-                                    <thead>
-                                        <tr></tr> 
-                                    </thead>
-                                    <tbody>
-                                        <tr><td colspan="3" style="text-align: center;">...</td></tr>
-                                    </tbody>
-                                </table>
+                        <div id="catalog-pagination" class="catalog-pagination">
+                            <span id="catalog-page-info">Menampilkan 0 produk</span>
+                            <div class="catalog-pagination-actions">
+                                <button type="button" id="catalog-prev-btn" class="admin-btn-secondary edit-btn-compact" disabled>Sebelumnya</button>
+                                <button type="button" id="catalog-next-btn" class="admin-btn-secondary edit-btn-compact" disabled>Berikutnya</button>
                             </div>
                         </div>
-
-                        <div id="product-validation-editor" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 2rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <h4><i class="fas fa-check-circle"></i> Pengaturan Validasi Produk</h4>
-                                <button id="apply-validation-to-all-btn" class="edit-btn">Terapkan ke Semua</button>
-                            </div>
-                            <p>Atur validasi yang akan dijalankan saat pelanggan membeli produk ini.</p>
-                            <form id="validation-config-form" class="admin-form" style="padding: 0; background: none;">
-                                <label for="validator-search-input">Cari Validator</label>
-                                <input type="text" id="validator-search-input" placeholder="Ketik nama game untuk mencari..." style="margin-bottom: 1rem;">
-                                <label for="validation-selector">Tipe Validator</label>
-                                <select id="validation-selector">
-                                    <option value="">-- Tidak Perlu Validasi --</option>
-                                </select>
-                                <div id="validation-rules-container" class="hidden" style="margin-top: 1rem;">
-                                    <label>Aturan Region (Opsional, pisahkan dengan koma)</label>
-                                    <input type="text" id="allowed-regions-input" placeholder="Region DIIZINKAN (Contoh: BR,US)">
-                                    <input type="text" id="disallowed-regions-input" placeholder="Region DILARANG (Contoh: ID,MY)">
-                                </div>
-                                <button type="submit" style="margin-top: 1rem;">Simpan Pengaturan Validasi</button>
-                            </form>                        
-                        </div>
-
-                        <div id="manual-price-editor" class="hidden" style="margin-top: 2rem; border-top: 1px solid var(--border-color); padding-top: 2rem;">
-    <h4><i class="fas fa-hand-holding-usd"></i> Pengaturan Harga Jual Manual</h4>
-    <p>Atur harga jual final untuk produk <strong id="manual-price-product-name">-</strong>. Harga ini akan menimpa semua perhitungan margin.</p>
-    <form id="manual-price-form" class="admin-form" style="padding: 0; background: none;">
-        <div class="game-info-toggle">
-            <strong>Gunakan Harga Manual untuk Produk Ini?</strong>
-            <label class="switch">
-                <input type="checkbox" id="use-manual-prices-toggle">
-                <span class="slider"></span>
-            </label>
-        </div>
-
-        <div id="manual-price-fields" class="hidden" style="margin-top: 1rem;">
-            <p class="form-description">Isi harga jual akhir (Rp). Kosongkan jika ingin menggunakan perhitungan margin untuk role tersebut.</p>
-            
-            <div id="manual-price-inputs-container">
-                <p>Memuat role...</p>
-            </div>
-        </div>
-
-        <button type="submit" style="margin-top: 1.5rem;">Simpan Harga Manual</button>
-    </form>
-                        </div>
-
                     </div>
                 </div>
             </section>
-            
+
             <section id="deposit" class="admin-section hidden">
                 <div class="card">
-                    <h3><i class="fas fa-hand-holding-usd"></i> Manajemen Deposit</h3>
-                    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
-                        <label for="deposit-status-filter" style="font-weight:600;margin:0;">Filter Status:</label>
-                        <select id="deposit-status-filter" style="padding:0.4rem 0.8rem;border-radius:6px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
-                            <option value="">Semua</option>
-                            <option value="Pending" selected>Pending</option>
-                            <option value="Approved">Approved</option>
-                            <option value="Rejected">Rejected</option>
-                        </select>
-                        <button id="refresh-deposits-btn" class="edit-btn" style="display:flex;align-items:center;gap:0.4rem;"><i class="fas fa-sync-alt"></i> Refresh</button>
+                    <div class="admin-toolbar">
+                        <div class="admin-toolbar-heading">
+                            <h2 id="deposit-table-heading"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> Persetujuan Deposit</h2>
+                        </div>
+                        <div class="admin-toolbar-controls">
+                            <label for="deposit-status-filter" class="admin-inline-label">Filter Status:</label>
+                            <select id="deposit-status-filter" class="admin-select">
+                                <option value="">Semua</option>
+                                <option value="Pending" selected>Pending</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Rejected">Rejected</option>
+                            </select>
+                            <button type="button" id="refresh-deposits-btn" class="admin-btn-secondary">
+                                <i class="fas fa-sync-alt" aria-hidden="true"></i> Refresh
+                            </button>
+                        </div>
                     </div>
-                    <div class="table-container">
+
+                    <div id="deposit-pending-summary" class="deposit-pending-summary" aria-live="polite">
+                        <span>Memuat ringkasan antrean deposit...</span>
+                    </div>
+
+                    <div tabindex="0" role="region" aria-labelledby="deposit-table-heading" class="table-container admin-table-scroll">
                         <table id="admin-deposits-table">
                             <thead>
                                 <tr>
                                     <th>ID</th>
-                                    <th>Username</th>
-                                    <th>Nominal</th>
-                                    <th>Kode Unik</th>
-                                    <th>Total Transfer</th>
+                                    <th>Pengirim</th>
+                                    <th class="td-numeric">Nominal</th>
+                                    <th class="td-numeric">Kode Unik</th>
+                                    <th class="td-numeric">Total Transfer</th>
                                     <th>Metode</th>
                                     <th>Catatan</th>
                                     <th>Status</th>
@@ -236,8 +200,36 @@
 
             <section id="payment-methods" class="admin-section hidden">
                 <div class="card">
-                    <h3 id="pm-form-title"><i class="fas fa-credit-card"></i> Tambah Metode Pembayaran</h3>
-                    <form id="payment-method-form" class="admin-form" style="background:none;padding:0;" aria-labelledby="pm-form-title">
+                    <div class="admin-toolbar">
+                        <div class="admin-toolbar-heading">
+                            <h3 id="pm-table-heading"><i class="fas fa-list" aria-hidden="true"></i> Daftar Metode Pembayaran</h3>
+                        </div>
+                        <button type="button" id="refresh-pm-btn" class="admin-btn-secondary">
+                            <i class="fas fa-sync-alt" aria-hidden="true"></i> Refresh
+                        </button>
+                    </div>
+                    <div tabindex="0" role="region" aria-labelledby="pm-table-heading" class="table-container admin-table-scroll">
+                        <table id="admin-payment-methods-table">
+                            <thead>
+                                <tr>
+                                    <th class="td-numeric">Urutan</th>
+                                    <th>Kode</th>
+                                    <th>Nama Metode</th>
+                                    <th>Tipe</th>
+                                    <th>Rekening / Tujuan</th>
+                                    <th class="td-numeric">Min. Deposit</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-payment-methods-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 id="pm-form-title"><i class="fas fa-credit-card" aria-hidden="true"></i> Tambah Metode Pembayaran</h3>
+                    <form id="payment-method-form" class="admin-form admin-form-bare" aria-labelledby="pm-form-title">
                         <input type="hidden" id="pm-edit-id" name="id">
                         <div class="admin-forms-container">
                             <div class="admin-form">
@@ -262,7 +254,7 @@
                                 <input type="text" id="pm-account-name" name="account_name" maxlength="150" placeholder="Contoh: Admin MIKU Store">
                             </div>
                             <div class="admin-form">
-                                <label for="pm-qris-image-url">URL Gambar QRIS <span style="font-weight:400;color:#94a3b8;">(opsional)</span></label>
+                                <label for="pm-qris-image-url">URL Gambar QRIS <span class="text-muted-sm">(opsional)</span></label>
                                 <input type="text" id="pm-qris-image-url" name="qris_image_url" maxlength="1000" autocorrect="off" autocapitalize="none" spellcheck="false" aria-describedby="pm-qris-help" placeholder="https://... atau /images/qris.png">
                                 <small id="pm-qris-help" class="form-help">Untuk metode QRIS. Gunakan URL http(s):// atau path /...</small>
 
@@ -287,34 +279,10 @@
                         </div>
                         <div class="pm-form-actions">
                             <button type="submit" id="pm-submit-btn">Simpan Metode</button>
-                            <button type="button" id="pm-cancel-edit-btn" class="edit-btn hidden">Batal Edit</button>
+                            <button type="button" id="pm-cancel-edit-btn" class="admin-btn-secondary hidden">Batal Edit</button>
                         </div>
                         <div id="pm-form-status" class="form-status-msg" role="status" aria-live="polite"></div>
                     </form>
-                </div>
-
-                <div class="card">
-                    <div class="pm-table-header">
-                        <h3 id="pm-table-heading"><i class="fas fa-list"></i> Daftar Metode Pembayaran</h3>
-                        <button type="button" id="refresh-pm-btn" class="edit-btn" style="display:inline-flex;align-items:center;gap:0.4rem;"><i class="fas fa-sync-alt"></i> Refresh</button>
-                    </div>
-                    <div tabindex="0" role="region" aria-labelledby="pm-table-heading" class="table-container">
-                        <table id="admin-payment-methods-table">
-                            <thead>
-                                <tr>
-                                    <th>Urutan</th>
-                                    <th>Kode</th>
-                                    <th>Nama Metode</th>
-                                    <th>Tipe</th>
-                                    <th>Rekening / Tujuan</th>
-                                    <th>Min. Deposit</th>
-                                    <th>Status</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody id="admin-payment-methods-tbody"></tbody>
-                        </table>
-                    </div>
                 </div>
             </section>
 
@@ -324,13 +292,13 @@
                     <form id="manual-balance-form">
                         <label for="target-user">Username atau Email Pengguna</label>
                         <input type="text" id="target-user" placeholder="Masukkan username/email" required>
-                        <label for="manual-amount">Jumlah</label>
-                        <input type="number" id="manual-amount" placeholder="Contoh: 50000" required>
+                        <label for="manual-amount">Jumlah (Rp)</label>
+                        <input type="number" id="manual-amount" min="1" placeholder="Contoh: 50000" required>
                         <label for="manual-description">Deskripsi / Keterangan</label>
                         <input type="text" id="manual-description" placeholder="Contoh: Top up via WA / Koreksi" required>
                         <div class="manual-balance-actions">
                             <button type="button" id="add-balance-btn" class="approve-btn">Tambah Saldo</button>
-                            <button type="button" id="reduce-balance-btn" class="failed-btn">Kurangi Saldo</button>
+                            <button type="button" id="reduce-balance-btn" class="admin-btn-danger">Kurangi Saldo</button>
                         </div>
                     </form>
                 </div>
@@ -349,148 +317,402 @@
             </section>
 
             <section id="promo" class="admin-section hidden">
-    <div class="card">
-        <h3>Buat Kode Promo Baru</h3>
-        <form id="add-promo-form" class="admin-form" style="background: none; padding: 0;">
-            <div class="admin-forms-container">
-                <div class="admin-form">
-                    <label for="promo-code">Kode Promo (Contoh: MIKUBARU)</label>
-                    <input type="text" id="promo-code" required>
-                    <label for="promo-description">Deskripsi (Untuk catatan Anda)</label>
-                    <input type="text" id="promo-description" placeholder="Promo Peluncuran Website" required>
-                    <label for="promo-type">Jenis Diskon</label>
-                    <select id="promo-type">
-                        <option value="fixed">Potongan Harga Tetap (Rp)</option>
-                        <option value="percentage">Potongan Persentase (%)</option>
-                    </select>
-                    <label for="promo-value">Nilai Diskon</label>
-                    <input type="number" id="promo-value" placeholder="Contoh: 5000 atau 10" required>
-                    <label for="promo-expires">Tanggal Kedaluwarsa (Opsional)</label>
-                    <input type="datetime-local" id="promo-expires">
+                <div class="card">
+                    <h3>Buat Kode Promo Baru</h3>
+                    <form id="add-promo-form" class="admin-form admin-form-bare">
+                        <div class="admin-forms-container">
+                            <div class="admin-form">
+                                <label for="promo-code">Kode Promo (Contoh: MIKUBARU)</label>
+                                <input type="text" id="promo-code" required>
+                                <label for="promo-description">Deskripsi (Untuk catatan Anda)</label>
+                                <input type="text" id="promo-description" placeholder="Promo Peluncuran Website" required>
+                                <label for="promo-type">Jenis Diskon</label>
+                                <select id="promo-type">
+                                    <option value="fixed">Potongan Harga Tetap (Rp)</option>
+                                    <option value="percentage">Potongan Persentase (%)</option>
+                                </select>
+                                <label for="promo-value">Nilai Diskon</label>
+                                <input type="number" id="promo-value" placeholder="Contoh: 5000 atau 10" required>
+                                <label for="promo-expires">Tanggal Kedaluwarsa (Opsional)</label>
+                                <input type="datetime-local" id="promo-expires">
+                            </div>
+                            <div class="admin-form">
+                                <label for="promo-min-price">Pembelian Minimum (Opsional)</label>
+                                <input type="number" id="promo-min-price" placeholder="Contoh: 15000">
+                                <label for="promo-max-uses-user">Maks. Penggunaan per ID Game (Opsional)</label>
+                                <input type="number" id="promo-max-uses-user" placeholder="Contoh: 2">
+                                <label for="promo-max-uses">Batas Penggunaan Global (Opsional)</label>
+                                <input type="number" id="promo-max-uses" placeholder="Contoh: 100">
+                                <label for="promo-max-discount">Maks. Potongan Diskon (Rp) - untuk tipe Persen</label>
+                                <input type="number" id="promo-max-discount" placeholder="Contoh: 10000">
+                                <label for="promo-allowed-games">Hanya untuk Game ID (Opsional, pisahkan koma)</label>
+                                <input type="text" id="promo-allowed-games" placeholder="Contoh: 1, 5, 12">
+                                <label for="promo-allowed-products">Hanya untuk Produk ID (Opsional, pisahkan koma)</label>
+                                <input type="text" id="promo-allowed-products" placeholder="Contoh: 101, 105">
+                            </div>
+                        </div>
+                        <button type="submit">Buat Kode Promo</button>
+                    </form>
                 </div>
-                <div class="admin-form">
-                    <label for="promo-min-price">Pembelian Minimum (Opsional)</label>
-                    <input type="number" id="promo-min-price" placeholder="Contoh: 15000">
-                    <label for="promo-max-uses-user">Maks. Penggunaan per ID Game (Opsional)</label>
-                    <input type="number" id="promo-max-uses-user" placeholder="Contoh: 2">
-
-                    <label for="promo-max-uses">Batas Penggunaan Global (Opsional)</label>
-                    <input type="number" id="promo-max-uses" placeholder="Contoh: 100">
-                    <label for="promo-max-discount">Maks. Potongan Diskon (Rp) - untuk tipe Persen</label>
-                    <input type="number" id="promo-max-discount" placeholder="Contoh: 10000">
-                    <label for="promo-allowed-games">Hanya untuk Game ID (Opsional, pisahkan koma)</label>
-                    <input type="text" id="promo-allowed-games" placeholder="Contoh: 1, 5, 12">
-                    <label for="promo-allowed-products">Hanya untuk Produk ID (Opsional, pisahkan koma)</label>
-                    <input type="text" id="promo-allowed-products" placeholder="Contoh: 101, 105">
+                <div class="card">
+                    <h3 id="promos-table-heading">Daftar Kode Promo</h3>
+                    <div tabindex="0" role="region" aria-labelledby="promos-table-heading" class="table-container admin-table-scroll">
+                        <table id="promos-table">
+                            <thead>
+                                <tr>
+                                    <th>Kode</th>
+                                    <th>Deskripsi</th>
+                                    <th>Tipe</th>
+                                    <th class="td-numeric">Nilai</th>
+                                    <th class="td-numeric">Penggunaan</th>
+                                    <th>Aktif</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-            <button type="submit" style="margin-top: 1.5rem;">Buat Kode Promo</button>
-        </form>
-    </div>
-    <div class="card">
-        <h3>Daftar Kode Promo</h3>
-        <div class="table-container">
-            <table id="promos-table">
-                <thead>
-                    <tr>
-                        <th>Kode</th>
-                        <th>Deskripsi</th>
-                        <th>Tipe</th>
-                        <th>Nilai</th>
-                        <th>Penggunaan</th>
-                        <th>Aktif</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    </tbody>
-            </table>
-        </div>
-    </div>
             </section>
 
             <section id="flash-sale" class="admin-section hidden">
-    <div class="card">
-        <h3>Tambah Produk ke Flash Sale</h3>
-        <form id="add-flash-sale-form" class="admin-form" style="background: none; padding: 0;">
-            <div class="admin-forms-container">
-                <div class="admin-form">
-                    <label for="fs-game-search">1. Cari &amp; Pilih Game</label>
-                    <input type="text" id="fs-game-search" placeholder="Ketik nama game...">
-                    <select id="fs-game-selector" required>
-                        <option value="">-- Pilih Game --</option>
-                    </select>
-                    
-                    <label for="fs-product-selector">2. Pilih Produk</label>
-                    <select id="fs-product-selector" required>
-                        <option value="">-- Pilih Game Terlebih Dahulu --</option>
-                    </select>
-                    
-                    <div id="fs-price-info" class="hidden" style="margin-top: 1rem; font-size: 0.9rem;">
-                        Harga Jual Bronze: <strong id="fs-bronze-price">-</strong>
+                <div class="card">
+                    <h3>Tambah Produk ke Flash Sale</h3>
+                    <form id="add-flash-sale-form" class="admin-form admin-form-bare">
+                        <div class="admin-forms-container">
+                            <div class="admin-form">
+                                <label for="fs-game-search">1. Cari &amp; Pilih Game</label>
+                                <input type="text" id="fs-game-search" placeholder="Ketik nama game...">
+                                <select id="fs-game-selector" required>
+                                    <option value="">-- Pilih Game --</option>
+                                </select>
+
+                                <label for="fs-product-selector">2. Pilih Produk</label>
+                                <select id="fs-product-selector" required>
+                                    <option value="">-- Pilih Game Terlebih Dahulu --</option>
+                                </select>
+
+                                <div id="fs-price-info" class="hidden">
+                                    Harga Jual Bronze: <strong id="fs-bronze-price">-</strong>
+                                </div>
+                            </div>
+                            <div class="admin-form">
+                                <label for="fs-discount-price">3. Harga Jual Flash Sale (Rp)</label>
+                                <input type="number" id="fs-discount-price" placeholder="Contoh: 17400" required>
+                                <label for="fs-start-at">Waktu Mulai</label>
+                                <input type="datetime-local" id="fs-start-at" required>
+                                <label for="fs-end-at">Waktu Berakhir</label>
+                                <input type="datetime-local" id="fs-end-at" required>
+                                <label for="fs-max-uses">Batas Penggunaan / Kuota (Kosongkan jika tanpa limit)</label>
+                                <input type="number" id="fs-max-uses" placeholder="Contoh: 100">
+
+                                <label for="fs-max-discount">Maks. Potongan Diskon (Rp) (Kosongkan jika tanpa limit)</label>
+                                <input type="number" id="fs-max-discount" placeholder="Contoh: 10000">
+                            </div>
+                        </div>
+                        <button type="submit">Tambah ke Flash Sale</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3 id="flash-sales-table-heading">Daftar Produk Flash Sale Aktif</h3>
+                    <div tabindex="0" role="region" aria-labelledby="flash-sales-table-heading" class="table-container admin-table-scroll">
+                        <table id="flash-sales-table">
+                            <thead>
+                                <tr>
+                                    <th>Game</th>
+                                    <th>Produk</th>
+                                    <th class="td-numeric">Harga Diskon</th>
+                                    <th class="td-numeric">Kuota</th>
+                                    <th>Berakhir Pada</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="admin-form">
-                    <label for="fs-discount-price">3. Harga Jual Flash Sale (Rp)</label>
-                    <input type="number" id="fs-discount-price" placeholder="Contoh: 17400" required>
-                    <label for="fs-start-at">Waktu Mulai</label>
-                    <input type="datetime-local" id="fs-start-at" required>
-                    <label for="fs-end-at">Waktu Berakhir</label>
-                    <input type="datetime-local" id="fs-end-at" required>
-                    <label for="fs-max-uses">Batas Penggunaan / Kuota (Kosongkan jika tanpa limit)</label>
-                    <input type="number" id="fs-max-uses" placeholder="Contoh: 100">
-                    
-                    <label for="fs-max-discount">Maks. Potongan Diskon (Rp) (Kosongkan jika tanpa limit)</label>
-                    <input type="number" id="fs-max-discount" placeholder="Contoh: 10000">
-                </div>
-            </div>
-            <button type="submit" style="margin-top: 1.5rem;">Tambah ke Flash Sale</button>
-        </form>
-    </div>
-    <div class="card">
-        <h3>Daftar Produk Flash Sale Aktif</h3>
-        <div class="table-container">
-            <table id="flash-sales-table">
-                <thead>
-                    <tr>
-                        <th>Game</th>
-                        <th>Produk</th>
-                        <th>Harga Diskon</th>
-                        <th>Kuota</th>
-                        <th>Berakhir Pada</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    </tbody>
-            </table>
-        </div>
-    </div>
             </section>
 
             <section id="transaksi" class="admin-section hidden">
-    <div class="card">
-        <h3>Daftar Transaksi</h3>
-        <div class="table-container">
-            <table id="admin-transactions-table">
-                <thead>
-                    <tr>
-                        <th>Invoice</th>
-                        <th>User</th>
-                        <th>Produk</th>
-                        <th>Harga</th>
-                        <th>Status</th>
-                        <th>Tanggal</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody id="admin-transactions-tbody"></tbody>
-            </table>
-        </div>
-    </div>
-</section>
-
+                <div class="card">
+                    <h3 id="admin-transactions-heading">Daftar Transaksi</h3>
+                    <div tabindex="0" role="region" aria-labelledby="admin-transactions-heading" class="table-container admin-table-scroll">
+                        <table id="admin-transactions-table">
+                            <thead>
+                                <tr>
+                                    <th>Invoice</th>
+                                    <th>User</th>
+                                    <th>Produk</th>
+                                    <th class="td-numeric">Harga</th>
+                                    <th>Status</th>
+                                    <th>Tanggal</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-transactions-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
+
+    <!-- Modal Tambah Game -->
+    <div id="add-game-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="add-game-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="add-game-modal-title">Tambah Game Baru</h3>
+                <button type="button" id="close-add-game-modal-btn" class="close-modal" aria-label="Tutup modal tambah game">&times;</button>
+            </div>
+            <form id="add-game-form">
+                <div class="admin-modal-body">
+                    <div class="admin-modal-field">
+                        <label for="game-name">Nama Game <span aria-hidden="true">*</span></label>
+                        <input type="text" id="game-name" placeholder="Contoh: Mobile Legends" required>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="game-category">Kategori <span aria-hidden="true">*</span></label>
+                        <select id="game-category" required>
+                            <option value="Mobile Game" selected>Mobile Game</option>
+                            <option value="PC Game">PC Game</option>
+                            <option value="Voucher">Voucher</option>
+                        </select>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="game-image">URL Gambar <span aria-hidden="true">*</span></label>
+                        <input type="text" id="game-image" placeholder="https://..." required>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-add-game-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-add-game-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Tambah Produk -->
+    <div id="add-product-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="add-product-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="add-product-modal-title">Tambah Produk Baru</h3>
+                <button type="button" id="close-add-product-modal-btn" class="close-modal" aria-label="Tutup modal tambah produk">&times;</button>
+            </div>
+            <form id="add-product-form">
+                <div class="admin-modal-body">
+                    <p class="admin-modal-warning">Katalog SKU Foxy dikelola lewat sinkronisasi otomatis. Form ini tetap tersedia untuk pengecekan cepat tanpa mengubah katalog Foxy.</p>
+                    <div class="admin-modal-field">
+                        <label for="product-game">Pilih Game</label>
+                        <select id="product-game" required>
+                            <option value="">Memuat game...</option>
+                        </select>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="product-name">Nama Produk</label>
+                        <input type="text" id="product-name" placeholder="Contoh: 100 Diamonds" required>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="product-sku">SKU Provider</label>
+                        <input type="text" id="product-sku" placeholder="Kode unik dari Foxy" required>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="product-price">Harga Jual (Rp)</label>
+                        <input type="number" id="product-price" placeholder="Contoh: 25000" required>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-add-product-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-add-product-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Konfirmasi Sinkronisasi Produk Foxy -->
+    <div id="sync-products-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sync-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="sync-modal-title">Konfirmasi Sinkronisasi Foxy</h3>
+                <button type="button" id="close-sync-modal-btn" class="close-modal" aria-label="Tutup modal sinkronisasi">&times;</button>
+            </div>
+            <form id="sync-products-form">
+                <div class="admin-modal-body">
+                    <p class="admin-modal-message">Proses ini mengambil katalog Foxy terbaru, memperbarui harga modal produk aktif, dan menonaktifkan SKU lokal yang tidak lagi tersedia di provider.</p>
+                    <div id="sync-preview-details" class="admin-detail-summary"></div>
+                    <div class="admin-modal-field">
+                        <label for="margin-percent">Margin Acuan (%)</label>
+                        <input type="number" id="margin-percent" value="10" min="0" step="0.01" required>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-sync-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="confirm-sync-btn" class="admin-btn-primary">Sinkronkan Sekarang</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Margin Khusus Game -->
+    <div id="game-margin-container" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="game-margin-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="game-margin-modal-title">Margin Khusus Game</h3>
+                <button type="button" id="close-game-margin-modal-btn" class="close-modal" aria-label="Tutup modal margin game">&times;</button>
+            </div>
+            <form id="game-margin-form">
+                <div class="admin-modal-body">
+                    <div class="game-info-toggle">
+                        <strong>Gunakan Margin Khusus untuk Game Ini?</strong>
+                        <label class="switch">
+                            <input type="checkbox" id="use-custom-margin-toggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div id="custom-margin-fields" class="hidden">
+                        <p class="admin-modal-message">Isi margin dalam persen (%). Nilai ini akan menimpa margin global.</p>
+                        <div class="admin-modal-field">
+                            <label for="margin-bronze">Margin Bronze (%)</label>
+                            <input type="number" id="margin-bronze" step="0.01" placeholder="Contoh: 5.50">
+                        </div>
+                        <div class="admin-modal-field">
+                            <label for="margin-partner">Margin Partner (%)</label>
+                            <input type="number" id="margin-partner" step="0.01" placeholder="Contoh: 4.00">
+                        </div>
+                        <div class="admin-modal-field">
+                            <label for="margin-silver">Margin Silver (%)</label>
+                            <input type="number" id="margin-silver" step="0.01" placeholder="Contoh: 4.50">
+                        </div>
+                        <div class="admin-modal-field">
+                            <label for="margin-gold">Margin Gold (%)</label>
+                            <input type="number" id="margin-gold" step="0.01" placeholder="Contoh: 3.50">
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-game-margin-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-game-margin-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Pengaturan Validasi Produk -->
+    <div id="product-validation-editor" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="validation-modal-title">
+        <div class="modal-content admin-modal-card admin-modal-card-wide">
+            <div class="admin-modal-header">
+                <h3 id="validation-modal-title">Pengaturan Validasi Produk</h3>
+                <button type="button" id="close-validation-modal-btn" class="close-modal" aria-label="Tutup modal validasi">&times;</button>
+            </div>
+            <form id="validation-config-form">
+                <div class="admin-modal-body">
+                    <p class="admin-modal-message">Atur validasi ID yang dijalankan saat pelanggan memesan produk ini.</p>
+                    <div class="admin-modal-divider-actions">
+                        <button type="button" id="apply-validation-to-all-btn" class="admin-btn-secondary edit-btn-compact">Terapkan ke Semua Produk Game</button>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="validator-search-input">Cari Validator</label>
+                        <input type="text" id="validator-search-input" placeholder="Ketik nama game untuk mencari...">
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="validation-selector">Tipe Validator</label>
+                        <select id="validation-selector">
+                            <option value="">-- Tidak Perlu Validasi --</option>
+                        </select>
+                    </div>
+                    <div id="validation-rules-container" class="hidden">
+                        <div class="admin-modal-field">
+                            <label for="allowed-regions-input">Region Diizinkan (Opsional, pisahkan koma)</label>
+                            <input type="text" id="allowed-regions-input" placeholder="Contoh: BR,US">
+                        </div>
+                        <div class="admin-modal-field">
+                            <label for="disallowed-regions-input">Region Dilarang (Opsional, pisahkan koma)</label>
+                            <input type="text" id="disallowed-regions-input" placeholder="Contoh: ID,MY">
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-validation-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-validation-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Pengaturan Harga Manual Produk -->
+    <div id="manual-price-editor" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="manual-price-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="manual-price-modal-title">Harga Jual Manual</h3>
+                <button type="button" id="close-manual-price-modal-btn" class="close-modal" aria-label="Tutup modal harga manual">&times;</button>
+            </div>
+            <form id="manual-price-form">
+                <div class="admin-modal-body">
+                    <p class="admin-modal-message">Produk: <strong id="manual-price-product-name">-</strong>. Harga manual menimpa perhitungan margin otomatis.</p>
+                    <div class="game-info-toggle">
+                        <strong>Gunakan Harga Manual?</strong>
+                        <label class="switch">
+                            <input type="checkbox" id="use-manual-prices-toggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div id="manual-price-fields" class="hidden">
+                        <p class="admin-modal-message">Kosongkan role jika tetap ingin mengikuti margin otomatis.</p>
+                        <div id="manual-price-inputs-container">
+                            <p>Memuat role...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-manual-price-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-manual-price-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Konfirmasi Umum Admin -->
+    <div id="admin-confirm-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="admin-confirm-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="admin-confirm-title">Konfirmasi Aksi</h3>
+                <button type="button" id="close-admin-confirm-btn" class="close-modal" aria-label="Tutup dialog konfirmasi">&times;</button>
+            </div>
+            <div class="admin-modal-body">
+                <p id="admin-confirm-message" class="admin-modal-message"></p>
+                <div id="admin-confirm-details" class="admin-detail-summary hidden"></div>
+            </div>
+            <div class="admin-modal-footer">
+                <button type="button" id="admin-confirm-cancel-btn" class="admin-btn-secondary">Batal</button>
+                <button type="button" id="admin-confirm-accept-btn" class="admin-btn-primary">Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Penolakan Deposit (Wajib Alasan) -->
+    <div id="reject-deposit-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="reject-deposit-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="reject-deposit-title">Tolak Deposit</h3>
+                <button type="button" id="close-reject-deposit-btn" class="close-modal" aria-label="Tutup dialog penolakan">&times;</button>
+            </div>
+            <form id="reject-deposit-form" novalidate>
+                <div class="admin-modal-body">
+                    <p class="admin-modal-message">Saldo pengguna <strong>tidak</strong> akan bertambah. Isi alasan penolakan sebagai catatan operasional.</p>
+                    <div id="reject-deposit-summary" class="admin-detail-summary"></div>
+                    <div class="admin-modal-field">
+                        <label for="reject-reason-input">Alasan Penolakan <span aria-hidden="true">*</span></label>
+                        <textarea id="reject-reason-input" rows="3" maxlength="300" placeholder="Contoh: Nominal transfer tidak sesuai atau dana belum masuk mutasi rekening" required></textarea>
+                        <p id="reject-reason-error" class="admin-field-error hidden" role="alert"></p>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-reject-deposit-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="submit-reject-deposit-btn" class="admin-btn-danger">Tolak Deposit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast-notification" class="toast hidden" role="status" aria-live="polite"></div>
 
     <script defer src="js/shared/format.js"></script>
     <script defer src="js/shared/dom.js"></script>

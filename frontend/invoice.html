@@ -2,12 +2,13 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Detail Transaksi - MIKU Store</title>
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/publicPages.css">
+    <link rel="stylesheet" href="css/invoice.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
@@ -15,36 +16,46 @@
 <header>
     <div class="header-container container">
         <div class="header-left">
-             <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
+            <a href="index.html" class="logo-link">
+                <span class="logo">MIKU<span class="logo-accent">Store</span></span>
+            </a>
         </div>
-        <div class="header-right">
-            <a href="dashboard.html" class="header-btn">Kembali ke Dashboard</a>
-        </div>
+        <nav class="header-right" aria-label="Navigasi invoice">
+            <a href="dashboard.html" class="header-btn">Dashboard</a>
+            <a href="index.html" class="header-btn">Kembali ke Toko</a>
+        </nav>
     </div>
 </header>
 
-    <main class="container">
-        <div class="main-wrapper" id="invoice-details-container">
-            <p style="text-align: center;">Memuat detail transaksi...</p>
-            </div>
-    </main>
+<main class="container public-main">
+    <div class="public-narrow-wrap">
+        <div class="public-page-header no-print">
+            <h1 class="public-page-title"><i class="fas fa-file-invoice" aria-hidden="true"></i> Struk &amp; Detail Invoice</h1>
+            <p class="public-page-subtitle">Simpan nomor invoice, salin struk, atau cetak PDF sebagai bukti transaksi Anda.</p>
+        </div>
+        <div id="invoice-details-container" aria-live="polite">
+            <div class="card"><div class="ui-state loading">Memuat detail transaksi...</div></div>
+        </div>
+    </div>
+</main>
 
-    <script defer src="js/shared/format.js"></script>
-    <script defer src="js/shared/dom.js"></script>
-    <script defer src="js/shared/auth.js"></script>
-    <script defer src="js/shared/api.js"></script>
-    <script defer src="invoice.js"></script>
-
-    <footer>
+<footer>
     <div class="container footer-content">
         <div class="footer-links">
-            <a href="/syarat-ketentuan.html">Syarat & Ketentuan</a>
+            <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
             <a href="/kebijakan-refund.html">Kebijakan Refund</a>
             <a href="/kontak.html">Kontak Kami</a>
+            <a href="/cek-transaksi.html">Cek Transaksi</a>
+            <a href="/compare-prices.html">Pricelist</a>
         </div>
-        <p>&copy; 2026 MIKU Store. Dibuat dengan ❤️</p>
+        <p>&copy; 2026 MIKU Store. Seluruh hak cipta dilindungi.</p>
     </div>
 </footer>
 
+<script defer src="js/shared/format.js"></script>
+<script defer src="js/shared/dom.js"></script>
+<script defer src="js/shared/auth.js"></script>
+<script defer src="js/shared/api.js"></script>
+<script defer src="invoice.js"></script>
 </body>
 </html>

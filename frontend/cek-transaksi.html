@@ -2,13 +2,14 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cek Status Transaksi - MIKU Store</title>
     <meta name="description" content="Cek status transaksi topup game Anda di MIKU Store menggunakan nomor invoice.">
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/publicPages.css">
+    <link rel="stylesheet" href="css/invoice.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
@@ -17,55 +18,56 @@
 <header>
     <div class="header-container container">
         <div class="header-left">
-            <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
+            <a href="index.html" class="logo-link">
+                <span class="logo">MIKU<span class="logo-accent">Store</span></span>
+            </a>
         </div>
-        <div class="header-right">
+        <nav class="header-right" aria-label="Navigasi halaman publik">
+            <a href="compare-prices.html" class="header-btn">Pricelist</a>
             <a href="index.html" class="header-btn">Kembali ke Toko</a>
-        </div>
+        </nav>
     </div>
 </header>
 
-<main class="container" style="padding: 2rem 0 3rem;">
-    <h2><i class="fas fa-search"></i> Cek Status Transaksi</h2>
-    <p class="form-description" style="margin-bottom:1.5rem;">Masukkan nomor invoice untuk melihat status transaksi Anda secara real-time.</p>
-
-    <!-- Form pencarian -->
-    <div class="card transaction-check-card">
-        <form id="check-form">
-            <div style="display:flex; gap:0.75rem; flex-wrap:wrap; align-items:flex-end;">
-                <div style="flex:1; min-width:200px;">
-                    <label for="invoice-input" style="display:block; margin-bottom:0.4rem; font-size:0.9rem; color:var(--muted-color);">
-                        <i class="fas fa-receipt"></i> Nomor Invoice
-                    </label>
-                    <input
-                        type="text"
-                        id="invoice-input"
-                        class="dashboard-input"
-                        placeholder="Contoh: TRX-1234567890"
-                        maxlength="64"
-                        autocomplete="off"
-                        style="width:100%; box-sizing:border-box;"
-                    >
-                </div>
-                <button type="submit" class="topup-btn" id="check-btn" style="height:42px; padding:0 1.5rem; white-space:nowrap;">
-                    <i class="fas fa-search"></i> Cek Sekarang
-                </button>
-            </div>
-        </form>
-    </div>
-
-    <!-- Hasil pencarian -->
-    <div id="check-result" class="card transaction-check-card hidden" style="margin-top:1.25rem;">
-        <div id="check-result-content"></div>
-    </div>
-
-    <!-- Transaksi terbaru -->
-    <div style="margin-top:2.5rem;">
-        <h3><i class="fas fa-history"></i> Transaksi Terbaru</h3>
-        <p class="form-description" style="margin-bottom:1rem;">10 transaksi terakhir di MIKU Store (invoice disembunyikan untuk privasi).</p>
-        <div id="recent-transactions-container">
-            <div class="ui-state loading">Memuat transaksi terbaru...</div>
+<main class="container public-main">
+    <div class="public-narrow-wrap">
+        <div class="public-page-header">
+            <h1 class="public-page-title"><i class="fas fa-search" aria-hidden="true"></i> Cek Status Transaksi</h1>
+            <p class="public-page-subtitle">Masukkan nomor invoice untuk melihat status transaksi Anda secara real-time.</p>
         </div>
+
+        <div class="card transaction-check-card">
+            <form id="check-form">
+                <div class="trx-search-row">
+                    <div class="trx-search-field">
+                        <label for="invoice-input"><i class="fas fa-receipt" aria-hidden="true"></i> Nomor Invoice</label>
+                        <input
+                            type="text"
+                            id="invoice-input"
+                            class="dashboard-input"
+                            placeholder="Contoh: TRX-1234567890"
+                            maxlength="64"
+                            autocomplete="off"
+                        >
+                    </div>
+                    <button type="submit" class="topup-btn trx-submit-btn" id="check-btn">
+                        <i class="fas fa-search" aria-hidden="true"></i> Cek Sekarang
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="check-result" class="card transaction-check-card trx-result-card hidden" aria-live="polite">
+            <div id="check-result-content"></div>
+        </div>
+
+        <section class="recent-trx-section" aria-labelledby="recent-trx-heading">
+            <h2 id="recent-trx-heading"><i class="fas fa-history" aria-hidden="true"></i> Transaksi Terbaru</h2>
+            <p class="form-description">10 transaksi terakhir di MIKU Store (invoice disamarkan untuk privasi).</p>
+            <div id="recent-transactions-container">
+                <div class="ui-state loading">Memuat transaksi terbaru...</div>
+            </div>
+        </section>
     </div>
 </main>
 
@@ -75,8 +77,12 @@
             <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
             <a href="/kebijakan-refund.html">Kebijakan Refund</a>
             <a href="/kontak.html">Kontak Kami</a>
+            <a href="/cek-transaksi.html">Cek Transaksi</a>
+            <a href="/compare-prices.html">Pricelist</a>
+            <a href="/validate.html">Validasi ID</a>
+            <a href="/leaderboard.html">Leaderboard</a>
         </div>
-        <p>&copy; 2026 MIKU Store. Dibuat dengan ❤️</p>
+        <p>&copy; 2026 MIKU Store. Seluruh hak cipta dilindungi.</p>
     </div>
 </footer>
 
