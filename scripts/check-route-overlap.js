@@ -6,11 +6,14 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 /**
- * Parse CLI arguments for baseline comparison and synthetic test files.
+ * Parse CLI arguments for route overlap and effective-chain checks.
  */
 function parseArgs(argv) {
     let baselinePath = path.resolve(__dirname, '..', 'docs', 'routes.baseline.txt');
     let currentPath = null;
+    let effectiveBaselinePath = path.resolve(__dirname, '..', 'docs', 'effective-chain.baseline.txt');
+    let effectiveCurrentPath = null;
+    let skipEffective = false;
 
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
@@ -22,14 +25,30 @@ function parseArgs(argv) {
             currentPath = path.resolve(argv[++i]);
         } else if (arg.startsWith('--current=')) {
             currentPath = path.resolve(arg.slice('--current='.length));
+        } else if (arg === '--effective-baseline' && i + 1 < argv.length) {
+            effectiveBaselinePath = path.resolve(argv[++i]);
+        } else if (arg.startsWith('--effective-baseline=')) {
+            effectiveBaselinePath = path.resolve(arg.slice('--effective-baseline='.length));
+        } else if (arg === '--effective-current' && i + 1 < argv.length) {
+            effectiveCurrentPath = path.resolve(argv[++i]);
+        } else if (arg.startsWith('--effective-current=')) {
+            effectiveCurrentPath = path.resolve(arg.slice('--effective-current='.length));
+        } else if (arg === '--skip-effective') {
+            skipEffective = true;
         }
     }
 
-    return { baselinePath, currentPath };
+    return {
+        baselinePath,
+        currentPath,
+        effectiveBaselinePath,
+        effectiveCurrentPath,
+        skipEffective,
+    };
 }
 
 /**
- * Parse formatted dump-routes lines: "METHOD /path [mw1, mw2]".
+ * Parse formatted dump-routes lines: "METHOD /path [item1, item2]".
  */
 function parseRouteLines(text, sourceLabel) {
     const cleanText = String(text || '').replace(/^\uFEFF/, '');
@@ -81,7 +100,7 @@ function pathsCanMatchSameUrl(pathA, pathB) {
     return true;
 }
 
-function runDumpRoutes() {
+function runDumpRoutes(extraArgs = []) {
     const dumpScript = path.resolve(__dirname, 'dump-routes.js');
     const env = {
         ...process.env,
@@ -96,7 +115,7 @@ function runDumpRoutes() {
         FOXY_API_KEY: process.env.FOXY_API_KEY || 'dummy',
         FOXY_CALLBACK_URL: process.env.FOXY_CALLBACK_URL || 'http://localhost:3000/api/foxy/callback',
     };
-    return execFileSync(process.execPath, [dumpScript], {
+    return execFileSync(process.execPath, [dumpScript, ...extraArgs], {
         encoding: 'utf8',
         env,
         timeout: 60000,
@@ -112,18 +131,12 @@ function checkRouteOverlap(baselineText, currentText) {
     const errors = [];
 
     for (const entry of baseline) {
-        if (baseByKey.has(entry.key)) {
-            errors.push(`Duplicate route in baseline: ${entry.key}`);
-        } else {
-            baseByKey.set(entry.key, entry);
-        }
+        if (baseByKey.has(entry.key)) errors.push(`Duplicate route in baseline: ${entry.key}`);
+        else baseByKey.set(entry.key, entry);
     }
     for (const entry of current) {
-        if (curByKey.has(entry.key)) {
-            errors.push(`Duplicate route in current app: ${entry.key}`);
-        } else {
-            curByKey.set(entry.key, entry);
-        }
+        if (curByKey.has(entry.key)) errors.push(`Duplicate route in current app: ${entry.key}`);
+        else curByKey.set(entry.key, entry);
     }
 
     for (const [key] of baseByKey) {
@@ -169,10 +182,8 @@ function checkRouteOverlap(baselineText, currentText) {
         }
     }
 
-    if (overlapViolations.length > 0) {
-        for (const v of overlapViolations) {
-            errors.push(`Route order overlap (${v.method}): [${v.earlierInBaseline}] vs [${v.laterInBaseline}]`);
-        }
+    for (const v of overlapViolations) {
+        errors.push(`Route order overlap (${v.method}): [${v.earlierInBaseline}] vs [${v.laterInBaseline}]`);
     }
 
     return {
@@ -184,22 +195,102 @@ function checkRouteOverlap(baselineText, currentText) {
     };
 }
 
+function splitChainToken(token) {
+    const idx = token.lastIndexOf(':');
+    if (idx === -1) return { prefix: '', name: token };
+    return { prefix: token.slice(0, idx), name: token.slice(idx + 1) };
+}
+
+/**
+ * Compare effective middleware chain per route against baseline.
+ * Pure "<anonymous> -> <fnName>" at identical scope/mount is reported as a known rename.
+ */
+function checkEffectiveChains(baselineText, currentText) {
+    const baseline = parseRouteLines(baselineText, 'effective-baseline');
+    const current = parseRouteLines(currentText, 'effective-current');
+
+    const baseByKey = new Map();
+    const curByKey = new Map();
+    const errors = [];
+    const knownRenames = new Map();
+
+    for (const e of baseline) baseByKey.set(e.key, e);
+    for (const e of current) curByKey.set(e.key, e);
+
+    for (const [key] of baseByKey) {
+        if (!curByKey.has(key)) errors.push(`Effective-chain missing route: ${key}`);
+    }
+    for (const [key] of curByKey) {
+        if (!baseByKey.has(key)) errors.push(`Effective-chain extra route: ${key}`);
+    }
+    if (errors.length > 0) return { ok: false, errors, knownRenames, count: current.length };
+
+    for (const [key, baseEntry] of baseByKey) {
+        const curEntry = curByKey.get(key);
+        const bc = baseEntry.middlewares;
+        const cc = curEntry.middlewares;
+
+        if (bc.length !== cc.length) {
+            errors.push(`Effective-chain length mismatch on ${key}: baseline(${bc.length})=[${bc.join(', ')}] vs current(${cc.length})=[${cc.join(', ')}]`);
+            continue;
+        }
+
+        for (let k = 0; k < bc.length; k++) {
+            if (bc[k] === cc[k]) continue;
+            const bTok = splitChainToken(bc[k]);
+            const cTok = splitChainToken(cc[k]);
+            if (bTok.prefix === cTok.prefix && bTok.name === '<anonymous>' && cTok.name !== '<anonymous>') {
+                const desc = `${bTok.prefix}: <anonymous> -> ${cTok.name}`;
+                knownRenames.set(desc, (knownRenames.get(desc) || 0) + 1);
+            } else {
+                errors.push(`Effective-chain diff on ${key} at #${k + 1}: baseline=${bc[k]} vs current=${cc[k]}`);
+            }
+        }
+    }
+
+    return { ok: errors.length === 0, errors, knownRenames, count: current.length };
+}
+
 function main() {
-    const { baselinePath, currentPath } = parseArgs(process.argv.slice(2));
-    const baselineText = fs.readFileSync(baselinePath, 'utf8');
-    const currentText = currentPath ? fs.readFileSync(currentPath, 'utf8') : runDumpRoutes();
+    const opts = parseArgs(process.argv.slice(2));
+    const baselineText = fs.readFileSync(opts.baselinePath, 'utf8');
+    const currentText = opts.currentPath ? fs.readFileSync(opts.currentPath, 'utf8') : runDumpRoutes();
     const result = checkRouteOverlap(baselineText, currentText);
 
     if (!result.ok) {
-        for (const err of result.errors) {
-            console.error(`ERROR: ${err}`);
-        }
+        for (const err of result.errors) console.error(`ERROR: ${err}`);
         process.exit(1);
     }
 
+    if (opts.skipEffective || opts.currentPath) {
+        if (!opts.effectiveCurrentPath) {
+            console.log(
+                `OK: route set=${result.count}/${result.count}, middlewares=${result.count}/${result.count}, ` +
+                `reordered_same_method=${result.reorderedSameMethod}, overlap_conflicts=0`
+            );
+            return;
+        }
+    }
+
+    const effBaseText = fs.readFileSync(opts.effectiveBaselinePath, 'utf8');
+    const effCurText = opts.effectiveCurrentPath
+        ? fs.readFileSync(opts.effectiveCurrentPath, 'utf8')
+        : runDumpRoutes(['--effective-chains']);
+    const effResult = checkEffectiveChains(effBaseText, effCurText);
+
+    if (!effResult.ok) {
+        for (const err of effResult.errors) console.error(`ERROR: ${err}`);
+        process.exit(1);
+    }
+
+    const renameNotes = [...effResult.knownRenames.entries()]
+        .map(([desc, n]) => `${desc} (${n} routes)`)
+        .join('; ');
     console.log(
         `OK: route set=${result.count}/${result.count}, middlewares=${result.count}/${result.count}, ` +
-        `reordered_same_method=${result.reorderedSameMethod}, overlap_conflicts=0`
+        `reordered_same_method=${result.reorderedSameMethod}, overlap_conflicts=0, ` +
+        `effective_chains=${effResult.count}/${effResult.count}` +
+        (renameNotes ? `, known_anonymous_renames=[${renameNotes}]` : '')
     );
 }
 
@@ -216,4 +307,5 @@ module.exports = {
     parseRouteLines,
     pathsCanMatchSameUrl,
     checkRouteOverlap,
+    checkEffectiveChains,
 };

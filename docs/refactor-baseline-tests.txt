@@ -176,6 +176,11 @@ Security: Error Exposure Tests :: should reject admin resolve on final status (S
 Security: Error Exposure Tests :: should reject invalid H2H API key
 Security: Error Exposure Tests :: should reject success/refund action from Pending status (must be Partial Refund first)
 Security: Error Exposure Tests :: should save provider_sn on successful callback
+crypto Unit Tests: timingSafeStringEqual :: returns false for empty strings (matches active server.js behavior)
+crypto Unit Tests: timingSafeStringEqual :: returns false for equal-length strings with different content
+crypto Unit Tests: timingSafeStringEqual :: returns false for non-string inputs
+crypto Unit Tests: timingSafeStringEqual :: returns false for strings with different lengths
+crypto Unit Tests: timingSafeStringEqual :: returns true for identical non-empty strings
 normalizePhone Unit Tests (Phase 2B) :: normalizePhone: +60 Malaysia
 normalizePhone Unit Tests (Phase 2B) :: normalizePhone: +62 + 81234567890 -> +6281234567890
 normalizePhone Unit Tests (Phase 2B) :: normalizePhone: +65 Singapore

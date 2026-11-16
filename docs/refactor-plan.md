@@ -288,3 +288,63 @@ Dipasang di `backend/server.js` dengan `app.use(createUserRoutes({ pool, protect
 - Import tak terpakai yang dihapus di Commit 3: `BOT_PRODUCT_BLACKLIST`, `normalizeProfilePhone`, `publicStatusLabel`, `maskInvoiceId`, `maskLeaderboardName`, `leaderboardRankLabel`, `isValidInvoiceId`, `sanitizeValidationServiceName`, `net`, `sendH2HWebhook`.
 - Skrip `backend/package.json` `check` diperbarui agar memeriksa `routes` dan `../scripts/check-route-overlap.js`.
 - Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`187` patokan R0 + `5` unit test `timingSafeStringEqual` di `tests/unit/crypto.test.js`, `0` gagal, `0` dilewati), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=260, overlap_conflicts=0`.
+
+---
+
+## R6a — Pemeriksa Rantai Efektif + Ekstraksi `auth.routes.js`, `userApiKey.routes.js`, & `waBot.routes.js`
+
+Catatan pembaruan patokan tes:
+- [refactor-baseline-tests.txt](file:///d:/DICKY%20BELAJAR/topup-miku/docs/refactor-baseline-tests.txt) diperbarui secara resmi dari `187` menjadi **`192`** tes dengan menambahkan 5 unit test `crypto Unit Tests: timingSafeStringEqual` hasil R5 Commit 0.
+
+### Commit 0 — Pemeriksa Rantai Middleware Efektif
+- `scripts/dump-routes.js` & `scripts/check-route-overlap.js` diperluas agar untuk setiap route (`METHOD path`) menghitung daftar berurutan layer `USE`/`ERR` global yang mount path-nya cocok dan terpasang sebelum route tersebut, digabung dengan middleware inline route.
+- Baseline rantai efektif (`docs/effective-chain.baseline.txt`) diturunkan dari commit `adfc68b` memakai metode `git archive adfc68b` + `mklink /J` di `%TEMP%\miku-base` tanpa `npm install` maupun menyalin `.env`.
+- Selisih nama murni `<anonymous> -> <nama fungsi>` (misalnya `<anonymous> -> securityHeaders` akibat R3) dicatat sebagai selisih yang diketahui; perubahan urutan, penambahan/penghilangan limiter, atau selisih nama lainnya menggagalkan pemeriksaan dengan exit code non-nol.
+
+### Pemetaan Commit 1 — `backend/routes/auth.routes.js` (`createAuthRoutes({ pool })`)
+
+Dipasang di `backend/server.js` dengan `app.use(createAuthRoutes({ pool }))` **tepat setelah `applyRateLimiters(app)`** pada posisi `POST /api/auth/register` agar `authLimiter` dan `registerLimiter` tetap berada pada rantai efektif setiap route auth.
+
+| Route | Baris Asal `server.js` | Dependensi |
+|---|---|---|
+| `POST /api/auth/register` | `430-496` | `pool`, `bcrypt`, `logSafeError`, `normalizeString`, `normalizePhone`, `isValidEmail`, `isValidPassword` |
+| `POST /api/auth/login` | `498-515` | `pool`, `bcrypt`, `jwt`, `JWT_SECRET`, `logSafeError`, `normalizeString` |
+| `POST /api/auth/forgot-password` | `517-557` | `pool`, `crypto`, `sendPasswordResetEmail`, `logSafeError`, `normalizeString`, `hashResetToken`, `isValidEmail` |
+| `POST /api/auth/reset-password` | `559-615` | `pool`, `bcrypt`, `logSafeError`, `hashResetToken`, `isValidPassword` |
+
+### Pemetaan Commit 2 — `backend/routes/userApiKey.routes.js` (`createUserApiKeyRoutes({ pool, protect })`)
+
+Dipasang di `backend/server.js` dengan `app.use(createUserApiKeyRoutes({ pool, protect }))` tepat setelah `app.use(createUserRoutes({ pool, protect }))`. Fungsi internal `handleGenerateOrRegenerateApiKey` (`636-669`) dan `handleRevokeApiKey` (`671-687`) ikut dipindah utuh dengan nama yang sama agar nama handler di `dump-routes` tetap identik.
+
+| Route | Baris Asal `server.js` | Dependensi |
+|---|---|---|
+| `POST /api/user/generate-apikey` | `689` | `protect`, `handleGenerateOrRegenerateApiKey` |
+| `POST /api/user/apikey/regenerate` | `690` | `protect`, `handleGenerateOrRegenerateApiKey` |
+| `GET /api/user/apikey` | `692-711` | `protect`, `pool`, `logSafeError` |
+| `DELETE /api/user/apikey` | `713` | `protect`, `handleRevokeApiKey` |
+| `POST /api/user/apikey/revoke` | `714` | `protect`, `handleRevokeApiKey` |
+| `GET /api/user/webhook-secret` | `716-731` | `protect`, `pool`, `logSafeError` |
+| `POST /api/user/webhook-secret/rotate` | `733-748` | `protect`, `pool`, `crypto`, `logSafeError` |
+| `GET /api/user/whitelisted-ips` | `750-762` | `protect`, `pool` |
+| `PUT /api/user/whitelisted-ips` | `765-785` | `protect`, `pool`, `normalizeString`, `isValidIpOrCidr` |
+
+**Route `/api/user/*` yang sengaja ditinggal di `server.js` pada R6a:**
+- `GET /api/user/deposits` (`1067-1084`) — bagian grup deposit (R6b) bersama `/api/payment-methods`, `/api/deposit/request`, dan `/api/admin/deposits*`.
+
+### Pemetaan Commit 3 — `backend/middleware/waBotAuth.js` & `backend/routes/waBot.routes.js`
+
+- `backend/middleware/waBotAuth.js`: mengekspor `requireWaBotAdminToken` (`2486-2521`), tetap membaca `process.env.WA_BOT_ADMIN_TOKEN` pada saat request dan memakai `crypto.timingSafeEqual`.
+- `backend/routes/waBot.routes.js` (`createWaBotRoutes({ pool, createNotification, requireWaBotAdminToken })`): dipasang pada posisi `GET /api/bot/admin/deposits/pending` (setelah `requireWaBotAdminToken` dipindah). Logika approve/reject dipindah utuh apa adanya tanpa digabung dengan admin approve.
+
+| Route | Baris Asal `server.js` | Dependensi |
+|---|---|---|
+| `GET /api/bot/admin/deposits/pending` | `2526-2576` | `requireWaBotAdminToken`, `pool`, `formatRupiahBot`, `logSafeError` |
+| `GET /api/bot/admin/deposits/:id` | `2580-2630` | `requireWaBotAdminToken`, `pool`, `formatRupiahBot`, `logSafeError` |
+| `POST /api/bot/admin/deposits/:id/approve` | `2637-2741` | `requireWaBotAdminToken`, `pool`, `createNotification`, `formatRupiahBot`, `logSafeError` |
+| `POST /api/bot/admin/deposits/:id/reject` | `2746-2822` | `requireWaBotAdminToken`, `pool`, `createNotification`, `formatRupiahBot`, `logSafeError` |
+
+**Route lainnya yang sengaja ditinggal pada R6a:**
+- Grup deposit (`/api/payment-methods`, `/api/deposit/request`, `/api/user/deposits`), seluruh grup `/api/admin/*`, route validasi/promo/produk (`R7`), serta alur order/callback/H2H (`R9`) tetap di `server.js` sesuai urutan tahap refactor.
+
+### Pembersihan Commit 4
+- Audit dan hapus import yang tidak lagi dipakai di `backend/server.js` (`hashResetToken`, `normalizePhone`, dll. — dicek satu per satu), verifikasi `backend/package.json` `check`, dan catat hasil akhir R6a di `docs/refactor-plan.md`.

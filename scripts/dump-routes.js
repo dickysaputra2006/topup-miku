@@ -8,6 +8,7 @@ const path = require('path');
  */
 function parseArgs(argv) {
     let layers = false;
+    let effectiveChains = false;
     let target = null;
     let root = null;
 
@@ -15,6 +16,8 @@ function parseArgs(argv) {
         const arg = argv[i];
         if (arg === '--layers') {
             layers = true;
+        } else if (arg === '--effective-chains') {
+            effectiveChains = true;
         } else if (arg === '--target' && i + 1 < argv.length) {
             target = argv[++i];
         } else if (arg.startsWith('--target=')) {
@@ -26,7 +29,7 @@ function parseArgs(argv) {
         }
     }
 
-    return { layers, target, root };
+    return { layers, effectiveChains, target, root };
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -115,6 +118,64 @@ function collectLayers(stack, prefix = '', output = []) {
     return output;
 }
 
+function splitSegments(routePath) {
+    return routePath.split('/').filter(Boolean);
+}
+
+function isParamSegment(seg) {
+    return seg.startsWith(':') || seg === '*';
+}
+
+function mountPathMatchesRoute(mountPath, routePath) {
+    if (!mountPath || mountPath === '/') return true;
+    const mountSegs = splitSegments(mountPath);
+    const routeSegs = splitSegments(routePath);
+    if (mountSegs.length > routeSegs.length) return false;
+
+    for (let i = 0; i < mountSegs.length; i++) {
+        const ms = mountSegs[i];
+        const rs = routeSegs[i];
+        if (!isParamSegment(ms) && !isParamSegment(rs) && ms !== rs) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Collect effective middleware chain (matching preceding USE/ERR layers + inline route handlers) per route.
+ */
+function collectEffectiveChains(stack, prefix = '', scopeLayers = [], output = []) {
+    const currentScope = [...scopeLayers];
+
+    for (const layer of stack) {
+        if (layer.route) {
+            const fullPath = joinPaths(prefix, layer.route.path);
+            const methods = Object.keys(layer.route.methods)
+                .filter((m) => layer.route.methods[m])
+                .map((m) => m.toUpperCase());
+            const matchingGlobal = currentScope
+                .filter((m) => mountPathMatchesRoute(m.mountPath, fullPath))
+                .map((m) => `${m.kind}(${m.mountPath}):${m.name}`);
+            const inlineHandlers = layer.route.stack.map((r) => `ROUTE:${formatHandlerName(r)}`);
+            const chain = [...matchingGlobal, ...inlineHandlers];
+
+            for (const method of methods) {
+                output.push(`${method.padEnd(6)} ${fullPath} [${chain.join(', ')}]`);
+            }
+        } else if (layer.name === 'router' && layer.handle && Array.isArray(layer.handle.stack)) {
+            const mountPrefix = joinPaths(prefix, extractMountPath(layer));
+            collectEffectiveChains(layer.handle.stack, mountPrefix, currentScope, output);
+        } else {
+            const mountPath = joinPaths(prefix, extractMountPath(layer)) || '/';
+            const kind = (layer.handle && layer.handle.length === 4) ? 'ERR' : 'USE';
+            currentScope.push({ kind, mountPath, name: formatHandlerName(layer) });
+        }
+    }
+
+    return output;
+}
+
 async function main() {
     if (!process.env.JWT_SECRET) {
         process.env.JWT_SECRET = 'dump-routes-inspection-placeholder';
@@ -135,7 +196,11 @@ async function main() {
 
     try {
         const rootStack = (app._router && app._router.stack) || (app.router && app.router.stack) || [];
-        const lines = args.layers ? collectLayers(rootStack) : collectRoutes(rootStack);
+        const lines = args.effectiveChains
+            ? collectEffectiveChains(rootStack)
+            : args.layers
+                ? collectLayers(rootStack)
+                : collectRoutes(rootStack);
         process.stdout.write(`${lines.join('\n')}\n`);
         if (pool && typeof pool.end === 'function') {
             await pool.end().catch(() => {});
@@ -158,4 +223,5 @@ module.exports = {
     formatHandlerName,
     collectRoutes,
     collectLayers,
+    collectEffectiveChains,
 };
