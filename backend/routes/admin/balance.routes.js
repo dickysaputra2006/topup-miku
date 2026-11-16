@@ -1,4 +1,5 @@
 const express = require('express');
+const { logSafeError } = require('../../utils/logger');
 const {
     recordAdminAuditLog: defaultRecordAdminAuditLog,
 } = require('../../services/auditLogService');
@@ -54,7 +55,7 @@ module.exports = function createAdminBalanceRoutes(deps) {
             res.json({ message: `Saldo sebesar ${amount} berhasil ditambahkan ke akun ${username}.` });
         } catch (error) {
             await client.query('ROLLBACK');
-            console.error('Error adding balance manually:', error);
+            logSafeError('Error adding balance manually:', error);
             res.status(500).json({ message: 'Gagal menambah saldo.' });
         } finally {
             client.release();
@@ -92,7 +93,7 @@ module.exports = function createAdminBalanceRoutes(deps) {
             res.json({ message: `Saldo akun ${username} berhasil dikurangi sebesar ${numericAmount}.` });
         } catch (error) {
             await client.query('ROLLBACK');
-            console.error('Error reducing balance manually:', error);
+            logSafeError('Error reducing balance manually:', error);
             res.status(500).json({ message: 'Gagal mengurangi saldo.' });
         } finally {
             client.release();

@@ -1,5 +1,8 @@
 const express = require('express');
 const axios = require('axios');
+const { logSafeError } = require('../../utils/logger');
+const { normalizeString } = require('../../utils/strings');
+const { isSafeAssetUrl } = require('../../utils/validation');
 const {
     recordAdminAuditLog: defaultRecordAdminAuditLog,
 } = require('../../services/auditLogService');
@@ -30,7 +33,7 @@ module.exports = function createAdminGamesRoutes(deps) {
             const { rows } = await pool.query('SELECT * FROM roles ORDER BY id ASC');
             res.json(rows);
         } catch (error) {
-            console.error('Error fetching roles:', error);
+            logSafeError('Error fetching roles:', error);
             res.status(500).json({ message: 'Gagal mengambil data roles.' });
         }
     });
@@ -61,7 +64,7 @@ module.exports = function createAdminGamesRoutes(deps) {
             res.json({ message: 'Margin berhasil diperbarui.' });
         } catch (error) {
             await client.query('ROLLBACK');
-            console.error('Error updating roles margin:', error);
+            logSafeError('Error updating roles margin:', error);
             res.status(500).json({ message: 'Gagal memperbarui margin.' });
         } finally {
             client.release();
@@ -74,15 +77,24 @@ module.exports = function createAdminGamesRoutes(deps) {
             const { rows } = await pool.query(sql);
             res.json(rows);
         } catch (error) {
-            console.error('Error fetching admin games:', error);
+            logSafeError('Error fetching admin games:', error);
             res.status(500).json({ message: 'Server error saat mengambil data game.' });
         }
     });
 
     router.post('/api/admin/games', protectAdmin, async (req, res) => {
         try {
-            const { name, category, imageUrl } = req.body;
-            if (!name || !category || !imageUrl) return res.status(400).json({ message: 'Semua kolom wajib diisi.' });
+            const name = normalizeString(req.body && req.body.name, 120);
+            const category = normalizeString(req.body && req.body.category, 80);
+            const imageUrl = normalizeString(req.body && req.body.imageUrl, 1000);
+            if (!name || !category || !imageUrl) {
+                return res.status(400).json({ message: 'Semua kolom wajib diisi.' });
+            }
+            if (!isSafeAssetUrl(imageUrl, { allowEmpty: false })) {
+                return res.status(400).json({
+                    message: 'URL gambar game tidak valid. Gunakan URL HTTPS publik yang aman atau path /...'
+                });
+            }
             const sql = 'INSERT INTO games (name, category, image_url, status, needs_server_id) VALUES ($1, $2, $3, $4, $5)'; // Tambah status & needs_server_id
             await pool.query(sql, [name, category, imageUrl, 'Active', false]); // Default nilai
             await recordAdminAuditLog(pool, {
@@ -95,7 +107,7 @@ module.exports = function createAdminGamesRoutes(deps) {
             });
             res.status(201).json({ message: `Game ${name} berhasil ditambahkan.` });
         } catch (error) {
-            console.error('Error adding game:', error);
+            logSafeError('Error adding game:', error);
             if (error.code === '23505') return res.status(409).json({ message: 'Game dengan nama ini sudah ada.' });
             res.status(500).json({ message: 'Server error saat menambah game.' });
         }
@@ -132,7 +144,7 @@ module.exports = function createAdminGamesRoutes(deps) {
             res.json({ message: `Status game berhasil diubah menjadi ${status}.` });
 
         } catch (error) {
-            console.error('Error updating game status:', error);
+            logSafeError('Error updating game status:', error);
             res.status(500).json({ message: 'Gagal memperbarui status game.' });
         }
     });
@@ -170,7 +182,7 @@ module.exports = function createAdminGamesRoutes(deps) {
             res.json({ message: `Pengaturan 'Perlu Server' untuk game berhasil diubah.` });
 
         } catch (error) {
-            console.error('Error updating game needs_server_id:', error);
+            logSafeError('Error updating game needs_server_id:', error);
             res.status(500).json({ message: 'Gagal memperbarui pengaturan game.' });
         }
     });
@@ -202,7 +214,7 @@ module.exports = function createAdminGamesRoutes(deps) {
                 data: services
             });
         } catch (err) {
-            console.warn('[pgs-preview] Gagal mengambil service PGS:', err && err.message);
+            logSafeError('[pgs-preview] Gagal mengambil service PGS:', err);
             res.status(502).json({ message: 'Gagal mengambil data dari PGS. Coba lagi nanti.' });
         }
     });

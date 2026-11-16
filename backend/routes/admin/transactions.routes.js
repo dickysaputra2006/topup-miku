@@ -50,7 +50,7 @@ module.exports = function createAdminTransactionsRoutes(deps) {
             const { rows } = await pool.query(sql);
             res.json(rows);
         } catch (error) {
-            console.error("Gagal mengambil riwayat transaksi admin:", error);
+            logSafeError("Gagal mengambil riwayat transaksi admin:", error);
             res.status(500).json({ message: 'Server error saat mengambil riwayat transaksi.' });
         }
     });

@@ -1,4 +1,5 @@
 const express = require('express');
+const { logSafeError } = require('../../utils/logger');
 const {
     recordAdminAuditLog: defaultRecordAdminAuditLog,
 } = require('../../services/auditLogService');
@@ -57,7 +58,7 @@ module.exports = function createAdminDepositsRoutes(deps) {
             const { rows } = await pool.query(sql, params);
             res.json(rows);
         } catch (error) {
-            console.error('Error fetching deposits (admin):', error);
+            logSafeError('Error fetching deposits (admin):', error);
             res.status(500).json({ message: 'Server error saat mengambil data deposit.' });
         }
     });
@@ -75,7 +76,7 @@ module.exports = function createAdminDepositsRoutes(deps) {
             const { rows } = await pool.query(sql);
             res.json(rows);
         } catch (error) {
-            console.error('Error fetching pending deposits:', error);
+            logSafeError('Error fetching pending deposits:', error);
             res.status(500).json({ message: 'Server error saat mengambil data deposit.' });
         }
     });
@@ -155,11 +156,11 @@ module.exports = function createAdminDepositsRoutes(deps) {
             createNotification(
                 deposit.user_id,
                 `Deposit #${deposit.id} sebesar Rp ${Number(deposit.amount).toLocaleString('id-ID')} telah disetujui dan masuk ke saldo.`
-            ).catch(err => console.error('Notifikasi approve deposit gagal:', err));
+            ).catch(err => logSafeError('Notifikasi approve deposit gagal:', err));
             res.json({ message: `Deposit #${depositId} berhasil disetujui. Saldo user bertambah.` });
         } catch (error) {
             await client.query('ROLLBACK');
-            console.error('Error approving deposit:', error);
+            logSafeError('Error approving deposit:', error);
             res.status(500).json({ message: 'Gagal menyetujui deposit.' });
         } finally {
             client.release();
@@ -223,11 +224,11 @@ module.exports = function createAdminDepositsRoutes(deps) {
             createNotification(
                 deposit.user_id,
                 `Deposit #${deposit.id} sebesar Rp ${Number(deposit.amount).toLocaleString('id-ID')} ditolak. Hubungi admin untuk informasi lebih lanjut.`
-            ).catch(err => console.error('Notifikasi reject deposit gagal:', err));
+            ).catch(err => logSafeError('Notifikasi reject deposit gagal:', err));
             res.json({ message: `Deposit #${depositId} berhasil ditolak.` });
         } catch (error) {
             await client.query('ROLLBACK');
-            console.error('Error rejecting deposit:', error);
+            logSafeError('Error rejecting deposit:', error);
             res.status(500).json({ message: 'Gagal menolak deposit.' });
         } finally {
             client.release();

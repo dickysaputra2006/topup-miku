@@ -1,4 +1,5 @@
 const express = require('express');
+const { logSafeError } = require('../../utils/logger');
 const {
     recordAdminAuditLog: defaultRecordAdminAuditLog,
 } = require('../../services/auditLogService');
@@ -36,7 +37,7 @@ module.exports = function createAdminMarginsRoutes(deps) {
                 res.json({ use_custom_margin: false });
             }
         } catch (error) {
-            console.error('Error fetching game margins:', error);
+            logSafeError('Error fetching game margins:', error);
             res.status(500).json({ message: 'Gagal mengambil data margin game.' });
         }
     });
@@ -77,7 +78,7 @@ module.exports = function createAdminMarginsRoutes(deps) {
             res.json({ message: 'Pengaturan margin untuk game ini berhasil disimpan.' });
 
         } catch (error) {
-            console.error('Error saving game margins:', error);
+            logSafeError('Error saving game margins:', error);
             res.status(500).json({ message: 'Gagal menyimpan data margin game.' });
         }
     });
@@ -99,7 +100,7 @@ module.exports = function createAdminMarginsRoutes(deps) {
                 res.status(404).json({ message: 'Produk tidak ditemukan.' });
             }
         } catch (error) {
-            console.error('Error fetching manual prices:', error);
+            logSafeError('Error fetching manual prices:', error);
             res.status(500).json({ message: 'Gagal mengambil data harga manual.' });
         }
     });
@@ -132,7 +133,7 @@ module.exports = function createAdminMarginsRoutes(deps) {
             res.json({ message: 'Pengaturan harga manual berhasil disimpan.' });
 
         } catch (error) {
-            console.error('Error saving manual prices:', error);
+            logSafeError('Error saving manual prices:', error);
             res.status(500).json({ message: 'Gagal menyimpan data harga manual.' });
         }
     });

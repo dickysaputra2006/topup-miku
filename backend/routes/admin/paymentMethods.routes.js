@@ -1,5 +1,6 @@
 const express = require('express');
 const { ALLOWED_PAYMENT_METHOD_TYPES } = require('../../config/constants');
+const { logSafeError } = require('../../utils/logger');
 const {
     isSafeAssetUrl,
     parseOptionalBoolean,
@@ -46,7 +47,7 @@ function normalizePaymentMethodPayload(body, existing = null) {
     const qrisUrlRes = parseOptionalText(src, 'qris_image_url', existing?.qris_image_url ?? null, 1000);
     if (qrisUrlRes.error) return { error: 'URL gambar QRIS ' + qrisUrlRes.error };
     if (qrisUrlRes.value && !isSafeAssetUrl(qrisUrlRes.value)) {
-        return { error: 'URL gambar QRIS tidak valid. Gunakan URL http(s):// atau path /...' };
+        return { error: 'URL gambar QRIS tidak valid. Gunakan URL HTTPS publik yang aman atau path /...' };
     }
 
     const instrRes = parseOptionalText(src, 'instructions', existing?.instructions ?? null, 1000);
@@ -136,7 +137,7 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
             const { rows } = await pool.query(sql);
             res.json(rows);
         } catch (error) {
-            console.error('Error fetching admin payment methods:', error);
+            logSafeError('Error fetching admin payment methods:', error);
             res.status(500).json({ message: 'Gagal memuat daftar metode pembayaran.' });
         }
     });
@@ -179,7 +180,7 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
             if (error && error.code === '23505') {
                 return res.status(409).json({ message: 'Kode metode pembayaran sudah digunakan.' });
             }
-            console.error('Error creating payment method:', error);
+            logSafeError('Error creating payment method:', error);
             res.status(500).json({ message: 'Gagal menambahkan metode pembayaran.' });
         }
     });
@@ -239,7 +240,7 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
             if (error && error.code === '23505') {
                 return res.status(409).json({ message: 'Kode metode pembayaran sudah digunakan.' });
             }
-            console.error('Error updating payment method:', error);
+            logSafeError('Error updating payment method:', error);
             res.status(500).json({ message: 'Gagal memperbarui metode pembayaran.' });
         }
     });
@@ -264,7 +265,7 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
             });
             res.json({ message: `Metode pembayaran "${rows[0].name}" berhasil dihapus.` });
         } catch (error) {
-            console.error('Error deleting payment method:', error);
+            logSafeError('Error deleting payment method:', error);
             res.status(500).json({ message: 'Gagal menghapus metode pembayaran.' });
         }
     });
