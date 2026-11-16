@@ -87,150 +87,66 @@
 
             <section id="produk-dan-game" class="admin-section">
                 <div class="card">
-                    <h3>Sinkronisasi Produk Otomatis</h3>
-                    <form id="sync-products-form">
-                        <div class="form-group">
-                            <label for="margin-percent">Margin Harga (%)</label>
-                            <input type="number" id="margin-percent" value="10" required>
+                    <div class="admin-toolbar">
+                        <div class="admin-toolbar-heading">
+                            <h2 id="product-list-title"><i class="fas fa-gamepad" aria-hidden="true"></i> Katalog Produk &amp; Game</h2>
+                            <span id="catalog-stats-pill" class="catalog-stats-pill">Memuat katalog...</span>
                         </div>
-                        <button type="submit">Sinkronkan Sekarang</button>
-                    </form>
-                </div>
-
-                <div class="card">
-                    <h3>Manajemen Game &amp; Produk</h3>
-                    <div class="admin-forms-container">
-                        <form id="add-game-form" class="admin-form">
-                            <h4>Tambah Game Baru</h4>
-                            <label for="game-name">Nama Game</label>
-                            <input type="text" id="game-name" placeholder="Contoh: Mobile Legends" required>
-                            <label for="game-category">Kategori</label>
-                            <select id="game-category" required>
-                                <option value="Mobile Game" selected>Mobile Game</option>
-                                <option value="PC Game">PC Game</option>
-                                <option value="Voucher">Voucher</option>
-                            </select>
-                            <label for="game-image">URL Gambar</label>
-                            <input type="text" id="game-image" placeholder="https://..." required>
-                            <button type="submit">Tambah Game</button>
-                        </form>
-                        <form id="add-product-form" class="admin-form">
-                            <h4>Tambah Produk Baru</h4>
-                            <label for="product-game">Pilih Game</label>
-                            <select id="product-game" required>
-                                <option value="">Memuat game...</option>
-                            </select>
-                            <label for="product-name">Nama Produk</label>
-                            <input type="text" id="product-name" placeholder="Contoh: 100 Diamonds" required>
-                            <label for="product-sku">SKU Provider</label>
-                            <input type="text" id="product-sku" placeholder="Kode unik dari Foxy" required>
-                            <label for="product-price">Harga Jual</label>
-                            <input type="number" id="product-price" placeholder="Contoh: 25000" required>
-                            <button type="submit">Tambah Produk</button>
-                        </form>
+                        <div class="admin-toolbar-controls">
+                            <button type="button" id="open-add-game-modal-btn" class="admin-btn-primary">
+                                <i class="fas fa-plus" aria-hidden="true"></i> Tambah Game
+                            </button>
+                            <button type="button" id="open-add-product-modal-btn" class="admin-btn-secondary">
+                                <i class="fas fa-box-open" aria-hidden="true"></i> Tambah Produk
+                            </button>
+                            <button type="button" id="open-sync-modal-btn" class="admin-btn-secondary">
+                                <i class="fas fa-sync-alt" aria-hidden="true"></i> Sinkronkan Foxy
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <div class="card">
-                    <h3>Daftar Game &amp; Produk</h3>
-                    <div class="admin-game-manager">
-                        <h4><i class="fas fa-search" aria-hidden="true"></i> Pilih Game untuk Dikelola</h4>
-                        <div class="game-selector-form">
-                            <input type="text" id="game-search-input" placeholder="Ketik untuk mencari game..." aria-label="Cari nama game">
-                            <select id="game-selector-dropdown" aria-label="Pilih game">
-                                <option value="">-- Silakan Pilih Game --</option>
-                            </select>
+                    <div id="sync-result-banner" class="admin-sync-summary hidden" aria-live="polite"></div>
+
+                    <div class="catalog-filter-grid">
+                        <input type="text" id="game-search-input" class="admin-input" placeholder="Cari nama game..." aria-label="Cari nama game">
+                        <select id="game-selector-dropdown" class="admin-input" aria-label="Filter game">
+                            <option value="">Semua Game</option>
+                        </select>
+                        <input type="text" id="product-search-input" class="admin-input" placeholder="Cari produk atau SKU..." aria-label="Cari produk atau SKU">
+                        <select id="product-status-filter" class="admin-input" aria-label="Filter status produk">
+                            <option value="">Semua Status</option>
+                            <option value="Active">Aktif</option>
+                            <option value="Inactive">Nonaktif</option>
+                        </select>
+                    </div>
+
+                    <div id="game-info-container" class="card hidden"></div>
+
+                    <div id="product-list-container">
+                        <div tabindex="0" role="region" aria-labelledby="product-list-title" class="table-container admin-table-scroll">
+                            <table id="products-table">
+                                <thead>
+                                    <tr>
+                                        <th>Game</th>
+                                        <th>Nama Produk</th>
+                                        <th class="td-numeric">Harga Pokok</th>
+                                        <th>SKU</th>
+                                        <th>Status</th>
+                                        <th>Validasi</th>
+                                        <th>Harga Manual</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="table-loading-row"><td colspan="7"><div class="ui-state loading">Memuat daftar produk...</div></td></tr>
+                                </tbody>
+                            </table>
                         </div>
-
-                        <div id="game-info-container" class="card hidden"></div>
-
-                        <div id="game-margin-container" class="card hidden">
-                            <h4><i class="fas fa-percent" aria-hidden="true"></i> Manajemen Margin Khusus Game</h4>
-                            <form id="game-margin-form" class="admin-form admin-form-bare">
-                                <div class="game-info-toggle">
-                                    <strong>Gunakan Margin Khusus untuk Game Ini?</strong>
-                                    <label class="switch">
-                                        <input type="checkbox" id="use-custom-margin-toggle">
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-
-                                <div id="custom-margin-fields" class="hidden">
-                                    <p class="form-description">Isi margin dalam persen (%). Nilai ini akan menimpa margin global.</p>
-                                    <label for="margin-bronze">Margin Bronze</label>
-                                    <input type="number" id="margin-bronze" step="0.01" placeholder="Contoh: 5.50">
-
-                                    <label for="margin-partner">Margin Partner</label>
-                                    <input type="number" id="margin-partner" step="0.01" placeholder="Contoh: 4.00">
-
-                                    <label for="margin-silver">Margin Silver</label>
-                                    <input type="number" id="margin-silver" step="0.01" placeholder="Contoh: 4.50">
-
-                                    <label for="margin-gold">Margin Gold</label>
-                                    <input type="number" id="margin-gold" step="0.01" placeholder="Contoh: 3.50">
-                                </div>
-
-                                <button type="submit">Simpan Margin Game</button>
-                            </form>
-                        </div>
-
-                        <div id="product-list-container" class="hidden">
-                            <h4 id="product-list-title">Produk</h4>
-                            <div tabindex="0" role="region" aria-labelledby="product-list-title" class="table-container admin-table-scroll">
-                                <table id="products-table">
-                                    <thead>
-                                        <tr></tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr><td colspan="3">Memuat produk...</td></tr>
-                                    </tbody>
-                                </table>
+                        <div id="catalog-pagination" class="catalog-pagination">
+                            <span id="catalog-page-info">Menampilkan 0 produk</span>
+                            <div class="catalog-pagination-actions">
+                                <button type="button" id="catalog-prev-btn" class="admin-btn-secondary edit-btn-compact" disabled>Sebelumnya</button>
+                                <button type="button" id="catalog-next-btn" class="admin-btn-secondary edit-btn-compact" disabled>Berikutnya</button>
                             </div>
-                        </div>
-
-                        <div id="product-validation-editor" class="hidden">
-                            <div class="admin-toolbar">
-                                <h4><i class="fas fa-check-circle" aria-hidden="true"></i> Pengaturan Validasi Produk</h4>
-                                <button type="button" id="apply-validation-to-all-btn" class="admin-btn-secondary">Terapkan ke Semua</button>
-                            </div>
-                            <p>Atur validasi yang akan dijalankan saat pelanggan membeli produk ini.</p>
-                            <form id="validation-config-form" class="admin-form admin-form-bare">
-                                <label for="validator-search-input">Cari Validator</label>
-                                <input type="text" id="validator-search-input" placeholder="Ketik nama game untuk mencari...">
-                                <label for="validation-selector">Tipe Validator</label>
-                                <select id="validation-selector">
-                                    <option value="">-- Tidak Perlu Validasi --</option>
-                                </select>
-                                <div id="validation-rules-container" class="hidden">
-                                    <label for="allowed-regions-input">Aturan Region (Opsional, pisahkan dengan koma)</label>
-                                    <input type="text" id="allowed-regions-input" placeholder="Region DIIZINKAN (Contoh: BR,US)">
-                                    <input type="text" id="disallowed-regions-input" aria-label="Region Dilarang" placeholder="Region DILARANG (Contoh: ID,MY)">
-                                </div>
-                                <button type="submit">Simpan Pengaturan Validasi</button>
-                            </form>
-                        </div>
-
-                        <div id="manual-price-editor" class="hidden">
-                            <h4><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> Pengaturan Harga Jual Manual</h4>
-                            <p>Atur harga jual final untuk produk <strong id="manual-price-product-name">-</strong>. Harga ini akan menimpa semua perhitungan margin.</p>
-                            <form id="manual-price-form" class="admin-form admin-form-bare">
-                                <div class="game-info-toggle">
-                                    <strong>Gunakan Harga Manual untuk Produk Ini?</strong>
-                                    <label class="switch">
-                                        <input type="checkbox" id="use-manual-prices-toggle">
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-
-                                <div id="manual-price-fields" class="hidden">
-                                    <p class="form-description">Isi harga jual akhir (Rp). Kosongkan jika ingin menggunakan perhitungan margin untuk role tersebut.</p>
-                                    <div id="manual-price-inputs-container">
-                                        <p>Memuat role...</p>
-                                    </div>
-                                </div>
-
-                                <button type="submit">Simpan Harga Manual</button>
-                            </form>
                         </div>
                     </div>
                 </div>
@@ -283,6 +199,34 @@
             </section>
 
             <section id="payment-methods" class="admin-section hidden">
+                <div class="card">
+                    <div class="admin-toolbar">
+                        <div class="admin-toolbar-heading">
+                            <h3 id="pm-table-heading"><i class="fas fa-list" aria-hidden="true"></i> Daftar Metode Pembayaran</h3>
+                        </div>
+                        <button type="button" id="refresh-pm-btn" class="admin-btn-secondary">
+                            <i class="fas fa-sync-alt" aria-hidden="true"></i> Refresh
+                        </button>
+                    </div>
+                    <div tabindex="0" role="region" aria-labelledby="pm-table-heading" class="table-container admin-table-scroll">
+                        <table id="admin-payment-methods-table">
+                            <thead>
+                                <tr>
+                                    <th class="td-numeric">Urutan</th>
+                                    <th>Kode</th>
+                                    <th>Nama Metode</th>
+                                    <th>Tipe</th>
+                                    <th>Rekening / Tujuan</th>
+                                    <th class="td-numeric">Min. Deposit</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-payment-methods-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <div class="card">
                     <h3 id="pm-form-title"><i class="fas fa-credit-card" aria-hidden="true"></i> Tambah Metode Pembayaran</h3>
                     <form id="payment-method-form" class="admin-form admin-form-bare" aria-labelledby="pm-form-title">
@@ -339,34 +283,6 @@
                         </div>
                         <div id="pm-form-status" class="form-status-msg" role="status" aria-live="polite"></div>
                     </form>
-                </div>
-
-                <div class="card">
-                    <div class="admin-toolbar">
-                        <div class="admin-toolbar-heading">
-                            <h3 id="pm-table-heading"><i class="fas fa-list" aria-hidden="true"></i> Daftar Metode Pembayaran</h3>
-                        </div>
-                        <button type="button" id="refresh-pm-btn" class="admin-btn-secondary">
-                            <i class="fas fa-sync-alt" aria-hidden="true"></i> Refresh
-                        </button>
-                    </div>
-                    <div tabindex="0" role="region" aria-labelledby="pm-table-heading" class="table-container admin-table-scroll">
-                        <table id="admin-payment-methods-table">
-                            <thead>
-                                <tr>
-                                    <th>Urutan</th>
-                                    <th>Kode</th>
-                                    <th>Nama Metode</th>
-                                    <th>Tipe</th>
-                                    <th>Rekening / Tujuan</th>
-                                    <th>Min. Deposit</th>
-                                    <th>Status</th>
-                                    <th>Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody id="admin-payment-methods-tbody"></tbody>
-                        </table>
-                    </div>
                 </div>
             </section>
 
@@ -447,8 +363,8 @@
                                     <th>Kode</th>
                                     <th>Deskripsi</th>
                                     <th>Tipe</th>
-                                    <th>Nilai</th>
-                                    <th>Penggunaan</th>
+                                    <th class="td-numeric">Nilai</th>
+                                    <th class="td-numeric">Penggunaan</th>
                                     <th>Aktif</th>
                                 </tr>
                             </thead>
@@ -504,8 +420,8 @@
                                 <tr>
                                     <th>Game</th>
                                     <th>Produk</th>
-                                    <th>Harga Diskon</th>
-                                    <th>Kuota</th>
+                                    <th class="td-numeric">Harga Diskon</th>
+                                    <th class="td-numeric">Kuota</th>
                                     <th>Berakhir Pada</th>
                                     <th>Aksi</th>
                                 </tr>
@@ -526,7 +442,7 @@
                                     <th>Invoice</th>
                                     <th>User</th>
                                     <th>Produk</th>
-                                    <th>Harga</th>
+                                    <th class="td-numeric">Harga</th>
                                     <th>Status</th>
                                     <th>Tanggal</th>
                                     <th>Aksi</th>
@@ -538,6 +454,219 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- Modal Tambah Game -->
+    <div id="add-game-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="add-game-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="add-game-modal-title">Tambah Game Baru</h3>
+                <button type="button" id="close-add-game-modal-btn" class="close-modal" aria-label="Tutup modal tambah game">&times;</button>
+            </div>
+            <form id="add-game-form">
+                <div class="admin-modal-body">
+                    <div class="admin-modal-field">
+                        <label for="game-name">Nama Game <span aria-hidden="true">*</span></label>
+                        <input type="text" id="game-name" placeholder="Contoh: Mobile Legends" required>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="game-category">Kategori <span aria-hidden="true">*</span></label>
+                        <select id="game-category" required>
+                            <option value="Mobile Game" selected>Mobile Game</option>
+                            <option value="PC Game">PC Game</option>
+                            <option value="Voucher">Voucher</option>
+                        </select>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="game-image">URL Gambar <span aria-hidden="true">*</span></label>
+                        <input type="text" id="game-image" placeholder="https://..." required>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-add-game-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-add-game-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Tambah Produk -->
+    <div id="add-product-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="add-product-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="add-product-modal-title">Tambah Produk Baru</h3>
+                <button type="button" id="close-add-product-modal-btn" class="close-modal" aria-label="Tutup modal tambah produk">&times;</button>
+            </div>
+            <form id="add-product-form">
+                <div class="admin-modal-body">
+                    <p class="admin-modal-warning">Katalog SKU Foxy dikelola lewat sinkronisasi otomatis. Form ini tetap tersedia untuk pengecekan cepat tanpa mengubah katalog Foxy.</p>
+                    <div class="admin-modal-field">
+                        <label for="product-game">Pilih Game</label>
+                        <select id="product-game" required>
+                            <option value="">Memuat game...</option>
+                        </select>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="product-name">Nama Produk</label>
+                        <input type="text" id="product-name" placeholder="Contoh: 100 Diamonds" required>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="product-sku">SKU Provider</label>
+                        <input type="text" id="product-sku" placeholder="Kode unik dari Foxy" required>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="product-price">Harga Jual (Rp)</label>
+                        <input type="number" id="product-price" placeholder="Contoh: 25000" required>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-add-product-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-add-product-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Konfirmasi Sinkronisasi Produk Foxy -->
+    <div id="sync-products-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="sync-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="sync-modal-title">Konfirmasi Sinkronisasi Foxy</h3>
+                <button type="button" id="close-sync-modal-btn" class="close-modal" aria-label="Tutup modal sinkronisasi">&times;</button>
+            </div>
+            <form id="sync-products-form">
+                <div class="admin-modal-body">
+                    <p class="admin-modal-message">Proses ini mengambil katalog Foxy terbaru, memperbarui harga modal produk aktif, dan menonaktifkan SKU lokal yang tidak lagi tersedia di provider.</p>
+                    <div id="sync-preview-details" class="admin-detail-summary"></div>
+                    <div class="admin-modal-field">
+                        <label for="margin-percent">Margin Acuan (%)</label>
+                        <input type="number" id="margin-percent" value="10" min="0" step="0.01" required>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-sync-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="confirm-sync-btn" class="admin-btn-primary">Sinkronkan Sekarang</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Margin Khusus Game -->
+    <div id="game-margin-container" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="game-margin-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="game-margin-modal-title">Margin Khusus Game</h3>
+                <button type="button" id="close-game-margin-modal-btn" class="close-modal" aria-label="Tutup modal margin game">&times;</button>
+            </div>
+            <form id="game-margin-form">
+                <div class="admin-modal-body">
+                    <div class="game-info-toggle">
+                        <strong>Gunakan Margin Khusus untuk Game Ini?</strong>
+                        <label class="switch">
+                            <input type="checkbox" id="use-custom-margin-toggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div id="custom-margin-fields" class="hidden">
+                        <p class="admin-modal-message">Isi margin dalam persen (%). Nilai ini akan menimpa margin global.</p>
+                        <div class="admin-modal-field">
+                            <label for="margin-bronze">Margin Bronze (%)</label>
+                            <input type="number" id="margin-bronze" step="0.01" placeholder="Contoh: 5.50">
+                        </div>
+                        <div class="admin-modal-field">
+                            <label for="margin-partner">Margin Partner (%)</label>
+                            <input type="number" id="margin-partner" step="0.01" placeholder="Contoh: 4.00">
+                        </div>
+                        <div class="admin-modal-field">
+                            <label for="margin-silver">Margin Silver (%)</label>
+                            <input type="number" id="margin-silver" step="0.01" placeholder="Contoh: 4.50">
+                        </div>
+                        <div class="admin-modal-field">
+                            <label for="margin-gold">Margin Gold (%)</label>
+                            <input type="number" id="margin-gold" step="0.01" placeholder="Contoh: 3.50">
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-game-margin-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-game-margin-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Pengaturan Validasi Produk -->
+    <div id="product-validation-editor" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="validation-modal-title">
+        <div class="modal-content admin-modal-card admin-modal-card-wide">
+            <div class="admin-modal-header">
+                <h3 id="validation-modal-title">Pengaturan Validasi Produk</h3>
+                <button type="button" id="close-validation-modal-btn" class="close-modal" aria-label="Tutup modal validasi">&times;</button>
+            </div>
+            <form id="validation-config-form">
+                <div class="admin-modal-body">
+                    <p class="admin-modal-message">Atur validasi ID yang dijalankan saat pelanggan memesan produk ini.</p>
+                    <div class="admin-modal-divider-actions">
+                        <button type="button" id="apply-validation-to-all-btn" class="admin-btn-secondary edit-btn-compact">Terapkan ke Semua Produk Game</button>
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="validator-search-input">Cari Validator</label>
+                        <input type="text" id="validator-search-input" placeholder="Ketik nama game untuk mencari...">
+                    </div>
+                    <div class="admin-modal-field">
+                        <label for="validation-selector">Tipe Validator</label>
+                        <select id="validation-selector">
+                            <option value="">-- Tidak Perlu Validasi --</option>
+                        </select>
+                    </div>
+                    <div id="validation-rules-container" class="hidden">
+                        <div class="admin-modal-field">
+                            <label for="allowed-regions-input">Region Diizinkan (Opsional, pisahkan koma)</label>
+                            <input type="text" id="allowed-regions-input" placeholder="Contoh: BR,US">
+                        </div>
+                        <div class="admin-modal-field">
+                            <label for="disallowed-regions-input">Region Dilarang (Opsional, pisahkan koma)</label>
+                            <input type="text" id="disallowed-regions-input" placeholder="Contoh: ID,MY">
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-validation-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-validation-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Pengaturan Harga Manual Produk -->
+    <div id="manual-price-editor" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="manual-price-modal-title">
+        <div class="modal-content admin-modal-card">
+            <div class="admin-modal-header">
+                <h3 id="manual-price-modal-title">Harga Jual Manual</h3>
+                <button type="button" id="close-manual-price-modal-btn" class="close-modal" aria-label="Tutup modal harga manual">&times;</button>
+            </div>
+            <form id="manual-price-form">
+                <div class="admin-modal-body">
+                    <p class="admin-modal-message">Produk: <strong id="manual-price-product-name">-</strong>. Harga manual menimpa perhitungan margin otomatis.</p>
+                    <div class="game-info-toggle">
+                        <strong>Gunakan Harga Manual?</strong>
+                        <label class="switch">
+                            <input type="checkbox" id="use-manual-prices-toggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div id="manual-price-fields" class="hidden">
+                        <p class="admin-modal-message">Kosongkan role jika tetap ingin mengikuti margin otomatis.</p>
+                        <div id="manual-price-inputs-container">
+                            <p>Memuat role...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="admin-modal-footer">
+                    <button type="button" id="cancel-manual-price-btn" class="admin-btn-secondary">Batal</button>
+                    <button type="submit" id="save-manual-price-btn" class="admin-btn-primary">Simpan</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Modal Konfirmasi Umum Admin -->

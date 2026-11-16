@@ -210,6 +210,39 @@
     background-color: var(--danger-soft);
 }
 
+.admin-sync-summary-title {
+    margin: 0;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.admin-sync-summary p {
+    margin: 0;
+    color: var(--text);
+}
+
+.admin-modal-warning {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-sm);
+    background-color: var(--warning-soft);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: var(--warning);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+}
+
+.admin-modal-divider-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-2);
+}
+
+.admin-modal-card .admin-modal-body input[type="number"],
+.admin-modal-card .admin-modal-body input[type="text"],
+.admin-modal-card .admin-modal-body select {
+    font-variant-numeric: tabular-nums;
+}
+
 .toast.toast-success {
     border-color: var(--success);
 }
