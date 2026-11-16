@@ -1,4 +1,14 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const {
+        formatRupiah,
+        formatDateId,
+        statusClass,
+        statusLabel,
+    } = window.MikuShared.format;
+    const { escapeHtml } = window.MikuShared.dom;
+    const { requireAuthToken } = window.MikuShared.auth;
+    const { apiFetch } = window.MikuShared.api;
+
     // === DEKLARASI ELEMEN ===
     const navLinks = document.querySelectorAll('.admin-nav-link');
     const sections = document.querySelectorAll('.admin-section');
@@ -77,24 +87,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // === KONFIGURASI & STATE ===
     const ADMIN_API_URL = '/api/admin';
     const PUBLIC_API_URL = '/api';
-    const token = localStorage.getItem('authToken');
+    const token = requireAuthToken('index.html');
     const ADMIN_PRICE_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD', 'Admin'];
     let allGames = [];
     let allProducts = [];
     let allRoles = [];
     let allPaymentMethods = [];
 
-    function escapeHtml(str) {
-        return String(str ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
     if (!token) {
-        window.location.href = 'index.html';
         return;
     }
 
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function fetchAdminGames() {
         try {
-            const response = await fetch(`${ADMIN_API_URL}/games`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const response = await apiFetch(`${ADMIN_API_URL}/games`, { auth: true, token });
             if (!response.ok) throw new Error('Gagal memuat data game');
             allGames = await response.json();
             populateGameSelectorDropdown(allGames);
@@ -160,11 +160,11 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchAdminProducts() {
         if (!productsTableBody) return;
         try {
-            const response = await fetch(`${ADMIN_API_URL}/products`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const response = await apiFetch(`${ADMIN_API_URL}/products`, { auth: true, token });
             if (!response.ok) throw new Error('Gagal memuat data produk');
             allProducts = await response.json();
             if (allRoles.length === 0) {
-                const rolesResponse = await fetch(`${ADMIN_API_URL}/roles`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const rolesResponse = await apiFetch(`${ADMIN_API_URL}/roles`, { auth: true, token });
                 if (!rolesResponse.ok) throw new Error('Gagal memuat data roles.');
                 allRoles = await rolesResponse.json();
             }
@@ -209,11 +209,11 @@ document.addEventListener('DOMContentLoaded', function() {
         row.dataset.productName = product.name; // Simpan nama produk
         row.style.cursor = 'pointer'; // Tambah cursor pointer
 
-        let rowHtml = `<td>${product.name}</td><td>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.price)}</td><td>${product.provider_sku}</td>`;
+        let rowHtml = `<td>${product.name}</td><td>${formatRupiah(product.price, { withDecimals: true })}</td><td>${product.provider_sku}</td>`;
         
         displayRoles.forEach(role => {
             const rolePriceKey = `price_${role.name.toLowerCase()}`;
-            const formattedRolePrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product[rolePriceKey] || 0);
+            const formattedRolePrice = formatRupiah(product[rolePriceKey] || 0, { withDecimals: true });
             rowHtml += `<td>${formattedRolePrice}</td>`;
         });
         
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const url = statusVal
                 ? `${ADMIN_API_URL}/deposits?status=${encodeURIComponent(statusVal)}`
                 : `${ADMIN_API_URL}/deposits`;
-            const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+            const response = await apiFetch(url, { auth: true, token });
             if (response.status === 403) throw new Error('Akses Ditolak: Anda bukan Admin.');
             if (!response.ok) throw new Error('Gagal mengambil data deposit.');
             const deposits = await response.json();
@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', function() {
             adminDepositsTbody.innerHTML = '<tr><td colspan="10" style="text-align:center">Tidak ada data deposit.</td></tr>';
             return;
         }
-        const fmt = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+        const fmt = (n) => formatRupiah(n);
         const methodIcon = { GoPay: '🟢', DANA: '🟡', ShopeePay: '🟠', SeaBank: '🔵' };
         deposits.forEach(deposit => {
             const nominal = Number(deposit.amount) - Number(deposit.unique_code);
@@ -305,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>${methodCell}</td>
                 <td>${noteCell}</td>
                 <td><span class="status-badge ${badgeClass}">${badgeLabel}</span></td>
-                <td>${new Date(deposit.created_at).toLocaleString('id-ID')}</td>
+                <td>${formatDateId(deposit.created_at)}</td>
                 <td>${actionsHtml}</td>
             `;
             adminDepositsTbody.appendChild(row);
@@ -327,10 +327,11 @@ document.addEventListener('DOMContentLoaded', function() {
         addBalanceBtn.textContent = 'Memproses...';
         reduceBalanceBtn.textContent = 'Memproses...';
         try {
-            const response = await fetch(endpoint, {
+            const response = await apiFetch(endpoint, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, amount: parseInt(amount), description })
+                auth: true,
+                token,
+                jsonBody: { username, amount: parseInt(amount), description }
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);
@@ -368,7 +369,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchAndDisplayMargins() {
         if (!marginFieldsContainer) return;
         try {
-            const response = await fetch(`${ADMIN_API_URL}/roles`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const response = await apiFetch(`${ADMIN_API_URL}/roles`, { auth: true, token });
             const roles = await response.json();
             marginFieldsContainer.innerHTML = '';
             roles.forEach(role => {
@@ -434,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
 async function fetchAndDisplayPromos() {
     if (!promosTableBody) return;
     try {
-        const response = await fetch(`${ADMIN_API_URL}/promos`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const response = await apiFetch(`${ADMIN_API_URL}/promos`, { auth: true, token });
         if (!response.ok) throw new Error('Gagal memuat data promo.');
         const promos = await response.json();
         renderPromosTable(promos);
@@ -505,7 +506,7 @@ function populateFlashSaleProductSelector(gameId) {
 async function fetchAndDisplayFlashSales() {
     if (!flashSalesTableBody) return;
     try {
-        const response = await fetch(`${ADMIN_API_URL}/flash-sales`, { headers: { 'Authorization': `Bearer ${token}` } });
+        const response = await apiFetch(`${ADMIN_API_URL}/flash-sales`, { auth: true, token });
         const flashSales = await response.json();
         renderFlashSalesTable(flashSales);
     } catch (error) {
@@ -522,9 +523,9 @@ function renderFlashSalesTable(flashSales) {
         row.innerHTML = `
             <td>${fs.game_name}</td>
             <td>${fs.product_name}</td>
-            <td>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(fs.discount_price)}</td>
+            <td>${formatRupiah(fs.discount_price, { withDecimals: true })}</td>
             <td>${kuota}</td>
-            <td>${new Date(fs.end_at).toLocaleString('id-ID')}</td>
+            <td>${formatDateId(fs.end_at)}</td>
             <td><button class="failed-btn delete-fs-btn" data-fs-id="${fs.id}">Hapus</button></td>
         `;
         flashSalesTableBody.appendChild(row);
@@ -537,8 +538,9 @@ async function fetchAndDisplayGameMargins(gameId) {
     const customMarginFields = document.getElementById('custom-margin-fields');
 
     try {
-        const response = await fetch(`${ADMIN_API_URL}/games/${gameId}/margins`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+        const response = await apiFetch(`${ADMIN_API_URL}/games/${gameId}/margins`, {
+            auth: true,
+            token
         });
         if (!response.ok) throw new Error('Gagal memuat margin.');
 
@@ -574,10 +576,11 @@ if (marginForm) {
             }));
 
             try {
-                const response = await fetch(`${ADMIN_API_URL}/roles`, {
+                const response = await apiFetch(`${ADMIN_API_URL}/roles`, {
                     method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(marginsToUpdate)
+                    auth: true,
+                    token,
+                    jsonBody: marginsToUpdate
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
@@ -619,10 +622,11 @@ if (marginForm) {
         e.preventDefault();
         const config = buildValidationConfig();
         try {
-            const response = await fetch(`${ADMIN_API_URL}/products/${selectedProductIdForValidation}/validation`, {
+            const response = await apiFetch(`${ADMIN_API_URL}/products/${selectedProductIdForValidation}/validation`, {
                 method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ validation_config: config })
+                auth: true,
+                token,
+                jsonBody: { validation_config: config }
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);
@@ -655,13 +659,14 @@ if (marginForm) {
                 .map(p => p.id);
 
             try {
-                const response = await fetch(`${ADMIN_API_URL}/products/bulk-validation`, {
+                const response = await apiFetch(`${ADMIN_API_URL}/products/bulk-validation`, {
                     method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
+                    auth: true,
+                    token,
+                    jsonBody: {
                         productIds: productIdsToUpdate,
                         validation_config: config
-                    })
+                    }
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
@@ -727,10 +732,11 @@ if (marginForm) {
             };
 
         try {
-            const response = await fetch(`${ADMIN_API_URL}/promos`, {
+            const response = await apiFetch(`${ADMIN_API_URL}/promos`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                auth: true,
+                token,
+                jsonBody: data
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);
@@ -750,10 +756,11 @@ if (promosTableBody) {
             const promoId = toggle.dataset.promoId;
             const is_active = toggle.checked;
             try {
-                await fetch(`${ADMIN_API_URL}/promos/${promoId}/toggle`, {
+                await apiFetch(`${ADMIN_API_URL}/promos/${promoId}/toggle`, {
                     method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ is_active })
+                    auth: true,
+                    token,
+                    jsonBody: { is_active }
                 });
             } catch (error) {
                 alert('Gagal mengubah status promo.');
@@ -861,10 +868,11 @@ if (promosTableBody) {
                 }
                 toggleSwitch.disabled = true;
                 try {
-                    const response = await fetch(endpoint, {
+                    const response = await apiFetch(endpoint, {
                         method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
+                        auth: true,
+                        token,
+                        jsonBody: body
                     });
                     const result = await response.json();
                     if (!response.ok) {
@@ -912,10 +920,11 @@ if (promosTableBody) {
             const newStatus = toggleSwitch.checked ? 'Active' : 'Inactive';
             toggleSwitch.disabled = true;
             try {
-                const response = await fetch(`${ADMIN_API_URL}/products/${productId}/status`, {
+                const response = await apiFetch(`${ADMIN_API_URL}/products/${productId}/status`, {
                     method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: newStatus })
+                    auth: true,
+                    token,
+                    jsonBody: { status: newStatus }
                 });
                 const result = await response.json();
                 if (!response.ok) {
@@ -941,7 +950,7 @@ if (fsProductSelector) {
         const selectedOption = fsProductSelector.options[fsProductSelector.selectedIndex];
         if (selectedOption && selectedOption.value) {
             const bronzePrice = parseFloat(selectedOption.dataset.bronzePrice);
-            fsBronzePrice.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(bronzePrice);
+            fsBronzePrice.textContent = formatRupiah(bronzePrice, { withDecimals: true });
             fsPriceInfo.classList.remove('hidden');
         } else {
             fsPriceInfo.classList.add('hidden');
@@ -968,10 +977,11 @@ if (addFlashSaleForm) {
         }
 
         try {
-            const response = await fetch(`${ADMIN_API_URL}/flash-sales`, {
+            const response = await apiFetch(`${ADMIN_API_URL}/flash-sales`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                auth: true,
+                token,
+                jsonBody: data
             });
             if (!response.ok) throw new Error('Gagal menambahkan produk ke flash sale.');
             alert('Produk berhasil ditambahkan ke flash sale!');
@@ -990,9 +1000,10 @@ if (flashSalesTableBody) {
             const fsId = e.target.dataset.fsId;
             if (confirm('Anda yakin ingin menghapus item ini dari flash sale?')) {
                 try {
-                    await fetch(`${ADMIN_API_URL}/flash-sales/${fsId}`, {
+                    await apiFetch(`${ADMIN_API_URL}/flash-sales/${fsId}`, {
                         method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        auth: true,
+                        token
                     });
                     fetchAndDisplayFlashSales();
                 } catch (error) {
@@ -1055,10 +1066,11 @@ if (fsGameSelector) {
                 : `${ADMIN_API_URL}/deposits/reject`;
 
             try {
-                const response = await fetch(endpoint, {
+                const response = await apiFetch(endpoint, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ depositId })
+                    auth: true,
+                    token,
+                    jsonBody: { depositId }
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
@@ -1122,8 +1134,9 @@ if (fsGameSelector) {
         if (!adminPaymentMethodsTbody) return;
         adminPaymentMethodsTbody.innerHTML = '<tr><td colspan="8" style="text-align:center;">Memuat metode pembayaran...</td></tr>';
         try {
-            const response = await fetch(`${ADMIN_API_URL}/payment-methods`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const response = await apiFetch(`${ADMIN_API_URL}/payment-methods`, {
+                auth: true,
+                token
             });
             if (!response.ok) throw new Error('Gagal memuat daftar metode pembayaran.');
             allPaymentMethods = await response.json();
@@ -1141,7 +1154,7 @@ if (fsGameSelector) {
             return;
         }
         const typeLabelMap = { ewallet: 'E-Wallet', bank: 'Bank', qris: 'QRIS' };
-        const fmtRp = (v) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(v);
+        const fmtRp = (v) => formatRupiah(v);
 
         methods.forEach(pm => {
             const row = document.createElement('tr');
@@ -1227,10 +1240,11 @@ if (fsGameSelector) {
                     ? `${ADMIN_API_URL}/payment-methods/${editId}`
                     : `${ADMIN_API_URL}/payment-methods`;
                 const method = editId ? 'PUT' : 'POST';
-                const response = await fetch(url, {
+                const response = await apiFetch(url, {
                     method,
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    auth: true,
+                    token,
+                    jsonBody: payload
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message || 'Gagal menyimpan metode pembayaran.');
@@ -1265,10 +1279,11 @@ if (fsGameSelector) {
                 const currentActive = toggleBtn.dataset.active === '1';
                 toggleBtn.disabled = true;
                 try {
-                    const response = await fetch(`${ADMIN_API_URL}/payment-methods/${id}`, {
+                    const response = await apiFetch(`${ADMIN_API_URL}/payment-methods/${id}`, {
                         method: 'PUT',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ is_active: !currentActive })
+                        auth: true,
+                        token,
+                        jsonBody: { is_active: !currentActive }
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);
@@ -1288,9 +1303,10 @@ if (fsGameSelector) {
                 if (!confirm(`Yakin ingin menghapus metode pembayaran "${label}"?`)) return;
                 deleteBtn.disabled = true;
                 try {
-                    const response = await fetch(`${ADMIN_API_URL}/payment-methods/${id}`, {
+                    const response = await apiFetch(`${ADMIN_API_URL}/payment-methods/${id}`, {
                         method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${token}` }
+                        auth: true,
+                        token
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);
@@ -1316,10 +1332,11 @@ if (fsGameSelector) {
                 imageUrl: document.getElementById('game-image').value,
             };
             try {
-                const response = await fetch(`${ADMIN_API_URL}/games`, {
+                const response = await apiFetch(`${ADMIN_API_URL}/games`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    auth: true,
+                    token,
+                    jsonBody: data
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
@@ -1351,10 +1368,11 @@ if (fsGameSelector) {
                 syncButton.disabled = true;
                 syncButton.textContent = 'Mensinkronkan...';
                 try {
-                    const response = await fetch(`${ADMIN_API_URL}/sync-products`, {
+                    const response = await apiFetch(`${ADMIN_API_URL}/sync-products`, {
                         method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ margin_percent })
+                        auth: true,
+                        token,
+                        jsonBody: { margin_percent }
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);
@@ -1387,10 +1405,11 @@ if (gameMarginForm) {
         };
 
         try {
-            const response = await fetch(`${ADMIN_API_URL}/games/${selectedGameId}/margins`, {
+            const response = await apiFetch(`${ADMIN_API_URL}/games/${selectedGameId}/margins`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                auth: true,
+                token,
+                jsonBody: data
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);
@@ -1419,8 +1438,9 @@ async function fetchAndDisplayManualPrices(productId, productName) {
     editor.classList.remove('hidden');
 
     try {
-        const response = await fetch(`${ADMIN_API_URL}/products/${productId}/manual-prices`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+        const response = await apiFetch(`${ADMIN_API_URL}/products/${productId}/manual-prices`, {
+            auth: true,
+            token
         });
         if (!response.ok) throw new Error('Gagal memuat data harga manual.');
         const data = await response.json();
@@ -1478,10 +1498,11 @@ if (manualPriceForm) {
         };
 
         try {
-            const response = await fetch(`${ADMIN_API_URL}/products/${selectedProductIdForPrice}/manual-prices`, {
+            const response = await apiFetch(`${ADMIN_API_URL}/products/${selectedProductIdForPrice}/manual-prices`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                auth: true,
+                token,
+                jsonBody: data
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);
@@ -1517,8 +1538,9 @@ if (manualPriceForm) {
         if (!tbody) return;
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">Memuat transaksi...</td></tr>';
         try {
-            const response = await fetch(`${ADMIN_API_URL}/transactions`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const response = await apiFetch(`${ADMIN_API_URL}/transactions`, {
+                auth: true,
+                token
             });
             if (!response.ok) throw new Error('Gagal memuat transaksi.');
             const transactions = await response.json();
@@ -1529,13 +1551,12 @@ if (manualPriceForm) {
             }
             transactions.forEach(tx => {
                 const statusNorm = String(tx.status || '').toLowerCase();
-                const statusClass = 'status-' + statusNorm.replace(/\s+/g, '-');
-                const statusLabel = statusNorm === 'success' ? 'Berhasil'
-                    : statusNorm === 'failed' ? 'Gagal'
-                    : statusNorm === 'partial refund' ? 'Perlu Review'
-                    : tx.status || 'Pending';
-                const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.price);
-                const formattedDate = new Date(tx.created_at).toLocaleString('id-ID');
+                const txStatusClass = statusClass(tx.status);
+                const txStatusLabel = statusNorm === 'refunded'
+                    ? (tx.status || 'Pending')
+                    : statusLabel(tx.status, 'Perlu Review');
+                const formattedPrice = formatRupiah(tx.price);
+                const formattedDate = formatDateId(tx.created_at);
                 const isPartialRefund = tx.status === 'Partial Refund';
                 const isPending = tx.status === 'Pending';
                 let actionsHtml = '-';
@@ -1570,7 +1591,7 @@ if (manualPriceForm) {
                     <td>${tx.user_name || '-'}</td>
                     <td>${tx.product_name || '-'}</td>
                     <td>${formattedPrice}</td>
-                    <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+                    <td><span class="status-badge ${txStatusClass}">${txStatusLabel}</span></td>
                     <td>${formattedDate}</td>
                     <td>${actionsHtml}</td>
                 `;
@@ -1598,13 +1619,11 @@ if (manualPriceForm) {
 
     async function adminResolveTransaction(invoiceId, action) {
         try {
-            const response = await fetch(`${ADMIN_API_URL}/transactions/${invoiceId}/resolve`, {
+            const response = await apiFetch(`${ADMIN_API_URL}/transactions/${invoiceId}/resolve`, {
                 method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ action })
+                auth: true,
+                token,
+                jsonBody: { action }
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);

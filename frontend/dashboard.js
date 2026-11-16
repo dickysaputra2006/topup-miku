@@ -1,4 +1,22 @@
 document.addEventListener('DOMContentLoaded', function () {
+    const {
+        formatRupiah,
+        formatDateId,
+        statusClass,
+        statusLabel: sharedStatusLabel,
+    } = window.MikuShared.format;
+    const {
+        escapeHtml,
+        isSafeImageUrl,
+        showToast,
+        tableState,
+        copyToClipboard,
+        setupPasswordToggles,
+    } = window.MikuShared.dom;
+    const { requireAuthToken, forceLogout, clearAuthToken } = window.MikuShared.auth;
+    const { generateIdempotencyKey, apiFetch, apiFetchJson } = window.MikuShared.api;
+    const statusLabel = (status) => sharedStatusLabel(status, 'Perlu Review');
+
     // --- KODE UNTUK MENU HAMBURGER DI DASHBOARD ---
     const sidebar = document.querySelector('.sidebar');
     document.querySelectorAll('#menu-toggle-btn, .menu-toggle-btn').forEach(btn => {
@@ -19,10 +37,9 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     const API_URL = '/api/user';
-    const token = localStorage.getItem('authToken');
+    const token = requireAuthToken('index.html');
 
     if (!token) {
-        window.location.href = 'index.html';
         return;
     }
     const logoutButton = document.getElementById('logout-button');
@@ -75,27 +92,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let depositFormSetup = false;
     let activePaymentMethods = [];
 
-    function escapeHtml(str) {
-        return String(str ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    function isSafeImageUrl(rawUrl) {
-        if (!rawUrl || typeof rawUrl !== 'string') return false;
-        const trimmed = rawUrl.trim();
-        if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true;
-        try {
-            const parsed = new URL(trimmed);
-            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-        } catch (_) {
-            return false;
-        }
-    }
-
     function getMethodVisualMeta(name, type) {
         const lowerName = String(name || '').toLowerCase();
         const lowerType = String(type || '').toLowerCase();
@@ -110,56 +106,9 @@ document.addEventListener('DOMContentLoaded', function () {
         return { typeLabel: 'E-Wallet', iconClass: 'fas fa-wallet' };
     }
 
-
-
-    // Fungsi untuk menampilkan notifikasi melayang
-    function showToast(message) {
-        const toast = document.getElementById('toast-notification');
-        if (!toast) return;
-
-        toast.textContent = message;
-        toast.classList.remove('hidden');
-        toast.classList.add('show');
-
-        // Sembunyikan notifikasi setelah 5 detik
-        setTimeout(() => {
-            toast.classList.remove('show');
-            // Tambahkan sedikit jeda sebelum menyembunyikan total agar transisi selesai
-            setTimeout(() => toast.classList.add('hidden'), 300);
-        }, 5000);
-    }
-
-    function tableState(colspan, message, type = 'loading') {
-        const rowClass = type === 'error' ? 'table-error-row' : type === 'empty' ? 'table-empty-row' : 'table-loading-row';
-        return `<tr class="${rowClass}"><td colspan="${colspan}"><div class="ui-state ${type}">${message}</div></td></tr>`;
-    }
-
-    function statusClass(status) {
-        return `status-${String(status || 'pending').toLowerCase().replace(/\s+/g, '-')}`;
-    }
-
-    function statusLabel(status) {
-        const normalized = String(status || 'Pending').toLowerCase();
-        if (normalized === 'success') return 'Berhasil';
-        if (normalized === 'failed') return 'Gagal';
-        if (normalized === 'refunded') return 'Refund';
-        if (normalized === 'partial refund') return 'Perlu Review';
-        return 'Pending';
-    }
-
-    // Fungsi untuk melakukan logout
-    function forceLogout(message) {
-        localStorage.removeItem('authToken'); // Hapus token yang tidak valid
-        // Simpan pesan di sessionStorage untuk ditampilkan di halaman utama
-        sessionStorage.setItem('logoutMessage', message);
-        window.location.href = 'index.html'; // Arahkan ke halaman utama
-    }
-
     async function fetchProfileData() {
         try {
-            const response = await fetch(`${API_URL}/profile`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await apiFetch(`${API_URL}/profile`, { auth: true, token });
 
             // --- INI BAGIAN PENTINGNYA ---
             if (response.status === 401) {
@@ -180,9 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function fetchTransactionSummary() {
         try {
-            const response = await fetch(`${API_URL}/transaction-summary`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await apiFetch(`${API_URL}/transaction-summary`, { auth: true, token });
             if (!response.ok) return; // Jangan lakukan apa-apa jika gagal
             const summary = await response.json();
 
@@ -211,7 +158,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!tableBody) return;
         tableBody.innerHTML = tableState(6, 'Memuat riwayat transaksi...', 'loading');
         try {
-            const response = await fetch(`${API_URL}/transactions`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const response = await apiFetch(`${API_URL}/transactions`, { auth: true, token });
             if (!response.ok) throw new Error('Gagal mengambil data transaksi.');
             const transactions = await response.json();
             renderTransactionsTable(transactions, tableBody);
@@ -231,10 +178,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         transactions.forEach(tx => {
             const row = document.createElement('tr');
-            const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(tx.price);
+            const formattedPrice = formatRupiah(tx.price);
             row.innerHTML = `
                     <td><a href="invoice.html?id=${encodeURIComponent(tx.invoice_id)}" class="history-link">${escapeHtml(tx.invoice_id)}</a></td>
-                    <td>${new Date(tx.created_at).toLocaleString('id-ID')}</td>
+                    <td>${formatDateId(tx.created_at)}</td>
                     <td>${tx.product_name}</td>
                     <td>${tx.target_game_id}</td>
                     <td>${formattedPrice}</td>
@@ -262,13 +209,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function formatRupiahId(val) {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(Number(val) || 0);
-    }
+    const formatRupiahId = (val) => formatRupiah(Number(val) || 0);
 
     function findPaymentMethod(value) {
         if (!value) return null;
@@ -409,9 +350,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         try {
-            const response = await fetch('/api/payment-methods', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await apiFetch('/api/payment-methods', { auth: true, token });
             if (!response.ok) throw new Error('Gagal memuat daftar metode pembayaran.');
             const methods = await response.json();
             activePaymentMethods = Array.isArray(methods) ? methods : [];
@@ -444,33 +383,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function generateClientUuidV4() {
-        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-            return window.crypto.randomUUID();
-        }
-        if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
-            const bytes = new Uint8Array(16);
-            window.crypto.getRandomValues(bytes);
-            bytes[6] = (bytes[6] & 0x0f) | 0x40;
-            bytes[8] = (bytes[8] & 0x3f) | 0x80;
-            const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-        }
-        throw new Error('Browser tidak mendukung generator UUID yang aman.');
-    }
-
-    let depositIdempotencyKey = generateClientUuidV4();
+    let depositIdempotencyKey = generateIdempotencyKey();
     let depositAttemptSignature = null;
 
     function prepareDepositIdempotencyKey(payload) {
         const signature = JSON.stringify(payload);
         // Rotasi key jika payload berubah dibanding percobaan submit sebelumnya
         if (depositAttemptSignature !== null && depositAttemptSignature !== signature) {
-            depositIdempotencyKey = generateClientUuidV4();
+            depositIdempotencyKey = generateIdempotencyKey();
             depositAttemptSignature = null;
         }
         if (!depositIdempotencyKey) {
-            depositIdempotencyKey = generateClientUuidV4();
+            depositIdempotencyKey = generateIdempotencyKey();
         }
         return signature;
     }
@@ -546,14 +470,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (note) body.note = note;
                 const currentSignature = prepareDepositIdempotencyKey(body);
                 depositAttemptSignature = currentSignature;
-                const response = await fetch('/api/deposit/request', {
+                const response = await apiFetch('/api/deposit/request', {
                     method: 'POST',
+                    auth: true,
+                    token,
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
                         'Idempotency-Key': depositIdempotencyKey
                     },
-                    body: JSON.stringify(body)
+                    jsonBody: body
                 });
                 let result = null;
                 let hasDefinitiveJson = false;
@@ -568,7 +492,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Pertahankan key pada 5xx (meski JSON) dan error jaringan/timeout karena kondisi server bisa
                 // ambigu (mis. transaksi sudah/sedang diproses), sehingga retry aman tanpa duplikasi deposit.
                 if (response.status >= 200 && response.status < 500 && hasDefinitiveJson) {
-                    depositIdempotencyKey = generateClientUuidV4();
+                    depositIdempotencyKey = generateIdempotencyKey();
                     depositAttemptSignature = null;
                 }
 
@@ -602,9 +526,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!tbody) return;
         tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Memuat...</td></tr>';
         try {
-            const response = await fetch('/api/user/deposits', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await apiFetch('/api/user/deposits', { auth: true, token });
             if (!response.ok) throw new Error('Gagal memuat riwayat');
             const deposits = await response.json();
             if (deposits.length === 0) {
@@ -648,7 +570,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('profile-email').textContent = data.email;
         document.getElementById('profile-nomorwa').textContent = data.nomor_wa;
         document.getElementById('profile-role').textContent = data.role;
-        document.getElementById('profile-balance').textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(data.balance);
+        document.getElementById('profile-balance').textContent = formatRupiah(data.balance);
 
         const initials = getInitials(data.full_name, data.username);
         ['header-user-initials', 'sidebar-user-initials', 'profile-avatar-badge'].forEach(id => {
@@ -667,25 +589,6 @@ document.addEventListener('DOMContentLoaded', function () {
             editProfileForm.querySelector('[name="fullName"]').value = data.full_name;
             editProfileForm.querySelector('[name="email"]').value = data.email;
             editProfileForm.querySelector('[name="nomorWa"]').value = data.nomor_wa;
-        }
-    }
-
-    async function copyTextToClipboard(text) {
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-            return;
-        }
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        const copied = document.execCommand('copy');
-        document.body.removeChild(textarea);
-        if (!copied) {
-            throw new Error('Copy failed');
         }
     }
 
@@ -710,7 +613,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const value = getValue();
             if (!value) return;
             try {
-                await copyTextToClipboard(value);
+                await copyToClipboard(value);
                 if (button._copyResetTimer) {
                     clearTimeout(button._copyResetTimer);
                 }
@@ -726,23 +629,13 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    async function requestUserApi(path, options = {}) {
-        const response = await fetch(`${API_URL}${path}`, {
+    function requestUserApi(path, options = {}) {
+        return apiFetchJson(`${API_URL}${path}`, {
             ...options,
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                ...(options.headers || {})
-            }
+            auth: true,
+            token,
+            onUnauthorized: () => forceLogout('Sesi Anda telah berakhir, silakan login kembali.'),
         });
-        if (response.status === 401) {
-            forceLogout('Sesi Anda telah berakhir, silakan login kembali.');
-            throw new Error('Sesi berakhir.');
-        }
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-            throw new Error(data.message || 'Permintaan gagal diproses.');
-        }
-        return data;
     }
 
     function applyCredentialStatusUI({ badgeEl, displayEl, active, prefix, activeLabel, inactiveLabel, inactiveDisplay }) {
@@ -898,7 +791,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!tableBody) return;
         tableBody.innerHTML = tableState(4, 'Memuat riwayat mutasi saldo...', 'loading');
         try {
-            const response = await fetch(`${API_URL}/balance-history`, { headers: { 'Authorization': `Bearer ${token}` } });
+            const response = await apiFetch(`${API_URL}/balance-history`, { auth: true, token });
             if (!response.ok) throw new Error('Gagal mengambil data mutasi.');
             const history = await response.json();
             renderMutasiTable(history, tableBody);
@@ -920,10 +813,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const amountClass = item.amount > 0 ? 'amount-in' : 'amount-out';
             const amountSign = item.amount > 0 ? '+' : '';
             row.innerHTML = `
-                <td>${new Date(item.created_at).toLocaleString('id-ID')}</td>
+                <td>${formatDateId(item.created_at)}</td>
                 <td><span class="badge type-${item.type.toLowerCase()}">${item.type}</span></td>
                 <td>${item.description}</td>
-                <td class="${amountClass}">${amountSign} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(item.amount)}</td>
+                <td class="${amountClass}">${amountSign} ${formatRupiah(item.amount, { withDecimals: true })}</td>
             `;
             tableBody.appendChild(row);
         });
@@ -1017,7 +910,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
                 if (targetId === 'deposit-tab') {
                     if (depositAttemptSignature === null) {
-                        depositIdempotencyKey = generateClientUuidV4();
+                        depositIdempotencyKey = generateIdempotencyKey();
                     }
                     setupDepositForm();
                     loadDepositPaymentMethods();
@@ -1178,7 +1071,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (logoutButton) {
         logoutButton.addEventListener('click', (e) => {
             e.preventDefault();
-            localStorage.removeItem('authToken');
+            clearAuthToken();
             window.location.href = 'index.html';
         });
     }
@@ -1208,10 +1101,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 nomorWa: editProfileForm.querySelector('[name="nomorWa"]').value,
             };
             try {
-                const response = await fetch(`${API_URL}/profile`, {
+                const response = await apiFetch(`${API_URL}/profile`, {
                     method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    auth: true,
+                    token,
+                    jsonBody: data
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
@@ -1237,10 +1131,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 newPassword: newPassword,
             };
             try {
-                const response = await fetch(`${API_URL}/password`, {
+                const response = await apiFetch(`${API_URL}/password`, {
                     method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                    auth: true,
+                    token,
+                    jsonBody: data
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
@@ -1327,8 +1222,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
             try {
                 // Kita gunakan endpoint yang sudah ada
-                const response = await fetch(`${API_URL}/transaction/${encodeURIComponent(invoiceId)}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const response = await apiFetch(`${API_URL}/transaction/${encodeURIComponent(invoiceId)}`, {
+                    auth: true,
+                    token
                 });
 
                 if (response.status === 404) {
@@ -1352,8 +1248,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderHasilPencarian(tx) {
-        const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(tx.price);
-        const formattedDate = new Date(tx.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' });
+        const formattedPrice = formatRupiah(tx.price, { withDecimals: true });
+        const formattedDate = formatDateId(tx.created_at, { dateStyle: 'full', timeStyle: 'short' });
 
         hasilCekPesanan.innerHTML = `
         <h4>Detail Transaksi</h4>
@@ -1377,15 +1273,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fetchProfileData();
     fetchTransactionSummary();
 
-    document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
-            const input = this.parentElement.querySelector('input');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
-        });
-    });
+    setupPasswordToggles();
 
     // Copy nomor deposit — event delegation untuk .copy-deposit-number-btn
     document.addEventListener('click', async function (event) {
@@ -1400,20 +1288,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const originalHTML = button.innerHTML;
         try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(number);
-            } else {
-                // Fallback untuk HTTP / browser lama
-                const textarea = document.createElement('textarea');
-                textarea.value = number;
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-                document.body.appendChild(textarea);
-                textarea.focus();
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-            }
+            await copyToClipboard(number);
             button.innerHTML = '<i class="fas fa-check"></i> Tersalin!';
             button.disabled = true;
             setTimeout(() => {

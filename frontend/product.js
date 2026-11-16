@@ -1,10 +1,15 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const { formatRupiah } = window.MikuShared.format;
+    const { uiState, setupPasswordToggles } = window.MikuShared.dom;
+    const { getAuthToken, setAuthToken, clearAuthToken } = window.MikuShared.auth;
+    const { generateIdempotencyKey, apiFetch } = window.MikuShared.api;
+
     // === Bagian 1: Deklarasi Variabel & Elemen ===
     const AUTH_API_URL = '/api/auth';
     const PUBLIC_API_URL = '/api';
     const params = new URLSearchParams(window.location.search);
     const gameId = params.get('gameId');
-    const token = localStorage.getItem('authToken');
+    const token = getAuthToken();
     const validationResultEl = document.getElementById('validation-result');
 
     if (!gameId) {
@@ -45,21 +50,6 @@ document.addEventListener('DOMContentLoaded', function() {
     let isOrderSubmitting = false;
     let lastValidationErrorMessage = ''; // simpan pesan error validasi terbaru
 
-    function generateIdempotencyKey() {
-        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
-            return window.crypto.randomUUID();
-        }
-        if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
-            const bytes = new Uint8Array(16);
-            window.crypto.getRandomValues(bytes);
-            bytes[6] = (bytes[6] & 0x0f) | 0x40;
-            bytes[8] = (bytes[8] & 0x3f) | 0x80;
-            const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-        }
-        throw new Error('Browser tidak mendukung generator UUID yang aman.');
-    }
-
     let orderIdempotencyKey = generateIdempotencyKey();
     let lastOrderAttemptSignature = null;
 
@@ -89,9 +79,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
-    function uiState(message, type = 'loading') {
-        return `<div class="ui-state ${type}">${message}</div>`;
-    }
 
     async function updateAuthButtonOnProductPage() {
     if (!userAuthButton) return;
@@ -100,9 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (token) {
         try {
             // Ambil data profil pengguna dari server
-            const response = await fetch(`${PUBLIC_API_URL}/user/profile`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await apiFetch(`${PUBLIC_API_URL}/user/profile`, { auth: true, token });
 
             if (!response.ok) throw new Error('Sesi tidak valid.');
 
@@ -115,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         } catch (error) {
             // Jika token tidak valid/error, kembali ke 상태 "Masuk"
-            localStorage.removeItem('authToken');
+            clearAuthToken();
             userAuthButton.textContent = 'Masuk';
             userAuthButton.href = '#';
             userAuthButton.onclick = (e) => {
@@ -209,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
             card.dataset.price = product.price;
             card.innerHTML = `
                 <span>${product.name}</span>
-                <small>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(product.price)}</small>
+                <small>${formatRupiah(product.price)}</small>
                 ${product.isFlashSale ? '<em class="product-tag">Flash Sale</em>' : ''}
             `;
             card.addEventListener('click', () => handleProductSelection(card, product.id, product.price));
@@ -367,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function() {
        promoResultEl.innerHTML = '';
     }
 
-    totalPriceEl.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(finalPrice);
+    totalPriceEl.textContent = formatRupiah(finalPrice);
 }
 
 function applyFlashSaleSelection() {
@@ -433,7 +418,7 @@ function applyFlashSaleSelection() {
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
-                localStorage.setItem('authToken', result.token);
+                setAuthToken(result.token);
                 alert(result.message);
                 window.location.reload();
             } catch (error) {
@@ -545,7 +530,7 @@ function applyFlashSaleSelection() {
         if (appliedPromo && appliedPromo.valid && appliedPromo.discount > 0) {
             promoElement = document.createElement('p');
             promoElement.className = 'promo-discount-row'; // Class untuk styling
-            promoElement.innerHTML = `<span>Potongan Promo (${appliedPromo.promo_code})</span> <strong>- ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(appliedPromo.discount)}</strong>`;
+            promoElement.innerHTML = `<span>Potongan Promo (${appliedPromo.promo_code})</span> <strong>- ${formatRupiah(appliedPromo.discount, { withDecimals: true })}</strong>`;
             
             // Sisipkan elemen promo sebelum elemen Total Pembayaran
             const totalPaymentElement = confirmationDetails.querySelector('.total-payment');
@@ -580,14 +565,14 @@ function applyFlashSaleSelection() {
             lastOrderAttemptSignature = currentSignature;
 
             try {
-                const response = await fetch(`${PUBLIC_API_URL}/order`, {
+                const response = await apiFetch(`${PUBLIC_API_URL}/order`, {
                     method: 'POST',
+                    auth: true,
+                    token,
                     headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json',
                         'Idempotency-Key': orderIdempotencyKey
                     },
-                    body: JSON.stringify(orderPayload)
+                    jsonBody: orderPayload
                 });
                 let result = null;
                 let hasDefinitiveJson = false;
@@ -650,14 +635,15 @@ if (applyPromoBtn) {
         try {
             applyPromoBtn.disabled = true;
             applyPromoBtn.textContent = 'Mengecek...';
-            const response = await fetch('/api/promos/validate', {
+            const response = await apiFetch('/api/promos/validate', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+                auth: true,
+                token,
+                jsonBody: {
                     promo_code: code,
                     product_id: selectedProductId,
                     target_game_id: targetId
-                })
+                }
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.message);
@@ -682,15 +668,7 @@ if (applyPromoBtn) {
     }
 }
 
-    document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function() {
-            const input = this.parentElement.querySelector('input');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
-        });
-    });
+    setupPasswordToggles();
 
     // === Bagian 4: Menjalankan Fungsi Awal ===
     fetchGameData();
