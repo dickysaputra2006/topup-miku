@@ -839,3 +839,82 @@ Catatan tambahan pemanggil lain:
 - [x] `backend/package.json` skrip `check` dan `test` / `test:unit` / `test:integration` mencakup seluruh file baru (`app.js`, `utils/validators`, `scripts`, `tests/manual`, dll.)
 - [x] `README.md` diperbarui dengan peta struktur folder backend terbaru dan panduan menjalankan tes (unit, integrasi, dan manual PostgreSQL)
 - [x] `.env` tidak ikut commit; `git status` bersih, `git worktree list` tunggal, seluruh file berakhiran LF (`i/lf w/lf`)
+
+---
+
+## Frontend Refactor Plan (F0–F2)
+
+Prinsip kerja:
+- **Nol perubahan perilaku & nol perubahan tampilan** (*cut and paste* apa adanya; tidak memperbaiki UI, CSS, teks, maupun markup HTML selain tag `<script defer>`).
+- **Pola pemuatan skrip**: Memakai **`<script defer src="...">` berurutan** (bukan `type="module"`), sehingga seluruh handler tetap kompatibel dengan eksekusi global/namespace per halaman maupun apabila terdapat atribut `onclick="..."` inline di HTML, dengan urutan eksekusi dan timing sebelum `DOMContentLoaded` tetap identik.
+- **Semua file LF murni (`i/lf w/lf`)**, `git add <path>` eksplisit, verifikasi wajib pasca setiap commit (`npm run check` termasuk `check-frontend-assets.js`, `npm test` `192/192`, `node scripts/check-route-overlap.js` `87/87`).
+
+### F0 — Baseline Ukuran Seluruh File `frontend/` & Audit Awal
+
+| File `frontend/` | Jenis | Baris Aktual (Pra-F0) | Batas Keras (Bagian 1) | Status vs Batas |
+|---|---|---:|---:|---|
+| `admin.js` | JS | `1619` | `600` | **Melebihi (`1619 > 600`) -> target F2b** |
+| `dashboard.js` | JS | `1427` | `600` | **Melebihi (`1427 > 600`) -> target F2a** |
+| `product.js` | JS | `831` | `600` | Melebihi (`831 > 600`, dicatat untuk F berikutnya di luar cakupan F0–F2b) |
+| `script.js` | JS | `597` | `600` | Aman (mendekati batas; berkurang setelah F1) |
+| `invoice.js` | JS | `193` | `600` | Aman |
+| `cek-transaksi.js` | JS | `190` | `600` | Aman |
+| `leaderboard.js` | JS | `181` | `600` | Aman |
+| `compare-prices.js` | JS | `146` | `600` | Aman |
+| `validate.js` | JS | `139` | `600` | Aman |
+| `reset-password.js` | JS | `62` | `600` | Aman |
+| `style.css` | CSS | `4118` | `800` | Di luar cakupan JS F0–F2 (tahap CSS terpisah) |
+| `style-responsive.css` | CSS | `2269` | `800` | Di luar cakupan JS F0–F2 (tahap CSS terpisah) |
+| `dashboard.html` | HTML | `521` | - | Memuat `dashboard.js` |
+| `admin.html` | HTML | `494` | - | Memuat `admin.js` |
+| `leaderboard.html` | HTML | `272` | - | Memuat `leaderboard.js` |
+| `index.html` | HTML | `218` | - | Memuat `script.js` |
+| `product.html` | HTML | `211` | - | Memuat `product.js` |
+| `kebijakan-refund.html` | HTML | `124` | - | Halaman statis (tanpa JS) |
+| `kontak.html` | HTML | `107` | - | Halaman statis (tanpa JS) |
+| `syarat-ketentuan.html` | HTML | `98` | - | Halaman statis (tanpa JS) |
+| `cek-transaksi.html` | HTML | `83` | - | Memuat `cek-transaksi.js` |
+| `compare-prices.html` | HTML | `78` | - | Memuat `compare-prices.js` |
+| `validate.html` | HTML | `54` | - | Memuat `validate.js` |
+| `invoice.html` | HTML | `44` | - | Memuat `invoice.js` |
+| `reset-password.html` | HTML | `43` | - | Memuat `reset-password.js` |
+
+### Audit Inline `onclick` & Event Handler HTML
+- Pemeriksaan seluruh **13 file HTML** (`admin.html`, `dashboard.html`, `index.html`, `product.html`, dll.) menunjukkan **0 atribut `onclick="..."` / `on*=...` inline** di HTML statis (seluruh interaksi memakai `addEventListener` dan delegasi event di JS; `script.js` dan `product.js` menyetel properti DOM `.onclick` secara terprogram pada tombol auth).
+- Seluruh halaman tetap menggunakan pola **`<script defer src="...">` berurutan** agar skrip bersama `frontend/js/shared/*` dan submodul `dashboard/*` / `admin/*` dieksekusi persis berurutan sebelum `DOMContentLoaded` tanpa butuh bundler maupun ES module import.
+
+### Audit Utilitas Terduplikasi di `frontend/*.js` (Target F1: `frontend/js/shared/`)
+
+| Utilitas | File yang Memuat / Menduplikasi | File HTML Terkait | Target F1 (`frontend/js/shared/`) |
+|---|---|---|---|
+| `escapeHtml(str)` (`5` implementasi terpisah) | `admin.js`, `dashboard.js`, `cek-transaksi.js`, `leaderboard.js`, `script.js` | `admin.html`, `dashboard.html`, `cek-transaksi.html`, `leaderboard.html`, `index.html` | `dom.js` (`window.MikuShared.dom.escapeHtml`) |
+| Format Rupiah (`Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' })` + `minimumFractionDigits: 0` / desimal & `'Rp ' + toLocaleString`) | `admin.js`, `dashboard.js`, `product.js`, `script.js`, `cek-transaksi.js`, `compare-prices.js`, `invoice.js`, `leaderboard.js` | `admin.html`, `dashboard.html`, `product.html`, `index.html`, `cek-transaksi.html`, `compare-prices.html`, `invoice.html`, `leaderboard.html` | `format.js` (`formatRupiah`, `formatRupiahPlain`, `formatDateId`, `statusClass`, `statusLabel`) |
+| `statusClass` / `statusLabel` (`4` duplikat) & format tanggal `id-ID` | `cek-transaksi.js`, `dashboard.js`, `invoice.js`, `admin.js` | `cek-transaksi.html`, `dashboard.html`, `invoice.html`, `admin.html` | `format.js` (`reviewLabel` diparameterkan agar label `'Perlu Review'` di dashboard vs `'Perlu Review Admin'` di halaman lain tetap identik 100%) |
+| `copyTextToClipboard` (`3` duplikat) & `toggle-password` (`4` duplikat), `uiState`, `tableState`, `showToast`, `isSafeImageUrl` | `dashboard.js`, `invoice.js`, `product.js`, `script.js`, `reset-password.js` | `dashboard.html`, `invoice.html`, `product.html`, `index.html`, `reset-password.html` | `dom.js` |
+| Manajemen token/session/logout (`localStorage` `authToken`, `sessionStorage.logoutMessage`, `forceLogout`, `requireAuthToken`) | `script.js`, `product.js`, `dashboard.js`, `admin.js`, `invoice.js` | `index.html`, `product.html`, `dashboard.html`, `admin.html`, `invoice.html` | `auth.js` |
+| `generateIdempotencyKey` / `generateClientUuidV4` (identik di 2 file) & wrapper `fetch`/header auth (`apiFetch`, `apiFetchJson`, `getAuthHeaders`) | `product.js`, `dashboard.js`, `admin.js`, `script.js`, `cek-transaksi.js`, `invoice.js`, `leaderboard.js`, `compare-prices.js`, `reset-password.js` | Semua halaman dengan panggilan API | `api.js` |
+
+### Audit Bagian `frontend/dashboard.js` (`1427` baris -> Target F2a: `frontend/js/dashboard/`)
+Seluruh kode berada di dalam satu `DOMContentLoaded` listener (`lines 1-1427`):
+- `frontend/js/dashboard/state.js`: Inisialisasi namespace `window.MikuDashboard`, `API_URL = '/api/user'`, state bersama (`apiKeyFetched`, `currentHasApiKey`, `currentHasWebhookSecret`, `h2hActionBusy`, `mutasiLoaded`, `transaksiLoaded`, `depositFormSetup`, `activePaymentMethods`, `depositIdempotencyKey`, `depositAttemptSignature`), handler sidebar hamburger & click-outside (`lines 3-19`), tab switcher navigasi (`lines 982-1029`), serta entry tunggal `DOMContentLoaded` (`requireAuthToken()`, memanggil `fetchProfileData()`, `fetchTransactionSummary()`, setup tab/listener pada urutan persis sama).
+- `frontend/js/dashboard/overview.js`: `fetchProfileData`, `fetchTransactionSummary`, `getInitials`, `updateDashboardUI` (`lines 158-206`, `635-671`).
+- `frontend/js/dashboard/deposit.js`: `getMethodVisualMeta`, `syncSelectAriaState`, `findPaymentMethod`, `renderDepositMethodsGrid`, `renderSelectedDepositMethodInfo`, `loadDepositPaymentMethods`, `prepareDepositIdempotencyKey`, `setupDepositForm`, `loadDepositHistory`, dan delegasi `.copy-deposit-number-btn` (`lines 99-111`, `248-633`, `1391-1426`). Target `< 400` baris (`<= 600` batas keras).
+- `frontend/js/dashboard/transactions.js`: `fetchTransactions`, `renderTransactionsTable`, `fetchBalanceHistory`, `renderMutasiTable`, listener `cekPesananForm`, `renderHasilPencarian` (`lines 209-245`, `896-930`, `1309-1375`).
+- `frontend/js/dashboard/h2hIntegration.js`: `resetH2HCopyButton`, `attachH2HCopyButton`, `requestUserApi`, `applyCredentialStatusUI`, `renderApiKeyState`, `renderWebhookSecretState`, `openH2HSecretModal`, `closeH2HSecretModal`, `closeH2HConfirmModal`, `openH2HConfirmModal`, `fetchApiKey`, `fetchWebhookSecretStatus`, `fetchAndDisplayWhitelistedIPs`, `saveWhitelistedIps`, `loadIntegrasiSectionData`, `executeGenerateOrRegenerate`, `executeRotateWebhookSecret`, serta event listener H2H & whitelist IP (`lines 692-894`, `932-980`, `1031-1176`, `1256-1307`). Target `< 420` baris (`<= 600` batas keras).
+- `frontend/js/dashboard/profile.js`: Handler `logoutButton`, modal edit profil & tab (`edit-data-tab`/`edit-password-tab`), submit `editProfileForm` & `changePasswordForm`, dan `setupPasswordToggles()` (`lines 1178-1254`, `1380-1388`).
+
+### Audit Bagian `frontend/admin.js` (`1619` baris -> Target F2b: `frontend/js/admin/`)
+Karena `frontend/admin.js` aktual panjangnya `1619` baris, pemecahan area kerja admin dibuat agar **setiap file `<= 400` baris** (`140–320` baris):
+- `frontend/js/admin/state.js`: Namespace `window.MikuAdmin`, konstanta (`ADMIN_API_URL`, `PUBLIC_API_URL`, `ADMIN_PRICE_ROLE_ORDER`), state bersama (`allGames`, `allProducts`, `allRoles`, `allPaymentMethods`, `allValidatableGamesData`, `selectedProductIdForValidation`, `selectedProductIdForPrice`), toggle menu sidebar, navigasi tab `.admin-nav-link`, serta entry tunggal `DOMContentLoaded` (`requireAuthToken()`, memanggil `initAdminPage()` dan binding seluruh submodul).
+- `frontend/js/admin/deposits.js`: `fetchAdminDeposits`, `renderAdminDepositsTable`, `handleManualBalance`, filter/refresh/approve/reject deposit & tombol manual balance (`lines 230-347`, `1025-1074`).
+- `frontend/js/admin/catalog.js`: Manajemen game, sinkronisasi Foxy, dan daftar/status produk (`fetchAdminGames`, `populateGameSelectorDropdown`, `displayGameInfo`, `fetchAdminProducts`, `renderProductsForGame`, `populateAddProductFormDropdown`, `gameSearchInput`, `gameSelectorDropdown`, `gameInfoContainer` toggles, `productsTableBody` status toggle, `addGameForm`, `addProductForm`, `syncForm`: `lines 103-228`, `349-366`, `804-890`, `907-937`, `1310-1373`).
+- `frontend/js/admin/validationAndPrices.js`: Validasi produk (single & bulk apply), custom game margin, dan harga jual manual produk (`fetchAllValidatableGames`, `showValidationEditor`, `buildValidationConfig`, `validationForm`, `applyToAllBtn`, `validatorSearchInput`, `fetchAndDisplayGameMargins`, `gameMarginForm`, `fetchAndDisplayManualPrices`, `manualPriceForm`, click listener `edit-validation-btn` & `manual-price-btn`: `lines 388-432`, `534-559`, `596-708`, `892-905`, `1375-1498`).
+- `frontend/js/admin/paymentMethods.js`: CRUD metode pembayaran dinamis (`setPmFormStatus`, `resetPaymentMethodForm`, `fillPaymentMethodForm`, `fetchAdminPaymentMethods`, `renderAdminPaymentMethodsTable`, form/table listeners: `lines 1077-1308`).
+- `frontend/js/admin/promosAndFlashSales.js`: Promo & Flash Sale (`fetchAndDisplayPromos`, `renderPromosTable`, `addPromoForm`, `promosTableBody` toggle, `populateFlashSaleGameSelector`, `populateFlashSaleProductSelector`, `fetchAndDisplayFlashSales`, `renderFlashSalesTable`, `fsProductSelector`, `addFlashSaleForm`, `flashSalesTableBody`, `fsGameSearch`, `fsGameSelector`: `lines 434-532`, `710-764`, `939-1023`).
+- `frontend/js/admin/transactionsAndRoles.js`: Margin global roles (`fetchAndDisplayMargins`, `marginForm`: `lines 368-386`, `563-594`) serta daftar & resolve transaksi admin (`fetchAdminTransactions`, `adminResolveTransaction`: `lines 1515-1616`).
+
+### Peta 4 Commit Frontend (F0–F2)
+1. **Commit 1 (F0)**: Baseline di `docs/refactor-plan.md`, `git rm backend/diff_tes.txt`, buat `scripts/check-frontend-assets.js`, tambahkan ke `backend/package.json` `"check"`.
+2. **Commit 2 (F1)**: Buat `frontend/js/shared/{format,dom,auth,api}.js` (`<= 300` baris/file), hapus duplikasi utilitas dari `frontend/*.js`, dan perbarui tag `<script defer>` pada HTML terkait.
+3. **Commit 3 (F2a)**: Pecah `frontend/dashboard.js` -> `frontend/js/dashboard/{state,overview,deposit,transactions,h2hIntegration,profile}.js` (`<= 600` baris, target `150-350`), hapus `frontend/dashboard.js`, perbarui `frontend/dashboard.html`.
+4. **Commit 4 (F2b)**: Pecah `frontend/admin.js` -> `frontend/js/admin/{state,deposits,catalog,validationAndPrices,paymentMethods,promosAndFlashSales,transactionsAndRoles}.js` (`<= 400` baris), hapus `frontend/admin.js`, perbarui `frontend/admin.html`, dan lengkapi tabel perbandingan ukuran & hasil di `docs/refactor-plan.md`.
