@@ -1,29 +1,8 @@
 const {
     PORT,
-    FOXY_API_KEY,
-    FOXY_CALLBACK_URL,
     validateEnvironment,
 } = require('./config/env');
-const {
-    MAX_BODY_SIZE,
-    FOXY_BASE_URL,
-    PROVIDER_TIMEOUT_MS,
-    CALLBACK_VERIFY_COOLDOWN_MS,
-    CALLBACK_SUCCESS_RESPONSE,
-} = require('./config/constants');
-const {
-    safeErrorDetail,
-    logSafeError,
-    safeAxiosError,
-} = require('./utils/logger');
-const { normalizeString } = require('./utils/strings');
-const { timingSafeStringEqual } = require('./utils/crypto');
-const {
-    parsePositiveQuota,
-    isValidPriceAmount,
-    parseOptionalRefId,
-    parseOptionalIdempotencyKeyHeader,
-} = require('./utils/validation');
+const { MAX_BODY_SIZE } = require('./config/constants');
 const { securityHeaders, corsMiddleware } = require('./middleware/securityHeaders');
 const { createRateLimiters } = require('./middleware/rateLimiters');
 const { createAuthMiddleware } = require('./middleware/auth');
@@ -51,27 +30,9 @@ const createAdminFlashSalesRoutes = require('./routes/admin/flashSales.routes');
 const createAdminMarginsRoutes = require('./routes/admin/margins.routes');
 const express = require('express');
 const { createPool } = require('./config/db');
-const axios = require('axios');
-const { validateWebhookUrl, dispatchSafeH2HWebhook } = require('./utils/webhookClient.js');
 const { rollbackTransactionResources } = require('./services/refundService');
-const {
-    validateOrderGameIdIfNeeded,
-    invalidateFoxyProductCache,
-    getFoxyProducts,
-} = require('./services/foxyClient');
-const {
-    generateInvoiceId,
-    generateProviderTrxId,
-    resolveExistingIdempotentOrder,
-    insertTransactionRecord,
-    findRecentPendingDuplicate,
-} = require('./services/idempotency');
+const { invalidateFoxyProductCache } = require('./services/foxyClient');
 const { createNotificationService } = require('./services/notificationService');
-const {
-    getSafeOrderErrorMessage,
-    executeWebOrder,
-    executeH2HOrder,
-} = require('./services/orderService');
 const path = require('path');
 
 const app = express();

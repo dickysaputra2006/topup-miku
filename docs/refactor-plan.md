@@ -710,3 +710,19 @@ Prinsip kerja & kompatibilitas mock:
 5. **Commit 5 — Pembersihan `server.js` & Dokumentasi Hasil R9**
    - Menghapus seluruh import di `backend/server.js` yang tidak lagi dipakai setelah Commit 1–4; mempertahankan seluruh simbol `module.exports` di `server.js`.
    - Menjalankan verifikasi penuh otomatis + ketiga skrip manual PostgreSQL (`concurrency.js`, `idempotency.js`, `pool.js`) dan mencatat hasil akhir R9.
+
+### Hasil Akhir R9
+- Panjang `backend/server.js`: `1344` baris (akhir R8) -> `606` baris (Commit 1 `ae2fe3c`: `services/notificationService.js` = `23` baris, `services/orderService.js`) -> `583` baris (Commit 2 `e1dd4c2`: `routes/order.routes.js` = `51` baris) -> `439` baris (Commit 3 `ac27fde`: `routes/h2h.routes.js` = `186` baris) -> `165` baris (Commit 4 `bbd8346`: `routes/foxyCallback.routes.js` = `313` baris) -> **`126` baris** (Commit 5: pembersihan import tak terpakai di `server.js` & perapian `services/orderService.js` menjadi `595` baris, di bawah batas keras `600` baris).
+- Ukuran seluruh file R9 (semua di bawah batas keras `600` untuk service dan `400` untuk route, serta `server.js <= 150` baris):
+  - `backend/server.js`: `126` baris
+  - `backend/services/notificationService.js`: `23` baris
+  - `backend/services/orderService.js`: `595` baris
+  - `backend/routes/order.routes.js`: `51` baris
+  - `backend/routes/h2h.routes.js`: `186` baris
+  - `backend/routes/foxyCallback.routes.js`: `313` baris
+- Hasil verifikasi otomatis akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=279, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
+- Hasil verifikasi 3 skrip PostgreSQL manual (`tests/manual/*` terhadap `topup_miku_local@127.0.0.1`):
+  - `node tests/manual/concurrency.js`: **`[PASS]`** semua 3 skenario (`Skenario A`: `status=Success, refundRows=0, balance=75000`; `Skenario B`: `status=Failed, refundRows=1, balance=100000, flashSaleRestored=true`; `Skenario C`: `Balapan acak 15x: Pelanggaran=0`; exit code `0`).
+  - `node tests/manual/idempotency.js`: **`[PASS]`** semua 5 skenario (`A` 20x H2H paralel, `B` 20x Web paralel, `C` 20x Deposit paralel, `D` 409 conflict, `E` Failed/refund replay vs `ref_id` baru; exit code `0`).
+  - `node tests/manual/pool.js`: **`[PASS]`** (`http201=30/30, peakInFlightFoxy=30, dbProbeDuringFoxy=true, orphanNullProvider=0, withProviderTrxId=30`; exit code `0`).
+- Tidak ada migrasi database pada tahap ini.
