@@ -795,3 +795,47 @@ Catatan tambahan pemanggil lain:
    - Audit 0 circular dependency (graf `require` Node), ketunggalan `pool` aplikasi / `callbackClock` / `foxyProductCache`, dan eksekusi mandiri setiap file `tests/unit/*.test.js` dan `tests/integration/*.test.js`.
    - Jalankan ketiga skrip PostgreSQL manual (`tests/manual/concurrency.js`, `idempotency.js`, `pool.js`).
    - Perbarui `README.md` (peta struktur backend & panduan tes unit/integrasi/manual) serta lengkapi hasil R10 + Checklist Akhir Refactor di `docs/refactor-plan.md`.
+
+### Hasil Akhir R10
+- Ukuran akhir entry point & app:
+  - `backend/server.js`: `126` baris -> **`27` baris** (batas keras `<= 150` baris; hanya `startServer` + startup env validation).
+  - `backend/app.js`: **`105` baris** (batas keras `<= 150` baris; `createApp()` merakit middleware, static frontend, `applyRateLimiters`, dan 19 grup router).
+  - `backend/config/db.js`: **`51` baris** (mengekspor singleton `pool` aplikasi + `createPool()`).
+- Ringkasan 5 Commit R10:
+  1. `045bb85` — `refactor(app): pisahkan perakitan Express ke app.js dan pool singleton ke config/db.js (tanpa perubahan perilaku)` (`app.js` `105` baris, `db.js` `51` baris, `server.js` `39` baris dengan re-export sementara).
+  2. `c742a74` — `refactor(structure): arahkan seluruh impor tes dan skrip ke modul kanonik (tanpa perubahan perilaku)` (`tests/helpers/appFactory.js`, `7` file `tests/integration/*.test.js`, `3` file `tests/manual/*.js`, dan `scripts/dump-routes.js`).
+  3. `54cf898` — `refactor(structure): bersihkan ekspor lama di server.js dan perbarui skrip check (tanpa perubahan perilaku)` (`server.js` -> `27` baris, `module.exports = { startServer }`; `package.json` `check` mencakup `app.js`, `server.js`, `cron_job_script.js`, `utils/validators`, dan `tests/manual`).
+  4. `50c6fdd` — `refactor(structure): rapikan skrip dan analisis root backend serta pecah validator Mobapay <= 300 baris (tanpa perubahan perilaku)` (`git mv` `seed_local_dummy.js` & `benchmark_roles_update.js` -> `backend/scripts/`, `ENV_ANALYSIS.md` -> `docs/`, pembaruan `package.json` `seed`/`check`, dan pemecahan `stalk-ml-promo.js` (`202` baris) + `mobapayEligibility.js` (`216` baris)).
+  5. **Commit 5** — Audit graf dependensi (`0` siklus di `53` file non-test), audit batas ukuran (`0` pelanggaran di seluruh `82` file `.js` backend), uji mandiri ke-23 file tes, uji 3 skrip manual PostgreSQL, pembaruan `README.md`, & dokumentasi hasil akhir + Checklist Refactor R0–R10 di `docs/refactor-plan.md`.
+- Audit ukuran file & dependensi melingkar:
+  - **0 pelanggaran ukuran** dari `82` file JS `backend/` (entry/app maks `105 <= 150`; 19 file route maks `368 <= 400`; 6 file service maks `595 <= 600`; 3 file job maks `285 <= 600`; config/middleware/utils/scripts maks `293 <= 300`; 26 file helper/unit/integrasi maks `679 <= 800`; 3 file tes manual maks `648 <= 800`).
+  - **0 circular dependency** dari pemindaian `53` file kode/skrip backend lewat graf `require()` Node bawaan.
+- Audit ketunggalan state:
+  - **1 `pool` aplikasi HTTP/order/deposit** di `backend/config/db.js:39` (ditambah 1 `cronPool` terpisah di `backend/jobs/pendingTransactions.js:10` via `createPool()` sesuai koreksi R2/R8 agar mock `pool` vs `cronPool` pada 5 file tes integrasi tetap terisolasi, serta 1 pool CLI seeder offline di `backend/scripts/seed_local_dummy.js:23`).
+  - **1 `callbackClock` & `callbackVerificationCooldown`** di `backend/routes/foxyCallback.routes.js`.
+  - **1 `foxyProductCache`** di `backend/services/foxyClient.js`.
+- Audit skrip & eksekusi mandiri tes:
+  - `npm run check`: exit `0`
+  - `npm run test:unit`: `25/25` lulus (`3` file); `npm run test:integration`: `167/167` lulus (`20` file); `npm test`: `192/192` lulus (`diff=0` terhadap `docs/refactor-baseline-tests.txt`).
+  - Semua **`23` file tes** (`3` unit + `20` integrasi) terverifikasi lulus saat dijalankan mandiri dengan `node --test <file>`.
+  - `node scripts/check-route-overlap.js`: `OK: route set=87/87, middlewares=87/87, reordered_same_method=279, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
+- Audit 3 skrip PostgreSQL manual (`topup_miku_local@127.0.0.1`):
+  - `node tests/manual/concurrency.js`: **`[PASS]`** (`Skenario A` Success dulu: `status=Success, refundRows=0, balance=75000`; `Skenario B` Refund dulu: `status=Failed, refundRows=1, balance=100000, flashSaleRestored=true`; `Skenario C` Balapan acak 15x: `Success=0, Failed=15, Pelanggaran=0`; exit code `0`).
+  - `node tests/manual/idempotency.js`: **`[PASS]`** (`Skenario A` 20x H2H paralel: `201=1, 200=19, uniqueInvoices=1, foxyCalls=1`; `Skenario B` 20x Web paralel: `201=1, 200=19, uniqueInvoices=1, foxyCalls=1`; `Skenario C` 20x Deposit paralel: `201=1, 200=19, uniqueDepositIds=1`; `Skenario D` `409` payload mismatch: `first=201, conflict=409`; `Skenario E` replay Failed/refund vs `ref_id` baru: `failHttp=400, replayHttp=200(status=Failed), newHttp=201, txCount=2`; exit code `0`).
+  - `node tests/manual/pool.js`: **`[PASS]`** (`30 Parallel Orders vs Pool max=10 & 2000ms Foxy delay: http201=30/30, peakInFlightFoxy=30, dbProbeDuringFoxy=true(39ms), txTotal=30, orphanNullProvider=0, withProviderTrxId=30, uniqueProviderTrxIds=30, webBalance=835000/835000, h2hBalance=835000/835000`; exit code `0`).
+- Tidak ada migrasi database pada tahap R10.
+
+---
+
+## Checklist Akhir Refactor Backend (R0–R10 — Bagian 9 `miku-store-code-structure`)
+
+- [x] Tidak ada file kode di atas batas keras (bagian 1); `server.js` `<= 150` baris (`server.js` = `27` baris, `app.js` = `105` baris, 0 pelanggaran pada seluruh `82` file `.js` backend)
+- [x] Verifikasi route identik via `dump-routes.js` & `check-route-overlap.js`: himpunan & middleware `87/87` identik dengan `docs/routes.baseline.txt`, `overlap_conflicts=0`, dan rantai middleware efektif `87/87` identik dengan `docs/effective-chain.baseline.txt` (`reordered_same_method=279` pada route tanpa tumpang tindih URL akibat pengelompokan router R5–R9, `known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`)
+- [x] Jumlah dan nama tes sama dengan patokan (`187` patokan awal R0 + `5` unit test resmi `crypto.test.js` pada R5/R6a = **`192`** di `docs/refactor-baseline-tests.txt`, `diff=0`); seluruh `23` file tes unit/integrasi lulus saat dijalankan mandiri dengan `node --test <file>`
+- [x] Tiga skrip manual (`tests/manual/concurrency.js`, `idempotency.js`, `pool.js`) semuanya `[PASS]` setelah R8, R9, dan R10
+- [x] Tidak ada dependensi melingkar (`0` siklus pada `53` file kode & skrip backend)
+- [x] Tidak ada SQL atau logika uang yang berubah sepanjang pemindahan kode R2–R10 (`services/orderService.js`, `services/refundService.js`, `services/idempotency.js`, `services/priceService.js`, `routes/deposit.routes.js`, `routes/foxyCallback.routes.js`, `routes/h2h.routes.js`, `routes/order.routes.js`, `jobs/pendingTransactions.js`)
+- [x] Ketunggalan state terjaga: `1` instance `pool` aplikasi di `config/db.js` (+ `1` `cronPool` terpisah di `jobs/pendingTransactions.js` via `createPool()` sesuai koreksi R2/R8 untuk isolasi mock 5 file tes integrasi), `1` `callbackClock` di `routes/foxyCallback.routes.js`, dan `1` cache produk Foxy (`foxyProductCache`) di `services/foxyClient.js`
+- [x] `backend/package.json` skrip `check` dan `test` / `test:unit` / `test:integration` mencakup seluruh file baru (`app.js`, `utils/validators`, `scripts`, `tests/manual`, dll.)
+- [x] `README.md` diperbarui dengan peta struktur folder backend terbaru dan panduan menjalankan tes (unit, integrasi, dan manual PostgreSQL)
+- [x] `.env` tidak ikut commit; `git status` bersih, `git worktree list` tunggal, seluruh file berakhiran LF (`i/lf w/lf`)

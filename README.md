@@ -2,6 +2,113 @@
 
 Aplikasi topup reseller berbasis Express 4 + PostgreSQL + static HTML/CSS/JS frontend.
 
+---
+
+## Struktur Folder Backend & Skrip
+
+Seluruh modul backend dipecah satu arah tanpa dependensi melingkar (`routes -> middleware, services, config, utils`; `services -> config, utils, services bawah`; `jobs -> services, config, utils`):
+
+```text
+topup-miku/
+  migrations/                     # Migrasi SQL berversi (001–011)
+  scripts/                        # Utilitas inspeksi rute Express
+    dump-routes.js                # Cetak route & rantai middleware efektif
+    check-route-overlap.js        # Verifikasi 87/87 route, overlap, & effective chain
+  backend/
+    server.js                     # Entry point HTTP (load env, createApp, startServer)
+    app.js                        # createApp(): middleware global, limiter, 19 grup router
+    cron_job_script.js            # Wrapper CLI resmi untuk jobs/cronJob.js
+    package.json                  # Skrip start, check, seed, test, test:unit, test:integration
+    config/
+      constants.js                # Batas body/timeout, regex validasi, konstanta bisnis
+      db.js                       # Konfigurasi PG, createPool(), & singleton pool aplikasi
+      env.js                      # Validasi env startup & ALLOWED_ORIGINS
+    middleware/
+      auth.js                     # protect, protectAdmin, softProtect
+      h2hAuth.js                  # protectH2H, protectH2HIp
+      rateLimiters.js             # Limiter auth, checkout, H2H (key & user), & API umum
+      securityHeaders.js          # CSP, X-Frame-Options, CORS
+      waBotAuth.js                # requireWaBotAdminToken
+    routes/
+      auth.routes.js              # Register, login, forgot/reset password
+      catalog.routes.js           # Validasi ID produk/full-validate, katalog harga, promo
+      deposit.routes.js           # Payment method & request/riwayat deposit member
+      foxyCallback.routes.js      # Webhook callback Foxy (+ callbackClock & cooldown cache)
+      h2h.routes.js               # Order H2H, pricelist H2H, profil & callback H2H
+      order.routes.js             # Web checkout POST /api/order
+      public.routes.js            # Healthz, daftar game, leaderboard, cek transaksi publik
+      user.routes.js              # Profil, password, mutasi saldo, riwayat order, notifikasi
+      userApiKey.routes.js        # Generate/revoke API key, webhook secret, IP whitelist
+      waBot.routes.js             # Endpoint bot WA admin deposit
+      admin/                      # 9 router admin (balance, deposits, flashSales, games,
+                                  # margins, paymentMethods, products, promos, transactions)
+    services/
+      foxyClient.js               # Integrasi katalog Foxy & cache tunggal produk Foxy
+      idempotency.js              # Invoice ID kriptografis & resolusi ref_id/idempotency
+      notificationService.js      # Pencatatan notifikasi pengguna
+      orderService.js             # Eksekusi order 3-fase Web & H2H (Fase a/b/c)
+      priceService.js             # Kalkulasi harga jual, margin, flash sale, & promo
+      refundService.js            # rollbackTransactionResources (jalur tunggal refund)
+    jobs/
+      cronJob.js                  # Orkestrator cron CLI & file lock
+      pendingTransactions.js      # Rekonsiliasi transaksi Pending (+ cronPool terpisah)
+      productSync.js              # Sinkronisasi katalog produk dari Foxy
+    scripts/
+      benchmark_roles_update.js   # Benchmark ad-hoc pembaruan margin role
+      seed_local_dummy.js         # Seeder data dummy lokal (non-production)
+    utils/
+      cronUtils.js                # Facade kompatibilitas ke jobs/* & refundService
+      crypto.js, logger.js, mailer.js, networkSecurity.js, strings.js, validation.js, webhookClient.js
+      validators/                 # cek-id-game.js, stalk-mcgg.js, stalk-ml-promo.js, mobapayEligibility.js
+    tests/
+      helpers/                    # appFactory.js, fixtures.js, mockDb.js
+      unit/                       # Unit test murni (crypto, mobapayEligibility, normalizePhone)
+      integration/                # 20 file tes integrasi HTTP/keamanan (dengan mock DB/Foxy)
+      manual/                     # Skrip pengujian konkurensi ke PostgreSQL lokal nyata
+```
+
+---
+
+## Panduan Pengujian & Verifikasi
+
+### 1. Pemeriksaan Sintaks & Struktur Route
+
+```bash
+cd backend
+npm run check
+npm run seed                      # Opsional: isi data dummy lokal (hanya non-production)
+cd ..
+node scripts/check-route-overlap.js
+```
+
+### 2. Tes Otomatis (Unit & Integrasi — Tanpa Database Asli)
+
+Seluruh `192` tes otomatis memakai mock DB/HTTP dan dapat dijalankan penuh, per kategori, maupun per file secara mandiri:
+
+```bash
+cd backend
+npm test                          # Menjalankan seluruh 192 tes (28 suite)
+npm run test:unit                 # Menjalankan seluruh tes unit di tests/unit/
+npm run test:integration          # Menjalankan seluruh tes integrasi di tests/integration/
+
+# Menjalankan satu file tes secara mandiri:
+node --test tests/integration/orderCompensation.test.js
+node --test tests/unit/crypto.test.js
+```
+
+### 3. Tes Manual PostgreSQL (`backend/tests/manual/*`)
+
+Ketiga skrip di bawah ini **tidak termasuk** dalam `npm test` karena membutuhkan koneksi PostgreSQL lokal yang aktif (dikonfigurasi di `backend/.env` dan **nama `DB_NAME` wajib mengandung `dev`, `local`, atau `test`** agar aman dari eksekusi ke database production; mock HTTP Foxy berjalan lokal tanpa memanggil provider nyata):
+
+```bash
+cd backend
+node tests/manual/concurrency.js  # Balapan 20x callback Success vs refund cron & row lock
+node tests/manual/idempotency.js  # 20x request paralel ref_id / Idempotency-Key & konflik 409
+node tests/manual/pool.js         # 30x order paralel vs pool max=10 & latensi provider 2s
+```
+
+---
+
 ## Konfigurasi Keamanan Webhook Callback Foxy (`SEC-001`)
 
 Endpoint `POST /api/foxy/callback` beroperasi dalam mode **fail-closed** dan **Zero-Trust**:
