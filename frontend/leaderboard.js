@@ -6,6 +6,8 @@
 (function () {
     'use strict';
 
+    const { escapeHtml } = window.MikuShared.dom;
+    const { formatRupiahPlain: formatRupiah } = window.MikuShared.format;
     const API_BASE = '/api/public/leaderboard';
     const container = document.getElementById('leaderboard-container');
     const tabs = document.querySelectorAll('.period-tab');
@@ -13,31 +15,6 @@
     let currentPeriod = 'all_time';
 
     /* ── Utilities ─────────────────────────────────────────── */
-
-    /**
-     * Escape HTML to prevent XSS when inserting API text into innerHTML.
-     * @param {string} str
-     * @returns {string}
-     */
-    function escapeHtml(str) {
-        if (typeof str !== 'string') return '';
-        return str
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    /**
-     * Format number to Rupiah string: 150000 → "Rp 150.000"
-     * @param {number} amount
-     * @returns {string}
-     */
-    function formatRupiah(amount) {
-        const num = Number(amount) || 0;
-        return 'Rp ' + num.toLocaleString('id-ID');
-    }
 
     /**
      * Return rank badge HTML for position 1/2/3 (emoji + class), else number.

@@ -5,8 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dashboard - MIKU Store</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="style-responsive.css">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/modalsAndForms.css">
+    <link rel="stylesheet" href="css/portal.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/dashboardOverview.css">
+    <link rel="stylesheet" href="css/dashboardDeposit.css">
+    <link rel="stylesheet" href="css/dashboardH2H.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
@@ -502,7 +509,16 @@
     </div>
 
     <div id="toast-notification" class="toast hidden"></div>
-    <script src="dashboard.js"></script>
+    <script defer src="js/shared/format.js"></script>
+    <script defer src="js/shared/dom.js"></script>
+    <script defer src="js/shared/auth.js"></script>
+    <script defer src="js/shared/api.js"></script>
+    <script defer src="js/dashboard/state.js"></script>
+    <script defer src="js/dashboard/overview.js"></script>
+    <script defer src="js/dashboard/deposit.js"></script>
+    <script defer src="js/dashboard/transactions.js"></script>
+    <script defer src="js/dashboard/h2hIntegration.js"></script>
+    <script defer src="js/dashboard/profile.js"></script>
 
     <footer>
         <div class="container footer-content">

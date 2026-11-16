@@ -5,6 +5,7 @@ let allRolesData = [];
 let displayRoles = [];
 
 document.addEventListener('DOMContentLoaded', function () {
+    const { formatRupiah } = window.MikuShared.format;
     const PUBLIC_API_URL = '/api';
 
     const gameSelectorDropdown = document.getElementById('game-selector-dropdown');
@@ -102,9 +103,7 @@ document.addEventListener('DOMContentLoaded', function () {
             let rowHtml = `<td>${product.game_name}</td><td>${product.product_name}</td><td>${product.provider_sku}</td>`;
             roles.forEach(role => {
                 const rolePriceKey = `price_${role.name.toLowerCase()}`;
-                const formattedRolePrice = new Intl.NumberFormat('id-ID', {
-                    style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-                }).format(product[rolePriceKey] || 0);
+                const formattedRolePrice = formatRupiah(product[rolePriceKey] || 0);
                 rowHtml += `<td>${formattedRolePrice}</td>`;
             });
             row.innerHTML = rowHtml;

@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const { setupPasswordToggles } = window.MikuShared.dom;
+    const { apiFetchJson } = window.MikuShared.api;
     const resetForm = document.getElementById('reset-password-form');
     
     // Ambil token dari URL
@@ -26,17 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
             submitButton.textContent = 'Menyimpan...';
 
             try {
-                const response = await fetch('/api/auth/reset-password', {
+                const result = await apiFetchJson('/api/auth/reset-password', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: token, newPassword: newPassword })
+                    jsonBody: { token: token, newPassword: newPassword }
                 });
-
-                const result = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(result.message);
-                }
 
                 alert(result.message);
                 window.location.href = 'index.html'; // Arahkan ke halaman utama untuk login
@@ -50,13 +45,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Logika untuk toggle lihat password
-    document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
-            const input = this.parentElement.querySelector('input');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
-        });
-    });
+    setupPasswordToggles();
 });

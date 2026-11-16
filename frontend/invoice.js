@@ -1,13 +1,16 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const { formatRupiah, formatDateId, statusLabel } = window.MikuShared.format;
+    const { copyToClipboard } = window.MikuShared.dom;
+    const { requireAuthToken } = window.MikuShared.auth;
+    const { apiFetch } = window.MikuShared.api;
     const API_URL = '/api/user/transaction/';
-    const token = localStorage.getItem('authToken');
+    const token = requireAuthToken('index.html');
     const invoiceDetailsContainer = document.getElementById('invoice-details-container');
     const params = new URLSearchParams(window.location.search);
     const rawInvoiceId = params.get('id');
     const invoiceId = rawInvoiceId ? rawInvoiceId.trim() : '';
 
     if (!token) {
-        window.location.href = 'index.html';
         return;
     }
 
@@ -19,9 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchInvoiceDetails() {
         invoiceDetailsContainer.innerHTML = '<div class="card"><div class="ui-state loading">Memuat detail invoice...</div></div>';
         try {
-            const response = await fetch(API_URL + encodeURIComponent(invoiceId), {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await apiFetch(API_URL + encodeURIComponent(invoiceId), { auth: true, token });
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -37,14 +38,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderInvoiceDetails(tx) {
-        const formattedPrice = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(tx.price);
-        const formattedDate = new Date(tx.created_at).toLocaleString('id-ID', { dateStyle: 'full', timeStyle: 'short' });
+        const formattedPrice = formatRupiah(tx.price, { withDecimals: true });
+        const formattedDate = formatDateId(tx.created_at, { dateStyle: 'full', timeStyle: 'short' });
         const normalizedStatus = String(tx.status || 'Pending').toLowerCase();
-        const statusText = normalizedStatus === 'success' ? 'Berhasil'
-            : normalizedStatus === 'failed' ? 'Gagal'
-            : normalizedStatus === 'refunded' ? 'Refund'
-            : normalizedStatus === 'partial refund' ? 'Perlu Review Admin'
-            : 'Pending';
+        const statusText = statusLabel(tx.status);
         const statusNote = normalizedStatus === 'success'
             ? 'Pesanan berhasil diproses.'
             : normalizedStatus === 'failed'
@@ -108,21 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         invoiceDetailsContainer.innerHTML = detailsHtml;
 
-        async function copyText(text) {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(text);
-                return;
-            }
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.setAttribute('readonly', '');
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-        }
+        const copyText = (text) => copyToClipboard(text, { requireSecureContext: false });
 
         const receiptLines = [
             '*STRUK TRANSAKSI MIKU STORE*',

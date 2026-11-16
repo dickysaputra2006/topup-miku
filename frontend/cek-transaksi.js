@@ -2,33 +2,13 @@
 
 (function () {
     const API_BASE = '/api/public';
-
-    // ── Status helpers ───────────────────────────────────────────────
-    function statusLabel(status) {
-        const s = String(status || '').toLowerCase();
-        if (s === 'success') return 'Berhasil';
-        if (s === 'failed') return 'Gagal';
-        if (s === 'refunded') return 'Refund';
-        if (s === 'partial refund') return 'Perlu Review Admin';
-        return 'Pending';
-    }
-
-    function statusClass(status) {
-        return 'status-' + String(status || 'pending').toLowerCase().replace(/\s+/g, '-');
-    }
-
-    function formatCurrency(amount) {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency', currency: 'IDR', minimumFractionDigits: 0
-        }).format(amount);
-    }
-
-    function formatDate(dateStr) {
-        if (!dateStr) return '-';
-        return new Date(dateStr).toLocaleString('id-ID', {
-            dateStyle: 'long', timeStyle: 'short'
-        });
-    }
+    const {
+        statusLabel,
+        statusClass,
+        formatRupiah,
+        formatDateId,
+    } = window.MikuShared.format;
+    const { escapeHtml } = window.MikuShared.dom;
 
     // ── Cek invoice tunggal ──────────────────────────────────────────
     const checkForm    = document.getElementById('check-form');
@@ -99,15 +79,15 @@
                     </div>
                     <div class="trx-detail-row">
                         <span class="trx-label">Harga</span>
-                        <span class="trx-value">${formatCurrency(data.price)}</span>
+                        <span class="trx-value">${formatRupiah(data.price)}</span>
                     </div>
                     <div class="trx-detail-row">
                         <span class="trx-label">Dibuat</span>
-                        <span class="trx-value">${formatDate(data.created_at)}</span>
+                        <span class="trx-value">${formatDateId(data.created_at, { dateStyle: 'long', timeStyle: 'short' })}</span>
                     </div>
                     <div class="trx-detail-row">
                         <span class="trx-label">Diperbarui</span>
-                        <span class="trx-value">${formatDate(data.updated_at)}</span>
+                        <span class="trx-value">${formatDateId(data.updated_at, { dateStyle: 'long', timeStyle: 'short' })}</span>
                     </div>
                 </div>
                 ${partialNote}
@@ -165,16 +145,6 @@
         } catch (err) {
             container.innerHTML = '<div class="ui-state error">Gagal memuat transaksi terbaru.</div>';
         }
-    }
-
-    // ── Escape HTML util ─────────────────────────────────────────────
-    function escapeHtml(str) {
-        return String(str || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
     }
 
     // ── Init ─────────────────────────────────────────────────────────

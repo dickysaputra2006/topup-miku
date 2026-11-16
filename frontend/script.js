@@ -1,9 +1,18 @@
 document.addEventListener('DOMContentLoaded', function () {
-    const logoutMessage = sessionStorage.getItem('logoutMessage');
+    const { formatRupiah, formatDateId } = window.MikuShared.format;
+    const { escapeHtml, setupPasswordToggles } = window.MikuShared.dom;
+    const {
+        getAuthToken,
+        setAuthToken,
+        clearAuthToken,
+        consumeLogoutMessage,
+    } = window.MikuShared.auth;
+    const { apiFetch } = window.MikuShared.api;
+
+    const logoutMessage = consumeLogoutMessage();
     if (logoutMessage) {
         // Kita gunakan alert() sederhana di sini, atau Anda bisa buat toast juga
         alert(logoutMessage);
-        sessionStorage.removeItem('logoutMessage'); // Hapus pesan agar tidak muncul lagi
     }
     // === 1. DEKLARASI KONSTANTA & ELEMEN ===
     const API_URL_AUTH = '/api/auth';
@@ -59,8 +68,7 @@ document.addEventListener('DOMContentLoaded', function () {
      * Hapus token dari storage dan update tombol — TANPA memanggil /api/user/profile lagi.
      */
     function setLoggedOutUI() {
-        localStorage.removeItem('authToken');
-        sessionStorage.removeItem('authToken'); // bersihkan juga sessionStorage jika ada
+        clearAuthToken();
 
         const userAuthButton = document.getElementById('user-auth-button');
         const dropdownAuthButton = document.getElementById('dropdown-auth-btn');
@@ -81,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     async function updateAuthButton() {
         // Baca token fresh setiap kali — agar removal di setLoggedOutUI langsung terlihat
-        const currentToken = localStorage.getItem('authToken');
+        const currentToken = getAuthToken();
 
         const userAuthButton = document.getElementById('user-auth-button');
         const dropdownAuthButton = document.getElementById('dropdown-auth-btn');
@@ -99,9 +107,7 @@ document.addEventListener('DOMContentLoaded', function () {
         isFetchingProfile = true;
 
         try {
-            const response = await fetch(`${API_URL}/user/profile`, {
-                headers: { 'Authorization': `Bearer ${currentToken}` }
-            });
+            const response = await apiFetch(`${API_URL}/user/profile`, { auth: true, token: currentToken });
 
             // Token expired / invalid — logout bersih, tidak retry
             if (response.status === 401 || response.status === 403) {
@@ -134,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function () {
             dropdownAuthButton.href = '#';
             dropdownAuthButton.onclick = (e) => {
                 e.preventDefault();
-                localStorage.removeItem('authToken');
+                clearAuthToken();
                 window.location.reload();
             };
             // --------------------------------------
@@ -145,16 +151,6 @@ document.addEventListener('DOMContentLoaded', function () {
         } finally {
             isFetchingProfile = false;
         }
-    }
-
-    /** Escape HTML agar nama game aman dimasukkan ke innerHTML */
-    function escapeHtml(str) {
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
     }
 
     function renderGameGrid(games, containerId) {
@@ -233,11 +229,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function checkUnreadNotifications() {
-        const currentToken = localStorage.getItem('authToken');
+        const currentToken = getAuthToken();
         if (!currentToken) return; // Hanya jalankan jika user login
         try {
-            const response = await fetch(`${API_URL}/user/notifications/unread-count`, {
-                headers: { 'Authorization': `Bearer ${currentToken}` }
+            const response = await apiFetch(`${API_URL}/user/notifications/unread-count`, {
+                auth: true,
+                token: currentToken
             });
             // Token invalid — tidak perlu update badge, cukup return
             if (response.status === 401 || response.status === 403) return;
@@ -255,12 +252,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function showNotifications() {
-        const currentToken = localStorage.getItem('authToken');
+        const currentToken = getAuthToken();
         if (!currentToken) return;
         notificationList.innerHTML = '<p style="text-align: center; padding: 1rem;">Memuat...</p>';
         try {
-            const response = await fetch(`${API_URL}/user/notifications`, {
-                headers: { 'Authorization': `Bearer ${currentToken}` }
+            const response = await apiFetch(`${API_URL}/user/notifications`, {
+                auth: true,
+                token: currentToken
             });
             if (response.status === 401 || response.status === 403) {
                 notificationList.innerHTML = '';
@@ -279,16 +277,17 @@ document.addEventListener('DOMContentLoaded', function () {
                         notifLink.classList.add('unread');
                     }
                     notifLink.innerHTML = `<p style="margin:0; font-size: 0.9rem;">${notif.message}</p>
-                                           <small style="color: #a7a9be;">${new Date(notif.created_at).toLocaleString('id-ID')}</small>`;
+                                           <small style="color: #a7a9be;">${formatDateId(notif.created_at)}</small>`;
                     notificationList.appendChild(notifLink);
                 });
             }
             // Tandai sudah dibaca di backend
-            const tokenForMark = localStorage.getItem('authToken');
+            const tokenForMark = getAuthToken();
             if (tokenForMark) {
-                await fetch(`${API_URL}/user/notifications/mark-as-read`, {
+                await apiFetch(`${API_URL}/user/notifications/mark-as-read`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${tokenForMark}` }
+                    auth: true,
+                    token: tokenForMark
                 }).catch(() => {}); // silent fail
             }
             notificationBadge.classList.add('hidden'); // Sembunyikan badge
@@ -379,8 +378,8 @@ document.addEventListener('DOMContentLoaded', function () {
                     <img src="${product.game_image_url}" alt="${product.product_name}">
                     <div class="flash-sale-info">
                         <span class="fs-product-name">${product.product_name}</span>
-                        <span class="fs-price-discounted">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.discount_price)}</span>
-                        <span class="fs-price-original">${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(product.original_price)}</span>
+                        <span class="fs-price-discounted">${formatRupiah(product.discount_price, { withDecimals: true })}</span>
+                        <span class="fs-price-original">${formatRupiah(product.original_price, { withDecimals: true })}</span>
                     </div>
                 </a>
             `;
@@ -525,7 +524,7 @@ if (dropdownLoginBtn) {
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
-                localStorage.setItem('authToken', result.token);
+                setAuthToken(result.token);
                 alert(result.message);
                 window.location.reload();
             } catch (error) {
@@ -552,15 +551,7 @@ if (dropdownLoginBtn) {
         });
     });
 
-    document.querySelectorAll('.toggle-password').forEach(icon => {
-        icon.addEventListener('click', function () {
-            const input = this.parentElement.querySelector('input');
-            const isPassword = input.type === 'password';
-            input.type = isPassword ? 'text' : 'password';
-            this.classList.toggle('fa-eye', !isPassword);
-            this.classList.toggle('fa-eye-slash', isPassword);
-        });
-    });
+    setupPasswordToggles();
 
     if (searchInput) {
         searchInput.addEventListener('input', () => handleSearch(searchInput.value));

@@ -1,0 +1,629 @@
+/* MIKU Store — Admin Panel Layout, Master-Detail, Catalog, Margins & Payment Methods */
+
+.admin-form input,
+.admin-form select,
+#sync-products-form input,
+#margin-form input {
+    width: 100%;
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+.admin-form button,
+#margin-form button,
+#sync-products-form button {
+    width: 100%;
+    padding: 0.8rem;
+    border: none;
+    background: var(--primary-color);
+    color: white;
+    font-weight: bold;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.switch-form {
+    text-align: center;
+    margin-top: 1.5rem;
+    font-size: 0.9rem;
+}
+.switch-form a {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+.admin-page-container {
+    display: flex;
+    gap: 2rem;
+    margin-top: 2rem;
+    align-items: flex-start;
+}
+.admin-sidebar {
+    flex: 1;
+    max-width: 250px;
+    background-color: var(--bg-surface);
+    padding: 1rem;
+    border-radius: 8px;
+    position: sticky;
+    top: 2rem;
+}
+.admin-content {
+    flex: 3;
+    min-width: 0;
+}
+.admin-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+.admin-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+.approve-btn {
+    background-color: var(--success-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.approve-btn:disabled {
+    background-color: #6c757d;
+}
+.failed-btn {
+    background-color: var(--danger-color);
+}
+.admin-forms-container {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+.admin-form {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.5rem;
+    background-color: rgba(255, 255, 255, 0.03);
+    border-radius: 8px;
+}
+.admin-form h4 {
+    margin-top: 0;
+    text-align: center;
+}
+.admin-form label, #margin-form label, #sync-products-form label {
+    font-size: 0.9rem;
+    color: #a7a9be;
+    margin-top: 0;
+    margin-bottom: 0.2rem;
+}
+.admin-form input, .admin-form select {
+    margin-top: -0.8rem;
+}
+.admin-master-detail {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+.master-list {
+    flex: 1;
+    min-width: 0;
+}
+.detail-list {
+    flex: 2;
+    min-width: 0;
+}
+#games-table tbody tr {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+#games-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+#games-table tbody tr.active-row {
+    background-color: rgba(6, 182, 212, 0.18);
+    font-weight: bold;
+}
+#margin-fields-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+.form-group-horizontal {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.form-group-horizontal label {
+    font-weight: bold;
+}
+.form-group-horizontal div {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.form-group-horizontal input {
+    width: 80px;
+    text-align: right;
+    margin-bottom: 0;
+}
+#sync-products-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+#sync-products-form .form-group {
+    display: flex;
+    flex-direction: column;
+}
+#sync-products-form button {
+    padding: 0.7rem 1.5rem;
+    height: fit-content;
+}
+.admin-page-container {
+    display: flex;
+    gap: 2rem;
+    margin-top: 2rem;
+    align-items: flex-start;
+}
+.admin-sidebar {
+    flex: 1;
+    min-width: 200px;
+    max-width: 250px;
+    background-color: var(--bg-surface);
+    padding: 1rem;
+    border-radius: 8px;
+    position: sticky;
+    top: 2rem;
+    min-height: calc(100vh - 4rem);
+    box-sizing: border-box;
+    overflow-y: auto;
+    max-height: calc(100vh - 4rem);
+}
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+}
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    -webkit-transition: .4s;
+    transition: .4s;
+    border-radius: 28px;
+}
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    -webkit-transition: .4s;
+    transition: .4s;
+    border-radius: 50%;
+}
+input:checked + .slider {
+    background-color: #2196F3;
+}
+input:focus + .slider {
+    box-shadow: 0 0 1px #2196F3;
+}
+input:checked + .slider:before {
+    -webkit-transform: translateX(22px);
+    -ms-transform: translateX(22px);
+    transform: translateX(22px);
+}
+@media (max-width: 768px) {
+    .admin-page-container {
+        flex-direction: column;
+    }
+    .admin-sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        height: 100vh;
+        z-index: 300;
+        transition: left 0.3s ease-in-out;
+        max-width: 300px;
+        width: 75%;
+        position: fixed;
+    }
+    .admin-sidebar.active {
+        left: 0;
+    }
+}
+.admin-master-detail {
+    display: grid;
+    grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+    gap: 2rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+.game-selector-form {
+    display: flex;
+    gap: 1rem;
+    margin: 1rem 0 2rem 0;
+    flex-wrap: wrap;
+}
+.game-selector-form input,
+.game-selector-form select {
+    flex: 1;
+    min-width: 250px;
+}
+.game-info-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+.game-info-details p {
+    margin: 0;
+    padding: 0.8rem;
+    background-color: var(--bg-dark);
+    border-radius: 5px;
+    text-align: center;
+}
+.game-info-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem;
+    background-color: var(--bg-dark);
+    border-radius: 5px;
+}
+#sync-products-form {
+    align-items: flex-end;
+}
+#sync-products-form .form-group {
+    margin-bottom: 0;
+}
+#sync-products-form button {
+    padding-top: 0.8rem;
+    padding-bottom: 0.8rem;
+}
+@media (min-width: 769px) {
+    .admin-page-container {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start;
+    }
+    .admin-sidebar {
+    flex: 0 0 250px;
+    max-width: 250px;
+    position: sticky;
+    top: 2rem;
+    }
+    .admin-content {
+    flex: 1;
+    min-width: 0;
+    }
+    .admin-section {
+    width: 100%;
+    }
+    .admin-page-container {
+    display: flex;
+    flex-direction: row;
+    gap: 2rem;
+    align-items: flex-start;
+    }
+    .admin-sidebar {
+    flex: 0 0 250px;
+    max-width: 250px;
+    position: sticky;
+    top: 2rem;
+    }
+    .admin-content {
+    flex: 1;
+    min-width: 0;
+    }
+    .admin-section {
+    width: 100%;
+    }
+}
+.edit-btn.edit-validation-btn {
+    position: relative;
+    z-index: 2;
+    cursor: pointer;
+}
+#validation-rules-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+#validation-rules-container input {
+    margin-bottom: 0;
+}
+#custom-margin-fields label {
+    margin-bottom: 0.5rem;
+}
+#custom-margin-fields input {
+    margin-top: 0;
+}
+#custom-margin-fields label,
+#manual-price-fields label {
+    margin-bottom: 0.5rem;
+}
+#custom-margin-fields input,
+#manual-price-fields input {
+    margin-top: 0;
+}
+.admin-section .card > h3:first-child {
+    margin-bottom: 1rem;
+}
+@media (max-width: 900px) {
+    .admin-page-container {
+        gap: 1rem;
+    }
+    .admin-sidebar {
+        min-width: 190px;
+    }
+}
+@media (max-width: 768px) {
+    .admin-page-container {
+        margin-top: 1rem;
+    }
+}
+.admin-form button,
+#margin-form button,
+#sync-products-form button {
+    background: var(--primary-gradient);
+    color: #ffffff;
+    border-radius: 8px;
+}
+.form-help {
+    display: block;
+    margin-top: -0.4rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.78rem;
+    color: var(--muted-color);
+    line-height: 1.4;
+}
+.admin-form textarea {
+    width: 100%;
+    padding: 0.7rem 0.85rem;
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-color);
+    font-family: inherit;
+    font-size: max(1rem, 0.95em);
+    resize: vertical;
+    box-sizing: border-box;
+    margin-bottom: 0.85rem;
+}
+.admin-form textarea:focus-visible,
+#payment-method-form input:focus-visible,
+#payment-method-form select:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+.pm-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: 0.65rem;
+}
+.pm-checkbox-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    min-height: 18px;
+    margin: 0;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+}
+.pm-checkbox-row label {
+    margin: 0;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+.pm-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.2rem;
+    align-items: center;
+}
+.pm-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+.pm-table-header h3 {
+    margin: 0;
+}
+.form-status-msg {
+    margin-top: 0.85rem;
+    font-size: 0.88rem;
+    font-weight: 600;
+    min-height: 1.2em;
+}
+.form-status-msg.is-success {
+    color: #34d399;
+}
+.form-status-msg.is-error {
+    color: #fb7185;
+}
+.admin-page-container {
+  gap: 1.5rem;
+}
+.admin-sidebar {
+  border-radius: var(--radius-md);
+}
+@media (min-width: 769px) {
+    .admin-page-container {
+    align-items: flex-start;
+    }
+    #admin-sidebar {
+    position: sticky;
+    top: calc(56px + 1.25rem);
+    align-self: flex-start;
+    height: auto;
+    min-height: auto;
+    max-height: calc(100vh - 6.5rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    }
+}
+@media (max-width: 768px) {
+    .admin-page-container {
+    margin-top: 1rem;
+    }
+    .admin-content .table-container {
+    overflow-x: auto;
+    max-width: 100%;
+    }
+}
+.admin-master-detail {
+  grid-template-columns: minmax(0, 40%) minmax(0, 1fr);
+  width: 100%;
+}
+.master-list,
+.detail-list {
+  min-width: 0;
+}
+@media (max-width: 768px) {
+    .admin-master-detail {
+    grid-template-columns: 1fr;
+    }
+    .admin-forms-container {
+    flex-direction: column;
+    }
+    .admin-form {
+    min-width: 0;
+    }
+}
+.approve-btn {
+  min-height: 40px;
+  cursor: pointer;
+}
+@media (max-width: 768px) {
+    .admin-content .table-container table {
+    white-space: nowrap;
+    min-width: 500px;
+    }
+    .game-selector-form {
+    flex-direction: column;
+    }
+    .game-selector-form input,
+    .game-selector-form select {
+    min-width: 0;
+    width: 100%;
+    }
+}
+.admin-content {
+  min-width: 0;
+  overflow: visible;
+}
+.admin-content .table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+#product-list-container .table-container {
+  max-height: min(55vh, 480px);
+  overflow-y: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  z-index: 1;
+}
+#products-table thead th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-surface);
+  z-index: 2;
+}
+.edit-validation-btn,
+.manual-price-btn {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto !important;
+  cursor: pointer;
+}
+#products-table td:first-child {
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#flash-sales-table td:nth-child(2),
+#promos-table td:nth-child(2) {
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-page-container {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (min-width: 769px) {
+    .admin-sidebar .menu-toggle-btn {
+    display: none !important;
+    }
+}
+@media (max-width: 768px) {
+    .admin-sidebar .menu-toggle-btn {
+    display: block !important;
+    }
+}
+.admin-resolve-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.resolve-btn {
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: opacity 0.15s;
+}
+.resolve-btn:hover {
+    opacity: 0.85;
+}
+.resolve-btn-success {
+    background: #22c55e;
+    color: #fff;
+}
+.resolve-btn-refund {
+    background: #ef4444;
+    color: #fff;
+}
+.resolve-btn-review {
+    background: #F97316;
+    color: #fff;
+}
+@media (max-width: 480px) {
+    .pm-form-actions button {
+        width: 100%;
+    }
+}

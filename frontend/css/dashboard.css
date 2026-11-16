@@ -1,0 +1,463 @@
+/* MIKU Store — Member Dashboard Shell, Header Chip, Sidebar & Transactions */
+
+.dashboard-container {
+    flex-grow: 1;
+}
+.dashboard-container {
+    display: flex;
+    gap: 2rem;
+    margin-top: 2rem;
+    align-items: flex-start;
+}
+.dashboard-content {
+    flex: 3;
+    min-width: 0;
+}
+.dashboard-section {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+.dashboard-content .card {
+    margin-bottom: 2rem;
+}
+.modal-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1.5rem;
+}
+.tab-link {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    padding: 1rem;
+    cursor: pointer;
+    font-size: 1rem;
+    border-bottom: 3px solid transparent;
+}
+.tab-link.active {
+    border-bottom-color: var(--primary-color);
+    color: var(--primary-color);
+    font-weight: bold;
+}
+.dashboard-container {
+    display: flex;
+    gap: 2rem;
+    margin-top: 2rem;
+    align-items: flex-start;
+}
+@media (max-width: 768px) {
+    .dashboard-container {
+        flex-direction: column;
+    }
+}
+.dashboard-input {
+    background-color: var(--bg-dark) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-color) !important;
+    font-size: 1rem !important;
+}
+.dashboard-input::placeholder {
+    color: #8b96a8;
+}
+@media (max-width: 768px) {
+    .dashboard-content .card {
+        padding: 1rem;
+    }
+    .dashboard-content h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+}
+.dashboard-section .card > h3:first-child {
+    margin-bottom: 1rem;
+}
+.dashboard-input {
+    min-height: 44px;
+}
+@media (max-width: 900px) {
+    .dashboard-container {
+        gap: 1rem;
+    }
+}
+@media (max-width: 768px) {
+    .dashboard-container {
+        margin-top: 1rem;
+    }
+    #transactions-table {
+    white-space: nowrap;
+    }
+    #transaksi-tab .table-container {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    }
+    #transactions-table {
+    white-space: nowrap;
+    }
+    .dashboard-content .table-container {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    }
+    .dashboard-content .table-container table {
+    white-space: nowrap;
+    }
+}
+.dashboard-header .header-left {
+    gap: 0.85rem;
+}
+.header-back-home {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--muted-color);
+    text-decoration: none;
+    font-size: 0.86rem;
+    font-weight: 500;
+    padding: 0.35rem 0.65rem;
+    border-radius: 8px;
+    border-left: 1px solid var(--border-color);
+    transition: color 0.18s ease, background-color 0.18s ease;
+}
+.header-back-home:hover {
+    color: var(--text-color);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+.header-user-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.25rem 0.7rem 0.25rem 0.3rem;
+    background-color: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    text-decoration: none;
+    color: var(--text-color);
+    transition: border-color 0.18s ease, background-color 0.18s ease;
+}
+.header-user-chip:hover {
+    border-color: var(--primary-color);
+    background-color: rgba(6, 182, 212, 0.1);
+}
+.header-user-meta {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    text-align: left;
+}
+.header-user-meta small {
+    font-size: 0.65rem;
+    color: var(--muted-color);
+}
+.header-user-meta strong {
+    font-size: 0.78rem;
+    color: var(--text-color);
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.user-avatar-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(6, 182, 212, 0.28), rgba(59, 130, 246, 0.3));
+    border: 1px solid rgba(6, 182, 212, 0.45);
+    color: #67e8f9;
+    font-size: 0.76rem;
+    font-weight: 800;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.dashboard-container {
+    max-width: 1240px;
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+    margin-bottom: 2.5rem;
+}
+#dashboard-sidebar {
+    background: linear-gradient(180deg, #0f172a 0%, #111827 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    padding: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+}
+.sidebar-top-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.25rem 0.35rem 0.65rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.sidebar-portal-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--primary-color);
+}
+.sidebar-group-title {
+    display: block;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #64748b;
+    padding: 0.55rem 0.7rem 0.2rem;
+}
+#dashboard-sidebar .sidebar-nav a {
+    padding: 0.62rem 0.85rem;
+    margin-bottom: 0.18rem;
+    font-size: 0.89rem;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: #cbd5e1;
+    border: 1px solid transparent;
+}
+#dashboard-sidebar .sidebar-nav a i {
+    width: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+#dashboard-sidebar .sidebar-nav a:hover {
+    background-color: rgba(6, 182, 212, 0.1);
+    border-color: rgba(6, 182, 212, 0.22);
+    color: var(--text-color);
+}
+#dashboard-sidebar .sidebar-nav a.active {
+    background: var(--primary-gradient);
+    border-color: transparent;
+    color: #ffffff;
+    box-shadow: 0 4px 14px rgba(6, 182, 212, 0.28);
+}
+.sidebar-member-card {
+    margin-top: auto;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.sidebar-member-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.55rem;
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+}
+.sidebar-member-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.sidebar-member-info strong {
+    font-size: 0.82rem;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.sidebar-member-info span {
+    font-size: 0.72rem;
+    color: var(--muted-color);
+}
+.sidebar-cta-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.62rem 0.85rem;
+    border-radius: 9px;
+    background: var(--primary-gradient);
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.85rem;
+    box-shadow: 0 4px 14px rgba(6, 182, 212, 0.25);
+}
+.sidebar-cta-btn:hover {
+    filter: brightness(1.08);
+}
+#dashboard-sidebar #logout-button {
+    padding: 0.55rem 0.85rem;
+    margin-bottom: 0;
+    border-radius: 9px;
+    font-size: 0.85rem;
+    justify-content: center;
+    border: 1px solid rgba(244, 63, 94, 0.28);
+    color: #fda4af;
+}
+#dashboard-sidebar #logout-button:hover {
+    background-color: var(--danger-color);
+    border-color: var(--danger-color);
+    color: #ffffff;
+}
+#dashboard-main {
+    gap: 1.25rem;
+}
+#dashboard-main .card {
+    margin-bottom: 0;
+}
+@media (min-width: 769px) {
+    .pricelist-container .dashboard-content {
+    flex: 1;
+    min-width: 0;
+    }
+}
+@media (max-width: 768px) {
+    .pricelist-container .dashboard-content {
+    min-width: 0;
+    width: 100%;
+    }
+}
+.dashboard-container {
+  gap: 1.5rem;
+}
+@media (min-width: 769px) {
+    .dashboard-container {
+    align-items: flex-start;
+    }
+    #dashboard-sidebar {
+    position: sticky;
+    top: calc(56px + 1.25rem);
+    align-self: flex-start;
+    height: auto;
+    min-height: auto;
+    max-height: calc(100vh - 6.5rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    }
+}
+@media (max-width: 768px) {
+    .dashboard-container {
+    margin-top: 1rem;
+    }
+    .dashboard-content .table-container {
+    overflow-x: auto;
+    max-width: 100%;
+    }
+    .dashboard-content .table-container table {
+    white-space: nowrap;
+    min-width: 500px;
+    }
+}
+.dashboard-content {
+  min-width: 0;
+  overflow: visible;
+}
+.dashboard-container {
+  min-width: 0;
+  max-width: 100%;
+}
+.dashboard-content .table-container {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color) rgba(255,255,255,0.06);
+    border-radius: 0 0 var(--radius-md, 8px) var(--radius-md, 8px);
+}
+.dashboard-content .table-container::-webkit-scrollbar {
+    height: 5px;
+}
+.dashboard-content .table-container::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.04);
+    border-radius: 4px;
+}
+.dashboard-content .table-container::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+}
+.dashboard-content .table-container table {
+    min-width: 580px;
+    width: 100%;
+    white-space: nowrap;
+}
+#transaksi-tab .table-container table {
+    min-width: 680px;
+}
+@media (max-width: 768px) {
+    .dashboard-content {
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    .dashboard-section {
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+    .dashboard-content .card {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    .dashboard-content .table-container {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+    }
+    .dashboard-content .badge,
+    .dashboard-content .status-badge,
+    .dashboard-content .status-pending,
+    .dashboard-content .status-success,
+    .dashboard-content .status-failed {
+        white-space: nowrap;
+        display: inline-block;
+    }
+}
+@media (max-width: 480px) {
+    .dashboard-content .table-container table {
+        min-width: 500px;
+    }
+    #transaksi-tab .table-container table {
+        min-width: 560px;
+    }
+}
+@media (min-width: 769px) {
+    #dashboard-sidebar {
+        flex: 0 0 260px;
+        max-width: 260px;
+    }
+    .sidebar-top-header .menu-toggle-btn {
+        display: none !important;
+    }
+}
+@media (max-width: 768px) {
+    .dashboard-header #menu-toggle-btn,
+    #dashboard-sidebar .menu-toggle-btn {
+        display: inline-flex !important;
+    }
+    .dashboard-header .header-back-home {
+        display: none;
+    }
+    .dashboard-header .header-user-meta {
+        display: none;
+    }
+    .dashboard-header .header-user-chip {
+        padding: 0.15rem;
+    }
+    #dashboard-sidebar {
+        width: min(82vw, 290px);
+        max-width: 290px;
+        height: 100vh;
+        height: 100dvh;
+        max-height: none;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        z-index: 999;
+        border-radius: 0 14px 14px 0;
+    }
+}
