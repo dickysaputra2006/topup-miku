@@ -914,7 +914,26 @@ Karena `frontend/admin.js` aktual panjangnya `1619` baris, pemecahan area kerja 
 - `frontend/js/admin/transactionsAndRoles.js`: Margin global roles (`fetchAndDisplayMargins`, `marginForm`: `lines 368-386`, `563-594`) serta daftar & resolve transaksi admin (`fetchAdminTransactions`, `adminResolveTransaction`: `lines 1515-1616`).
 
 ### Peta 4 Commit Frontend (F0–F2)
-1. **Commit 1 (F0)**: Baseline di `docs/refactor-plan.md`, `git rm backend/diff_tes.txt`, buat `scripts/check-frontend-assets.js`, tambahkan ke `backend/package.json` `"check"`.
-2. **Commit 2 (F1)**: Buat `frontend/js/shared/{format,dom,auth,api}.js` (`<= 300` baris/file), hapus duplikasi utilitas dari `frontend/*.js`, dan perbarui tag `<script defer>` pada HTML terkait.
-3. **Commit 3 (F2a)**: Pecah `frontend/dashboard.js` -> `frontend/js/dashboard/{state,overview,deposit,transactions,h2hIntegration,profile}.js` (`<= 600` baris, target `150-350`), hapus `frontend/dashboard.js`, perbarui `frontend/dashboard.html`.
-4. **Commit 4 (F2b)**: Pecah `frontend/admin.js` -> `frontend/js/admin/{state,deposits,catalog,validationAndPrices,paymentMethods,promosAndFlashSales,transactionsAndRoles}.js` (`<= 400` baris), hapus `frontend/admin.js`, perbarui `frontend/admin.html`, dan lengkapi tabel perbandingan ukuran & hasil di `docs/refactor-plan.md`.
+1. **Commit 1 (`ff18f9b` — F0)**: Baseline di `docs/refactor-plan.md`, `git rm backend/diff_tes.txt`, buat `scripts/check-frontend-assets.js`, tambahkan ke `backend/package.json` `"check"`.
+2. **Commit 2 (`e1f394b` — F1)**: Buat `frontend/js/shared/{format,dom,auth,api}.js` (`<= 119` baris/file), hapus duplikasi utilitas dari `frontend/*.js`, dan perbarui tag `<script defer>` pada 9 file HTML terkait.
+3. **Commit 3 (`e7feba9` — F2a)**: Pecah `frontend/dashboard.js` -> `frontend/js/dashboard/{state,overview,deposit,transactions,h2hIntegration,profile}.js` (`107–496` baris, seluruhnya `<= 600`), hapus `frontend/dashboard.js`, perbarui `frontend/dashboard.html`.
+4. **Commit 4 (F2b)**: Pecah `frontend/admin.js` -> `frontend/js/admin/{state,deposits,catalog,validationAndPrices,paymentMethods,promosAndFlashSales,transactionsAndRoles}.js` (`167–389` baris, seluruhnya `<= 400`), hapus `frontend/admin.js`, perbarui `frontend/admin.html`, dan lengkapi tabel perbandingan ukuran & hasil di `docs/refactor-plan.md`.
+
+### Hasil Akhir F0–F2 — Perbandingan Ukuran JS Frontend
+
+| Area / File | Sebelum (Pra-F0) | Sesudah F0–F2b | Batas Keras (`<= 600`) | Keterangan |
+|---|---:|---:|---|---|
+| `frontend/admin.js` | `1619` | **Dihapus -> 7 modul (`167–389` baris)** | Lulus (`<= 400`/modul) | `state.js` (`167`), `transactionsAndRoles.js` (`188`), `deposits.js` (`210`), `promosAndFlashSales.js` (`295`), `paymentMethods.js` (`316`), `validationAndPrices.js` (`378`), `catalog.js` (`389`) |
+| `frontend/dashboard.js` | `1427` | **Dihapus -> 6 modul (`107–496` baris)** | Lulus (`<= 600`/modul) | `profile.js` (`107`), `overview.js` (`114`), `transactions.js` (`186`), `state.js` (`189`), `deposit.js` (`433`), `h2hIntegration.js` (`496`) |
+| `frontend/js/shared/*` | - | **`65–119` baris** (`4` modul) | Lulus (`<= 300`/modul) | `format.js` (`65`), `auth.js` (`73`), `api.js` (`93`), `dom.js` (`119`) via `window.MikuShared` |
+| `frontend/script.js` | `597` | `588` | Lulus (`<= 600`) | Konsumsi `MikuShared` + cleanup auth fetch wrapper |
+| `frontend/invoice.js` | `193` | `176` | Lulus (`<= 600`) | Konsumsi `MikuShared` |
+| `frontend/cek-transaksi.js` | `190` | `160` | Lulus (`<= 600`) | Konsumsi `MikuShared` |
+| `frontend/leaderboard.js` | `181` | `158` | Lulus (`<= 600`) | Konsumsi `MikuShared` (`formatRupiahPlain`, `escapeHtml`, `apiFetch`) |
+| `frontend/compare-prices.js` | `146` | `145` | Lulus (`<= 600`) | Konsumsi `MikuShared` |
+| `frontend/validate.js` | `139` | `139` | Lulus (`<= 600`) | Tetap mandiri (tidak ada duplikasi shared) |
+| `frontend/reset-password.js` | `62` | `49` | Lulus (`<= 600`) | Konsumsi `MikuShared` (`setupPasswordToggles`, `apiFetch`) |
+| `frontend/product.js` | `831` | `809` | Di luar cakupan F0–F2b | Berkurang `22` baris setelah F1; dicatat untuk tahap pemecahan JS berikutnya (`frontend/js/product/`) |
+
+- **Audit aset & sintaks**: `node ../scripts/check-frontend-assets.js` memverifikasi 13 file HTML (tanpa `<script>`/`<link>` lokal hilang atau duplikat), seluruh tag `<script defer>` berurutan sesuai ketergantungan (`shared` -> `state` -> submodul), `node --check` lulus pada 100% file JS, dan **0 peringatan ukuran (> 600 baris)** pada seluruh modul baru di `frontend/js/`.
+- **Migrasi database**: Tidak ada migrasi database pada tahap F0–F2.
