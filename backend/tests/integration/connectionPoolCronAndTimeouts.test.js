@@ -1,11 +1,12 @@
 const { test, describe, before, after, mock } = require('node:test');
 const assert = require('node:assert');
 const crypto = require('crypto');
-const { pool, axios, cronUtils, cronPool, serverMod, createServerHarness } = require('../helpers/appFactory');
+const { pool, axios, cronUtils, cronPool, createServerHarness } = require('../helpers/appFactory');
 const fixtures = require('../helpers/fixtures');
 const { createPhase13MockDb } = require('../helpers/mockDb');
 const { webhookDns } = require('../../utils/webhookClient');
-const { invalidateFoxyProductCache, clearCallbackCooldownCache } = serverMod;
+const { invalidateFoxyProductCache } = require('../../services/foxyClient');
+const { clearCallbackCooldownCache } = require('../../routes/foxyCallback.routes');
 
 describe('Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow', () => {
     const harness = createServerHarness({ withAxios: true, withCronPool: true });

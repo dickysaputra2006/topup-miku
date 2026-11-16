@@ -3,10 +3,10 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { pool, axios, serverMod, createServerHarness } = require('../helpers/appFactory');
+const { pool, axios, createServerHarness } = require('../helpers/appFactory');
 const fixtures = require('../helpers/fixtures');
 const { createTransactionalMockDb } = require('../helpers/mockDb');
-const { invalidateFoxyProductCache } = serverMod;
+const { invalidateFoxyProductCache } = require('../../services/foxyClient');
 
 describe('Phase 14: SEC-009: Idempotency Keys & Cryptographic Invoice IDs', () => {
     const harness = createServerHarness({ withAxios: true });

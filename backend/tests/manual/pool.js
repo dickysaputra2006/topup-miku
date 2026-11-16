@@ -60,7 +60,9 @@ if (!(process.env.FOXY_API_KEY || '').trim()) {
 
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
-const { pool, startServer, invalidateFoxyProductCache } = require('../../server.js');
+const { pool } = require('../../config/db.js');
+const { startServer } = require('../../server.js');
+const { invalidateFoxyProductCache } = require('../../services/foxyClient.js');
 
 // Pastikan batas pool eksplisit max = 10 sebelum koneksi pertama dibuat
 if (pool && pool.options) {

@@ -4,10 +4,10 @@ process.env.FOXY_API_KEY = process.env.FOXY_API_KEY || 'test-foxy-key';
 process.env.FOXY_CALLBACK_SECRET = '';
 
 const axios = require('axios');
-const serverMod = require('../../server');
+const { pool } = require('../../config/db');
+const { startServer } = require('../../server');
 const cronUtils = require('../../utils/cronUtils');
 
-const { pool, startServer } = serverMod;
 const cronPool = cronUtils.pool;
 
 /**
@@ -87,7 +87,6 @@ function createServerHarness({ withAxios = false, withCronPool = false } = {}) {
 }
 
 module.exports = {
-    serverMod,
     pool,
     startServer,
     axios,

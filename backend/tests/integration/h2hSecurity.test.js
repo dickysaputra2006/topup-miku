@@ -383,7 +383,7 @@ describe('Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening', () => {
             assert.strictEqual(resUserBlocked.status, 429, '62nd request for same user_id after rotating API key & IP must still be blocked with 429');
 
             // Test optional daily quota H2H_DAILY_MAX_ORDERS using a fresh user (id: 9809)
-            const { invalidateFoxyProductCache } = require('../../server');
+            const { invalidateFoxyProductCache } = require('../../services/foxyClient');
             invalidateFoxyProductCache();
             const quotaKey = '3'.repeat(64);
             const quotaHash = crypto.createHash('sha256').update(quotaKey).digest('hex');
@@ -465,7 +465,7 @@ describe('Phase 13: SEC-004, SEC-007 & SEC-008: H2H Security Hardening', () => {
             else process.env.H2H_DAILY_MAX_AMOUNT = origMaxAmountEnv;
             process.env.NODE_ENV = origEnv;
             axios.get = origAxiosGet;
-            require('../../server').invalidateFoxyProductCache();
+            require('../../services/foxyClient').invalidateFoxyProductCache();
             if (pool.connect.mock) pool.connect.mock.restore();
             if (pool.query.mock) pool.query.mock.restore();
         }

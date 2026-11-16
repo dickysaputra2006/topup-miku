@@ -1,7 +1,8 @@
 const { test, describe, before, after, mock } = require('node:test');
 const assert = require('node:assert');
-const { pool, axios, serverMod, createServerHarness } = require('../helpers/appFactory');
-const { validateEnvironment, callbackClock, clearCallbackCooldownCache } = serverMod;
+const { pool, axios, createServerHarness } = require('../helpers/appFactory');
+const { validateEnvironment } = require('../../config/env');
+const { callbackClock, clearCallbackCooldownCache } = require('../../routes/foxyCallback.routes');
 
 describe('SEC-001: Foxy Callback Security Hardening', () => {
     const harness = createServerHarness({ withAxios: true });

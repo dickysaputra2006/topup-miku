@@ -106,9 +106,9 @@ describe('Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Har
         });
 
         try {
-            const serverMod = require('../../server.js');
-            assert.strictEqual(typeof serverMod.invalidateFoxyProductCache, 'function', 'server.js must export invalidateFoxyProductCache');
-            serverMod.invalidateFoxyProductCache();
+            const foxyClient = require('../../services/foxyClient');
+            assert.strictEqual(typeof foxyClient.invalidateFoxyProductCache, 'function', 'services/foxyClient.js must export invalidateFoxyProductCache');
+            foxyClient.invalidateFoxyProductCache();
 
             // 1. Order pertama mengisi foxyProductCache dengan harga 10000
             const res1 = await fetch(`${baseUrl}/api/order`, {
@@ -400,7 +400,7 @@ describe('Phase 11: SEC-002 & SEC-003 Compensation, Promo Cost Guard & Cache Har
     // Review item 3: POST /api/promos/validate enforces finalPrice >= providerCost consistently with checkout
     test('(review-3) POST /api/promos/validate — menolak promo yang membuat harga akhir di bawah modal & mengizinkan yang valid', async () => {
         const userToken = makeUserToken(105);
-        require('../../server.js').invalidateFoxyProductCache();
+        require('../../services/foxyClient').invalidateFoxyProductCache();
 
         let currentPromoDiscount = 10000;
         axios.get = async () => ({

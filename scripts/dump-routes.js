@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
+const fs = require('fs');
 const path = require('path');
 
 /**
@@ -181,12 +182,19 @@ async function main() {
         process.env.JWT_SECRET = 'dump-routes-inspection-placeholder';
     }
 
-    const serverPath = args.target
+    const targetPath = args.target
         ? path.resolve(args.target)
         : args.root
-            ? path.resolve(args.root, 'backend', 'server.js')
-            : path.resolve(__dirname, '..', 'backend', 'server.js');
-    const { app, pool } = require(serverPath);
+            ? (fs.existsSync(path.resolve(args.root, 'backend', 'app.js'))
+                ? path.resolve(args.root, 'backend', 'app.js')
+                : path.resolve(args.root, 'backend', 'server.js'))
+            : path.resolve(__dirname, '..', 'backend', 'app.js');
+    const loaded = require(targetPath);
+    const app = loaded.app || (typeof loaded.createApp === 'function' ? loaded.createApp() : loaded);
+    const dbPath = args.root
+        ? path.resolve(args.root, 'backend', 'config', 'db.js')
+        : path.resolve(__dirname, '..', 'backend', 'config', 'db.js');
+    const pool = loaded.pool || (!args.target && fs.existsSync(dbPath) ? require(dbPath).pool : null);
 
     const timer = setTimeout(() => {
         console.error('dump-routes timed out after 60 seconds');

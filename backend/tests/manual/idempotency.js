@@ -58,7 +58,9 @@ if (!(process.env.FOXY_API_KEY || '').trim()) {
 
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
-const { pool, startServer, invalidateFoxyProductCache } = require('../../server.js');
+const { pool } = require('../../config/db.js');
+const { startServer } = require('../../server.js');
+const { invalidateFoxyProductCache } = require('../../services/foxyClient.js');
 
 const PARALLEL_COUNT = 20;
 const INITIAL_BALANCE = 500000;

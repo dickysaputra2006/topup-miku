@@ -47,8 +47,9 @@ if (!dbName || (!hasSafeDbName && !hasLocalFlag)) {
 }
 
 const axios = require('axios');
-const { pool, startServer } = require('../../server.js');
-const { rollbackTransactionResources } = require('../../utils/cronUtils.js');
+const { pool } = require('../../config/db.js');
+const { startServer } = require('../../server.js');
+const { rollbackTransactionResources } = require('../../services/refundService.js');
 
 const CONCURRENT_COUNT = 20;
 const RANDOM_RACE_ROUNDS = 15;
