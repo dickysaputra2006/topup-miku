@@ -541,3 +541,56 @@ Prinsip kerja:
 - Import tak terpakai yang dihapus di Commit 7: `ALLOWED_PAYMENT_METHOD_TYPES`, `isSafeAssetUrl`, `parseOptionalBoolean`, `parseOptionalText`. Semua ekspor `module.exports` pada `backend/server.js` (`app`, `pool`, `startServer`, `server`, `validateEnvironment`, `invalidateFoxyProductCache`, `callbackClock`, `clearCallbackCooldownCache`) tetap utuh.
 - Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=279, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
 - Catatan cakupan tes & DB: `tests/manual/*` (`concurrency.js`, `idempotency.js`, `pool.js`) tidak dijalankan karena R6c tidak menyentuh alur order maupun refund (baru wajib pada R8–R10); tidak ada migrasi database pada tahap ini.
+
+---
+
+## R7 — Ekstraksi Services (`foxyClient`, `priceService`, `idempotency`) & Route Katalog/Validasi/Promo/Sync (`products.routes.js`, `catalog.routes.js`)
+
+Prinsip kerja & kompatibilitas mock:
+- Nol perubahan perilaku: SQL, rumus pembulatan `Math.ceil`/`Math.floor`, aturan manual/custom-margin/flash-sale/promo, guard modal, TTL cache Foxy, pesan error, kode status HTTP, dan urutan pemasangan route/middleware dipertahankan identik.
+- Pemanggilan DB tetap melewati metode `pool.query(...)` / `pool.connect()` pada instance `pool` milik `server.js`, dan HTTP ke Foxy tetap melewati `axios.get(...)` / `axios.post(...)` pada singleton `require('axios')` (tanpa destructuring) agar mock pada unit/integration test tetap bekerja.
+- Cache produk Foxy hanya hidup di satu modul (`backend/services/foxyClient.js`); `backend/server.js` tetap mempertahankan seluruh `module.exports` (`app`, `pool`, `startServer`, `server`, `validateEnvironment`, `invalidateFoxyProductCache`, `callbackClock`, `clearCallbackCooldownCache`).
+- Arah dependensi satu arah tanpa siklus dan tanpa `require()` di dalam fungsi: `routes -> middleware, services, config, utils`; `services/priceService -> services/foxyClient, config, utils`; `services/foxyClient -> config, utils`; `services/idempotency -> config, utils`.
+- Baseline tes tetap **`192`** sesuai [refactor-baseline-tests.txt](file:///d:/DICKY%20BELAJAR/topup-miku/docs/refactor-baseline-tests.txt); seluruh file menggunakan LF murni (`i/lf w/lf`).
+
+### Cek Batas Ukuran Route (400 baris) Sebelum Memindah 5 Route R7
+- `backend/routes/public.routes.js` saat ini: **`368` baris**. Penambahan 4 route R7 publik (`437-809` — bahkan setelah logika harga/promo dipindah ke `priceService.js`) akan menambah `~180+` baris dan mendorong file menjadi `~550` baris (**melewati batas keras 400 baris**). Karena itu, 4 route tersebut dipisahkan ke **`backend/routes/catalog.routes.js`** (`~180-220` baris) dan dipasang di urutan mounting yang persis sama.
+- `backend/routes/admin/products.routes.js` saat ini: **`231` baris**. Penambahan `POST /api/admin/sync-products` (`386-421`, ~38 baris) membuat total menjadi `~270` baris (masih di bawah target `300` dan batas keras `400`).
+
+### Inventaris Sisa `backend/server.js` (`1.975` baris) & Pemetaan Commit R7
+
+1. **Commit 1 — `backend/services/foxyClient.js`**
+   - Memindahkan utuh fungsi & state dari `server.js`:
+     - `validateOrderGameIdIfNeeded(product, targetGameId, targetServerId)` (`233-290`) — memakai `validateGameId` (`utils/validators/cek-id-game.js`) dan `checkMobapayMlbbEligibility` (`utils/validators/stalk-ml-promo.js`).
+     - State cache tunggal `foxyProductCache` & `foxyCacheTimestamp` (`293-294`), `invalidateFoxyProductCache()` (`296-299`), dan `getFoxyProducts()` (`301-331`) — memakai `axios.get` (`require('axios')`), `FOXY_API_KEY` (`config/env.js`), `FOXY_BASE_URL`, `PROVIDER_TIMEOUT_MS`, `FOXY_CACHE_TTL` (`config/constants.js`), dan `safeAxiosError` (`utils/logger.js`).
+   - `server.js` mengimpor `{ validateOrderGameIdIfNeeded, invalidateFoxyProductCache, getFoxyProducts }` dari `./services/foxyClient` dan tetap me-re-export `invalidateFoxyProductCache` di `module.exports`.
+
+2. **Commit 2 — `backend/services/priceService.js`**
+   - Memindahkan seluruh kalkulasi harga, margin role, custom game margin, harga manual, flash sale, diskon promo, serta guard modal dari 2 blok route R7 di `server.js`:
+     - Dari `GET /api/games/:gameId/products` (`565-659`): `calculateCatalogProducts(...)` dan `getGameProductsCatalog({ pool, gameId, user })` (`567-654`: query user role, game aktif, products + `game_margins`, `flash_sales` aktif tanpa limit kuota seperti aslinya, role `roles`, serta kalkulasi prioritas flash sale -> harga manual -> custom margin -> global margin).
+     - Dari `POST /api/promos/validate` (`661-809`): `calculateEffectiveProductPriceForPromo(...)`, `calculatePromoDiscount(effectivePrice, promo, rules)`, `fetchProviderCostWithFallback(providerSku, fallbackCost)` (memanggil `getFoxyProducts()` dari `./foxyClient`), dan `validatePromoCodeForProduct({ pool, userId, promoCode, productId, targetGameId })` (`669-808`, termasuk `pool.connect()` + `try/finally release()`).
+   - Catatan R9: logika harga + `FOR UPDATE` di dalam transaksi Fase (a) `POST /api/order` (`942-1102`) dan `POST /h2h/order` (`1565-1652`), serta `GET /h2h/products` (`1830-1910`) sengaja tetap dibiarkan di `server.js` pada R7 agar R7 tidak menyentuh alur eksekusi order (akan disatukan saat R9).
+
+3. **Commit 3 — `backend/services/idempotency.js`**
+   - Memindahkan helper idempotency & pembuatan transaksi bersama dari `server.js` (`113-222`):
+     - `findTransactionByRefId(queryable, userId, refId)` (`113-125`)
+     - `matchesOrderIdempotencyPayload(existingTx, productId, targetGameId, targetServerId)` (`127-135`)
+     - `buildIdempotentOrderResponseBody(channel, existingTx)` (`137-158`)
+     - `resolveExistingIdempotentOrder(queryable, opts)` (`160-187`)
+     - `insertTransactionRecord(client, opts)` (`189-206`)
+     - `findRecentPendingDuplicate(client, userId, productId, targetGameId)` (`208-222`) — memakai `DUPLICATE_ORDER_WINDOW_SECONDS` (`config/constants.js`)
+     - Re-export `{ generateInvoiceId, generateProviderTrxId }` dari `../utils/crypto` agar `services/idempotency.js` menjadi titik masuk bersama untuk idempotency & ID transaksi (tanpa memutus `utils/crypto.js`).
+   - `server.js` mengimpor simbol tersebut dari `./services/idempotency` untuk `POST /api/order` dan `POST /h2h/order`.
+
+4. **Commit 4 — Ekstraksi 5 Route R7**
+   - `POST /api/admin/sync-products` (`386-421`) -> dipindahkan ke [products.routes.js](file:///d:/DICKY%20BELAJAR/topup-miku/backend/routes/admin/products.routes.js) tepat **setelah** `PUT /api/admin/products/bulk-validation` (posisi mount & urutan route produk admin identik); mengimpor `FOXY_API_KEY` (`../../config/env`), `syncProductsWithFoxy` (`../../utils/cronUtils`), dan `invalidateFoxyProductCache` (`../../services/foxyClient`).
+   - `POST /api/products/:productId/validate` (`437-511`), `POST /api/full-validate` (`514-563`), `GET /api/games/:gameId/products` (`565-659`), dan `POST /api/promos/validate` (`661-809`) -> dipindahkan ke **`backend/routes/catalog.routes.js`** (`createCatalogRoutes({ pool, protect, softProtect })`) dan dipasang pada posisi asal di `server.js` (tepat setelah `createAdminMarginsRoutes` dan sebelum `createWaBotRoutes`).
+
+5. **Commit 5 — Pembersihan, Skrip `check`, & Hasil R7**
+   - Audit & hapus import di `server.js` yang tidak lagi digunakan (`FOXY_CACHE_TTL`, `validateGameId`, `checkAllMobapayPromosML`, `checkMobapayMlbbEligibility`, `cekPromoMcggMobapay`, `syncProductsWithFoxy`, `generateInvoiceId`, `generateProviderTrxId`, `DUPLICATE_ORDER_WINDOW_SECONDS` — dicek ulang sebelum menghapus).
+   - Perbarui `backend/package.json` skrip `check` agar turut memeriksa folder `services`.
+   - Catat hasil commit hash & ukuran akhir di bagian bawah seksi R7.
+
+### Sisa Route & Fungsi di `backend/server.js` Pasca R7 (untuk R8 & R9)
+- **6 Route Order/Callback/H2H (R9)**: `POST /api/order`, `POST /api/foxy/callback`, `POST /h2h/order`, `GET /h2h/products`, `PUT /h2h/profile/callback`, `GET /h2h/profile`.
+- **Helper yang masih tinggal untuk R8/R9**: `getSafeOrderErrorMessage`, `createNotification`, `isProviderTimeoutOrAmbiguous`, `finalizeOrderAfterProviderCall`, `callbackVerificationCooldown` / `callbackClock` / `clearCallbackCooldownCache`, `extractCallbackToken`, `verifyFoxyCallbackAuth`, `checkAndMarkCallbackCooldown`, `doesFoxyStatusMatchDb`, serta `startServer` & `module.exports`.
