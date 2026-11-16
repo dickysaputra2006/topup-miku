@@ -6,7 +6,6 @@ const {
     validateEnvironment,
 } = require('./config/env');
 const {
-    BOT_PRODUCT_BLACKLIST,
     MAX_BODY_SIZE,
     DUPLICATE_ORDER_WINDOW_SECONDS,
     FOXY_BASE_URL,
@@ -24,12 +23,7 @@ const {
 const {
     normalizeString,
     normalizePhone,
-    normalizeProfilePhone,
     escapeHtml,
-    publicStatusLabel,
-    maskInvoiceId,
-    maskLeaderboardName,
-    leaderboardRankLabel,
     formatRupiahBot,
 } = require('./utils/strings');
 const {
@@ -44,13 +38,11 @@ const {
     isValidPassword,
     parsePositiveQuota,
     isValidPriceAmount,
-    isValidInvoiceId,
     parseOptionalRefId,
     parseOptionalIdempotencyKeyHeader,
     isSafeAssetUrl,
     parseOptionalBoolean,
     parseOptionalText,
-    sanitizeValidationServiceName,
 } = require('./utils/validation');
 const { securityHeaders, corsMiddleware } = require('./middleware/securityHeaders');
 const { createRateLimiters } = require('./middleware/rateLimiters');
@@ -65,10 +57,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
 const crypto = require('crypto');
-const net = require('net');
 const { sendPasswordResetEmail } = require('./utils/mailer.js');
 const { isValidIpOrCidr } = require('./utils/networkSecurity.js');
-const { sendH2HWebhook, validateWebhookUrl, dispatchSafeH2HWebhook } = require('./utils/webhookClient.js');
+const { validateWebhookUrl, dispatchSafeH2HWebhook } = require('./utils/webhookClient.js');
 const { syncProductsWithFoxy, rollbackTransactionResources } = require('./utils/cronUtils.js');
 const { validateGameId } = require('./utils/validators/cek-id-game.js');
 const { checkAllMobapayPromosML, checkMobapayMlbbEligibility } = require('./utils/validators/stalk-ml-promo.js');

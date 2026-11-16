@@ -282,3 +282,9 @@ Dipasang di `backend/server.js` dengan `app.use(createUserRoutes({ pool, protect
 - Audit import di `backend/server.js` yang tidak lagi digunakan setelah Commit 1 & 2 (`publicStatusLabel`, `maskInvoiceId`, `maskLeaderboardName`, `leaderboardRankLabel`, `sanitizeValidationServiceName`, `BOT_PRODUCT_BLACKLIST`, dll. — dicek satu per satu agar hanya yang benar-benar tak dipakai yang dihapus).
 - Perbarui `backend/package.json` `check` agar mencakup direktori `routes`.
 - Catat hasil akhir panjang `server.js` dan hasil verifikasi pada bagian akhir dokumen ini.
+
+### Hasil Akhir R5
+- Panjang `backend/server.js`: `4520` baris (akhir R4) -> `4183` baris (Commit 1: `routes/public.routes.js` = `368` baris) -> `3993` baris (Commit 2: `routes/user.routes.js` = `222` baris) -> `3984` baris (Commit 3: pembersihan import tak terpakai).
+- Import tak terpakai yang dihapus di Commit 3: `BOT_PRODUCT_BLACKLIST`, `normalizeProfilePhone`, `publicStatusLabel`, `maskInvoiceId`, `maskLeaderboardName`, `leaderboardRankLabel`, `isValidInvoiceId`, `sanitizeValidationServiceName`, `net`, `sendH2HWebhook`.
+- Skrip `backend/package.json` `check` diperbarui agar memeriksa `routes` dan `../scripts/check-route-overlap.js`.
+- Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`187` patokan R0 + `5` unit test `timingSafeStringEqual` di `tests/unit/crypto.test.js`, `0` gagal, `0` dilewati), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=260, overlap_conflicts=0`.
