@@ -986,7 +986,53 @@ Audit menyeluruh terhadap tumpang tindih selektor & `@media` lintas keduanya (`1
 14. `frontend/css/publicPages.css` (~`670` baris): compare-prices/pricelist (`.pricelist-container*`, `.compare-*`, `.modern-table*`, `#compare-prices-table*`), validator publik (`#game-validate-search-input`, `#validator-result-container*`, `.validation-result*`), `cek-transaksi` (`.transaction-check-card`, `.trx-*`, `.partial-refund-notice`, `.recent-trx*`), `invoice` (`.main-wrapper`, `#invoice-details-container*`, `.invoice-*`, `@media print`), serta halaman legal/statis (`.static-*`, `.contact-*`). Dimuat oleh 9 halaman publik & utilitas.
 
 ### Peta 4 Commit Frontend Lanjutan (F2c–F3c)
-1. **Commit 1 (F2c)**: Pecah `frontend/product.js` -> `frontend/js/product/{state,validation,checkout,mobileStepNav}.js` (`<= 400` baris/file), hapus `frontend/product.js`, perbarui `frontend/product.html`, dan verifikasi via smoke test Node VM.
-2. **Commit 2 (F3a)**: Buat `frontend/css/{tokens,base,components}.css` (`<= 600` baris/file), keluarkan aturan terkait dari `style.css` & `style-responsive.css`, dan pasang berurutan sebelum `style.css` di seluruh 13 HTML.
-3. **Commit 3 (F3b)**: Pindahkan seluruh sisa rule ke file CSS halaman di `frontend/css/` (`<= 800` baris/file), hapus `style.css` & `style-responsive.css`, perbarui `<link rel="stylesheet">` pada seluruh 13 HTML dengan urutan cascade identik, lalu audit kesetaraan cascade otomatis.
-4. **Commit 4 (F3c)**: Perluas `scripts/check-frontend-assets.js` untuk memeriksa batas keras `<= 800` baris pada seluruh `frontend/css/*.css` (`limit_warnings=0`) dan lengkapi hasil akhir di `docs/refactor-plan.md`.
+1. **Commit 1 (`9f85cc9` — F2c)**: Pecah `frontend/product.js` -> `frontend/js/product/{state,validation,checkout,mobileStepNav}.js` (`140–280` baris/file, seluruhnya `<= 400`), hapus `frontend/product.js`, perbarui `frontend/product.html`, dan verifikasi via smoke test Node VM.
+2. **Commit 2 (`3410540` — F3a)**: Buat `frontend/css/{tokens,base,components}.css` (`24`, `87`, `526` baris — seluruhnya `<= 600`), keluarkan aturan terkait dari `style.css` & `style-responsive.css`, dan pasang berurutan sebelum `style.css` di seluruh 13 HTML (`F3a CASCADE DIFF COUNT: 0`).
+3. **Commit 3 (`7c16b93` — F3b)**: Pindahkan seluruh sisa rule ke 12 file CSS halaman/grup (`107–689` baris, seluruhnya `<= 800`), hapus `style.css` & `style-responsive.css`, perbarui `<link rel="stylesheet">` pada seluruh 13 HTML dengan urutan cascade identik (`F3b CASCADE & UNION DIFF COUNT: 0`).
+4. **Commit 4 (F3c)**: Perluas `scripts/check-frontend-assets.js` untuk memeriksa batas keras `<= 600` baris seluruh `.js` & `<= 800` baris seluruh `frontend/css/*.css` + kelengkapan kurung kurawal CSS (`limit_warnings=0`) dan lengkapi hasil akhir di `docs/refactor-plan.md`.
+
+### Hasil Akhir F2c–F3c — Perbandingan Ukuran Seluruh JS & CSS Frontend
+
+#### A. Seluruh Berkas JavaScript (`28` file, batas keras `<= 600` baris)
+
+| Area / Berkas | Sebelum (Pra-F0) | Sesudah F3c | Status vs Batas (`<= 600`) |
+|---|---:|---:|---|
+| `frontend/admin.js` | `1619` | **Dihapus -> `7` modul** (`167–389`) | Lulus (`state.js` `167`, `transactionsAndRoles.js` `188`, `deposits.js` `210`, `promosAndFlashSales.js` `295`, `paymentMethods.js` `316`, `validationAndPrices.js` `378`, `catalog.js` `389`) |
+| `frontend/dashboard.js` | `1427` | **Dihapus -> `6` modul** (`107–496`) | Lulus (`profile.js` `107`, `overview.js` `114`, `transactions.js` `186`, `state.js` `189`, `deposit.js` `433`, `h2hIntegration.js` `496`) |
+| `frontend/product.js` | `831` | **Dihapus -> `4` modul** (`140–280`) | Lulus (`mobileStepNav.js` `140`, `checkout.js` `250`, `state.js` `266`, `validation.js` `280`) |
+| `frontend/js/shared/*` | - | **`4` modul** (`65–119`) | Lulus (`format.js` `65`, `auth.js` `73`, `api.js` `93`, `dom.js` `119`) |
+| `frontend/script.js` | `597` | `588` | Lulus |
+| `frontend/invoice.js` | `193` | `176` | Lulus |
+| `frontend/cek-transaksi.js` | `190` | `160` | Lulus |
+| `frontend/leaderboard.js` | `181` | `158` | Lulus |
+| `frontend/compare-prices.js` | `146` | `145` | Lulus |
+| `frontend/validate.js` | `139` | `139` | Lulus |
+| `frontend/reset-password.js` | `62` | `49` | Lulus |
+
+#### B. Seluruh Berkas CSS (`15` file di `frontend/css/`, batas keras `<= 800` baris; fondasi F3a `<= 600` baris)
+
+| Berkas CSS (`frontend/css/`) | Sebelum (Pra-F0) | Sesudah F3c | Status vs Batas |
+|---|---:|---:|---|
+| `frontend/style.css` | `4118` | **Dihapus** | Dipindahkan tuntas ke `frontend/css/*` |
+| `frontend/style-responsive.css` | `2269` | **Dihapus** | Dipindahkan tuntas ke `frontend/css/*` |
+| `tokens.css` | - | `24` | Lulus (`<= 600`) |
+| `base.css` | - | `87` | Lulus (`<= 600`) |
+| `components.css` | - | `526` | Lulus (`<= 600`) |
+| `modalsAndForms.css` | - | `181` | Lulus (`<= 800`) |
+| `portal.css` | - | `261` | Lulus (`<= 800`) |
+| `storefrontNav.css` | - | `265` | Lulus (`<= 800`) |
+| `storefront.css` | - | `543` | Lulus (`<= 800`) |
+| `product.css` | - | `689` | Lulus (`<= 800`) |
+| `productStepNav.css` | - | `107` | Lulus (`<= 800`) |
+| `dashboard.css` | - | `463` | Lulus (`<= 800`) |
+| `dashboardOverview.css` | - | `351` | Lulus (`<= 800`) |
+| `dashboardDeposit.css` | - | `492` | Lulus (`<= 800`) |
+| `dashboardH2H.css` | - | `336` | Lulus (`<= 800`) |
+| `admin.css` | - | `629` | Lulus (`<= 800`) |
+| `publicPages.css` | - | `661` | Lulus (`<= 800`) |
+
+- **Ringkasan hasil F0–F3c**:
+  - Catatan: `F2b` dicatat pada commit `70b7163`.
+  - **0 pelanggaran ukuran** pada seluruh `28` file JS (`maks = 588 <= 600`) dan seluruh `15` file CSS (`maks = 689 <= 800`, dengan `tokens/base/components` `24–526 <= 600`).
+  - **0 broken path**, **0 duplikasi `<link>`/`<script>`**, **0 cascade diff** antar 13 halaman HTML sebelum vs sesudah F3a & F3b.
+  - **Tidak ada migrasi database** di seluruh tahap F0–F3c.

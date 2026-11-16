@@ -7,7 +7,9 @@ const { execFileSync } = require('child_process');
 
 const FRONTEND_DIR = path.resolve(__dirname, '..', 'frontend');
 const REFACTORED_JS_DIR = path.join(FRONTEND_DIR, 'js');
+const REFACTORED_CSS_DIR = path.join(FRONTEND_DIR, 'css');
 const HARD_LINE_LIMIT = 600;
+const CSS_HARD_LINE_LIMIT = 800;
 
 /**
  * Hitung jumlah baris aktual suatu file (seperti wc -l).
@@ -168,17 +170,84 @@ function checkJsSyntax() {
     return jsFiles;
 }
 
+function checkCssBraces() {
+    const cssFiles = walkFiles(FRONTEND_DIR, '.css');
+    const errors = [];
+    for (const cssPath of cssFiles) {
+        const text = fs.readFileSync(cssPath, 'utf8');
+        let depth = 0;
+        let inComment = false;
+        let quote = null;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const next = text[i + 1];
+            if (inComment) {
+                if (ch === '*' && next === '/') {
+                    inComment = false;
+                    i += 1;
+                }
+                continue;
+            }
+            if (quote) {
+                if (ch === '\\') {
+                    i += 1;
+                    continue;
+                }
+                if (ch === quote) quote = null;
+                continue;
+            }
+            if (ch === '/' && next === '*') {
+                inComment = true;
+                i += 1;
+                continue;
+            }
+            if (ch === '"' || ch === "'") {
+                quote = ch;
+                continue;
+            }
+            if (ch === '{') depth += 1;
+            else if (ch === '}') {
+                depth -= 1;
+                if (depth < 0) {
+                    const rel = path.relative(FRONTEND_DIR, cssPath).replace(/\\/g, '/');
+                    errors.push(`frontend/${rel}: kurung kurawal '}' berlebih.`);
+                    break;
+                }
+            }
+        }
+        if (depth > 0) {
+            const rel = path.relative(FRONTEND_DIR, cssPath).replace(/\\/g, '/');
+            errors.push(`frontend/${rel}: kurung kurawal '{' tidak tertutup (${depth}).`);
+        }
+    }
+    return { cssFiles, errors };
+}
+
 function checkRefactoredJsLineLimits() {
+    const allJsFiles = walkFiles(FRONTEND_DIR, '.js');
     const refactoredFiles = walkFiles(REFACTORED_JS_DIR, '.js');
     const warnings = [];
-    for (const filePath of refactoredFiles) {
+    for (const filePath of allJsFiles) {
         const lines = countLines(filePath);
         if (lines > HARD_LINE_LIMIT) {
             const rel = path.relative(FRONTEND_DIR, filePath).replace(/\\/g, '/');
-            warnings.push(`[WARN] frontend/${rel}: ${lines} baris (> batas keras ${HARD_LINE_LIMIT} baris)`);
+            warnings.push(`[WARN] frontend/${rel}: ${lines} baris (> batas keras ${HARD_LINE_LIMIT} baris JS)`);
         }
     }
-    return { count: refactoredFiles.length, warnings };
+    return { count: refactoredFiles.length, totalCount: allJsFiles.length, warnings };
+}
+
+function checkCssLineLimits() {
+    const cssFiles = walkFiles(REFACTORED_CSS_DIR, '.css');
+    const warnings = [];
+    for (const filePath of cssFiles) {
+        const lines = countLines(filePath);
+        if (lines > CSS_HARD_LINE_LIMIT) {
+            const rel = path.relative(FRONTEND_DIR, filePath).replace(/\\/g, '/');
+            warnings.push(`[WARN] frontend/${rel}: ${lines} baris (> batas keras ${CSS_HARD_LINE_LIMIT} baris CSS)`);
+        }
+    }
+    return { count: cssFiles.length, warnings };
 }
 
 function main() {
@@ -187,24 +256,33 @@ function main() {
     }
 
     const htmlAudit = checkHtmlFiles();
-    if (htmlAudit.errors.length > 0) {
-        for (const err of htmlAudit.errors) {
+    const cssBraceAudit = checkCssBraces();
+    const allErrors = [...htmlAudit.errors, ...cssBraceAudit.errors];
+    if (allErrors.length > 0) {
+        for (const err of allErrors) {
             console.error(`ERROR: ${err}`);
         }
         process.exit(1);
     }
 
     const jsFiles = checkJsSyntax();
-    const limitAudit = checkRefactoredJsLineLimits();
-    for (const warn of limitAudit.warnings) {
+    const jsLimitAudit = checkRefactoredJsLineLimits();
+    const cssLimitAudit = checkCssLineLimits();
+    const allWarnings = [...jsLimitAudit.warnings, ...cssLimitAudit.warnings];
+    for (const warn of allWarnings) {
         console.warn(warn);
     }
 
     console.log(
         `OK: html=${htmlAudit.htmlCount}, script_refs=${htmlAudit.scriptRefCount}, ` +
         `css_refs=${htmlAudit.cssRefCount}, js_checked=${jsFiles.length}, ` +
-        `refactored_js=${limitAudit.count}, limit_warnings=${limitAudit.warnings.length}`
+        `refactored_js=${jsLimitAudit.count}, css_checked=${cssBraceAudit.cssFiles.length}, ` +
+        `refactored_css=${cssLimitAudit.count}, limit_warnings=${allWarnings.length}`
     );
+
+    if (allWarnings.length > 0) {
+        process.exit(1);
+    }
 }
 
 if (require.main === module) {
@@ -221,5 +299,7 @@ module.exports = {
     walkFiles,
     checkHtmlFiles,
     checkJsSyntax,
+    checkCssBraces,
     checkRefactoredJsLineLimits,
+    checkCssLineLimits,
 };
