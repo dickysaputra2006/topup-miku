@@ -354,3 +354,84 @@ Dipasang di `backend/server.js` dengan `app.use(createUserApiKeyRoutes({ pool, p
 - Import tak terpakai yang dihapus di Commit 4: `JWT_SECRET`, `normalizePhone`, `formatRupiahBot`, `hashResetToken`, `hashApiKey`, `isValidEmail`, `isValidPassword`, `bcrypt`, `jwt`, `crypto`, `sendPasswordResetEmail`, `isValidIpOrCidr`.
 - Skrip `check` pada `backend/package.json` sudah mencakup direktori `middleware`, `routes`, serta `../scripts/dump-routes.js` dan `../scripts/check-route-overlap.js`.
 - Hasil verifikasi akhir: `npm run check` lulus, `npm test` = `192` lulus (`0` gagal, `0` dilewati; diff terhadap `docs/refactor-baseline-tests.txt` = `0`), dan `node scripts/check-route-overlap.js` = `OK: route set=87/87, middlewares=87/87, reordered_same_method=260, overlap_conflicts=0, effective_chains=87/87, known_anonymous_renames=[USE(/): <anonymous> -> securityHeaders (87 routes)]`.
+
+---
+
+## R6b — Ekstraksi Route Deposit User & Admin Keuangan (`deposit`, `admin/deposits`, `admin/balance`, `admin/transactions`)
+
+Prinsip kerja:
+- Nol perubahan perilaku: SQL, urutan query, row lock (`SELECT ... FOR UPDATE`), kondisi status, catatan ledger `balance_history`, pesan error, kode status HTTP, dan urutan pemasangan middleware dipertahankan persis apa adanya.
+- Logika approve/reject admin pada `admin/deposits.routes.js` dipindahkan utuh tanpa disatukan dengan `waBot.routes.js`.
+- Baseline tes tetap **`192`** sesuai `docs/refactor-baseline-tests.txt`; semua file memakai LF murni (`i/lf w/lf`).
+
+### Inventaris Route Sisa di `backend/server.js` Saat Memulai R6b (`3295` baris)
+
+#### A. Grup yang Dipindah di R6b
+
+1. **Commit 1 — `backend/routes/deposit.routes.js` (`createDepositRoutes({ pool, protect })`)**
+   Dipasang di posisi route pertama yang dipindah (`GET /api/payment-methods`, tepat setelah `createUserApiKeyRoutes`). Tidak ada konfigurasi upload/multer bukti deposit di backend.
+
+   | Route / Helper | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | `GET /api/payment-methods` | `542-555` | `protect`, `pool` |
+   | `POST /api/deposit/request` | `557-721` | `protect`, `pool`, `parseOptionalIdempotencyKeyHeader` (`utils/validation.js`), serta 4 helper khusus deposit |
+   | `GET /api/user/deposits` | `724-738` | `protect`, `pool` |
+   | Helper khusus deposit: `findDepositByIdempotencyKey`, `matchesDepositIdempotencyPayload`, `buildDepositPaymentInstructions`, `buildDepositResponsePayload` | `186-256` | `escapeHtml` (`utils/strings.js`) — hanya dipakai oleh `POST /api/deposit/request`, ikut dipindah |
+
+   Catatan helper yang tetap di `server.js`: `parseOptionalIdempotencyKeyHeader` tetap di `utils/validation.js` dan masih di-import di `server.js` karena juga dipakai `POST /api/order`.
+
+2. **Commit 2 — `backend/routes/admin/deposits.routes.js` (`createAdminDepositsRoutes({ pool, protectAdmin, createNotification })`)**
+   Dipasang di posisi `GET /api/admin/deposits`.
+
+   | Route | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | `GET /api/admin/deposits` | `742-773` | `protectAdmin`, `pool` |
+   | `GET /api/admin/deposits/pending` | `776-791` | `protectAdmin`, `pool` |
+   | `POST /api/admin/deposits/approve` | `794-859` | `protectAdmin`, `pool`, `createNotification` |
+   | `POST /api/admin/deposits/reject` | `862-907` | `protectAdmin`, `pool`, `createNotification` |
+
+   Catatan helper tetap di `server.js`: `createNotification` (`428-438`) masih dipakai oleh `/api/foxy/callback` (`2760, 2767, 2776`), `waBot.routes.js`, dan `admin/transactions.routes.js`, sehingga dioper lewat factory.
+
+3. **Commit 3 — `backend/routes/admin/balance.routes.js` (`createAdminBalanceRoutes({ pool, protectAdmin })`)**
+   Dipasang di posisi `POST /api/admin/balance/add` (antara `DELETE /api/admin/payment-methods/:id` dan `GET /api/admin/roles`).
+
+   | Route | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | `POST /api/admin/balance/add` | `1027-1048` | `protectAdmin`, `pool` |
+   | `POST /api/admin/balance/reduce` | `1049-1072` | `protectAdmin`, `pool` |
+
+4. **Commit 4 — `backend/routes/admin/transactions.routes.js` (`createAdminTransactionsRoutes({ pool, protectAdmin, createNotification, rollbackTransactionResources })`)**
+   Dipasang di posisi `GET /api/admin/transactions` (antara `POST /api/admin/sync-products` dan `PUT /api/admin/products/:id/status`).
+
+   | Route | Baris Asal `server.js` | Dependensi |
+   |---|---|---|
+   | `GET /api/admin/transactions` | `1211-1226` | `protectAdmin`, `pool` |
+   | `PUT /api/admin/transactions/:invoiceId/resolve` | `1229-1329` | `protectAdmin`, `pool`, `createNotification`, `rollbackTransactionResources`, `normalizeString` (`utils/strings.js`), `logSafeError` (`utils/logger.js`) |
+
+   Catatan helper tetap di `server.js`: `rollbackTransactionResources` masih dipakai oleh `finalizeOrderAfterProviderCall` (`2183`) dan `/api/foxy/callback` (`2764`) hingga R8.
+
+#### B. Route yang Sengaja Ditinggal di `backend/server.js` Setelah R6b
+
+- **R6c (Admin katalog, konfigurasi, & metode pembayaran)**:
+  - `GET/POST/PUT/DELETE /api/admin/payment-methods*` (`910-1025`, termasuk helper `normalizePaymentMethodPayload` `446-540`)
+  - `GET/PUT /api/admin/roles` (`1073-1105`)
+  - `GET/POST /api/admin/games`, `PUT /api/admin/games/:id/status`, `PUT /api/admin/games/:id/needs-server` (`1106-1160`, `1355-1409`)
+  - `GET/POST /api/admin/products`, `PUT /api/admin/products/:id/status`, `PUT /api/admin/products/:id/validation`, `PUT /api/admin/products/bulk-validation` + helper `sanitizeValidationConfig` (`1116-1174`, `1330-1354`, `1410-1541`)
+  - `POST/GET/PUT /api/admin/promos*` (`1542-1580`)
+  - `GET/POST/DELETE /api/admin/flash-sales*` (`1581-1631`)
+  - `GET/POST /api/admin/games/:gameId/margins` (`1632-1677`)
+  - `GET/POST /api/admin/products/:productId/manual-prices` (`1678-1721`)
+  - `POST /api/test` (`1722-1727`), `GET /api/admin/validation-services/pgs-preview` (`1729-1756`)
+- **R7 (Validasi ID game, promo, produk publik berharga dinamis, & sinkronisasi Foxy)**:
+  - `POST /api/admin/sync-products` (`1175-1210` — menyentuh `syncProductsWithFoxy` / Foxy cache)
+  - `POST /api/products/:productId/validate` (`1757-1833`)
+  - `POST /api/full-validate` (`1834-1884`)
+  - `GET /api/games/:gameId/products` (`1885-1980` — memakai `softProtect` dan kalkulasi harga/margin/flash sale)
+  - `POST /api/promos/validate` (`1981-2132` — validasi promo & cek eligibilitas)
+- **R9 (Alur order, transaksi H2H, & callback Foxy — menyentuh uang dan provider eksternal)**:
+  - `POST /api/order` (`2212-2559`), `POST /api/foxy/callback` (`2636-2831`), `POST /h2h/order` (`2832-3149`), `GET /h2h/products` (`3150-3244`), `PUT /h2h/profile/callback` (`3245-3264`), `GET /h2h/profile` (`3265-3279`) beserta helper order/callback (`64-185`, `258-395`, `2136-2211`, `2560-2635`).
+
+### Pembersihan Commit 5
+- Hapus import tak terpakai di `backend/server.js` setelah Commit 1–4 (`escapeHtml` yang hanya dipakai di `buildDepositPaymentInstructions`).
+- Perbarui skrip `check` di `backend/package.json` agar juga memeriksa `routes/admin` (`routes/admin/*.js`).
+- Perbarui bagian ini dengan hash commit aktual dan jumlah baris akhir setiap file.
