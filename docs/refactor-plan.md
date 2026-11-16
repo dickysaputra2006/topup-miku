@@ -666,3 +666,47 @@ Prinsip kerja & kompatibilitas mock:
   - `node tests/manual/idempotency.js`: **`[PASS]`** semua 5 skenario (`A` 20x H2H paralel, `B` 20x Web paralel, `C` 20x Deposit paralel, `D` 409 conflict, `E` Failed/refund replay vs `ref_id` baru; exit code `0`).
   - `node tests/manual/pool.js`: **`[PASS]`** (`http201=30/30, peakInFlightFoxy=30, dbProbeDuringFoxy=true, orphanNullProvider=0, withProviderTrxId=30`; exit code `0`).
 - Tidak ada migrasi database pada tahap ini.
+
+---
+
+## R9 — Ekstraksi Alur Transaksi Order, H2H, & Callback Foxy (`services/orderService.js`, `services/notificationService.js`, `routes/order.routes.js`, `routes/h2h.routes.js`, `routes/foxyCallback.routes.js`)
+
+### Analisis Risiko Sebelum Perubahan (Wajib untuk Jalur Order, Saldo, H2H, & Callback Provider)
+1. **Risiko perubahan urutan penguncian (`FOR UPDATE`) atau bocornya koneksi pool pada arsitektur 3-fase (`SEC-013`)**:
+   - Web Order (`POST /api/order`) dan H2H Order (`POST /h2h/order`) wajib menjalankan: (Pre-check DB singkat + lepas koneksi) -> (Validasi ID game + cek harga modal real-time Foxy tanpa menahan koneksi DB) -> **Fase (a)** (transaksi DB atomik: lock user `FOR UPDATE`, hitung harga + lock `flash_sales FOR UPDATE`, cek modal `SEC-003`, lock `promo_codes FOR UPDATE` / cek kuota harian H2H, potong `users.balance WHERE balance >= $1`, insert `transactions` `'Pending'` beserta `provider_trx_id`, insert `balance_history`, update `flash_sales`/`promo_codes`/`promo_usages`, `COMMIT`, lepas koneksi) -> **Fase (b)** (`axios.post` ke `/v1/order` Foxy tanpa menahan koneksi DB) -> **Fase (c)** (`finalizeOrderAfterProviderCall`: lock `transactions FOR UPDATE` tanpa filter status, simpan `COALESCE(provider_trx_id, $1)`, dan panggil `rollbackTransactionResources` hanya jika gagal non-timeout dan status masih `Pending`/`Processing`).
+   - **Mitigasi**: Seluruh alur uang 3-fase dipindahkan utuh ke satu file (`backend/services/orderService.js`, `< 600` baris) sesuai Aturan Emas #6 tanpa mengubah satu karakter pun SQL, urutan query, maupun kondisi `FOR UPDATE`.
+2. **Risiko verifikasi callback Foxy (`SEC-001`) & duplikasi state `callbackClock` / `callbackVerificationCooldown`**:
+   - Suite tes (`foxyCallback.test.js`, `connectionPoolOrders.test.js`, `connectionPoolCronAndTimeouts.test.js`) mengimpor `callbackClock` dan `clearCallbackCooldownCache` dari `server.js` dan mem-mock `callbackClock.now`.
+   - **Mitigasi**: `callbackVerificationCooldown`, `callbackClock`, dan `clearCallbackCooldownCache` hanya hidup di satu tempat (`backend/routes/foxyCallback.routes.js`) dan di-re-export langsung oleh `backend/server.js`.
+3. **Risiko urutan rate limiter & middleware pada route `/api/order`, `/api/foxy/callback`, dan `/h2h/*`**:
+   - Global limiter (`checkoutLimiter`, `apiLimiter`, `h2hLimiter`) dipasang oleh `applyRateLimiters(app)` di atas route, sedangkan route H2H memasang inline `[protectH2HIp, protectH2H, h2hUserLimiter]`.
+   - **Mitigasi**: Ketiga router dipasang di `backend/server.js` pada posisi asal masing-masing dengan daftar middleware inline identik, diverifikasi dengan `node scripts/check-route-overlap.js` (`effective_chains=87/87`).
+
+### Inventaris Sisa `backend/server.js` (`1.344` baris) & Pemetaan Commit R9
+
+1. **Commit 1 — `backend/services/notificationService.js` & `backend/services/orderService.js`**
+   - `backend/services/notificationService.js` (`~25` baris): memindahkan `createNotification(userId, message, link = null)` (`server.js:142-150`) ke factory `createNotificationService({ pool })` agar dapat dipakai oleh `server.js` dan route tanpa siklus dependensi.
+   - `backend/services/orderService.js` (`~490` baris, `< 600` batas keras): memindahkan dari `server.js`:
+     - `getSafeOrderErrorMessage(error, fallback)` (`70-114`)
+     - `isProviderTimeoutOrAmbiguous(providerError)` (`187-200`)
+     - `finalizeOrderAfterProviderCall({ pool, ... })` (`206-260`)
+     - Helper bersama Fase Pre-check/Fase (a)/Fase (b) di dalam file yang sama (`fetchRealtimeFoxyCostForOrder`, `lockAndCalculateOrderSellingPrice`, `submitOrderToFoxyProvider`) serta `executeWebOrder` (`274-598`) dan `executeH2HOrder` (`896-1193`).
+   - `server.js` memanggil `createNotificationService` dan `orderService` pada handler `POST /api/order` dan `POST /h2h/order`.
+
+2. **Commit 2 — `backend/routes/order.routes.js`**
+   - Memindahkan `POST /api/order` ke `backend/routes/order.routes.js` (`createOrderRoutes({ pool, protect })`, `~65` baris) dan memasangnya di `server.js` tepat setelah `createWaBotRoutes`.
+
+3. **Commit 3 — `backend/routes/h2h.routes.js`**
+   - Memindahkan 4 route H2H ke `backend/routes/h2h.routes.js` (`createH2HRoutes({ pool, protectH2HIp, protectH2H, h2hUserLimiter })`, `~195` baris, `< 400` batas keras):
+     - `POST /h2h/order` (`883-1199`)
+     - `GET /h2h/products` (`1201-1292`)
+     - `PUT /h2h/profile/callback` (`1294-1312`)
+     - `GET /h2h/profile` (`1314-1327`)
+
+4. **Commit 4 — `backend/routes/foxyCallback.routes.js`**
+   - Memindahkan `callbackVerificationCooldown`, `callbackClock`, `clearCallbackCooldownCache`, `extractCallbackToken`, `verifyFoxyCallbackAuth`, `checkAndMarkCallbackCooldown`, `doesFoxyStatusMatchDb`, serta `POST /api/foxy/callback` (`606-881`) ke `backend/routes/foxyCallback.routes.js` (`~295` baris, `< 400` batas keras).
+   - `server.js` memasang `createFoxyCallbackRoutes({ pool, createNotification })` dan me-re-export `callbackClock` serta `clearCallbackCooldownCache` di `module.exports`.
+
+5. **Commit 5 — Pembersihan `server.js` & Dokumentasi Hasil R9**
+   - Menghapus seluruh import di `backend/server.js` yang tidak lagi dipakai setelah Commit 1–4; mempertahankan seluruh simbol `module.exports` di `server.js`.
+   - Menjalankan verifikasi penuh otomatis + ketiga skrip manual PostgreSQL (`concurrency.js`, `idempotency.js`, `pool.js`) dan mencatat hasil akhir R9.
