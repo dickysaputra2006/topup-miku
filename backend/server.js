@@ -4,8 +4,6 @@ const {
 } = require('./config/env');
 const { pool } = require('./config/db');
 const { createApp } = require('./app');
-const { invalidateFoxyProductCache } = require('./services/foxyClient');
-const { callbackClock, clearCallbackCooldownCache } = require('./routes/foxyCallback.routes');
 
 const app = createApp({ pool });
 
@@ -22,19 +20,8 @@ function startServer(port = PORT) {
     return startedServer;
 }
 
-let server = null;
 if (require.main === module) {
-    server = startServer();
+    startServer();
 }
 
-// Re-export kompatibilitas sementara hingga seluruh impor tes/skrip diarahkan di Commit 2-3
-module.exports = {
-    app,
-    pool,
-    startServer,
-    server,
-    validateEnvironment,
-    invalidateFoxyProductCache,
-    callbackClock,
-    clearCallbackCooldownCache,
-};
+module.exports = { startServer };
