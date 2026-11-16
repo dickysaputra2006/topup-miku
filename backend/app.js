@@ -3,6 +3,7 @@ const express = require('express');
 const { MAX_BODY_SIZE } = require('./config/constants');
 const { pool: defaultPool } = require('./config/db');
 const { securityHeaders, corsMiddleware } = require('./middleware/securityHeaders');
+const { errorHandler } = require('./middleware/errorHandler');
 const { createRateLimiters } = require('./middleware/rateLimiters');
 const { createAuthMiddleware } = require('./middleware/auth');
 const { createH2HAuthMiddleware } = require('./middleware/h2hAuth');
@@ -98,6 +99,8 @@ function createApp({ pool = defaultPool } = {}) {
         protectH2H,
         h2hUserLimiter,
     }));
+
+    app.use(errorHandler);
 
     return app;
 }
