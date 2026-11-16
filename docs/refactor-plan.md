@@ -187,3 +187,10 @@ Semua simbol berikut wajib tetap diekspor oleh `backend/server.js`:
 
 ### Tes yang Membaca `backend/server.js` sebagai Teks (`readFileSync`)
 - **0 file tes** di `backend/tests/` maupun `scripts/` membaca `backend/server.js` sebagai teks menggunakan `fs.readFileSync` (hanya `dependencies.test.js` yang membaca `package.json`/`package-lock.json`, dan `idempotencyOrders.test.js` yang membaca `migrations/011_*.sql`).
+
+---
+
+## R4 — Ekstraksi Helper Murni (`utils/`) & Middleware Auth (`middleware/auth.js`, `middleware/h2hAuth.js`)
+
+Catatan baseline layer:
+- `layers.baseline` diturunkan dari `adfc68b`; satu-satunya selisih terhadap `HEAD` adalah nama fungsi (`<anonymous>` -> `securityHeaders`) akibat R3, urutan dan perilaku identik.
