@@ -1,6 +1,6 @@
 const express = require('express');
 const { FOXY_API_KEY } = require('../../config/env');
-const { syncProductsWithFoxy } = require('../../utils/cronUtils');
+const { syncProductsWithFoxy } = require('../../jobs/productSync');
 const { invalidateFoxyProductCache } = require('../../services/foxyClient');
 
 /**
