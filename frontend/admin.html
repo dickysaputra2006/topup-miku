@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Admin Panel - GameStore</title>
+    <title>Admin Panel - MIKU Store</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-responsive.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
@@ -12,7 +13,7 @@
     <header>
         <div class="header-container container">
             <div class="header-left">
-                <button id="menu-toggle-btn" class="header-icon-btn">
+                <button id="menu-toggle-btn" class="header-icon-btn" aria-label="Toggle menu">
                     <i class="fas fa-bars"></i>
                 </button>
                 <h1 class="logo">Admin Panel</h1>
@@ -24,17 +25,19 @@
     </header>
 
     <div class="admin-page-container container">
-    <aside class="admin-sidebar">
-        <button id="menu-toggle-btn" class="header-icon-btn">
+    <aside class="admin-sidebar" id="admin-sidebar">
+        <button class="menu-toggle-btn header-icon-btn" aria-label="Toggle menu">
             <i class="fas fa-bars"></i>
         </button>
         <nav class="sidebar-nav">
-            <a href="#" class="admin-nav-link active" data-target="produk-dan-game"><i class="fas fa-gamepad"></i> Produk & Game</a>
+            <a href="#" class="admin-nav-link active" data-target="produk-dan-game"><i class="fas fa-gamepad"></i> Produk &amp; Game</a>
             <a href="#" class="admin-nav-link" data-target="deposit"><i class="fas fa-hand-holding-usd"></i> Persetujuan Deposit</a>
+            <a href="#" class="admin-nav-link" data-target="payment-methods"><i class="fas fa-credit-card"></i> Metode Pembayaran</a>
             <a href="#" class="admin-nav-link" data-target="saldo"><i class="fas fa-wallet"></i> Manajemen Saldo</a>
             <a href="#" class="admin-nav-link" data-target="margin"><i class="fas fa-percentage"></i> Manajemen Margin</a>
             <a href="#" class="admin-nav-link" data-target="promo"><i class="fas fa-tags"></i> Manajemen Promo</a>
             <a href="#" class="admin-nav-link" data-target="flash-sale"><i class="fas fa-bolt"></i> Manajemen Flash Sale</a>
+            <a href="#" class="admin-nav-link" data-target="transaksi"><i class="fas fa-receipt"></i> Transaksi</a>
         </nav>
     </aside>
 
@@ -51,7 +54,7 @@
         </form>
                 </div>
                 <div class="card">
-                    <h3>Manajemen Game & Produk</h3>
+                    <h3>Manajemen Game &amp; Produk</h3>
                     <div class="admin-forms-container">
                         <form id="add-game-form" class="admin-form">
                             <h4>Tambah Game Baru</h4>
@@ -84,7 +87,7 @@
                     </div>
                 </div>
                 <div class="card">
-                    <h3>Daftar Game & Produk</h3>
+                    <h3>Daftar Game &amp; Produk</h3>
                     <div class="admin-game-manager">
                         <h4><i class="fas fa-search"></i> Pilih Game untuk Dikelola</h4>
                         <div class="game-selector-form">
@@ -195,19 +198,118 @@
             
             <section id="deposit" class="admin-section hidden">
                 <div class="card">
-                    <h3>Permintaan Deposit Pending</h3>
+                    <h3><i class="fas fa-hand-holding-usd"></i> Manajemen Deposit</h3>
+                    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+                        <label for="deposit-status-filter" style="font-weight:600;margin:0;">Filter Status:</label>
+                        <select id="deposit-status-filter" style="padding:0.4rem 0.8rem;border-radius:6px;border:1px solid var(--border-color);background:var(--card-bg);color:var(--text-primary);">
+                            <option value="">Semua</option>
+                            <option value="Pending" selected>Pending</option>
+                            <option value="Approved">Approved</option>
+                            <option value="Rejected">Rejected</option>
+                        </select>
+                        <button id="refresh-deposits-btn" class="edit-btn" style="display:flex;align-items:center;gap:0.4rem;"><i class="fas fa-sync-alt"></i> Refresh</button>
+                    </div>
                     <div class="table-container">
-                        <table id="pending-deposits-table">
+                        <table id="admin-deposits-table">
                             <thead>
                                 <tr>
-                                    <th>ID Deposit</th>
+                                    <th>ID</th>
                                     <th>Username</th>
-                                    <th>Jumlah Transfer</th>
+                                    <th>Nominal</th>
+                                    <th>Kode Unik</th>
+                                    <th>Total Transfer</th>
+                                    <th>Metode</th>
+                                    <th>Catatan</th>
+                                    <th>Status</th>
                                     <th>Tanggal</th>
                                     <th>Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody></tbody>
+                            <tbody id="admin-deposits-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <section id="payment-methods" class="admin-section hidden">
+                <div class="card">
+                    <h3 id="pm-form-title"><i class="fas fa-credit-card"></i> Tambah Metode Pembayaran</h3>
+                    <form id="payment-method-form" class="admin-form" style="background:none;padding:0;" aria-labelledby="pm-form-title">
+                        <input type="hidden" id="pm-edit-id" name="id">
+                        <div class="admin-forms-container">
+                            <div class="admin-form">
+                                <label for="pm-name">Nama Metode <span aria-hidden="true">*</span></label>
+                                <input type="text" id="pm-name" name="name" maxlength="100" required placeholder="Contoh: Bank BCA / QRIS All Payment">
+
+                                <label for="pm-code">Kode Unik <span aria-hidden="true">*</span></label>
+                                <input type="text" id="pm-code" name="code" maxlength="50" required pattern="[A-Za-z0-9_-]{2,50}" autocorrect="off" autocapitalize="none" spellcheck="false" aria-describedby="pm-code-help" placeholder="Contoh: BCA / QRIS_ALL">
+                                <small id="pm-code-help" class="form-help">2-50 karakter: huruf, angka, garis bawah (_), atau tanda hubung (-).</small>
+
+                                <label for="pm-type">Tipe Metode <span aria-hidden="true">*</span></label>
+                                <select id="pm-type" name="type" required>
+                                    <option value="ewallet">E-Wallet</option>
+                                    <option value="bank">Bank Transfer</option>
+                                    <option value="qris">QRIS</option>
+                                </select>
+
+                                <label for="pm-account-number">Nomor Rekening / HP</label>
+                                <input type="text" id="pm-account-number" name="account_number" inputmode="numeric" maxlength="100" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Contoh: 081200000001 / 901000000004">
+
+                                <label for="pm-account-name">Atas Nama</label>
+                                <input type="text" id="pm-account-name" name="account_name" maxlength="150" placeholder="Contoh: Admin MIKU Store">
+                            </div>
+                            <div class="admin-form">
+                                <label for="pm-qris-image-url">URL Gambar QRIS <span style="font-weight:400;color:#94a3b8;">(opsional)</span></label>
+                                <input type="text" id="pm-qris-image-url" name="qris_image_url" maxlength="1000" autocorrect="off" autocapitalize="none" spellcheck="false" aria-describedby="pm-qris-help" placeholder="https://... atau /images/qris.png">
+                                <small id="pm-qris-help" class="form-help">Untuk metode QRIS. Gunakan URL http(s):// atau path /...</small>
+
+                                <label for="pm-min-amount">Minimal Deposit (Rp) <span aria-hidden="true">*</span></label>
+                                <input type="number" id="pm-min-amount" name="min_amount" min="10000" max="100000000" step="1000" value="10000" required>
+
+                                <label for="pm-sort-order">Urutan Tampil</label>
+                                <input type="number" id="pm-sort-order" name="sort_order" min="-9999" max="9999" step="1" value="0">
+
+                                <label for="pm-instructions">Instruksi Transfer</label>
+                                <textarea id="pm-instructions" name="instructions" rows="3" maxlength="1000" placeholder="Panduan singkat untuk member saat melakukan transfer..."></textarea>
+
+                                <div class="pm-checkbox-row">
+                                    <input type="checkbox" id="pm-is-qris" name="is_qris">
+                                    <label for="pm-is-qris">Metode QRIS (tanpa kode unik 3 digit)</label>
+                                </div>
+                                <div class="pm-checkbox-row">
+                                    <input type="checkbox" id="pm-is-active" name="is_active" checked>
+                                    <label for="pm-is-active">Aktif (tampilkan ke user)</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pm-form-actions">
+                            <button type="submit" id="pm-submit-btn">Simpan Metode</button>
+                            <button type="button" id="pm-cancel-edit-btn" class="edit-btn hidden">Batal Edit</button>
+                        </div>
+                        <div id="pm-form-status" class="form-status-msg" role="status" aria-live="polite"></div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <div class="pm-table-header">
+                        <h3 id="pm-table-heading"><i class="fas fa-list"></i> Daftar Metode Pembayaran</h3>
+                        <button type="button" id="refresh-pm-btn" class="edit-btn" style="display:inline-flex;align-items:center;gap:0.4rem;"><i class="fas fa-sync-alt"></i> Refresh</button>
+                    </div>
+                    <div tabindex="0" role="region" aria-labelledby="pm-table-heading" class="table-container">
+                        <table id="admin-payment-methods-table">
+                            <thead>
+                                <tr>
+                                    <th>Urutan</th>
+                                    <th>Kode</th>
+                                    <th>Nama Metode</th>
+                                    <th>Tipe</th>
+                                    <th>Rekening / Tujuan</th>
+                                    <th>Min. Deposit</th>
+                                    <th>Status</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-payment-methods-tbody"></tbody>
                         </table>
                     </div>
                 </div>
@@ -309,7 +411,7 @@
         <form id="add-flash-sale-form" class="admin-form" style="background: none; padding: 0;">
             <div class="admin-forms-container">
                 <div class="admin-form">
-                    <label for="fs-game-search">1. Cari & Pilih Game</label>
+                    <label for="fs-game-search">1. Cari &amp; Pilih Game</label>
                     <input type="text" id="fs-game-search" placeholder="Ketik nama game...">
                     <select id="fs-game-selector" required>
                         <option value="">-- Pilih Game --</option>
@@ -361,6 +463,28 @@
         </div>
     </div>
             </section>
+
+            <section id="transaksi" class="admin-section hidden">
+    <div class="card">
+        <h3>Daftar Transaksi</h3>
+        <div class="table-container">
+            <table id="admin-transactions-table">
+                <thead>
+                    <tr>
+                        <th>Invoice</th>
+                        <th>User</th>
+                        <th>Produk</th>
+                        <th>Harga</th>
+                        <th>Status</th>
+                        <th>Tanggal</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-transactions-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</section>
 
         </main>
     </div>

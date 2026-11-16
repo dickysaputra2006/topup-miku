@@ -1,36 +1,24 @@
-# Project Rules for Codex
 
-This is a reseller topup web application with payment, balance, transactions, reseller API, and provider integration.
 
-## Safety rules
-- Do not modify production secrets.
-- Do not expose Midtrans server key, provider API key, database password, or reseller API keys.
-- Do not remove existing authentication.
-- Do not change payment or transaction logic without explaining the risk.
-- Prefer small, reviewable changes.
-- Do not break existing routes or API response format.
-- Always mention database migrations clearly.
-- Always provide manual test steps.
+This is a local-only sandbox project. It is not connected to GitHub.
+
+Important project context:
+- Stack: Express 4 + PostgreSQL + static HTML/CSS/JS frontend.
+- This is a reseller topup web app with balance, deposits, orders, H2H API, and Foxy provider integration.
+- Midtrans is expected but not implemented yet.
+- Current highest risks are schema drift, insecure provider callback, order/provider reliability, balance safety, and payment flow.
+
+Rules:
+- Never use GitHub, pull requests, or push commands.
 - Never expose or commit secrets.
-- Never modify .env directly unless I explicitly ask.
+- Never modify .env unless I explicitly ask.
+- Never run destructive database commands.
+- Do not change production URLs/secrets without asking.
 - Prefer small, reviewable changes.
 - Do not break existing routes or API response formats.
-- For payment, balance, transaction, and provider logic, explain risks before changing.
+- For payment, balance, transaction, provider, and callback logic, explain risks before changing.
 - Always provide manual test steps.
 - Always mention database migrations clearly.
-- Use sandbox/local data only.
-- Do not run destructive database commands.
+- Use local/sandbox data only.
 - Keep changes focused on one task at a time.
 
-## Priorities
-1. Security
-2. Transaction reliability
-3. Payment webhook safety
-4. API reseller authentication and rate limiting
-5. Database indexing
-6. UI/UX improvements
-7. Admin and reseller dashboard improvements
-
-## Testing
-If the project has tests, run them.
-If there are no tests, provide manual test steps.

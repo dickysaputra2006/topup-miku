@@ -1,207 +1,463 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Dashboard - MIKU Store</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style-responsive.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
+
 <body>
-    <header>
+    <header class="dashboard-header">
         <div class="header-container container">
             <div class="header-left">
-                <button id="menu-toggle-btn" class="header-icon-btn">
+                <button id="menu-toggle-btn" class="header-icon-btn" aria-label="Toggle menu">
                     <i class="fas fa-bars"></i>
                 </button>
-                 <a href="index.html" class="logo-link"><h1 class="logo">MIKU Store</h1></a>
+                <a href="index.html" class="logo-link">
+                    <h1 class="logo">MIKU Store</h1>
+                </a>
+                <a href="index.html" class="header-back-home">
+                    <i class="fas fa-store"></i>
+                    <span>Kembali ke Toko</span>
+                </a>
             </div>
             <div class="header-right">
-                <a href="compare-prices.html" class="header-btn pricelist-btn">Harga Reseller</a>
-                <a href="index.html" class="header-btn">Kembali ke Toko</a>
+                <a href="compare-prices.html" class="header-btn pricelist-btn"><i class="fas fa-tags"></i> Harga Reseller</a>
+                <a href="#" class="header-user-chip dashboard-nav-link" data-target="dashboard-main" title="Ringkasan Akun">
+                    <span class="user-avatar-circle" id="header-user-initials">--</span>
+                    <span class="header-user-meta">
+                        <small>Member</small>
+                        <strong id="header-user-name">Akun</strong>
+                    </span>
+                </a>
             </div>
         </div>
     </header>
 
     <div class="dashboard-container container">
-    <aside class="sidebar">
-        <button id="menu-toggle-btn" class="header-icon-btn">
-            <i class="fas fa-bars"></i>
-        </button>
-        <nav class="sidebar-nav">
-            <a href="#" class="dashboard-nav-link active" data-target="dashboard-main"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
-            <a href="#" class="dashboard-nav-link" data-target="deposit-tab"><i class="fas fa-wallet"></i> Deposit</a>
-            <a href="#" class="dashboard-nav-link" data-target="cek-pesanan"><i class="fas fa-receipt"></i> Cek Pesanan</a>
-            <a href="#" class="dashboard-nav-link" data-target="transaksi-tab"><i class="fas fa-history"></i> Transaksi</a>
-            <a href="#" class="dashboard-nav-link" data-target="mutasi-saldo"><i class="fas fa-chart-line"></i> Mutasi Saldo</a>
-            <a href="#" class="dashboard-nav-link" data-target="integrasi"><i class="fas fa-cogs"></i> Integrasi</a>
-            <a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Keluar/Log Out</a>
-        </nav>
-    </aside>
+        <aside class="sidebar" id="dashboard-sidebar">
+            <div class="sidebar-top-header">
+                <span class="sidebar-portal-badge"><i class="fas fa-shield-halved"></i> AREA MEMBER</span>
+                <button class="menu-toggle-btn header-icon-btn" aria-label="Tutup menu">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <nav class="sidebar-nav">
+                <span class="sidebar-group-title">Navigasi Utama</span>
+                <a href="index.html" class="sidebar-store-link"><i class="fas fa-store"></i> Kembali ke Toko</a>
+                <a href="#" class="dashboard-nav-link active" data-target="dashboard-main"><i
+                        class="fas fa-th-large"></i> Dashboard</a>
+
+                <span class="sidebar-group-title">Transaksi</span>
+                <a href="#" class="dashboard-nav-link" data-target="transaksi-tab"><i class="fas fa-history"></i>
+                    Riwayat Transaksi</a>
+                <a href="#" class="dashboard-nav-link" data-target="cek-pesanan"><i class="fas fa-receipt"></i> Cek
+                    Pesanan</a>
+                <a href="#" class="dashboard-nav-link" data-target="mutasi-saldo"><i class="fas fa-chart-line"></i>
+                    Mutasi Saldo</a>
+
+                <span class="sidebar-group-title">Kredit &amp; API</span>
+                <a href="#" class="dashboard-nav-link" data-target="deposit-tab"><i class="fas fa-wallet"></i>
+                    Isi Saldo / Deposit</a>
+                <a href="#" class="dashboard-nav-link" data-target="integrasi"><i class="fas fa-cogs"></i> Integrasi H2H</a>
+            </nav>
+
+            <div class="sidebar-member-card">
+                <div class="sidebar-member-row">
+                    <span class="user-avatar-circle" id="sidebar-user-initials">--</span>
+                    <div class="sidebar-member-info">
+                        <strong id="sidebar-user-name">Memuat...</strong>
+                        <span id="sidebar-user-role">Member</span>
+                    </div>
+                </div>
+                <a href="#" data-target="deposit-tab" class="sidebar-cta-btn dashboard-nav-link"><i class="fas fa-bolt"></i> Top Up Saldo</a>
+                <a href="#" id="logout-button"><i class="fas fa-sign-out-alt"></i> Keluar Akun</a>
+            </div>
+        </aside>
 
         <main class="dashboard-content">
-            
+
             <section id="dashboard-main" class="dashboard-section">
-                <div class="card profile-summary">
-                    <h3>Ringkasan Akun</h3>
-                    <div class="profile-details">
+                <div class="card transaction-overview dashboard-kpi-card">
+                    <div class="overview-header">
                         <div>
-                            <p>Nama Lengkap: <strong id="profile-fullname">Memuat...</strong></p>
-                            <p>Username: <strong id="profile-username">Memuat...</strong></p>
-                            <p>Email: <strong id="profile-email">Memuat...</strong></p>
-                            <p>WhatsApp: <strong id="profile-nomorwa">Memuat...</strong></p>
-                            <p>Role: <strong id="profile-role" style="color: var(--primary-color);">Memuat...</strong></p>
+                            <span class="section-eyebrow">STATISTIK PESANAN</span>
+                            <h3>Ringkasan Transaksi</h3>
+                            <p class="overview-subtitle">Total <strong id="count-total-tx">0</strong> transaksi tercatat di akun Anda</p>
                         </div>
-                        <div>
-                            <button class="edit-btn">Edit Profil</button>
-                        </div>
+                        <a href="#" data-target="transaksi-tab" class="history-link dashboard-nav-link">Lihat Semua <i class="fas fa-arrow-up-right-from-square"></i></a>
                     </div>
-                </div>
-                <div class="card balance-summary">
-                    <h3>MIKU Store  Credits</h3>
-                    <div class="balance-details">
-                        <p class="balance-amount" id="profile-balance">Memuat...</p>
-                        <a href="deposit.html" class="topup-btn" style="text-decoration:none;">Deposit</a>
-                    </div>
-                    <a href="#" data-target="mutasi-saldo" class="history-link dashboard-nav-link">Penggunaan Credits &rarr;</a>
-                </div>
-                <div class="card transaction-overview">
-                    <h3>Pesanan Saya</h3>
                     <div class="order-stats">
-                        <div class="stat-item">
-                            <span id="count-berhasil">0</span><p>Berhasil</p>
+                        <div class="stat-item stat-success">
+                            <div class="stat-top">
+                                <span class="stat-icon"><i class="fas fa-check-circle"></i></span>
+                                <span class="stat-label">BERHASIL</span>
+                            </div>
+                            <span class="stat-value" id="count-berhasil">0</span>
                         </div>
-                        <div class="stat-item">
-                            <span id="count-pending">0</span><p>Pending</p>
+                        <div class="stat-item stat-pending">
+                            <div class="stat-top">
+                                <span class="stat-icon"><i class="fas fa-clock"></i></span>
+                                <span class="stat-label">PENDING</span>
+                            </div>
+                            <span class="stat-value" id="count-pending">0</span>
                         </div>
-                        <div class="stat-item">
-                            <span id="count-gagal">0</span><p>Gagal</p>
+                        <div class="stat-item stat-review">
+                            <div class="stat-top">
+                                <span class="stat-icon"><i class="fas fa-exclamation-circle"></i></span>
+                                <span class="stat-label">REVIEW</span>
+                            </div>
+                            <span class="stat-value" id="count-review">0</span>
+                        </div>
+                        <div class="stat-item stat-failed">
+                            <div class="stat-top">
+                                <span class="stat-icon"><i class="fas fa-times-circle"></i></span>
+                                <span class="stat-label">GAGAL</span>
+                            </div>
+                            <span class="stat-value" id="count-gagal">0</span>
                         </div>
                     </div>
-                    <a href="#" data-target="transaksi-tab" class="history-link dashboard-nav-link">Lihat Semua Transaksi &rarr;</a>
+                </div>
+
+                <div class="dashboard-split-grid">
+                    <div class="card profile-summary">
+                        <div class="card-head-row">
+                            <span class="section-eyebrow">INFORMASI AKUN</span>
+                            <button class="edit-btn edit-btn-compact"><i class="fas fa-pen"></i> Edit Profil</button>
+                        </div>
+                        <div class="profile-identity-head">
+                            <span class="profile-avatar-lg" id="profile-avatar-badge">--</span>
+                            <div class="profile-identity-meta">
+                                <strong id="profile-username">Memuat...</strong>
+                                <div class="profile-meta-sub">
+                                    <span id="profile-fullname">Memuat...</span>
+                                    <span class="role-pill" id="profile-role">Memuat...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="profile-contact-list">
+                            <div class="profile-contact-row">
+                                <div class="contact-field">
+                                    <span class="contact-label">EMAIL</span>
+                                    <strong id="profile-email">Memuat...</strong>
+                                </div>
+                                <span class="verified-chip"><i class="fas fa-check-circle"></i> Aktif</span>
+                            </div>
+                            <div class="profile-contact-row">
+                                <div class="contact-field">
+                                    <span class="contact-label">WHATSAPP</span>
+                                    <strong id="profile-nomorwa">Memuat...</strong>
+                                </div>
+                                <span class="verified-chip"><i class="fas fa-check-circle"></i> Terdaftar</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card balance-summary">
+                        <div class="credits-glow" aria-hidden="true"></div>
+                        <div class="card-head-row">
+                            <span class="section-eyebrow"><i class="fas fa-wallet"></i> MIKU STORE CREDITS</span>
+                            <a href="#" data-target="mutasi-saldo" class="history-link dashboard-nav-link" title="Mutasi Saldo"><i class="fas fa-arrow-up-right-from-square"></i></a>
+                        </div>
+                        <div class="balance-details">
+                            <p class="balance-amount" id="profile-balance">Memuat...</p>
+                            <p class="balance-helper">Saldo siap dipakai untuk top up instan &amp; API H2H 24 jam.</p>
+                        </div>
+                        <div class="balance-actions">
+                            <a href="#" data-target="deposit-tab" class="topup-btn dashboard-nav-link" style="text-decoration:none;"><i class="fas fa-gem"></i> Top Up Saldo</a>
+                            <a href="#" data-target="mutasi-saldo" class="history-link dashboard-nav-link">Riwayat Penggunaan Credits &rarr;</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card dashboard-quick-banner">
+                    <div class="quick-banner-copy">
+                        <span class="section-eyebrow">AKSES CEPAT MEMBER</span>
+                        <h3>Mutasi &amp; Alat Reseller</h3>
+                        <p>Pantau histori keluar-masuk saldo, lacak detail invoice, atau hubungkan API Key H2H Anda.</p>
+                    </div>
+                    <div class="quick-banner-actions">
+                        <a href="#" data-target="mutasi-saldo" class="quick-action-btn dashboard-nav-link"><i class="fas fa-chart-line"></i> Mutasi Saldo</a>
+                        <a href="#" data-target="cek-pesanan" class="quick-action-btn dashboard-nav-link"><i class="fas fa-search"></i> Cek Pesanan</a>
+                        <a href="#" data-target="integrasi" class="quick-action-btn dashboard-nav-link"><i class="fas fa-plug"></i> API H2H</a>
+                    </div>
                 </div>
             </section>
 
-                </section> <section id="mutasi-saldo" class="dashboard-section hidden">
-    <div class="card">
-        <h3>Riwayat Mutasi Saldo</h3>
-        <div class="table-container">
-            <table id="mutasi-table">
-                <thead>
-                    <tr>
-                        <th>Tanggal</th>
-                        <th>Tipe</th>
-                        <th>Deskripsi</th>
-                        <th>Jumlah</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    </tbody>
-            </table>
-        </div>
-    </div>
-                </section>
-
-                </section> <section id="deposit-tab" class="dashboard-section hidden">
-                    <div class="card">
-                        <h3>Deposit Saldo</h3>
-                        <form id="deposit-form">
-                            <label for="amount">Masukan Jumlah Deposit</label>
-                            <div class="form-row-container">
-                                <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" required class="dashboard-input">
-                                <button type="submit" class="btn-submit-deposit">Buat Permintaan</button>
-                            </div>
-                            <p class="form-description deposit-note">Minimum deposit adalah Rp 10.000.</p>
-                        </form>
+            <section id="mutasi-saldo" class="dashboard-section hidden">
+                <div class="card">
+                    <h3>Riwayat Mutasi Saldo</h3>
+                    <div class="table-container">
+                        <table id="mutasi-table">
+                            <thead>
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Tipe</th>
+                                    <th>Deskripsi</th>
+                                    <th>Jumlah</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
                     </div>
-                    <div id="payment-instructions" class="card payment-instructions-section hidden">
-                        <h3>Instruksi Pembayaran</h3>
-                        <p id="instruction-text">Membuat permintaan...</p>
-                    </div>
-                </section>
+                </div>
+            </section>
 
-                <section id="transaksi-tab" class="dashboard-section hidden">
-                    <div class="card">
-                        <h3>Riwayat Transaksi Anda</h3>
-                        <p class="form-description">Berikut adalah semua pembelian yang pernah Anda lakukan.</p>
-                        <div class="table-container">
-                            <table id="transactions-table">
-                                <thead>
-                                    <tr>
-                                        <th>Invoice ID</th>
-                                        <th>Tanggal</th>
-                                        <th>Produk</th>
-                                        <th>ID Tujuan</th>
-                                        <th>Harga</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    </tbody>
-                            </table>
+            <section id="deposit-tab" class="dashboard-section hidden">
+
+                <!-- Card instruksi metode pembayaran (dimuat dinamis dari GET /api/payment-methods) -->
+                <div class="card deposit-card">
+                    <h3><i class="fas fa-info-circle"></i> Cara Deposit Saldo</h3>
+                    <p class="form-description" style="text-align:left;">Pilih dan transfer ke salah satu metode aktif di bawah, lalu
+                        ajukan request dengan nominal yang sesuai. Saldo masuk setelah admin verifikasi.</p>
+                    <div id="deposit-methods-grid" class="deposit-method-grid" aria-live="polite">
+                        <div class="ui-state loading">Memuat metode pembayaran...</div>
+                    </div>
+                    <p class="form-description" style="text-align:left; margin-top:0.75rem; color:#ffc107;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Penting:</strong> Saldo tidak bertambah otomatis. Admin akan memverifikasi pembayaran
+                        dan menyetujui deposit.
+                    </p>
+                </div>
+
+                <!-- Card form request deposit -->
+                <div class="card deposit-card" style="margin-top:1.25rem;">
+                    <h3 id="deposit-form-heading"><i class="fas fa-plus-circle"></i> Ajukan Request Deposit</h3>
+                    <form id="deposit-form" aria-labelledby="deposit-form-heading">
+                        <label for="deposit-method">Metode Pembayaran <span aria-hidden="true">*</span></label>
+                        <select id="deposit-method" name="method" required class="dashboard-input"
+                            data-error="deposit-method-error"
+                            style="margin-top:0.5rem;margin-bottom:0.35rem;">
+                            <option value="" disabled selected>-- Memuat Metode Pembayaran... --</option>
+                        </select>
+                        <div id="deposit-method-error" class="form-field-error">Silakan pilih metode pembayaran terlebih dahulu.</div>
+                        <div id="deposit-method-info" class="deposit-selected-card hidden" aria-live="polite"></div>
+
+                        <label for="amount">Jumlah Deposit (Rp) <span aria-hidden="true">*</span></label>
+                        <div class="form-row-container" style="margin-top:0.5rem;">
+                            <input type="number" id="amount" name="amount" placeholder="Contoh: 50000" min="10000" max="100000000"
+                                step="1000" inputmode="numeric" required class="dashboard-input">
+                            <button type="submit" class="btn-submit-deposit">Ajukan Deposit</button>
                         </div>
+                        <p id="deposit-amount-hint" class="form-description deposit-note">Minimum deposit Rp 10.000. Nominal akhir akan ditambah
+                            kode unik 3 digit (kecuali metode QRIS) untuk memudahkan verifikasi.</p>
+                        <label for="deposit-note" style="margin-top:0.75rem;display:block;">Catatan <span
+                                style="font-weight:400;color:#9ca3af;">(opsional, max 200 karakter)</span></label>
+                        <textarea id="deposit-note" name="note" maxlength="200" rows="2"
+                            placeholder="Opsional: nama pengirim / jam transfer / catatan lain" class="dashboard-input"
+                            style="margin-top:0.4rem;resize:vertical;"></textarea>
+                    </form>
+                </div>
+
+                <!-- Hasil instruksi setelah submit -->
+                <div id="payment-instructions" class="card deposit-card hidden" style="margin-top:1.25rem;">
+                    <h3><i class="fas fa-clipboard-list"></i> Instruksi Pembayaran</h3>
+                    <div id="instruction-text"></div>
+                    <p class="form-description" style="text-align:left; margin-top:0.75rem;">
+                        Setelah transfer, tunggu konfirmasi dari admin. Riwayat request terlihat di bawah.
+                    </p>
+                </div>
+
+                <!-- Riwayat deposit user -->
+                <div class="card deposit-card" style="margin-top:1.25rem;">
+                    <h3 id="deposit-history-heading"><i class="fas fa-history"></i> Riwayat Deposit</h3>
+                    <div tabindex="0" role="region" aria-labelledby="deposit-history-heading" class="table-container">
+                        <table id="deposit-history-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Tanggal</th>
+                                    <th>Nominal</th>
+                                    <th>Kode Unik</th>
+                                    <th>Metode</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deposit-history-body">
+                                <tr>
+                                    <td colspan="6" style="text-align:center;">Memuat riwayat...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
-                </section>
-            
+                </div>
+
+            </section>
+
+            <section id="transaksi-tab" class="dashboard-section hidden">
+                <div class="card">
+                    <h3>Riwayat Transaksi Anda</h3>
+                    <p class="form-description">Berikut adalah semua pembelian yang pernah Anda lakukan.</p>
+                    <div class="table-container">
+                        <table id="transactions-table">
+                            <thead>
+                                <tr>
+                                    <th>Invoice ID</th>
+                                    <th>Tanggal</th>
+                                    <th>Produk</th>
+                                    <th>ID Tujuan</th>
+                                    <th>Harga</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
             <section id="cek-pesanan" class="dashboard-section hidden">
                 <div class="card">
                     <h3>Cek Pesanan</h3>
                     <p class="form-description">Masukkan Nomor Invoice Anda untuk melihat detail transaksi.</p>
                     <form id="cek-pesanan-form" class="form-row-container">
-                       <input type="text" id="invoice-search-input" placeholder="Contoh: TRX-1234567890" required class="dashboard-input">
+                        <input type="text" id="invoice-search-input" placeholder="Contoh: TRX-1234567890" required
+                            class="dashboard-input">
                         <button type="submit" class="btn-submit-deposit">Cari Transaksi</button>
                     </form>
-                    </div>
+                </div>
                 <div id="hasil-cek-pesanan" class="card hidden" style="margin-top: 2rem;">
-                    </div>
+                </div>
             </section>
-            
+
             <section id="integrasi" class="dashboard-section hidden">
-            <div class="card">
-                <h3>Key & Dokumentasi</h3>
-                <p class="form-description" style="text-align: left;">Gunakan API Key di bawah ini untuk menghubungkan sistem atau bot Anda ke layanan kami.</p>
-                
-                <div class="api-key-wrapper">
-                    <code id="api-key-display">Memuat...</code>
-                    <div class="api-key-actions">
-                        <button id="toggle-apikey-btn" class="api-key-action-btn" title="Lihat/Sembunyikan Key">
-                            <i class="fas fa-eye"></i>
+                <div class="card h2h-card">
+                    <div class="h2h-card-header">
+                        <div>
+                            <h3>API Key H2H</h3>
+                            <p class="h2h-muted">Hubungkan sistem atau bot Anda dengan header <code>X-API-Key</code>.</p>
+                        </div>
+                        <span id="h2h-apikey-status-badge" class="status-badge status-pending">Memuat...</span>
+                    </div>
+
+                    <div class="h2h-credential-box">
+                        <div class="h2h-credential-meta">
+                            <span class="h2h-field-label">Status &amp; Prefix Key</span>
+                            <code id="api-key-display" class="h2h-code-value">Memuat...</code>
+                        </div>
+                    </div>
+
+                    <p class="h2h-inline-note">
+                        Untuk keamanan, API Key penuh hanya ditampilkan satu kali saat dibuat atau dibuat ulang.
+                    </p>
+
+                    <div class="h2h-action-group">
+                        <button type="button" id="generate-api-key-btn" class="h2h-btn h2h-btn-primary">
+                            <i class="fas fa-key"></i> Buat API Key
                         </button>
-                        <button id="copy-apikey-btn" class="api-key-action-btn" title="Salin Key">
-                            <i class="fas fa-copy"></i>
+                        <button type="button" id="revoke-api-key-btn" class="h2h-btn h2h-btn-danger hidden">
+                            <i class="fas fa-ban"></i> Revoke API Key
                         </button>
                     </div>
                 </div>
-                <p class="form-description" style="text-align: left; color: #ffc107; margin-top: 1rem;">
-                    <strong>Peringatan:</strong> Jaga kerahasiaan API Key Anda.
-                </p>
-                <div class="center-btn" style="justify-content: flex-start; margin-top: 1rem;">
-                    <button id="generate-api-key-btn" class="topup-btn">Buat / Buat Ulang API Key</button>
-                    <a href="#" class="edit-btn" style="text-decoration: none;">Dokumentasi</a>
+
+                <div class="card h2h-card">
+                    <div class="h2h-card-header">
+                        <div>
+                            <h3>Webhook Secret (HMAC-SHA256)</h3>
+                            <p class="h2h-muted">Secret untuk memverifikasi header <code>X-Signature</code> dan <code>X-Timestamp</code> pada webhook callback.</p>
+                        </div>
+                        <span id="h2h-webhook-status-badge" class="status-badge status-pending">Memuat...</span>
+                    </div>
+
+                    <div class="h2h-credential-box">
+                        <div class="h2h-credential-meta">
+                            <span class="h2h-field-label">Status &amp; Prefix Secret</span>
+                            <code id="webhook-secret-display" class="h2h-code-value">Memuat...</code>
+                        </div>
+                    </div>
+
+                    <p class="h2h-inline-note">
+                        Signature dihitung via HMAC-SHA256 atas <code>${X-Timestamp}.${rawBody}</code>. Tolak webhook dengan selisih timestamp &gt; 5 menit.
+                    </p>
+
+                    <div class="h2h-action-group">
+                        <button type="button" id="rotate-webhook-secret-btn" class="h2h-btn h2h-btn-secondary">
+                            <i class="fas fa-rotate"></i> Rotasi Webhook Secret
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card h2h-card">
+                    <h3>Whitelist IP Address</h3>
+                    <p class="h2h-muted" style="margin-bottom: 1rem;">
+                        Batasi akses seluruh endpoint H2H menggunakan IP tunggal atau CIDR (IPv4/IPv6). Pisahkan dengan koma.
+                    </p>
+
+                    <form id="whitelist-ip-form" class="form-row-container">
+                        <input type="text" id="whitelist-ip-input" placeholder="Contoh: 203.0.113.10, 203.0.113.0/24, 2001:db8::/48"
+                            class="dashboard-input">
+                        <button type="submit" class="h2h-btn h2h-btn-primary">Simpan IP</button>
+                    </form>
+                    <div id="current-ips-container" style="margin-top: 1.5rem;">
+                        <p><strong>IP yang Terdaftar:</strong></p>
+                        <div id="current-ips-list"
+                            style="display: flex; flex-wrap: wrap; gap: 0.5rem; min-height: 24px;">
+                            <p class="h2h-muted">Memuat...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <div id="h2h-secret-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="h2h-secret-modal-title">
+        <div class="modal-content h2h-modal-card">
+            <button type="button" id="close-h2h-secret-modal-btn" class="close-modal" aria-label="Tutup modal">&times;</button>
+            <h3 id="h2h-secret-modal-title">Kredensial Baru Berhasil Dibuat</h3>
+            <div class="h2h-once-warning" role="alert">
+                <i class="fas fa-triangle-exclamation"></i>
+                <span><strong>Simpan sekarang, tidak akan ditampilkan lagi</strong> setelah jendela ini ditutup.</span>
+            </div>
+
+            <div class="h2h-secret-block">
+                <span id="h2h-revealed-primary-label" class="h2h-field-label">API Key Baru</span>
+                <div class="h2h-secret-copy-row">
+                    <code id="h2h-revealed-primary-value" class="h2h-revealed-code"></code>
+                    <button type="button" id="h2h-copy-primary-btn" class="h2h-btn h2h-btn-secondary h2h-copy-btn">
+                        <i class="fas fa-copy"></i> Salin
+                    </button>
                 </div>
             </div>
 
-            <div class="card">
-                <h3>Whitelist IP Address</h3>
-                <p class="form-description" style="text-align: left;">Tambahkan alamat IP server Anda untuk mengamankan akses API H2H. Pisahkan beberapa IP dengan koma.</p>
-                
-                <form id="whitelist-ip-form" class="form-row-container">
-                    <input type="text" id="whitelist-ip-input" placeholder="Contoh: 192.168.1.1, 10.0.0.1" class="dashboard-input">
-                    <button type="submit" class="topup-btn">Simpan IP</button>
-                </form>
-                <div id="current-ips-container" style="margin-top: 1.5rem;">
-                    <p><strong>IP yang Terdaftar:</strong></p>
-                    <div id="current-ips-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem; min-height: 24px;">
-                        <p style="color: #aaa;">Memuat...</p>
-                    </div>
+            <div id="h2h-revealed-secondary-group" class="h2h-secret-block hidden">
+                <span class="h2h-field-label">Webhook Secret Awal (HMAC-SHA256)</span>
+                <div class="h2h-secret-copy-row">
+                    <code id="h2h-revealed-secondary-value" class="h2h-revealed-code"></code>
+                    <button type="button" id="h2h-copy-secondary-btn" class="h2h-btn h2h-btn-secondary h2h-copy-btn">
+                        <i class="fas fa-copy"></i> Salin
+                    </button>
                 </div>
             </div>
-            </section>
-        
-        </main>
+
+            <div class="h2h-modal-footer">
+                <button type="button" id="h2h-ack-secret-modal-btn" class="h2h-btn h2h-btn-primary">
+                    Saya Sudah Menyimpan
+                </button>
+            </div>
+        </div>
     </div>
-    
+
+    <div id="h2h-confirm-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="h2h-confirm-title">
+        <div class="modal-content h2h-modal-card">
+            <button type="button" id="close-h2h-confirm-modal-btn" class="close-modal" aria-label="Tutup konfirmasi">&times;</button>
+            <h3 id="h2h-confirm-title">Konfirmasi Aksi</h3>
+            <p id="h2h-confirm-message" class="h2h-confirm-desc"></p>
+            <div class="h2h-modal-footer">
+                <button type="button" id="h2h-confirm-cancel-btn" class="h2h-btn h2h-btn-secondary">Batal</button>
+                <button type="button" id="h2h-confirm-accept-btn" class="h2h-btn h2h-btn-danger">Lanjutkan</button>
+            </div>
+        </div>
+    </div>
+
     <div id="edit-profile-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <button id="close-edit-modal-btn" class="close-modal">&times;</button>
@@ -249,16 +505,17 @@
     <script src="dashboard.js"></script>
 
     <footer>
-    <div class="container footer-content">
-        <div class="footer-links">
-            <a href="/syarat-ketentuan.html">Syarat & Ketentuan</a>
-            <a href="/kebijakan-refund.html">Kebijakan Refund</a>
-            <a href="/kontak.html">Kontak Kami</a>
+        <div class="container footer-content">
+            <div class="footer-links">
+                <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
+                <a href="/kebijakan-refund.html">Kebijakan Refund</a>
+                <a href="/kontak.html">Kontak Kami</a>
+            </div>
+            <p>&copy; 2026 MIKU Store. Dibuat dengan ❤️</p>
         </div>
-        <p>&copy; 2025 MIKU Store. Dibuat dengan ❤️</p>
-    </div>
-</footer>
+    </footer>
 
 
 </body>
+
 </html>

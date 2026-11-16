@@ -42,11 +42,56 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let selectedProductId = null;
     let isValidationSuccess = false;
+    let isOrderSubmitting = false;
+    let lastValidationErrorMessage = ''; // simpan pesan error validasi terbaru
+
+    function generateIdempotencyKey() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+        if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+            const bytes = new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40;
+            bytes[8] = (bytes[8] & 0x3f) | 0x80;
+            const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+            return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+        }
+        throw new Error('Browser tidak mendukung generator UUID yang aman.');
+    }
+
+    let orderIdempotencyKey = generateIdempotencyKey();
+    let lastOrderAttemptSignature = null;
+
+    function buildCurrentOrderPayload() {
+        const targetGameId = document.getElementById('target-game-id').value;
+        const targetServerIdEl = document.getElementById('target-server-id');
+        const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
+        return {
+            productId: selectedProductId,
+            targetGameId,
+            targetServerId,
+            promoCode: (appliedPromo && appliedPromo.valid) ? promoCodeInput.value : null
+        };
+    }
+
+    function ensureOrderIdempotencyKey(payload) {
+        const signature = JSON.stringify(payload);
+        // Rotasi key hanya jika payload berubah setelah percobaan submit sebelumnya
+        if (lastOrderAttemptSignature !== null && lastOrderAttemptSignature !== signature) {
+            orderIdempotencyKey = generateIdempotencyKey();
+            lastOrderAttemptSignature = null;
+        }
+        return signature;
+    }
 
     // === Bagian 2: Definisi Semua Fungsi ===
 
     function showModal() { if (modal) modal.classList.remove('hidden'); }
     function hideModal() { if (modal) modal.classList.add('hidden'); }
+    function uiState(message, type = 'loading') {
+        return `<div class="ui-state ${type}">${message}</div>`;
+    }
 
     async function updateAuthButtonOnProductPage() {
     if (!userAuthButton) return;
@@ -91,6 +136,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
     async function fetchGameData() {
+    productListContainer.innerHTML = uiState('Memuat daftar produk...', 'loading');
+    validationResultEl.innerHTML = '';
     try {
         const headers = {};
         if (token) {
@@ -140,24 +187,30 @@ document.addEventListener('DOMContentLoaded', function() {
         
     } catch (error) {
         console.error('Error fetching game data:', error);
-        productListContainer.innerHTML = `<p style="color:red;">${error.message}</p>`;
+        productListContainer.innerHTML = uiState(`Gagal memuat produk. ${error.message}`, 'error');
     }
 }
 
     function renderProducts(products) {
         productListContainer.innerHTML = '';
         if (products.length === 0) {
-            productListContainer.innerHTML = '<p>Saat ini belum ada produk untuk game ini.</p>';
+            productListContainer.innerHTML = uiState('Saat ini belum ada produk aktif untuk game ini.', 'empty');
             return;
         }
+        const toolbar = document.createElement('div');
+        toolbar.className = 'product-selection-toolbar';
+        toolbar.innerHTML = `<span>${products.length} pilihan tersedia</span><span>Pilih nominal, lalu isi ID tujuan.</span>`;
+        productListContainer.appendChild(toolbar);
         products.forEach(product => {
             const card = document.createElement('div');
             card.className = 'product-card-selectable';
+            if (product.isFlashSale) card.classList.add('is-flash-sale');
             card.dataset.productId = product.id;
             card.dataset.price = product.price;
             card.innerHTML = `
                 <span>${product.name}</span>
                 <small>${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(product.price)}</small>
+                ${product.isFlashSale ? '<em class="product-tag">Flash Sale</em>' : ''}
             `;
             card.addEventListener('click', () => handleProductSelection(card, product.id, product.price));
             productListContainer.appendChild(card);
@@ -170,6 +223,9 @@ document.addEventListener('DOMContentLoaded', function() {
              selectedProductId = productId;
             appliedPromo = null; // Reset promo saat produk baru dipilih
             promoCodeInput.value = '';
+            isValidationSuccess = false;
+            lastValidationErrorMessage = ''; // reset pesan error saat ganti produk
+            validationResultEl.innerHTML = uiState('Isi User ID lalu keluar dari kolom untuk validasi otomatis.', 'loading');
             updatePrice(); // Panggil fungsi ini, bukan set textContent langsung
             submitOrderBtn.disabled = false;
             submitOrderBtn.textContent = 'Beli Sekarang';
@@ -188,8 +244,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Fungsi inti yang akan menjalankan validasi
    const handleValidation = async () => {
         isValidationSuccess = false; // Reset status setiap kali validasi baru dimulai
-        if (!currentSelectedProductId || !targetIdInput.value) {
+        lastValidationErrorMessage = ''; // reset pesan error lama
+        if (!currentSelectedProductId) {
             resultContainer.innerHTML = '';
+            return;
+        }
+
+        if (!targetIdInput.value) {
+            resultContainer.innerHTML = uiState('Masukkan User ID untuk memvalidasi tujuan top up.', 'loading');
             return;
         }
 
@@ -197,7 +259,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const serverIdInput = document.getElementById('target-server-id');
         const zoneId = serverIdInput ? serverIdInput.value : null;
 
-        resultContainer.innerHTML = `<p style="color: #ccc;">Mengecek nickname...</p>`;
+        resultContainer.innerHTML = uiState('Mengecek nickname...', 'loading');
 
         try {
             const response = await fetch(`${PUBLIC_API_URL}/products/${currentSelectedProductId}/validate`, {
@@ -213,22 +275,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultContainer.innerHTML = `<div class="validation-result-inline success">
                     <i class="fas fa-check-circle"></i> ${result.message}
                 </div>`;
+                isValidationSuccess = true;
                 return;
             }
 
             // Tampilan jika validasi gagal
             if (!response.ok) {
+                const errMsg = result.message || 'Validasi gagal.';
+                lastValidationErrorMessage = errMsg; // simpan untuk alert Beli Sekarang
                 resultContainer.innerHTML = `<div class="validation-result-inline error">
-                    <i class="fas fa-times-circle"></i> ${result.message}
+                    <i class="fas fa-times-circle"></i><span>${errMsg}</span>
                 </div>`;
                 return;
             }
 
+            // Tampilan sukses Mobapay (tidak ada username, hanya message konfirmasi)
+            if (result.success && result.data && result.data.mobapay === true) {
+                resultContainer.innerHTML = `<div class="validation-result-inline success">
+                    <i class="fas fa-check-circle"></i> ${result.message}
+                </div>`;
+                isValidationSuccess = true;
+                return;
+            }
             // Tampilan jika validasi sukses
            let message = `<div class="validation-result-inline success">
                         <p><i class="fas fa-check-circle"></i> Nickname: <strong>${result.data.username}</strong></p>`;
             if (result.data.region) {
-                message += `<p style="margin-top: 0.25rem;">🌍 Region: <strong>${result.data.region}</strong></p>`;
+                message += `<p style="margin-top: 0.25rem;">Region: <strong>${result.data.region}</strong></p>`;
             }
 
             if (!response.ok) {
@@ -242,9 +315,12 @@ document.addEventListener('DOMContentLoaded', function() {
             isValidationSuccess = true;
 
         } catch (error) {
+            const errMsg = error.message || 'Terjadi kesalahan koneksi.';
+            lastValidationErrorMessage = errMsg;
             resultContainer.innerHTML = `<div class="validation-result-inline error">
-                <i class="fas fa-times-circle"></i> ${error.message}
+                <i class="fas fa-times-circle"></i><span>${errMsg}</span>
             </div>`;
+            isValidationSuccess = false;
         }
     };
 
@@ -301,6 +377,7 @@ function applyFlashSaleSelection() {
             // Hapus seleksi dari kartu lain dan pilih kartu flash sale
             document.querySelectorAll('.product-card-selectable').forEach(card => card.classList.remove('selected'));
             fsCard.classList.add('selected');
+            fsCard.classList.add('is-flash-sale');
 
             // Atur ID produk yang terpilih secara global
             selectedProductId = fsProductId;
@@ -312,6 +389,8 @@ function applyFlashSaleSelection() {
             updatePrice();
             submitOrderBtn.disabled = false;
             submitOrderBtn.textContent = 'Beli Sekarang';
+            validationResultEl.innerHTML = uiState('Flash sale dipilih. Isi User ID lalu validasi tujuan top up.', 'loading');
+            fsCard.dispatchEvent(new Event('click', { bubbles: true }));
         }
     }
 }
@@ -374,10 +453,14 @@ function applyFlashSaleSelection() {
                 confirmPasswordInput.focus();
                 return;
             }
+            // Phase 2B: baca countryCode
+            const countryCodeEl = registerForm.querySelector('select[name="countryCode"]');
+            const countryCode = countryCodeEl ? countryCodeEl.value : '+62';
             const data = {
                 fullName: registerForm.querySelector('input[name="fullName"]').value,
                 username: registerForm.querySelector('input[name="username"]').value,
                 email: registerForm.querySelector('input[name="email"]').value,
+                countryCode: countryCode,
                 nomorWa: registerForm.querySelector('input[name="nomorWa"]').value,
                 password: passwordInput.value
             };
@@ -409,7 +492,10 @@ function applyFlashSaleSelection() {
     // Event listener untuk tombol "Beli Sekarang" utama
     submitOrderBtn.addEventListener('click', () => {
         if (!isValidationSuccess) {
-            alert('Validasi ID gagal atau region tidak sesuai. Harap periksa kembali User ID Anda atau pilih produk lain yang sesuai.');
+            const errMsg = lastValidationErrorMessage
+                ? `Validasi ID gagal: ${lastValidationErrorMessage}\n\nHarap periksa kembali User ID Anda atau pilih produk lain.`
+                : 'Validasi ID belum selesai atau gagal. Pastikan User ID sudah diisi dan valid, lalu coba lagi.';
+            alert(errMsg);
             return;
         }
         if (!token) {
@@ -467,7 +553,8 @@ function applyFlashSaleSelection() {
         }
         // --- AKHIR LOGIKA BARU ---
 
-        // Tampilkan modal konfirmasi
+        // Tampilkan modal konfirmasi (pertahankan key untuk payload sama, rotasi jika payload berubah setelah submit sebelumnya)
+        ensureOrderIdempotencyKey(buildCurrentOrderPayload());
         if (confirmModal) confirmModal.classList.remove('hidden');
     });
 
@@ -483,35 +570,58 @@ function applyFlashSaleSelection() {
     // Event listener untuk tombol "Bayar Sekarang" di DALAM MODAL
     if (confirmBtn) {
         confirmBtn.addEventListener('click', async () => {
+            if (isOrderSubmitting) return;
+            isOrderSubmitting = true;
             confirmBtn.disabled = true;
+            submitOrderBtn.disabled = true;
             confirmBtn.innerHTML = 'Memproses...';
-            const targetGameId = document.getElementById('target-game-id').value;
-            const targetServerIdEl = document.getElementById('target-server-id');
-            const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
+            const orderPayload = buildCurrentOrderPayload();
+            const currentSignature = ensureOrderIdempotencyKey(orderPayload);
+            lastOrderAttemptSignature = currentSignature;
 
             try {
                 const response = await fetch(`${PUBLIC_API_URL}/order`, {
                     method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        productId: selectedProductId,
-                        targetGameId: targetGameId,
-                        targetServerId: targetServerId,
-                        // Kirim kode promo yang valid ke backend
-                        promoCode: (appliedPromo && appliedPromo.valid) ? promoCodeInput.value : null
-                    })
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Idempotency-Key': orderIdempotencyKey
+                    },
+                    body: JSON.stringify(orderPayload)
                 });
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.message);
-                
+                let result = null;
+                let hasDefinitiveJson = false;
+                try {
+                    result = await response.json();
+                    hasDefinitiveJson = result !== null && typeof result === 'object';
+                } catch (_) {
+                    hasDefinitiveJson = false;
+                }
+
+                // Rotasi key hanya pada respons definitif 2xx/4xx JSON agar user bisa mencoba order baru.
+                // Pertahankan key pada 5xx (meski JSON) dan error jaringan/timeout karena status di server
+                // bisa ambigu/belum pasti selesai, sehingga retry tetap aman tanpa double debit.
+                if (response.status >= 200 && response.status < 500 && hasDefinitiveJson) {
+                    orderIdempotencyKey = generateIdempotencyKey();
+                    lastOrderAttemptSignature = null;
+                }
+
+                if (!response.ok) {
+                    throw new Error((result && result.message) ? result.message : `Gagal memproses pesanan (HTTP ${response.status}).`);
+                }
+                if (result && result.status === 'Failed') {
+                    throw new Error(result.message || 'Pesanan sebelumnya gagal dan saldo telah dikembalikan. Silakan buat pesanan baru.');
+                }
+
                 hideConfirmModal();
-                alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nAnda akan diarahkan ke halaman dashboard.`);
-                window.location.href = 'dashboard.html';
+                alert(`Transaksi Berhasil! Invoice ID Anda: ${result.invoiceId}\nAnda akan diarahkan ke halaman invoice.`);
+                window.location.href = `invoice.html?id=${encodeURIComponent(result.invoiceId)}`;
 
             } catch (error) {
                 alert(`Error: ${error.message}`);
-            } finally {
+                isOrderSubmitting = false;
                 confirmBtn.disabled = false;
+                submitOrderBtn.disabled = false;
                 confirmBtn.innerHTML = 'Bayar Sekarang <i class="fas fa-arrow-right"></i>';
             }
         });
@@ -519,7 +629,9 @@ function applyFlashSaleSelection() {
 }
 
 if (applyPromoBtn) {
-    applyPromoBtn.addEventListener('click', async () => {
+    const promoForm = document.getElementById('promo-form');
+    const handlePromoApply = async (e) => {
+        if (e) e.preventDefault();
         // Mengambil kode promo dan membersihkan spasi di awal/akhir
         const code = promoCodeInput.value.trim();
 
@@ -536,6 +648,8 @@ if (applyPromoBtn) {
         }
 
         try {
+            applyPromoBtn.disabled = true;
+            applyPromoBtn.textContent = 'Mengecek...';
             const response = await fetch('/api/promos/validate', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -555,8 +669,17 @@ if (applyPromoBtn) {
             appliedPromo = null; // Reset promo jika gagal
             promoResultEl.innerHTML = `<span class="error"><i class="fas fa-times-circle"></i> ${error.message}</span>`;
             updatePrice(); // Perbarui harga kembali ke normal (tanpa diskon)
+        } finally {
+            applyPromoBtn.disabled = false;
+            applyPromoBtn.textContent = 'Terapkan';
         }
-    });
+    };
+
+    if (promoForm) {
+        promoForm.addEventListener('submit', handlePromoApply);
+    } else {
+        applyPromoBtn.addEventListener('click', handlePromoApply);
+    }
 }
 
     document.querySelectorAll('.toggle-password').forEach(icon => {
@@ -573,4 +696,136 @@ if (applyPromoBtn) {
     fetchGameData();
     updateAuthButtonOnProductPage();
     setupLiveValidation();
+    // =========================================================
+    // MOBILE STEP NAVIGATION — Auto Scroll + Active Indicator
+    // Hanya aktif di mobile (<=768px). Desktop tidak terpengaruh.
+    // =========================================================
+    (function initMobileStepNav() {
+        const stepNav = document.getElementById('mobile-step-nav');
+        if (!stepNav) return;
+
+        const stepSections = {
+            1: document.getElementById('order-step-1'),
+            2: document.getElementById('order-step-2'),
+            3: document.getElementById('order-step-3'),
+            4: document.getElementById('order-step-4'),
+        };
+
+        const stepBtns = stepNav.querySelectorAll('.step-nav-btn');
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const isMobile = () => window.innerWidth <= 768;
+
+        function scrollToStep(stepNum) {
+            if (!isMobile()) return;
+            const target = stepSections[stepNum];
+            if (!target) return;
+            target.scrollIntoView({
+                behavior: prefersReducedMotion ? 'instant' : 'smooth',
+                block: 'start',
+            });
+        }
+
+        function setActiveStep(stepNum) {
+            stepBtns.forEach(function(btn) {
+                var n = parseInt(btn.dataset.step, 10);
+                btn.classList.remove('active', 'completed');
+                if (n === stepNum) btn.classList.add('active');
+                else if (n < stepNum) btn.classList.add('completed');
+            });
+        }
+
+        // Klik step nav button
+        stepNav.addEventListener('click', function(e) {
+            if (!isMobile()) return;
+            var btn = e.target.closest('.step-nav-btn');
+            if (!btn) return;
+            var stepNum = parseInt(btn.dataset.step, 10);
+            setActiveStep(stepNum);
+            scrollToStep(stepNum);
+        });
+
+        // IntersectionObserver: update active step saat scroll manual
+        if ('IntersectionObserver' in window) {
+            var observer = new IntersectionObserver(function(entries) {
+                if (!isMobile()) return;
+                entries.forEach(function(entry) {
+                    if (!entry.isIntersecting) return;
+                    var match = entry.target.id.match(/order-step-(\d)/);
+                    if (!match) return;
+                    setActiveStep(parseInt(match[1], 10));
+                });
+            }, { rootMargin: '-20% 0px -60% 0px', threshold: 0 });
+
+            Object.values(stepSections).forEach(function(el) {
+                if (el) observer.observe(el);
+            });
+        }
+
+        // AUTO-SCROLL Step 1 -> Step 2
+        // Trigger: mutation pada #validation-result yang menampilkan sukses
+        var validationResultEl = document.getElementById('validation-result');
+        var step1Done = false;
+
+        if (validationResultEl) {
+            new MutationObserver(function() {
+                if (!isMobile() || step1Done) return;
+                var ok = validationResultEl.querySelector('.validation-result-inline.success, .success');
+                if (ok) {
+                    setTimeout(function() {
+                        if (!isMobile()) return;
+                        setActiveStep(2);
+                        scrollToStep(2);
+                        step1Done = true;
+                    }, 600);
+                }
+            }).observe(validationResultEl, { childList: true, subtree: true, characterData: true });
+        }
+
+        var targetIdInput = document.getElementById('target-game-id');
+        if (targetIdInput) {
+            targetIdInput.addEventListener('input', function() { step1Done = false; });
+        }
+
+        // AUTO-SCROLL Step 2 -> Step 3
+        // Trigger: click pada product card
+        var productListEl = document.getElementById('product-list-container');
+        if (productListEl) {
+            productListEl.addEventListener('click', function(e) {
+                if (!isMobile()) return;
+                if (!e.target.closest('.product-card-selectable')) return;
+                setTimeout(function() {
+                    if (!isMobile()) return;
+                    setActiveStep(3);
+                    scrollToStep(3);
+                }, 350);
+            });
+        }
+
+        // AUTO-SCROLL Step 3 -> Step 4 (ringan, setelah promo apply)
+        var promoResultEl = document.getElementById('promo-result');
+        var step3Done = false;
+
+        if (promoResultEl) {
+            new MutationObserver(function() {
+                if (!isMobile() || step3Done) return;
+                if (promoResultEl.textContent.trim().length > 0) {
+                    setTimeout(function() {
+                        if (!isMobile()) return;
+                        setActiveStep(4);
+                        scrollToStep(4);
+                        step3Done = true;
+                    }, 700);
+                }
+            }).observe(promoResultEl, { childList: true, subtree: true, characterData: true });
+        }
+
+        // Reset step3Done saat produk diganti
+        if (productListEl) {
+            productListEl.addEventListener('click', function() { step3Done = false; });
+        }
+
+        // Inisialisasi: step 1 active
+        setActiveStep(1);
+
+    })();
 });

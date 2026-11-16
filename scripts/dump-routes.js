@@ -1,0 +1,235 @@
+#!/usr/bin/env node
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Parse CLI arguments for route/layer inspection.
+ */
+function parseArgs(argv) {
+    let layers = false;
+    let effectiveChains = false;
+    let target = null;
+    let root = null;
+
+    for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i];
+        if (arg === '--layers') {
+            layers = true;
+        } else if (arg === '--effective-chains') {
+            effectiveChains = true;
+        } else if (arg === '--target' && i + 1 < argv.length) {
+            target = argv[++i];
+        } else if (arg.startsWith('--target=')) {
+            target = arg.slice('--target='.length);
+        } else if (arg === '--root' && i + 1 < argv.length) {
+            root = argv[++i];
+        } else if (arg.startsWith('--root=')) {
+            root = arg.slice('--root='.length);
+        }
+    }
+
+    return { layers, effectiveChains, target, root };
+}
+
+const args = parseArgs(process.argv.slice(2));
+
+function extractMountPath(layer) {
+    if (layer.path) return layer.path;
+    if (!layer.regexp || layer.regexp.fast_slash) return '';
+    let src = layer.regexp.source
+        .replace(/^\^/, '')
+        .replace(/\\\/\?\(\?=\\\/\|\$\)$/, '')
+        .replace(/\(\?=\\\/\|\$\)$/, '');
+    if (Array.isArray(layer.keys) && layer.keys.length > 0) {
+        let keyIdx = 0;
+        src = src.replace(/\(\?:\\\/\(\[\^\/\]\+\?\)\)/g, () => {
+            const key = layer.keys[keyIdx++];
+            return key && key.name ? `\\/:${key.name}` : '\\/:param';
+        });
+    }
+    src = src.replace(/\\\//g, '/');
+    return src.startsWith('/') ? src : '';
+}
+
+function joinPaths(prefix, routePath) {
+    const cleanPrefix = prefix && prefix !== '/' ? prefix.replace(/\/+$/, '') : '';
+    const cleanRoute = routePath || '/';
+    if (!cleanPrefix) return cleanRoute;
+    if (cleanRoute === '/') return cleanPrefix || '/';
+    return `${cleanPrefix}${cleanRoute.startsWith('/') ? cleanRoute : `/${cleanRoute}`}`;
+}
+
+function formatHandlerName(layer) {
+    return layer.name || (layer.handle && layer.handle.name) || '<anonymous>';
+}
+
+function collectRoutes(stack, prefix = '', inheritedMiddlewares = [], output = []) {
+    const activeMiddlewares = [...inheritedMiddlewares];
+
+    for (const layer of stack) {
+        if (layer.route) {
+            const fullPath = joinPaths(prefix, layer.route.path);
+            const methods = Object.keys(layer.route.methods)
+                .filter((m) => layer.route.methods[m])
+                .map((m) => m.toUpperCase());
+            const routeHandlers = layer.route.stack.map(formatHandlerName);
+            const allHandlers = [...activeMiddlewares, ...routeHandlers];
+
+            for (const method of methods) {
+                output.push(`${method.padEnd(6)} ${fullPath} [${allHandlers.join(', ')}]`);
+            }
+        } else if (layer.name === 'router' && layer.handle && Array.isArray(layer.handle.stack)) {
+            const mountPrefix = joinPaths(prefix, extractMountPath(layer));
+            collectRoutes(layer.handle.stack, mountPrefix, activeMiddlewares, output);
+        } else if (prefix && !extractMountPath(layer)) {
+            activeMiddlewares.push(formatHandlerName(layer));
+        }
+    }
+
+    return output;
+}
+
+/**
+ * Collect all Express middleware and route layers in exact execution order.
+ */
+function collectLayers(stack, prefix = '', output = []) {
+    for (const layer of stack) {
+        if (layer.route) {
+            const fullPath = joinPaths(prefix, layer.route.path);
+            const methods = Object.keys(layer.route.methods)
+                .filter((m) => layer.route.methods[m])
+                .map((m) => m.toUpperCase());
+            const routeHandlers = layer.route.stack.map(formatHandlerName);
+
+            for (const method of methods) {
+                output.push(`${method.padEnd(6)} ${fullPath} [${routeHandlers.join(', ')}]`);
+            }
+        } else if (layer.name === 'router' && layer.handle && Array.isArray(layer.handle.stack)) {
+            const mountPrefix = joinPaths(prefix, extractMountPath(layer));
+            collectLayers(layer.handle.stack, mountPrefix, output);
+        } else {
+            const mountPath = joinPaths(prefix, extractMountPath(layer)) || '/';
+            const kind = (layer.handle && layer.handle.length === 4) ? 'ERR' : 'USE';
+            output.push(`${kind.padEnd(6)} ${mountPath} [${formatHandlerName(layer)}]`);
+        }
+    }
+
+    return output;
+}
+
+function splitSegments(routePath) {
+    return routePath.split('/').filter(Boolean);
+}
+
+function isParamSegment(seg) {
+    return seg.startsWith(':') || seg === '*';
+}
+
+function mountPathMatchesRoute(mountPath, routePath) {
+    if (!mountPath || mountPath === '/') return true;
+    const mountSegs = splitSegments(mountPath);
+    const routeSegs = splitSegments(routePath);
+    if (mountSegs.length > routeSegs.length) return false;
+
+    for (let i = 0; i < mountSegs.length; i++) {
+        const ms = mountSegs[i];
+        const rs = routeSegs[i];
+        if (!isParamSegment(ms) && !isParamSegment(rs) && ms !== rs) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Collect effective middleware chain (matching preceding USE/ERR layers + inline route handlers) per route.
+ */
+function collectEffectiveChains(stack, prefix = '', scopeLayers = [], output = []) {
+    const currentScope = [...scopeLayers];
+
+    for (const layer of stack) {
+        if (layer.route) {
+            const fullPath = joinPaths(prefix, layer.route.path);
+            const methods = Object.keys(layer.route.methods)
+                .filter((m) => layer.route.methods[m])
+                .map((m) => m.toUpperCase());
+            const matchingGlobal = currentScope
+                .filter((m) => mountPathMatchesRoute(m.mountPath, fullPath))
+                .map((m) => `${m.kind}(${m.mountPath}):${m.name}`);
+            const inlineHandlers = layer.route.stack.map((r) => `ROUTE:${formatHandlerName(r)}`);
+            const chain = [...matchingGlobal, ...inlineHandlers];
+
+            for (const method of methods) {
+                output.push(`${method.padEnd(6)} ${fullPath} [${chain.join(', ')}]`);
+            }
+        } else if (layer.name === 'router' && layer.handle && Array.isArray(layer.handle.stack)) {
+            const mountPrefix = joinPaths(prefix, extractMountPath(layer));
+            collectEffectiveChains(layer.handle.stack, mountPrefix, currentScope, output);
+        } else {
+            const mountPath = joinPaths(prefix, extractMountPath(layer)) || '/';
+            const kind = (layer.handle && layer.handle.length === 4) ? 'ERR' : 'USE';
+            currentScope.push({ kind, mountPath, name: formatHandlerName(layer) });
+        }
+    }
+
+    return output;
+}
+
+async function main() {
+    if (!process.env.JWT_SECRET) {
+        process.env.JWT_SECRET = 'dump-routes-inspection-placeholder';
+    }
+
+    const targetPath = args.target
+        ? path.resolve(args.target)
+        : args.root
+            ? (fs.existsSync(path.resolve(args.root, 'backend', 'app.js'))
+                ? path.resolve(args.root, 'backend', 'app.js')
+                : path.resolve(args.root, 'backend', 'server.js'))
+            : path.resolve(__dirname, '..', 'backend', 'app.js');
+    const loaded = require(targetPath);
+    const app = loaded.app || (typeof loaded.createApp === 'function' ? loaded.createApp() : loaded);
+    const dbPath = args.root
+        ? path.resolve(args.root, 'backend', 'config', 'db.js')
+        : path.resolve(__dirname, '..', 'backend', 'config', 'db.js');
+    const pool = loaded.pool || (!args.target && fs.existsSync(dbPath) ? require(dbPath).pool : null);
+
+    const timer = setTimeout(() => {
+        console.error('dump-routes timed out after 60 seconds');
+        process.exit(124);
+    }, 60000);
+    timer.unref();
+
+    try {
+        const rootStack = (app._router && app._router.stack) || (app.router && app.router.stack) || [];
+        const lines = args.effectiveChains
+            ? collectEffectiveChains(rootStack)
+            : args.layers
+                ? collectLayers(rootStack)
+                : collectRoutes(rootStack);
+        process.stdout.write(`${lines.join('\n')}\n`);
+        if (pool && typeof pool.end === 'function') {
+            await pool.end().catch(() => {});
+        }
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+if (require.main === module) {
+    main().catch((err) => {
+        console.error(err);
+        process.exit(1);
+    });
+}
+
+module.exports = {
+    extractMountPath,
+    joinPaths,
+    formatHandlerName,
+    collectRoutes,
+    collectLayers,
+    collectEffectiveChains,
+};

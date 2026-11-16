@@ -49,7 +49,7 @@ async function checkAllMobapayPromosML(userId, zoneId, countryCode = "ID") {
             country: countryCode, language: 'en', network: '', net: '', coupon_id: '', shop_id: '' 
         }; 
         console.log(`[checkAllMobapayPromosML] Requesting Main Shop API: ${apiUrl} with params: ${JSON.stringify(mainShopParams)}`); 
-        const mainResponse = await axios.get(apiUrl, { params: mainShopParams, headers, timeout: 20000 }); 
+        const mainResponse = await axios.get(apiUrl, { params: mainShopParams, headers, timeout: 10000 }); 
         const mainResult = mainResponse.data; 
 
         if (mainResponse.status === 200 && mainResult && typeof mainResult.code !== 'undefined') { 
@@ -188,6 +188,15 @@ async function checkAllMobapayPromosML(userId, zoneId, countryCode = "ID") {
     return { status: true, message: "Pengambilan data selesai.", data: combinedResults }; 
 }
 
+const {
+    checkMobapayMlbbEligibility,
+    _internal,
+} = require("./mobapayEligibility");
+
 module.exports = {
- checkAllMobapayPromosML, 
+    checkAllMobapayPromosML,
+    checkMobapayMlbbEligibility,
+    // Export untuk unit test
+    _internal,
 };
+

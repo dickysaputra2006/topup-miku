@@ -50,7 +50,8 @@ async function validateGameId(gameCode, userId, zoneId = null, rules = {}) {
         // --- INI BAGIAN YANG DIPERBAIKI ---
         // 'payload' harus menjadi argumen kedua, bukan bagian dari objek ketiga.
         const response = await axios.post(apiUrl, payload, {
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 8000
         });
         // --- AKHIR PERBAIKAN ---
 
