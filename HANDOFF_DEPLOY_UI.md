@@ -1,9 +1,9 @@
 # HANDOFF_DEPLOY_UI.md - Project topup-miku
 
-> **Dokumen Handoff Agent**
-> Harap baca dokumen ini sebelum memulai pekerjaan untuk mendapatkan konteks production terbaru dan aturan main (safety rules) yang ketat.
+> **Dokumen Handoff Agent & Kesiapan Deploy**
+> Harap baca dokumen ini sebelum memulai pekerjaan atau pengujian untuk mendapatkan konteks terbaru arsitektur modular, migrasi database `001`–`012`, hardening keamanan, dan safety rules yang ketat. Untuk checklist lengkap persiapan QA & end-to-end testing, lihat [docs/qa-readiness-checklist.md](file:///d:/DICKY%20BELAJAR/topup-miku/docs/qa-readiness-checklist.md).
 
-## Status Production
+## Status Production & Pembaruan Repositori
 
 * Website live: `https://mikutopup.my.id`
 * Domain `mikutopup.my.id` dan `www.mikutopup.my.id` sudah aktif.
@@ -12,22 +12,25 @@
 * PM2 app: `topup-miku`
 * Nginx reverse proxy ke backend port `3000`
 * Healthcheck: `/healthz`
-* Repo workflow: branch kerja `codex-sandbox`, merge PR ke `main`, lalu VPS `git pull origin main`.
+* Repo sandbox lokal (per 17 Nov 2026):
+  * Backend sudah direfaktor modular (`backend/app.js`, `backend/server.js`, `config/`, `middleware/`, `routes/`, `routes/admin/`, `services/`, `jobs/`, `utils/`) dengan `87/87` route & `effective_chains` terverifikasi `scripts/check-route-overlap.js`.
+  * Frontend sudah direfaktor modular (`frontend/css/*`, `frontend/js/{shared,product,dashboard,admin}/*`) dan diperbarui ke design system UI-1 s.d. UI-3.
+  * Security hardening telah diterapkan untuk `SEC-001`–`SEC-004`, `SEC-006`–`SEC-014`, `SEC-016`, `SEC-020`, `SEC-023` (lihat rincian & sisa temuan fase lanjutan di [AUDIT_SECURITY.md](file:///d:/DICKY%20BELAJAR/topup-miku/AUDIT_SECURITY.md)).
+  * `npm audit --omit=dev` di `backend/`: **`0 vulnerabilities`** (`found 0 vulnerabilities`).
 
 ## Database
 
-* DB: SumoBase PostgreSQL.
-* `DB_SSL=false` karena database tidak support SSL required.
+* DB: SumoBase PostgreSQL (lokal sandbox: `topup_miku_local@127.0.0.1`).
+* `DB_SSL=false` pada host PostgreSQL yang tidak mendukung SSL required (`backend/config/db.js`).
 * Error yang pernah terjadi:
   `server does not support SSL, but SSL was required`
 * Solusi: backend PostgreSQL config dibuat conditional via `DB_SSL`.
-* Migrations 001–005 sudah berhasil.
+* Skema & Migrasi lengkap: `setup_db.sql` + **`migrations/001_*.sql` s.d. `migrations/012_*.sql`** (`17` tabel termasuk `payment_methods`, `promo_codes`, `flash_sales`, `balance_history`, dan `admin_audit_logs`; daftar lengkap & query verifikasi tersedia di [migrations/README.md](file:///d:/DICKY%20BELAJAR/topup-miku/migrations/README.md) dan [docs/qa-readiness-checklist.md](file:///d:/DICKY%20BELAJAR/topup-miku/docs/qa-readiness-checklist.md)).
 * Migration 005:
   * normalisasi `users.nomor_wa` ke format E.164, contoh `+628...`
   * unique index aktif: `uq_users_nomor_wa`
-  * duplicate nomor WA test user pernah ditemukan, sudah diselesaikan dengan set `nomor_wa = NULL` pada user test
   * `non_e164_count = 0`
-  * `npm test` sudah 26/26 pass setelah Phase 2B.
+* Sebelum deploy update ke VPS production, pastikan migrasi `006` s.d. `012` sudah diverifikasi/diterapkan berurutan dan `FOXY_CALLBACK_SECRET` + `CORS_ORIGINS` + `JWT_SECRET` (>= 32 karakter) + `NODE_ENV=production` terisi di `.env` VPS.
 
 ## Foxy Integration
 
@@ -105,100 +108,45 @@
 Gunakan command validasi berikut setelah melakukan perubahan:
 
 ```bash
-cd /var/www/topup-miku/backend
-npm run check
-npm test
+cd backend
+npm run check                        # cek sintaks JS, batas ukuran file, dan aset frontend
+npm test                             # 205/205 tes unit & integrasi (mock DB/Foxy)
+cd ..
+node scripts/check-route-overlap.js  # pastikan 87/87 route, overlap_conflicts=0
+```
+
+Tambahan verifikasi PostgreSQL lokal (membutuhkan DB lokal dengan nama mengandung `dev`/`local`/`test`) dan server live VPS:
+
+```bash
+cd backend
+npm run seed                         # isi katalog dummy & 3 akun QA lokal (non-production)
+node tests/manual/concurrency.js
+node tests/manual/idempotency.js
+node tests/manual/pool.js
 pm2 status
 curl https://mikutopup.my.id/healthz
 tail -n 80 /var/log/topup-miku-cron.log
 ```
 
-## Roadmap Sisa
+## Status Roadmap Sebelumnya vs Sisa Lanjutan
 
-1. **Fitur safety Foxy `PARTIAL_REFUND`**
-   * Audit sudah dibuat di `partial_refund_audit.md`.
-   * Implementasi BELUM dimulai.
-   * Next agent harus lanjut dari audit tersebut.
-   * Status `PARTIAL_REFUND` tidak boleh dianggap Success atau Failed otomatis.
-   * Tidak boleh refund otomatis.
-   * Harus masuk status internal, rekomendasi: `Partial Refund`.
-   * Admin nanti harus bisa manual:
-     * mark berhasil,
-     * refund/gagalkan,
-     * keep review/pending.
-   * Wajib jaga double-refund.
-   * Endpoint admin resolve harus transaction-safe dan pakai role admin.
-   * Audit menyarankan tidak perlu migration besar karena `transactions.status` VARCHAR.
+Item 1–8 pada catatan historis sebelumnya telah diimplementasikan (`Partial Refund` + resolve admin, deposit manual + `payment_methods` + reject admin, cek transaksi publik, leaderboard tersamarkan, WA Bot Admin API, kontrol validasi PGS/Mobapay & margin/promo/flash sale, perapian UI-1..UI-3, halaman `syarat-ketentuan.html`).
 
-2. **Manual Deposit Page + Admin Approval**
-   * Metode: GoPay, DANA, ShopeePay, SeaBank.
-   * User buat request deposit.
-   * Admin approve/reject.
-   * Approve menambah saldo, insert balance_history, notifikasi user.
+**Sisa pekerjaan lanjutan (bukan blocker QA fungsional lokal):**
+* Hardening fase berikutnya (`AUDIT_SECURITY.md`): Admin 2FA TOTP (`SEC-005`), migrasi sesi cookie `HttpOnly` + CSRF & revokasi JWT (`SEC-014`), CA strict DB SSL (`SEC-015`), rate limiter khusus endpoint admin/publik + Turnstile (`SEC-017`), perbaikan cron bulk-disable/advisory lock (`SEC-018`/`019`), kolom `balance_before`/`balance_after` pada `balance_history` (`SEC-022`), serta paginasi server-side (`SEC-024`).
+* Operasional produksi (`VPS`): backup PostgreSQL otomatis + uji restore berkala, `logrotate`, monitoring cron/order/callback, serta **dilarang** menjalankan `npm audit fix --force`.
 
-3. **Public Transaction Checker**
-   * Cek transaksi via invoice.
-   * Tampilkan 10 transaksi terakhir MIKU.
-   * Invoice disensor sebagian.
-   * Jangan tampilkan data sensitif.
+## File Penting (Struktur Modular Terkini)
 
-4. **Leaderboard**
-   * Top spender, top transaction count, top product/game.
-   * Username publik harus disensor sebagian.
-
-5. **Bot WA Admin API**
-   * Bot WA bisa add saldo.
-   * Bot WA bisa cek/approve deposit pending.
-   * Pakai admin API key khusus, optional IP whitelist, rate limit, safe logging.
-
-6. **Admin Product Controls Audit**
-   * on/off produk
-   * on/off game
-   * validasi ID perlu/tidak
-   * pilih validator PGS Code per game/produk
-   * harga manual
-   * margin/flash sale/promo
-
-7. **UI polish tambahan**
-   * kecilkan teks pricelist.
-   * homepage card produk/game:
-     * kotak gambar produk
-     * overlay hitam transparan untuk nama
-     * nama auto-marquee kanan ke kiri
-     * overlay bisa diklik untuk expand nama full
-     * tombol close dan "Lanjut Beli"
-   * tetap jaga mobile/desktop.
-
-8. **Syarat & Ketentuan page**
-   * isi halaman syarat dan ketentuan untuk register
-   * link checkbox register harus benar.
-
-9. **Hardening**
-   * database backup otomatis
-   * logrotate
-   * monitoring cron/order/callback
-   * npm audit review, jangan `npm audit fix --force` sembarangan.
-
-## File Penting
-
-* `backend/server.js`
-* `backend/utils/cronUtils.js`
-* `backend/cron_job_script.js`
-* `frontend/index.html`
-* `frontend/script.js`
-* `frontend/product.html`
-* `frontend/product.js`
-* `frontend/style.css`
-* `frontend/style-responsive.css`
-* `frontend/admin.html`
-* `frontend/admin.js`
-* `frontend/dashboard.html`
-* `frontend/dashboard.js`
-* `frontend/invoice.html`
-* `frontend/invoice.js`
-* `migrations/005_unique_phone_and_register_safety.sql`
-* `partial_refund_audit.md`
-* `NEXT_PHASE_ROADMAP.md`
+* `backend/server.js`, `backend/app.js`, `backend/config/*` (`env.js`, `db.js`, `constants.js`)
+* `backend/middleware/*` (`auth.js`, `h2hAuth.js`, `rateLimiters.js`, `securityHeaders.js`, `errorHandler.js`, `waBotAuth.js`)
+* `backend/routes/*.routes.js` & `backend/routes/admin/*.routes.js`
+* `backend/services/*` (`orderService.js`, `refundService.js`, `priceService.js`, `foxyClient.js`, `idempotency.js`, `auditLogService.js`, `notificationService.js`)
+* `backend/jobs/*` (`cronJob.js`, `pendingTransactions.js`, `productSync.js`) & `backend/cron_job_script.js`
+* `backend/utils/*` (`schemaValidators.js`, `validation.js`, `networkSecurity.js`, `webhookClient.js`, `logger.js`, `mailer.js`, `crypto.js`, `strings.js`)
+* `frontend/*.html`, `frontend/css/*`, `frontend/js/{shared,product,dashboard,admin}/*`
+* `migrations/001_*.sql` s.d. `migrations/012_add_admin_audit_logs.sql` & `migrations/README.md`
+* `docs/qa-readiness-checklist.md`, `AUDIT_SECURITY.md`, `docs/security-hardening-plan.md`
 
 ## Safety Rules
 
