@@ -194,3 +194,24 @@ Semua simbol berikut wajib tetap diekspor oleh `backend/server.js`:
 
 Catatan baseline layer:
 - `layers.baseline` diturunkan dari `adfc68b`; satu-satunya selisih terhadap `HEAD` adalah nama fungsi (`<anonymous>` -> `securityHeaders`) akibat R3, urutan dan perilaku identik.
+
+### Peta Pemindahan Commit 2 (`backend/utils/` — Helper Murni Tanpa Efek Samping DB/Network/Cache)
+
+| File Tujuan | Fungsi | Baris Asal `server.js` | Pemanggil Utama |
+|---|---|---|---|
+| `backend/utils/logger.js` | `redactSensitiveText`, `safeErrorDetail`, `logSafeError`, `safeAxiosError` | `44-95` | `server.js` (seluruh catch/provider logs), `auth.js`, `h2hAuth.js` |
+| `backend/utils/strings.js` | `normalizeString`, `normalizePhone`, `normalizeProfilePhone`, `escapeHtml`, `publicStatusLabel`, `maskInvoiceId`, `maskLeaderboardName`, `leaderboardRankLabel`, `formatRupiahBot` | `97-100`, `121-164`, `1305-1312`, `3255-3278`, `3362-3384`, `3495-3497` | `rateLimiters.js`, `h2hAuth.js`, endpoint auth/user/public/bot di `server.js` |
+| `backend/utils/crypto.js` | `hashResetToken`, `hashApiKey`, `timingSafeStringEqual` (versi aktif `4229-4240`, hapus duplikat `174-180`), `generateInvoiceId`, `generateProviderTrxId` | `166-180`, `245-251`, `4229-4240` | `rateLimiters.js`, `h2hAuth.js`, endpoint auth/user/order/callback di `server.js` |
+| `backend/utils/validation.js` | `isValidEmail`, `isValidPassword`, `isValidApiKey`, `parsePositiveQuota`, `isValidPriceAmount`, `isValidInvoiceId`, `parseOptionalRefId`, `parseOptionalIdempotencyKeyHeader`, `isSafeAssetUrl`, `parseOptionalBoolean`, `parseOptionalText`, `sanitizeValidationServiceName` | `102-108`, `182-196`, `253-286`, `1314-1342`, `2643-2655` | `h2hAuth.js`, `normalizePaymentMethodPayload`, endpoint auth/order/deposit/admin/public di `server.js` |
+
+- `backend/middleware/rateLimiters.js` (`createRateLimiters`) memakai default import dari `utils/strings.js` (`normalizeString`) dan `utils/crypto.js` (`hashApiKey`).
+- Ekspor `backend/server.js` tidak berubah.
+
+### Peta Pemindahan Commit 3 (`backend/middleware/auth.js`, `backend/middleware/h2hAuth.js`)
+
+| File Tujuan | Fungsi | Baris Asal `server.js` | Pemanggil Utama |
+|---|---|---|---|
+| `backend/middleware/auth.js` (`createAuthMiddleware({ pool })`) | `protect`, `protectAdmin`, `softProtect` | `790-836` | Route `/api/user/*`, `/api/deposit/*`, `/api/order`, `/api/products`, `/api/admin/*` di `server.js` |
+| `backend/middleware/h2hAuth.js` (`createH2HAuthMiddleware({ pool })`) | `protectH2H`, `protectH2HIp` | `838-944` | Route `/h2h/balance`, `/h2h/products`, `/h2h/order`, `/h2h/status/:invoiceId`, `/h2h/profile` di `server.js` |
+
+- Keduanya menerima objek `pool` yang sama dari `backend/server.js` (tidak pernah me-`require('../server')` agar bebas siklus dan kompatibel dengan mock `pool.query` pada seluruh suite tes).

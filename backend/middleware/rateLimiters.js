@@ -1,10 +1,15 @@
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = rateLimit;
+const { normalizeString: defaultNormalizeString } = require('../utils/strings');
+const { hashApiKey: defaultHashApiKey } = require('../utils/crypto');
 
 /**
  * Bangun seluruh rate limiter aplikasi beserta fungsi pemasangannya pada app.
  */
-function createRateLimiters({ normalizeString, hashApiKey }) {
+function createRateLimiters({
+    normalizeString = defaultNormalizeString,
+    hashApiKey = defaultHashApiKey,
+} = {}) {
     if (typeof normalizeString !== 'function') {
         throw new TypeError('createRateLimiters requires a normalizeString function');
     }

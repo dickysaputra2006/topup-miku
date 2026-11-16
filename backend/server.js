@@ -9,9 +9,6 @@ const {
     BOT_PRODUCT_BLACKLIST,
     MAX_BODY_SIZE,
     DUPLICATE_ORDER_WINDOW_SECONDS,
-    UUID_REGEX,
-    REF_ID_REGEX,
-    INVOICE_ID_REGEX,
     FOXY_BASE_URL,
     PROVIDER_TIMEOUT_MS,
     FOXY_CACHE_TTL,
@@ -19,6 +16,44 @@ const {
     CALLBACK_VERIFY_COOLDOWN_MS,
     CALLBACK_SUCCESS_RESPONSE,
 } = require('./config/constants');
+const {
+    redactSensitiveText,
+    safeErrorDetail,
+    logSafeError,
+    safeAxiosError,
+} = require('./utils/logger');
+const {
+    normalizeString,
+    normalizePhone,
+    normalizeProfilePhone,
+    escapeHtml,
+    publicStatusLabel,
+    maskInvoiceId,
+    maskLeaderboardName,
+    leaderboardRankLabel,
+    formatRupiahBot,
+} = require('./utils/strings');
+const {
+    hashResetToken,
+    hashApiKey,
+    timingSafeStringEqual,
+    generateInvoiceId,
+    generateProviderTrxId,
+} = require('./utils/crypto');
+const {
+    isValidEmail,
+    isValidPassword,
+    isValidApiKey,
+    parsePositiveQuota,
+    isValidPriceAmount,
+    isValidInvoiceId,
+    parseOptionalRefId,
+    parseOptionalIdempotencyKeyHeader,
+    isSafeAssetUrl,
+    parseOptionalBoolean,
+    parseOptionalText,
+    sanitizeValidationServiceName,
+} = require('./utils/validation');
 const { securityHeaders, corsMiddleware } = require('./middleware/securityHeaders');
 const { createRateLimiters } = require('./middleware/rateLimiters');
 const express = require('express');
@@ -40,160 +75,6 @@ const path = require('path');
 
 const app = express();
 app.set('trust proxy', 1); // untuk mendapatkan IP asli di belakang proxy
-
-function redactSensitiveText(value) {
-    if (value === undefined || value === null) return '';
-    return String(value)
-        .replace(/([?&](?:token|secret|api[_-]?key|apikey|authorization|password)=)[^&#\s]*/gi, '$1[REDACTED]')
-        .replace(/(api[_-]?key|authorization|password|token|secret)=([^\s,&]*)/gi, '$1=[REDACTED]');
-}
-
-function safeErrorDetail(error) {
-    if (!error) return { message: 'Unknown error' };
-    const detail = {};
-    if (error.code) detail.code = error.code;
-    if (error.response && error.response.status) detail.status = error.response.status;
-    if (error.message) detail.message = redactSensitiveText(error.message);
-    return detail;
-}
-
-function logSafeError(label, error) {
-    console.error(label, safeErrorDetail(error));
-}
-
-/**
- * Safe summary of Axios/provider error. Never prints Authorization, config.headers,
- * request._header, or full response body. Detects Cloudflare challenge.
- */
-function safeAxiosError(error, providerName) {
-    const name = providerName || 'Provider';
-    if (!error) return { provider: name, message: 'Unknown error' };
-    const safe = { provider: name };
-    if (error.message) {
-        safe.message = redactSensitiveText(error.message);
-    }
-    if (error.response) {
-        safe.status = error.response.status;
-        safe.statusText = error.response.statusText;
-        if (error.response.config) {
-            safe.method = error.response.config.method ? error.response.config.method.toUpperCase() : undefined;
-            safe.url = error.response.config.url ? redactSensitiveText(error.response.config.url) : undefined;
-        }
-        const cfHeader = error.response.headers && error.response.headers['cf-mitigated'];
-        const bodyStr = typeof error.response.data === 'string' ? error.response.data : '';
-        const isCloudflare = error.response.status === 403 &&
-            (cfHeader === 'challenge' || bodyStr.includes('Just a moment'));
-        safe.isCloudflareChallenge = isCloudflare;
-        safe.responseContentType = error.response.headers && error.response.headers['content-type'];
-        if (isCloudflare) safe.note = 'Provider blocked request with Cloudflare challenge';
-    } else if (error.code === 'ECONNABORTED' || (error.message && error.message.includes('timeout'))) {
-        safe.note = 'Request timed out';
-    } else if (error.code) {
-        safe.code = error.code;
-    }
-    return safe;
-}
-
-function normalizeString(value, maxLength = 255) {
-    if (typeof value !== 'string') return '';
-    return value.trim().slice(0, maxLength);
-}
-
-function isValidEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 255;
-}
-
-function isValidPassword(password) {
-    return typeof password === 'string' && password.length >= 8 && password.length <= 128;
-}
-
-/**
- * Normalize a WhatsApp number to E.164 format.
- * Accepts: countryCode (e.g. '+62') + localNumber (e.g. '81234567890' or '081234567890').
- * Returns the normalized string (e.g. '+6281234567890') or null if invalid.
- *
- * Rules:
- *   - Strip spaces, dashes, parentheses from localNumber
- *   - Strip a leading '0' from localNumber (common Indonesian format: 081xxx -> 81xxx)
- *   - Concatenate countryCode + stripped localNumber
- *   - Final result must match E.164 pattern: +[1-3 digit country][6-12 digit local]
- */
-function normalizePhone(countryCode, localNumber) {
-    if (typeof countryCode !== 'string' || typeof localNumber !== 'string') return null;
-    // Sanitize country code: must start with '+' followed by 1-3 digits
-    const cc = countryCode.trim().replace(/\s+/g, '');
-    if (!/^\+[0-9]{1,3}$/.test(cc)) return null;
-    // Sanitize local number: strip formatting chars
-    let local = localNumber.trim().replace(/[\s\-().]/g, '');
-    // Strip leading '0' (e.g. 0812 -> 812)
-    if (local.startsWith('0')) local = local.slice(1);
-    // Only digits allowed in local part
-    if (!/^[0-9]+$/.test(local)) return null;
-    // Reasonable length: 6-12 digits for local part
-    if (local.length < 6 || local.length > 12) return null;
-    return cc + local;
-}
-
-/**
- * Normalize WhatsApp number from profile update payloads to E.164 using normalizePhone.
- * Supports explicit countryCode+localNumber, standalone E.164 (+628...), or Indonesian formats (08.../628.../8...).
- */
-function normalizeProfilePhone(rawNomorWa, rawCountryCode) {
-    if (typeof rawNomorWa !== 'string') return null;
-    if (typeof rawCountryCode === 'string' && rawCountryCode.trim() !== '') {
-        return normalizePhone(rawCountryCode, rawNomorWa);
-    }
-
-    const stripped = rawNomorWa.trim().replace(/[\s\-().]/g, '');
-    if (!stripped) return null;
-
-    if (stripped.startsWith('+')) {
-        const knownCodes = ['+62', '+60', '+65', '+63', '+66', '+84', '+1'];
-        const matchedCode = knownCodes.find(code => stripped.startsWith(code));
-        if (matchedCode) {
-            return normalizePhone(matchedCode, stripped.slice(matchedCode.length));
-        }
-        return /^\+[1-9][0-9]{7,14}$/.test(stripped) ? stripped : null;
-    }
-
-    if (/^62[0-9]{8,12}$/.test(stripped)) {
-        return normalizePhone('+62', stripped.slice(2));
-    }
-
-    return normalizePhone('+62', stripped);
-}
-
-function hashResetToken(token) {
-    return crypto.createHash('sha256').update(token).digest('hex');
-}
-
-function hashApiKey(apiKey) {
-    return crypto.createHash('sha256').update(String(apiKey)).digest('hex');
-}
-
-function timingSafeStringEqual(a, b) {
-    if (typeof a !== 'string' || typeof b !== 'string') return false;
-    const bufA = Buffer.from(a, 'utf8');
-    const bufB = Buffer.from(b, 'utf8');
-    if (bufA.length !== bufB.length) return false;
-    return crypto.timingSafeEqual(bufA, bufB);
-}
-
-function isValidApiKey(apiKey) {
-    // Menerima key baru 32 byte (64 hex) dan key legacy 24 byte (48 hex) selama masa transisi
-    return typeof apiKey === 'string' && /^(?:[a-f0-9]{48}|[a-f0-9]{64})$/i.test(apiKey);
-}
-
-function parsePositiveQuota(rawValue) {
-    if (rawValue === undefined || rawValue === null || String(rawValue).trim() === '') return null;
-    const num = Number(rawValue);
-    return Number.isFinite(num) && num > 0 ? num : null;
-}
-
-function isValidPriceAmount(value) {
-    const numberValue = Number(value);
-    return Number.isFinite(numberValue) && numberValue > 0 && numberValue <= 100000000;
-}
 
 function getSafeOrderErrorMessage(error, fallback) {
     const message = error && error.message ? error.message : '';
@@ -239,50 +120,6 @@ function getSafeOrderErrorMessage(error, fallback) {
         'Idempotency-Key sudah digunakan',
     ];
     return allowedMessages.some(allowed => message.startsWith(allowed)) ? message : fallback;
-}
-
-
-function generateInvoiceId(prefix) {
-    return `${prefix}-${crypto.randomBytes(12).toString('hex').toUpperCase()}`;
-}
-
-function generateProviderTrxId(prefix) {
-    return `${prefix}-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
-}
-
-function isValidInvoiceId(rawId) {
-    return typeof rawId === 'string' && INVOICE_ID_REGEX.test(rawId);
-}
-
-function parseOptionalRefId(rawRefId) {
-    if (rawRefId === undefined || rawRefId === null) {
-        return null;
-    }
-    if (typeof rawRefId !== 'string' || !REF_ID_REGEX.test(rawRefId)) {
-        const err = new Error('Format ref_id tidak valid. Gunakan 1-100 karakter huruf, angka, titik, underscore, titik dua, atau tanda hubung.');
-        err.statusCode = 400;
-        throw err;
-    }
-    return rawRefId;
-}
-
-function parseOptionalIdempotencyKeyHeader(req) {
-    const rawHeader = req && req.headers ? req.headers['idempotency-key'] : undefined;
-    if (rawHeader === undefined) {
-        return null;
-    }
-    if (typeof rawHeader !== 'string') {
-        const err = new Error('Header Idempotency-Key harus berupa UUID yang valid.');
-        err.statusCode = 400;
-        throw err;
-    }
-    const trimmed = rawHeader.trim();
-    if (!UUID_REGEX.test(trimmed)) {
-        const err = new Error('Header Idempotency-Key harus berupa UUID yang valid.');
-        err.statusCode = 400;
-        throw err;
-    }
-    return trimmed.toLowerCase();
 }
 
 async function findTransactionByRefId(queryable, userId, refId) {
@@ -594,7 +431,7 @@ pool.on('connect', (client) => {
   client.query("SET TIME ZONE 'Asia/Jakarta'");
 });
 
-const { h2hUserLimiter, applyRateLimiters } = createRateLimiters({ normalizeString, hashApiKey });
+const { h2hUserLimiter, applyRateLimiters } = createRateLimiters();
 applyRateLimiters(app);
 
 
@@ -1301,45 +1138,6 @@ app.put('/api/user/whitelisted-ips', protect, async (req, res) => {
 });
 
 // === DEPOSIT & PAYMENT METHOD ENDPOINTS ===
-
-function escapeHtml(value) {
-    return String(value ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function isSafeAssetUrl(rawUrl) {
-    if (!rawUrl) return true;
-    if (rawUrl.startsWith('/') && !rawUrl.startsWith('//')) return true;
-    try {
-        const parsed = new URL(rawUrl);
-        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-    } catch (_) {
-        return false;
-    }
-}
-
-function parseOptionalBoolean(val, fallback) {
-    if (val === undefined) return fallback;
-    if (typeof val === 'boolean') return val;
-    if (val === 'true' || val === 1 || val === '1') return true;
-    if (val === 'false' || val === 0 || val === '0') return false;
-    return null;
-}
-
-function parseOptionalText(body, key, fallback, maxLen) {
-    const hasField = Object.prototype.hasOwnProperty.call(body, key);
-    const raw = hasField ? body[key] : fallback;
-    if (raw === null || raw === undefined) return { value: null };
-    if (typeof raw !== 'string') return { error: `${key} harus berupa teks.` };
-    const trimmed = raw.trim();
-    if (!trimmed) return { value: null };
-    if (trimmed.length > maxLen) return { error: `${key} maksimal ${maxLen} karakter.` };
-    return { value: trimmed };
-}
 
 function normalizePaymentMethodPayload(body, existing = null) {
     const src = body && typeof body === 'object' ? body : {};
@@ -2634,26 +2432,6 @@ app.get('/api/games', async (req, res) => {
     }
 });
 
-/**
- * Bersihkan nama game dari suffix provider internal.
- * Game code TIDAK diubah — hanya label tampil yang disanitasi.
- * @param {string} name - Nama game dari data_cekid.json
- * @returns {string} Nama yang sudah dibersihkan
- */
-function sanitizeValidationServiceName(name) {
-    if (!name || typeof name !== 'string') return name || '';
-    let clean = name.trim();
-    // Khusus: Mobile Legends With Region → label deskriptif
-    if (/mobile.?legends.?with.?region/i.test(clean)) {
-        return 'Mobile Legends - Verifikasi Region';
-    }
-    // Hapus suffix provider dalam tanda kurung: (Mobapay), (DG), (HK), (FAST), (WORK, FAST), dll.
-    clean = clean.replace(/\s*\([^)]*\)\s*$/i, '').trim();
-    // Hapus suffix tanpa kurung: Work Fast, FAST di akhir
-    clean = clean.replace(/\s+(Work\s+Fast|FAST|WORK)\s*$/i, '').trim();
-    return clean || name.trim();
-}
-
 app.get('/api/games/validatable', async (req, res) => {
     try {
         const filePath = path.resolve(__dirname, 'utils', 'validators', 'data_cekid.json');
@@ -3251,32 +3029,6 @@ app.get('/api/public/bot-games', async (req, res) => {
 
 // === PUBLIC CEK TRANSAKSI ENDPOINTS ===
 
-// Helper: status label publik
-function publicStatusLabel(status) {
-    const s = String(status || '').toLowerCase();
-    if (s === 'success') return 'Berhasil';
-    if (s === 'failed') return 'Gagal';
-    if (s === 'refunded') return 'Refund';
-    if (s === 'partial refund') return 'Perlu Review Admin';
-    return 'Pending';
-}
-
-// Helper: mask invoice ID — TRX-9A7F3C2B10E84D65A1F9C302 => TRX-9A7F****C302
-function maskInvoiceId(invoiceId) {
-    if (!invoiceId || typeof invoiceId !== 'string') return invoiceId;
-    if (invoiceId.length <= 4) return '****';
-    const dashIdx = invoiceId.indexOf('-');
-    if (dashIdx !== -1 && dashIdx <= 6) {
-        const prefix = invoiceId.slice(0, dashIdx + 1);    // "TRX-" atau "H2H-"
-        const suffix = invoiceId.slice(dashIdx + 1);
-        if (suffix.length <= 4) return `${prefix}****`;
-        if (suffix.length <= 8) return `${prefix}${suffix.slice(0, 2)}****${suffix.slice(-2)}`;
-        return `${prefix}${suffix.slice(0, 4)}****${suffix.slice(-4)}`;
-    }
-    if (invoiceId.length <= 8) return `${invoiceId.slice(0, 2)}****${invoiceId.slice(-2)}`;
-    return `${invoiceId.slice(0, 4)}****${invoiceId.slice(-4)}`;
-}
-
 // GET /api/public/transaction/:invoiceId — cek satu transaksi (publik, tanpa login)
 app.get('/api/public/transaction/:invoiceId', async (req, res) => {
     try {
@@ -3351,37 +3103,6 @@ app.get('/api/public/recent-transactions', async (req, res) => {
 });
 
 // === LEADERBOARD ENDPOINTS ===
-
-/**
- * Mask username untuk leaderboard publik.
- * - Kosong/null: "User***"
- * - Panjang <= 3: huruf pertama + "***"
- * - Panjang > 3: 3 huruf awal + "***" + 2 huruf akhir
- * Email/phone tidak pernah diproses di sini — hanya username.
- */
-function maskLeaderboardName(username) {
-    if (!username || typeof username !== 'string' || username.trim().length === 0) {
-        return 'User***';
-    }
-    const u = username.trim();
-    if (u.length <= 3) {
-        return u.charAt(0) + '***';
-    }
-    return u.slice(0, 3) + '***' + u.slice(-2);
-}
-
-/**
- * Tentukan label rank berdasarkan total belanja (IDR).
- */
-function leaderboardRankLabel(totalSpent) {
-    const s = Number(totalSpent) || 0;
-    if (s >= 5000000) return 'Legend';
-    if (s >= 2000000) return 'Diamond';
-    if (s >= 1000000) return 'Platinum';
-    if (s >= 500000)  return 'Gold';
-    if (s >= 200000)  return 'Silver';
-    return 'Bronze';
-}
 
 // GET /api/public/leaderboard — top buyer publik (read-only)
 app.get('/api/public/leaderboard', async (req, res) => {
@@ -3486,14 +3207,6 @@ function requireWaBotAdminToken(req, res, next) {
     }
 
     next();
-}
-
-/**
- * Format angka ke Rupiah untuk summary_text WA-friendly.
- * Tidak digunakan di logika bisnis, hanya presentasi teks.
- */
-function formatRupiahBot(amount) {
-    return 'Rp ' + Number(amount).toLocaleString('id-ID');
 }
 
 // GET /api/bot/admin/deposits/pending — daftar deposit Pending (read-only)
@@ -4224,19 +3937,6 @@ const callbackClock = {
 
 function clearCallbackCooldownCache() {
     callbackVerificationCooldown.clear();
-}
-
-function timingSafeStringEqual(a, b) {
-    if (typeof a !== 'string' || typeof b !== 'string' || a.length === 0 || b.length === 0) {
-        return false;
-    }
-    const bufA = Buffer.from(a, 'utf8');
-    const bufB = Buffer.from(b, 'utf8');
-    if (bufA.length !== bufB.length) {
-        crypto.timingSafeEqual(bufB, bufB);
-        return false;
-    }
-    return crypto.timingSafeEqual(bufA, bufB);
 }
 
 function extractCallbackToken(req) {
