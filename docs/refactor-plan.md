@@ -937,3 +937,56 @@ Karena `frontend/admin.js` aktual panjangnya `1619` baris, pemecahan area kerja 
 
 - **Audit aset & sintaks**: `node ../scripts/check-frontend-assets.js` memverifikasi 13 file HTML (tanpa `<script>`/`<link>` lokal hilang atau duplikat), seluruh tag `<script defer>` berurutan sesuai ketergantungan (`shared` -> `state` -> submodul), `node --check` lulus pada 100% file JS, dan **0 peringatan ukuran (> 600 baris)** pada seluruh modul baru di `frontend/js/`.
 - **Migrasi database**: Tidak ada migrasi database pada tahap F0–F2.
+
+---
+
+## Frontend Refactor Plan (F2c & F3)
+
+Prinsip kerja tetap sama: **nol perubahan perilaku & nol perubahan tampilan** (*cut and paste* apa adanya; tidak mengubah warna, layout, teks, ataupun markup HTML selain tag `<script defer>` dan `<link rel="stylesheet">`). Seluruh file berakhiran LF (`i/lf w/lf`) dengan `git add <path>` eksplisit.
+
+### Audit F2c: `frontend/product.js` (`809` baris -> `frontend/js/product/`)
+Pemeriksaan `frontend/product.html` (`215` baris) memastikan **0 inline event handler (`on*=`)**. Seluruh kode `frontend/product.js` berada di dalam satu `DOMContentLoaded` listener (`1–809`) sehingga aman dipecah menjadi 4 modul `<script defer>` berurutan memakai namespace `window.MikuProduct` (target `200–350`, seluruhnya `<= 400` dan jauh di bawah batas keras `<= 600` baris):
+1. `frontend/js/product/state.js` (~`235` baris):
+   - Namespace `window.MikuProduct`, konstanta (`AUTH_API_URL`, `PUBLIC_API_URL`), state bersama (`gameId`, `token`, `fsProductId`, `fsPrice`, `selectedProductId`, `appliedPromo`, `currentDiscountAmount`, `isValidationSuccess`, `isOrderSubmitting`, `lastValidationErrorMessage`, `orderIdempotencyKey`, `lastOrderAttemptSignature`, elemen DOM `els`).
+   - Helper `buildCurrentOrderPayload`, `ensureOrderIdempotencyKey`, auth modal (`showModal`, `hideModal`, `updateAuthButtonOnProductPage`, `loginForm`, `registerForm`), dan entry tunggal `DOMContentLoaded` (`if (!gameId)` guard -> bind auth -> `fetchGameData()` -> `updateAuthButtonOnProductPage()` -> `setupLiveValidation()` -> `checkout.bindEvents()` -> `mobileStepNav.init()`).
+2. `frontend/js/product/validation.js` (~`230` baris):
+   - `fetchGameData` (termasuk daftar server tetap `/servers` & `.single-input`), `renderProducts`, `handleProductSelection`, `applyFlashSaleSelection`, serta `setupLiveValidation` (`handleValidation` `POST /api/products/:id/validate`, `blur` pada User ID & Server ID via `MutationObserver`).
+3. `frontend/js/product/checkout.js` (~`225` baris):
+   - `updatePrice`, validasi kode promo (`POST /api/promos/validate`), pembentukan ringkasan & modal konfirmasi order (`submitOrderBtn`), serta eksekusi `POST /api/order` dengan rotasi/retensi `Idempotency-Key` persis identik (`2xx/4xx` JSON rotasi vs `5xx`/jaringan dipertahankan).
+4. `frontend/js/product/mobileStepNav.js` (~`140` baris):
+   - `initMobileStepNav` (khusus viewport `<= 768px`: klik step nav, `IntersectionObserver` scroll tracking, dan auto-scroll `MutationObserver` step 1->2 & step 3->4).
+
+### Audit F3: `frontend/style.css` (`4.118` baris) & `frontend/style-responsive.css` (`2.269` baris)
+Catatan ukuran aktual di disk: `frontend/style.css` = **`4.118` baris** (`546` blok level-atas; estimasi prompt ~`2.061`) dan `frontend/style-responsive.css` = **`2.269` baris** (`215` blok level-atas), total `6.387` baris (`~5.216` baris aturan non-komentar).
+
+Audit menyeluruh terhadap tumpang tindih selektor & `@media` lintas keduanya (`170` pasangan selektor berulang antar fase dalam `style.css` -> `style-responsive.css` + aturan multi-selektor lintas halaman seperti `:root`, `body`, `.container`, `header`, `.card`, `.header-btn`, `.modal-content button[type="submit"] ... .order-button, .btn-submit-deposit, #apply-promo-btn`, serta urutan breakpoint `@media (max-width: 768px)` -> `(max-width: 480px)` -> `(max-width: 380px)` -> `(max-width: 360px)`):
+- Aturan multi-selektor yang menjangkau beberapa halaman dipecah per target halaman **dengan tetap mempertahankan urutan relatif** agar pemenang cascade identik `100%` (baik di F3a saat `style.css` masih dimuat maupun setelah F3b ketika `style.css` dihapus).
+- Agar setiap file di `frontend/css/` mematuhi target modul bersih & batas keras **`<= 600` baris** (`tokens/base/components` pada F3a) serta **`<= 800` baris** untuk seluruh file CSS pada F3b (tanpa satu file dashboard raksasa `~1.500` baris yang melewati `800`), CSS dipetakan ke berkas-berkas berikut:
+
+#### F3a — Fondasi & Komponen Bersama (`<= 600` baris/file, dimuat sebelum `style.css` di seluruh 13 HTML):
+1. `frontend/css/tokens.css` (~`25` baris): seluruh CSS custom properties `:root` (`style.css:2-16` + `style-responsive.css:10-16`).
+2. `frontend/css/base.css` (~`115` baris): `@import` font Inter, box-sizing reset (`*, *::before, *::after`), `html`, `body` (termasuk gradient latar Paket 1), `h2–h4`, `.hidden`, `.container` (beserta `@media (max-width: 768px)` `.container` & `main.container`), dan rule dasar `.dashboard-container, .order-page-wrapper, .pricelist-container { flex-grow: 1 }`.
+3. `frontend/css/components.css` (~`540` baris, wajib `<= 600`):
+   - Header global (`header`, `.header-container`, `.header-left/center/right`, `.logo`, `.logo-link`, `.header-btn`, `#user-auth-button`, `.header-icon-btn*`), Footer (`footer`, `.footer-content`, `.footer-links*`).
+   - Surface & status bersama (`.card`, `.section-header*`, `.ui-state*`, `.status-badge`, `.badge`, `.status-*`, `.toast*`).
+   - Modal & kontrol bersama (`.modal-overlay`, `.modal-content*`, `.close-modal`, `.form-description`, `.password-wrapper`, `.toggle-password`, `.edit-btn`, `.topup-btn`, `.history-link`, `button`, `button:disabled`, `input[type=...]..textarea`, base `.table-container` / `table`).
+   - Seluruh `@media` milik komponen-komponen di atas dalam urutan cascade identik (`desktop -> min 600/769 -> max 768 -> max 480 -> max 380`).
+
+#### F3b — CSS Spesifik Halaman & Kelompok Halaman (`<= 800` baris/file) + Hapus `style.css` & `style-responsive.css`:
+4. `frontend/css/portal.css` (~`230` baris): sidebar bersama, mobile drawer & backdrop (`body.menu-open::after`), `#menu-toggle-btn`, `.menu-toggle-btn*`, `#logout-button`, `.pricelist-search-wrapper`, `#game-search-input`, `#game-selector-dropdown*`. Dimuat oleh `dashboard.html`, `admin.html`, `compare-prices.html`, `validate.html`.
+5. `frontend/css/authForms.css` (~`125` baris): elemen form `#auth-modal` (`.forgot-password`, `.switch-form*`, `.terms*`, `.phone-input-group*`, `.phone-country-code*`, `.phone-local-input` + `@media` `480px`/`360px`). Dimuat oleh `index.html`, `product.html`.
+6. `frontend/css/storefrontNav.css` (~`285` baris): search bar storefront (`#search-input*`, `.search-*`), hamburger & menu dropdown (`#hamburger-btn`, `.dropdown-menu*`), panel notifikasi (`#notification-container*`, `.badge-count`), dan responsive header index (`#leaderboard-nav-btn`, `.validate-btn`, `.cek-trx-btn`, `.pricelist-btn`). Dimuat oleh `index.html`.
+7. `frontend/css/storefront.css` (~`530` baris): `.content-section`, hero banner (`.hero-*`, `.miku-*`), flash sale marquee & countdown (`.flash-sale-*`, `.countdown-*`, `.fs-*`, `@keyframes scroll-left`), grid & kartu game (`.product-grid*`, `.product-card*`, `@keyframes marquee-scroll` + `@media`). Dimuat oleh `index.html`.
+8. `frontend/css/product.css` (~`630` baris): layout 2 kolom `.order-page-wrapper` / `.order-main-col` / `.order-side-col`, `#game-info*`, form & validasi (`#order-form*`, `#server-input-container*`, `.validation-result-inline*`), grid nominal (`.product-selection-toolbar`, `.product-card-selectable*`, `#product-list-container.product-grid`), promo & pembayaran (`#promo-*`, `.promo-*`, `#payment-info*`, `.order-button*`, `.confirmation-*`) + `@media`. Dimuat oleh `product.html`.
+9. `frontend/css/productStepNav.css` (~`150` baris): navigasi langkah mobile `#mobile-step-nav`, `.step-nav-*`, scroll-margin `#order-step-1..4`, `@media (max-width: 768px)`, `@media (max-width: 768px) and (max-height: 700px)`, dan `prefers-reduced-motion`. Dimuat oleh `product.html` setelah `product.css`.
+10. `frontend/css/dashboard.css` (~`735` baris): header member chip, `#dashboard-sidebar*`, kartu member sidebar, overview KPI & split grid & profil, quick action banner, modal tabs, serta tabel riwayat transaksi dashboard. Dimuat oleh `dashboard.html`.
+11. `frontend/css/dashboardDeposit.css` (~`430` baris): `.balance-summary*`, `.deposit-wrapper`, `.mutasi-wrapper`, kartu metode deposit & QRIS/copy rekening, `.form-field-error` & `:is(select:user-invalid...)`, `#mutasi-table*`, `#deposit-history-table`. Dimuat oleh `dashboard.html`.
+12. `frontend/css/dashboardH2H.css` (~`340` baris): `.api-key-*`, `#api-key-display`, `.form-row-container*`, `#current-ips-list`, `.ip-tag*`, `#integrasi*`, `.h2h-*`, dan `#h2h-secret-modal` / `#h2h-confirm-modal`. Dimuat oleh `dashboard.html`.
+13. `frontend/css/admin.css` (~`680` baris): `.admin-wrapper`, tombol approve/reject/resolve, saldo manual, master-detail game/produk, form margin/sync/validasi/harga manual, `.switch/.slider`, serta CRUD metode pembayaran (`.pm-*`, `#payment-method-form*`, `.form-help`, `.form-status-msg*`). Dimuat oleh `admin.html`.
+14. `frontend/css/publicPages.css` (~`670` baris): compare-prices/pricelist (`.pricelist-container*`, `.compare-*`, `.modern-table*`, `#compare-prices-table*`), validator publik (`#game-validate-search-input`, `#validator-result-container*`, `.validation-result*`), `cek-transaksi` (`.transaction-check-card`, `.trx-*`, `.partial-refund-notice`, `.recent-trx*`), `invoice` (`.main-wrapper`, `#invoice-details-container*`, `.invoice-*`, `@media print`), serta halaman legal/statis (`.static-*`, `.contact-*`). Dimuat oleh 9 halaman publik & utilitas.
+
+### Peta 4 Commit Frontend Lanjutan (F2c–F3c)
+1. **Commit 1 (F2c)**: Pecah `frontend/product.js` -> `frontend/js/product/{state,validation,checkout,mobileStepNav}.js` (`<= 400` baris/file), hapus `frontend/product.js`, perbarui `frontend/product.html`, dan verifikasi via smoke test Node VM.
+2. **Commit 2 (F3a)**: Buat `frontend/css/{tokens,base,components}.css` (`<= 600` baris/file), keluarkan aturan terkait dari `style.css` & `style-responsive.css`, dan pasang berurutan sebelum `style.css` di seluruh 13 HTML.
+3. **Commit 3 (F3b)**: Pindahkan seluruh sisa rule ke file CSS halaman di `frontend/css/` (`<= 800` baris/file), hapus `style.css` & `style-responsive.css`, perbarui `<link rel="stylesheet">` pada seluruh 13 HTML dengan urutan cascade identik, lalu audit kesetaraan cascade otomatis.
+4. **Commit 4 (F3c)**: Perluas `scripts/check-frontend-assets.js` untuk memeriksa batas keras `<= 800` baris pada seluruh `frontend/css/*.css` (`limit_warnings=0`) dan lengkapi hasil akhir di `docs/refactor-plan.md`.
