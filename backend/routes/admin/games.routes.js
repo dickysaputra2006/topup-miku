@@ -1,16 +1,26 @@
 const express = require('express');
 const axios = require('axios');
+const {
+    recordAdminAuditLog: defaultRecordAdminAuditLog,
+} = require('../../services/auditLogService');
 
 /**
  * Daftarkan route admin untuk manajemen game, role margin global, tes endpoint, dan preview layanan validasi PGS.
  */
 module.exports = function createAdminGamesRoutes(deps) {
-    const { pool, protectAdmin } = deps || {};
+    const {
+        pool,
+        protectAdmin,
+        recordAdminAuditLog = defaultRecordAdminAuditLog,
+    } = deps || {};
     if (!pool || typeof pool.query !== 'function' || typeof pool.connect !== 'function') {
         throw new TypeError('createAdminGamesRoutes requires a valid pool');
     }
     if (typeof protectAdmin !== 'function') {
         throw new TypeError('createAdminGamesRoutes requires a protectAdmin middleware');
+    }
+    if (typeof recordAdminAuditLog !== 'function') {
+        throw new TypeError('createAdminGamesRoutes requires a recordAdminAuditLog function');
     }
 
     const router = express.Router();
@@ -40,6 +50,14 @@ module.exports = function createAdminGamesRoutes(deps) {
                 `, [JSON.stringify(margins)]);
             }
             await client.query('COMMIT');
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.roles.update',
+                targetType: 'roles',
+                targetId: 'global',
+                beforeData: null,
+                afterData: { margins },
+            });
             res.json({ message: 'Margin berhasil diperbarui.' });
         } catch (error) {
             await client.query('ROLLBACK');
@@ -67,6 +85,14 @@ module.exports = function createAdminGamesRoutes(deps) {
             if (!name || !category || !imageUrl) return res.status(400).json({ message: 'Semua kolom wajib diisi.' });
             const sql = 'INSERT INTO games (name, category, image_url, status, needs_server_id) VALUES ($1, $2, $3, $4, $5)'; // Tambah status & needs_server_id
             await pool.query(sql, [name, category, imageUrl, 'Active', false]); // Default nilai
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.game.create',
+                targetType: 'game',
+                targetId: String(name),
+                beforeData: null,
+                afterData: { name, category, imageUrl, status: 'Active', needs_server_id: false },
+            });
             res.status(201).json({ message: `Game ${name} berhasil ditambahkan.` });
         } catch (error) {
             console.error('Error adding game:', error);
@@ -84,6 +110,7 @@ module.exports = function createAdminGamesRoutes(deps) {
                 return res.status(400).json({ message: "Status tidak valid. Gunakan 'Active' atau 'Inactive'." });
             }
 
+            const prevRes = await pool.query('SELECT status FROM games WHERE id = $1 LIMIT 1', [id]).catch(() => ({ rows: [] }));
             const { rowCount } = await pool.query(
                 'UPDATE games SET status = $1 WHERE id = $2',
                 [status, id]
@@ -92,6 +119,15 @@ module.exports = function createAdminGamesRoutes(deps) {
             if (rowCount === 0) {
                 return res.status(404).json({ message: 'Game tidak ditemukan.' });
             }
+
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.game.status',
+                targetType: 'game',
+                targetId: String(id),
+                beforeData: prevRes && prevRes.rows && prevRes.rows[0] ? { status: prevRes.rows[0].status } : null,
+                afterData: { status },
+            });
 
             res.json({ message: `Status game berhasil diubah menjadi ${status}.` });
 
@@ -110,6 +146,7 @@ module.exports = function createAdminGamesRoutes(deps) {
                 return res.status(400).json({ message: "Nilai 'needsServer' harus boolean." });
             }
 
+            const prevRes = await pool.query('SELECT needs_server_id FROM games WHERE id = $1 LIMIT 1', [id]).catch(() => ({ rows: [] }));
             const { rowCount } = await pool.query(
                 'UPDATE games SET needs_server_id = $1 WHERE id = $2',
                 [needsServer, id]
@@ -118,6 +155,17 @@ module.exports = function createAdminGamesRoutes(deps) {
             if (rowCount === 0) {
                 return res.status(404).json({ message: 'Game tidak ditemukan.' });
             }
+
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.game.needs_server',
+                targetType: 'game',
+                targetId: String(id),
+                beforeData: prevRes && prevRes.rows && prevRes.rows[0]
+                    ? { needs_server_id: prevRes.rows[0].needs_server_id }
+                    : null,
+                afterData: { needs_server_id: needsServer },
+            });
 
             res.json({ message: `Pengaturan 'Perlu Server' untuk game berhasil diubah.` });
 

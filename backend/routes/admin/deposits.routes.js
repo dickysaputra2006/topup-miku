@@ -1,10 +1,18 @@
 const express = require('express');
+const {
+    recordAdminAuditLog: defaultRecordAdminAuditLog,
+} = require('../../services/auditLogService');
 
 /**
  * Daftarkan route admin untuk daftar, approve, dan reject deposit.
  */
 module.exports = function createAdminDepositsRoutes(deps) {
-    const { pool, protectAdmin, createNotification } = deps || {};
+    const {
+        pool,
+        protectAdmin,
+        createNotification,
+        recordAdminAuditLog = defaultRecordAdminAuditLog,
+    } = deps || {};
     if (!pool || typeof pool.query !== 'function' || typeof pool.connect !== 'function') {
         throw new TypeError('createAdminDepositsRoutes requires a valid pool');
     }
@@ -13,6 +21,9 @@ module.exports = function createAdminDepositsRoutes(deps) {
     }
     if (typeof createNotification !== 'function') {
         throw new TypeError('createAdminDepositsRoutes requires a createNotification function');
+    }
+    if (typeof recordAdminAuditLog !== 'function') {
+        throw new TypeError('createAdminDepositsRoutes requires a recordAdminAuditLog function');
     }
 
     const router = express.Router();
@@ -122,6 +133,24 @@ module.exports = function createAdminDepositsRoutes(deps) {
                 [deposit.user_id, deposit.amount, 'Deposit', historyDesc, referenceId]
             );
             await client.query('COMMIT');
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.deposit.approve',
+                targetType: 'deposit',
+                targetId: String(deposit.id),
+                beforeData: {
+                    status: deposit.status,
+                    user_id: deposit.user_id,
+                    amount: Number(deposit.amount),
+                    method: deposit.method || null,
+                },
+                afterData: {
+                    status: 'Approved',
+                    user_id: deposit.user_id,
+                    amount: Number(deposit.amount),
+                    reference_id: referenceId,
+                },
+            });
             // Notifikasi async — tidak blok response
             createNotification(
                 deposit.user_id,
@@ -170,6 +199,26 @@ module.exports = function createAdminDepositsRoutes(deps) {
             );
             // TIDAK ada UPDATE balance, TIDAK ada INSERT balance_history
             await client.query('COMMIT');
+            const rejectReason = (req.body && typeof req.body.reason === 'string' && req.body.reason.trim())
+                ? req.body.reason.trim().slice(0, 200)
+                : null;
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.deposit.reject',
+                targetType: 'deposit',
+                targetId: String(deposit.id),
+                beforeData: {
+                    status: deposit.status,
+                    user_id: deposit.user_id,
+                    amount: Number(deposit.amount),
+                    method: deposit.method || null,
+                },
+                afterData: {
+                    status: 'Rejected',
+                    user_id: deposit.user_id,
+                    reason: rejectReason,
+                },
+            });
             // Notifikasi async — tidak blok response
             createNotification(
                 deposit.user_id,

@@ -4,6 +4,9 @@ const { logSafeError } = require('../../utils/logger');
 const {
     rollbackTransactionResources: defaultRollbackTransactionResources,
 } = require('../../services/refundService');
+const {
+    recordAdminAuditLog: defaultRecordAdminAuditLog,
+} = require('../../services/auditLogService');
 
 /**
  * Daftarkan route admin untuk daftar riwayat dan resolve manual transaksi.
@@ -14,6 +17,7 @@ module.exports = function createAdminTransactionsRoutes(deps) {
         protectAdmin,
         createNotification,
         rollbackTransactionResources = defaultRollbackTransactionResources,
+        recordAdminAuditLog = defaultRecordAdminAuditLog,
     } = deps || {};
 
     if (!pool || typeof pool.query !== 'function' || typeof pool.connect !== 'function') {
@@ -27,6 +31,9 @@ module.exports = function createAdminTransactionsRoutes(deps) {
     }
     if (typeof rollbackTransactionResources !== 'function') {
         throw new TypeError('createAdminTransactionsRoutes requires a rollbackTransactionResources function');
+    }
+    if (typeof recordAdminAuditLog !== 'function') {
+        throw new TypeError('createAdminTransactionsRoutes requires a recordAdminAuditLog function');
     }
 
     const router = express.Router();
@@ -99,6 +106,14 @@ module.exports = function createAdminTransactionsRoutes(deps) {
                     `/invoice.html?id=${tx.invoice_id}`
                 );
                 await client.query('COMMIT');
+                await recordAdminAuditLog(pool, {
+                    req,
+                    action: 'admin.transaction.resolve',
+                    targetType: 'transaction',
+                    targetId: tx.invoice_id,
+                    beforeData: { status: tx.status, price: Number(tx.price), user_id: tx.user_id },
+                    afterData: { action: 'success', status: 'Success' },
+                });
                 return res.json({ message: `Transaksi ${invoiceId} berhasil ditandai Berhasil.` });
 
 
@@ -118,6 +133,14 @@ module.exports = function createAdminTransactionsRoutes(deps) {
                     `/invoice.html?id=${tx.invoice_id}`
                 );
                 await client.query('COMMIT');
+                await recordAdminAuditLog(pool, {
+                    req,
+                    action: 'admin.transaction.resolve',
+                    targetType: 'transaction',
+                    targetId: tx.invoice_id,
+                    beforeData: { status: tx.status, price: Number(tx.price), user_id: tx.user_id },
+                    afterData: { action: 'refund', status: 'Failed' },
+                });
                 return res.json({ message: `Transaksi ${invoiceId} berhasil di-refund dan ditandai Gagal.` });
 
             } else if (action === 'keep_review') {
@@ -135,6 +158,14 @@ module.exports = function createAdminTransactionsRoutes(deps) {
                     );
                 }
                 await client.query('COMMIT');
+                await recordAdminAuditLog(pool, {
+                    req,
+                    action: 'admin.transaction.resolve',
+                    targetType: 'transaction',
+                    targetId: tx.invoice_id,
+                    beforeData: { status: tx.status, price: Number(tx.price), user_id: tx.user_id },
+                    afterData: { action: 'keep_review', status: 'Partial Refund' },
+                });
                 return res.json({ message: `Transaksi ${invoiceId} tetap dalam status Review Admin.` });
             }
 
