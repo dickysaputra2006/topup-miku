@@ -31,6 +31,7 @@ const { createH2HAuthMiddleware } = require('./middleware/h2hAuth');
 const { requireWaBotAdminToken } = require('./middleware/waBotAuth');
 const createAuthRoutes = require('./routes/auth.routes');
 const createDepositRoutes = require('./routes/deposit.routes');
+const createOrderRoutes = require('./routes/order.routes');
 const createPublicRoutes = require('./routes/public.routes');
 const createCatalogRoutes = require('./routes/catalog.routes');
 const createUserRoutes = require('./routes/user.routes');
@@ -133,31 +134,7 @@ app.use(createCatalogRoutes({ pool, protect, softProtect }));
 app.use(createWaBotRoutes({ pool, createNotification, requireWaBotAdminToken }));
 
 // === ORDER & H2H ENDPOINTS ===
-app.post('/api/order', protect, async (req, res) => {
-    try {
-        const idempotencyKey = parseOptionalIdempotencyKeyHeader(req);
-        const productId = Number(req.body.productId);
-        const targetGameId = normalizeString(req.body.targetGameId, 80);
-        const targetServerId = normalizeString(req.body.targetServerId, 80);
-        const promoCode = req.body.promoCode ? String(req.body.promoCode).trim().toUpperCase() : null;
-        const userId = req.user.id;
-
-        const result = await executeWebOrder({
-            pool,
-            userId,
-            productId,
-            targetGameId,
-            targetServerId,
-            promoCode,
-            idempotencyKey,
-        });
-        return res.status(result.statusCode).json(result.body);
-    } catch (error) {
-        logSafeError("Order error:", error);
-        const statusCode = error && [400, 409, 429].includes(error.statusCode) ? error.statusCode : 400;
-        res.status(statusCode).json({ message: getSafeOrderErrorMessage(error, 'Gagal memproses transaksi.') });
-    }
-});
+app.use(createOrderRoutes({ pool, protect }));
 
 const callbackVerificationCooldown = new Map();
 const callbackClock = {
