@@ -243,3 +243,13 @@ Apply manually:
 ```powershell
 psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\010_h2h_api_key_and_webhook_security.sql
 ```
+
+### `012_add_admin_audit_logs.sql`
+- **SEC-010 / SEC-016b:** Adds append-only table `admin_audit_logs` (`id`, `admin_id`, `action`, `target_type`, `target_id`, `before_data JSONB`, `after_data JSONB`, `ip_address`, `user_agent`, `created_at`) plus indexes `idx_admin_audit_logs_admin_created`, `idx_admin_audit_logs_target`, and `idx_admin_audit_logs_action_created`.
+- **Safe & Idempotent:** Additive table and index definitions (`IF NOT EXISTS`); safe to re-run without touching existing business data.
+
+Apply manually:
+
+```powershell
+psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\012_add_admin_audit_logs.sql
+```

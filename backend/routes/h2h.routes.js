@@ -143,7 +143,7 @@ module.exports = function createH2HRoutes(deps) {
             });
 
         } catch (error) {
-            console.error('H2H Get Products Error:', error);
+            logSafeError('H2H Get Products Error:', error);
             res.status(500).json({ success: false, message: 'Gagal mengambil daftar produk H2H.' });
         }
     });
@@ -164,6 +164,7 @@ module.exports = function createH2HRoutes(deps) {
 
             res.json({ success: true, message: 'Callback URL berhasil diperbarui.' });
         } catch (error) {
+            logSafeError('H2H Update Callback Error:', error);
             res.status(500).json({ success: false, message: 'Gagal memperbarui callback URL.' });
         }
     });

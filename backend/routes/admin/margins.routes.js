@@ -1,15 +1,26 @@
 const express = require('express');
+const { logSafeError } = require('../../utils/logger');
+const {
+    recordAdminAuditLog: defaultRecordAdminAuditLog,
+} = require('../../services/auditLogService');
 
 /**
  * Daftarkan route admin untuk pengaturan margin kustom game dan harga manual produk.
  */
 module.exports = function createAdminMarginsRoutes(deps) {
-    const { pool, protectAdmin } = deps || {};
+    const {
+        pool,
+        protectAdmin,
+        recordAdminAuditLog = defaultRecordAdminAuditLog,
+    } = deps || {};
     if (!pool || typeof pool.query !== 'function') {
         throw new TypeError('createAdminMarginsRoutes requires a valid pool');
     }
     if (typeof protectAdmin !== 'function') {
         throw new TypeError('createAdminMarginsRoutes requires a protectAdmin middleware');
+    }
+    if (typeof recordAdminAuditLog !== 'function') {
+        throw new TypeError('createAdminMarginsRoutes requires a recordAdminAuditLog function');
     }
 
     const router = express.Router();
@@ -26,7 +37,7 @@ module.exports = function createAdminMarginsRoutes(deps) {
                 res.json({ use_custom_margin: false });
             }
         } catch (error) {
-            console.error('Error fetching game margins:', error);
+            logSafeError('Error fetching game margins:', error);
             res.status(500).json({ message: 'Gagal mengambil data margin game.' });
         }
     });
@@ -36,6 +47,10 @@ module.exports = function createAdminMarginsRoutes(deps) {
         try {
             const { gameId } = req.params;
             const { use_custom_margin, bronze_margin, silver_margin, gold_margin, partner_margin } = req.body;
+
+            const existingRes = await pool.query('SELECT use_custom_margin, bronze_margin, silver_margin, gold_margin, partner_margin FROM game_margins WHERE game_id = $1 LIMIT 1', [gameId])
+                .catch(() => ({ rows: [] }));
+            const beforeMargin = existingRes && existingRes.rows && existingRes.rows[0] ? existingRes.rows[0] : null;
 
             // Query UPSERT: Insert jika belum ada, Update jika sudah ada
             const sql = `
@@ -52,10 +67,18 @@ module.exports = function createAdminMarginsRoutes(deps) {
             `;
             
             await pool.query(sql, [gameId, use_custom_margin, bronze_margin, silver_margin, gold_margin, partner_margin]);
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.game_margins.update',
+                targetType: 'game_margins',
+                targetId: String(gameId),
+                beforeData: beforeMargin,
+                afterData: { use_custom_margin, bronze_margin, silver_margin, gold_margin, partner_margin },
+            });
             res.json({ message: 'Pengaturan margin untuk game ini berhasil disimpan.' });
 
         } catch (error) {
-            console.error('Error saving game margins:', error);
+            logSafeError('Error saving game margins:', error);
             res.status(500).json({ message: 'Gagal menyimpan data margin game.' });
         }
     });
@@ -77,7 +100,7 @@ module.exports = function createAdminMarginsRoutes(deps) {
                 res.status(404).json({ message: 'Produk tidak ditemukan.' });
             }
         } catch (error) {
-            console.error('Error fetching manual prices:', error);
+            logSafeError('Error fetching manual prices:', error);
             res.status(500).json({ message: 'Gagal mengambil data harga manual.' });
         }
     });
@@ -88,6 +111,10 @@ module.exports = function createAdminMarginsRoutes(deps) {
             const { productId } = req.params;
             const { use_manual_prices, manual_prices } = req.body;
 
+            const existingRes = await pool.query('SELECT use_manual_prices, manual_prices FROM products WHERE id = $1 LIMIT 1', [productId])
+                .catch(() => ({ rows: [] }));
+            const beforeManual = existingRes && existingRes.rows && existingRes.rows[0] ? existingRes.rows[0] : null;
+
             const sql = `
                 UPDATE products 
                 SET use_manual_prices = $1, manual_prices = $2
@@ -95,10 +122,18 @@ module.exports = function createAdminMarginsRoutes(deps) {
             `;
             
             await pool.query(sql, [use_manual_prices, manual_prices, productId]);
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.product_manual_prices.update',
+                targetType: 'product',
+                targetId: String(productId),
+                beforeData: beforeManual,
+                afterData: { use_manual_prices, manual_prices },
+            });
             res.json({ message: 'Pengaturan harga manual berhasil disimpan.' });
 
         } catch (error) {
-            console.error('Error saving manual prices:', error);
+            logSafeError('Error saving manual prices:', error);
             res.status(500).json({ message: 'Gagal menyimpan data harga manual.' });
         }
     });

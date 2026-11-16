@@ -1,4 +1,10 @@
+const net = require('net');
 const { UUID_REGEX, REF_ID_REGEX, INVOICE_ID_REGEX } = require('../config/constants');
+const {
+    stripIpDecorations,
+    isRestrictedHostname,
+    isRestrictedIpForOutbound,
+} = require('./networkSecurity');
 
 function isValidEmail(email) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && email.length <= 255;
@@ -59,15 +65,75 @@ function parseOptionalIdempotencyKeyHeader(req) {
     return trimmed.toLowerCase();
 }
 
-function isSafeAssetUrl(rawUrl) {
-    if (!rawUrl) return true;
-    if (rawUrl.startsWith('/') && !rawUrl.startsWith('//')) return true;
+/**
+ * Validasi URL aset gambar / media yang aman dari XSS dan SSRF:
+ * - Mengizinkan path relatif aplikasi yang diawali `/` tunggal tanpa traversal `..`.
+ * - Menolak kredensial URL, skema berbahaya, host lokal/internal, metadata cloud,
+ *   dan seluruh rentang IP privat/loopback/link-local/CGNAT.
+ * - Mewajibkan skema `https:` di environment production.
+ */
+function isSafeAssetUrl(rawUrl, options = {}) {
+    const { allowEmpty = true } = options;
+    if (rawUrl === undefined || rawUrl === null || rawUrl === '') {
+        return Boolean(allowEmpty);
+    }
+    if (typeof rawUrl !== 'string') {
+        return false;
+    }
+
+    const trimmed = rawUrl.trim();
+    if (!trimmed) {
+        return Boolean(allowEmpty);
+    }
+    if (trimmed.length > 2048 || /[\u0000-\u001F\u007F]/.test(trimmed)) {
+        return false;
+    }
+
+    if (trimmed.startsWith('/')) {
+        if (trimmed.startsWith('//') || trimmed.includes('\\')) {
+            return false;
+        }
+        const pathOnly = trimmed.split('?')[0].split('#')[0];
+        if (/(^|\/)\.\.(\/|$)/.test(pathOnly)) {
+            return false;
+        }
+        return true;
+    }
+
+    let parsed;
     try {
-        const parsed = new URL(rawUrl);
-        return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        parsed = new URL(trimmed);
     } catch (_) {
         return false;
     }
+
+    if (parsed.username || parsed.password) {
+        return false;
+    }
+
+    const isProduction = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+    const requireHttps = options.requireHttps !== undefined ? Boolean(options.requireHttps) : isProduction;
+    if (requireHttps) {
+        if (parsed.protocol !== 'https:') return false;
+    } else if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        return false;
+    }
+
+    const hostname = stripIpDecorations(parsed.hostname).replace(/\.+$/, '');
+    if (!hostname || hostname === 'metadata.goog' || isRestrictedHostname(hostname)) {
+        return false;
+    }
+
+    const literalFamily = net.isIP(hostname);
+    if (literalFamily) {
+        return !isRestrictedIpForOutbound(hostname);
+    }
+
+    if (!hostname.includes('.')) {
+        return false;
+    }
+
+    return true;
 }
 
 function parseOptionalBoolean(val, fallback) {

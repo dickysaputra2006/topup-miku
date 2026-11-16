@@ -3,12 +3,14 @@ const express = require('express');
 const { MAX_BODY_SIZE } = require('./config/constants');
 const { pool: defaultPool } = require('./config/db');
 const { securityHeaders, corsMiddleware } = require('./middleware/securityHeaders');
+const { errorHandler } = require('./middleware/errorHandler');
 const { createRateLimiters } = require('./middleware/rateLimiters');
 const { createAuthMiddleware } = require('./middleware/auth');
 const { createH2HAuthMiddleware } = require('./middleware/h2hAuth');
 const { requireWaBotAdminToken } = require('./middleware/waBotAuth');
 const { rollbackTransactionResources } = require('./services/refundService');
 const { createNotificationService } = require('./services/notificationService');
+const { recordAdminAuditLog } = require('./services/auditLogService');
 const createAuthRoutes = require('./routes/auth.routes');
 const createDepositRoutes = require('./routes/deposit.routes');
 const createOrderRoutes = require('./routes/order.routes');
@@ -65,11 +67,11 @@ function createApp({ pool = defaultPool } = {}) {
     app.use(createDepositRoutes({ pool, protect }));
 
     // === ADMIN ENDPOINTS ===
-    app.use(createAdminDepositsRoutes({ pool, protectAdmin, createNotification }));
-    app.use(createAdminPaymentMethodsRoutes({ pool, protectAdmin }));
+    app.use(createAdminDepositsRoutes({ pool, protectAdmin, createNotification, recordAdminAuditLog }));
+    app.use(createAdminPaymentMethodsRoutes({ pool, protectAdmin, recordAdminAuditLog }));
 
-    app.use(createAdminBalanceRoutes({ pool, protectAdmin }));
-    app.use(createAdminGamesRoutes({ pool, protectAdmin }));
+    app.use(createAdminBalanceRoutes({ pool, protectAdmin, recordAdminAuditLog }));
+    app.use(createAdminGamesRoutes({ pool, protectAdmin, recordAdminAuditLog }));
     app.use(createAdminProductsRoutes({ pool, protectAdmin }));
 
     app.use(createAdminTransactionsRoutes({
@@ -77,10 +79,11 @@ function createApp({ pool = defaultPool } = {}) {
         protectAdmin,
         createNotification,
         rollbackTransactionResources,
+        recordAdminAuditLog,
     }));
     app.use(createAdminPromosRoutes({ pool, protectAdmin }));
     app.use(createAdminFlashSalesRoutes({ pool, protectAdmin }));
-    app.use(createAdminMarginsRoutes({ pool, protectAdmin }));
+    app.use(createAdminMarginsRoutes({ pool, protectAdmin, recordAdminAuditLog }));
 
     // === PUBLIC ENDPOINTS ===
     app.use(createCatalogRoutes({ pool, protect, softProtect }));
@@ -98,6 +101,8 @@ function createApp({ pool = defaultPool } = {}) {
         protectH2H,
         h2hUserLimiter,
     }));
+
+    app.use(errorHandler);
 
     return app;
 }

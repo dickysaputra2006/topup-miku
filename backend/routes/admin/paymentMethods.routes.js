@@ -1,10 +1,14 @@
 const express = require('express');
 const { ALLOWED_PAYMENT_METHOD_TYPES } = require('../../config/constants');
+const { logSafeError } = require('../../utils/logger');
 const {
     isSafeAssetUrl,
     parseOptionalBoolean,
     parseOptionalText,
 } = require('../../utils/validation');
+const {
+    recordAdminAuditLog: defaultRecordAdminAuditLog,
+} = require('../../services/auditLogService');
 
 function normalizePaymentMethodPayload(body, existing = null) {
     const src = body && typeof body === 'object' ? body : {};
@@ -43,7 +47,7 @@ function normalizePaymentMethodPayload(body, existing = null) {
     const qrisUrlRes = parseOptionalText(src, 'qris_image_url', existing?.qris_image_url ?? null, 1000);
     if (qrisUrlRes.error) return { error: 'URL gambar QRIS ' + qrisUrlRes.error };
     if (qrisUrlRes.value && !isSafeAssetUrl(qrisUrlRes.value)) {
-        return { error: 'URL gambar QRIS tidak valid. Gunakan URL http(s):// atau path /...' };
+        return { error: 'URL gambar QRIS tidak valid. Gunakan URL HTTPS publik yang aman atau path /...' };
     }
 
     const instrRes = parseOptionalText(src, 'instructions', existing?.instructions ?? null, 1000);
@@ -106,12 +110,19 @@ function normalizePaymentMethodPayload(body, existing = null) {
  * Daftarkan route admin untuk manajemen metode pembayaran (CRUD).
  */
 module.exports = function createAdminPaymentMethodsRoutes(deps) {
-    const { pool, protectAdmin } = deps || {};
+    const {
+        pool,
+        protectAdmin,
+        recordAdminAuditLog = defaultRecordAdminAuditLog,
+    } = deps || {};
     if (!pool || typeof pool.query !== 'function') {
         throw new TypeError('createAdminPaymentMethodsRoutes requires a valid pool');
     }
     if (typeof protectAdmin !== 'function') {
         throw new TypeError('createAdminPaymentMethodsRoutes requires a protectAdmin middleware');
+    }
+    if (typeof recordAdminAuditLog !== 'function') {
+        throw new TypeError('createAdminPaymentMethodsRoutes requires a recordAdminAuditLog function');
     }
 
     const router = express.Router();
@@ -126,7 +137,7 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
             const { rows } = await pool.query(sql);
             res.json(rows);
         } catch (error) {
-            console.error('Error fetching admin payment methods:', error);
+            logSafeError('Error fetching admin payment methods:', error);
             res.status(500).json({ message: 'Gagal memuat daftar metode pembayaran.' });
         }
     });
@@ -152,6 +163,15 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
                 pm.is_active, pm.sort_order
             ];
             const { rows } = await pool.query(sql, params);
+            const createdMethod = rows && rows[0] ? rows[0] : pm;
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.payment_method.create',
+                targetType: 'payment_method',
+                targetId: createdMethod && createdMethod.id ? String(createdMethod.id) : pm.code,
+                beforeData: null,
+                afterData: createdMethod,
+            });
             res.status(201).json({
                 message: 'Metode pembayaran berhasil ditambahkan.',
                 paymentMethod: rows[0]
@@ -160,7 +180,7 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
             if (error && error.code === '23505') {
                 return res.status(409).json({ message: 'Kode metode pembayaran sudah digunakan.' });
             }
-            console.error('Error creating payment method:', error);
+            logSafeError('Error creating payment method:', error);
             res.status(500).json({ message: 'Gagal menambahkan metode pembayaran.' });
         }
     });
@@ -203,6 +223,15 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
                 pm.is_active, pm.sort_order, methodId
             ];
             const { rows } = await pool.query(sql, params);
+            const updatedMethod = rows && rows[0] ? rows[0] : pm;
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.payment_method.update',
+                targetType: 'payment_method',
+                targetId: String(methodId),
+                beforeData: existingRes.rows[0],
+                afterData: updatedMethod,
+            });
             res.json({
                 message: 'Metode pembayaran berhasil diperbarui.',
                 paymentMethod: rows[0]
@@ -211,7 +240,7 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
             if (error && error.code === '23505') {
                 return res.status(409).json({ message: 'Kode metode pembayaran sudah digunakan.' });
             }
-            console.error('Error updating payment method:', error);
+            logSafeError('Error updating payment method:', error);
             res.status(500).json({ message: 'Gagal memperbarui metode pembayaran.' });
         }
     });
@@ -226,9 +255,17 @@ module.exports = function createAdminPaymentMethodsRoutes(deps) {
             if (!rows || rows.length === 0) {
                 return res.status(404).json({ message: 'Metode pembayaran tidak ditemukan.' });
             }
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.payment_method.delete',
+                targetType: 'payment_method',
+                targetId: String(methodId),
+                beforeData: rows[0],
+                afterData: { deleted: true },
+            });
             res.json({ message: `Metode pembayaran "${rows[0].name}" berhasil dihapus.` });
         } catch (error) {
-            console.error('Error deleting payment method:', error);
+            logSafeError('Error deleting payment method:', error);
             res.status(500).json({ message: 'Gagal menghapus metode pembayaran.' });
         }
     });
