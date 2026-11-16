@@ -164,6 +164,13 @@ SEC-001: Foxy Callback Security Hardening :: token di query ?token=, rotasi FOXY
 SEC-001: Foxy Callback Security Hardening :: transaksi sudah final atau tidak ditemukan -> Foxy tidak dipanggil, serta cooldown 5 detik pakai injectable clock
 SEC-001: Foxy Callback Security Hardening :: validateEnvironment wajib menolak startup production jika FOXY_CALLBACK_SECRET kosong
 SEC-001: Foxy Callback Security Hardening :: zero-trust payload: sn/message/status di req.body tidak pernah dipakai atau tersimpan
+Security Hardening Tests (SEC-016a..d) :: Global error handler menahan kebocoran stack trace, SQL, dan secret pada error 500 tak terduga
+Security Hardening Tests (SEC-016a..d) :: Global error handler mengembalikan JSON 400 untuk JSON rusak tanpa stack trace atau path server
+Security Hardening Tests (SEC-016a..d) :: Logger deep redaction menyensor password, token, jwt, api_key, secret, authorization, dan x-api-key
+Security Hardening Tests (SEC-016a..d) :: Mutasi sensitif admin mencatat audit log dengan action, target_type, target_id, dan IP/admin_id
+Security Hardening Tests (SEC-016a..d) :: Security headers ketat, CSP tanpa unsafe-eval/script unsafe-inline, HSTS kondisional, dan CORS whitelist 403 JSON
+Security Hardening Tests (SEC-016a..d) :: Validasi anti-SSRF menolak localhost, IP privat, link-local, metadata, dan HTTP di prod secara konsisten
+Security Hardening Tests (SEC-016a..d) :: auditLogService meredaksi rahasia payload, mencatat parameter terstruktur, dan fail-safe saat DB error
 Security: Error Exposure Tests :: should accept PARTIAL_REFUND callback with HTTP 200
 Security: Error Exposure Tests :: should apply rate limiter to register endpoint
 Security: Error Exposure Tests :: should block double refund with 409

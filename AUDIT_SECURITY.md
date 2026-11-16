@@ -115,3 +115,30 @@ Namun ditemukan beberapa celah **Kritis** dan **Tinggi** yang berdampak langsung
 
 5. **Wajibkan 2FA TOTP Admin + Audit Log (`SEC-005`, `SEC-010`) dan tambal kerentanan kritis/tinggi dependensi `npm audit` serta global error/CSP/TLS DB (`SEC-006`, `SEC-015`, `SEC-016`)**  
    *Alasan:* Melindungi titik kendali tertinggi aplikasi (panel admin dan IP/rate-limit middleware yang terimbas CVE kritis `proxy-addr` serta CVE tinggi `axios`/`jws`), menegakkan jejak audit setiap perubahan saldo/margin, serta menghentikan potensi kebocoran stack trace maupun sertifikat DB yang tak terverifikasi.
+
+---
+
+## Pembaruan Status Hardening (17 November 2026 — Branch `sec/hardening`)
+
+Catatan pembaruan implementasi pasca-refaktorisasi modular backend dan batch `SEC-016a` s.d. `SEC-016d`:
+
+- **Telah ditutup sebelum `sec/hardening`:**
+  - `SEC-001` (Callback Foxy fail-closed + `/v1/status` cross-check + zero-trust payload di `backend/routes/foxyCallback.routes.js`; fallback `?token=` sementara dijaga untuk kompatibilitas tes eksisting)
+  - `SEC-002` (Race condition kompensasi order & rollback promo/flash sale di `backend/services/orderService.js` dan `refundService.js`)
+  - `SEC-003` (Price guard pasca-diskon promo & invalidasi cache Foxy di `orderService.js` dan `foxyClient.js`)
+  - `SEC-004` (API key H2H 32 byte + SHA-256 hash + one-time display di `userApiKey.routes.js` & `h2hAuth.js`)
+  - `SEC-006` (Upgrade dependensi `axios`, `express`, `express-rate-limit`, `pg`, `jsonwebtoken`, diverifikasi `dependencies.test.js`)
+  - `SEC-007` & `SEC-008` (Anti-SSRF webhook + DNS pinning + HMAC `X-Signature` + CIDR allowlist di seluruh rute `/h2h/*`)
+  - `SEC-009` (`idempotency_key` / `ref_id` + cryptographic invoice ID + `migrations/011_add_idempotency_keys.sql`)
+  - `SEC-013` (3-phase order flow melepas DB pool sebelum HTTP eksternal + timeout Axios di validator & mailer)
+- **Ditutup / diperkuat pada branch `sec/hardening` (`SEC-016a..d`):**
+  - `SEC-016` & `SEC-023` (`SEC-016a`, `SEC-016c`): Menambah `backend/middleware/errorHandler.js` di akhir stack `backend/app.js` (JSON 400 bad JSON, 403 CORS, 413 payload, 500 generik tanpa stack trace/SQL), serta memperketat `backend/middleware/securityHeaders.js` (`script-src 'self'` tanpa `'unsafe-inline'`/`'unsafe-eval'`, `frame-ancestors 'none'`, `Strict-Transport-Security`, CORS allowlist eksplisit tanpa wildcard `'*'`).
+  - `SEC-010` (`SEC-016b` bagian Audit Log Admin): Menambah migrasi `migrations/012_add_admin_audit_logs.sql`, `backend/services/auditLogService.js`, dan pencatatan fail-safe pada 6 rute admin sensitif (`balance`, `deposits`, `transactions`, `margins`, `games`, `paymentMethods`). *(Catatan: IP allowlist WA bot & kewajiban alasan reject UI tetap dicatat untuk fase lanjutan).*
+  - `SEC-020` (`SEC-016c` bagian Redaksi Log): Menambah `redactSensitiveData` rekursif pada `backend/utils/logger.js` dan mengonversi `console.error` mentah pada `errorHandler`, `h2h.routes.js`, dan rute admin tersentuh ke `logSafeError`.
+  - `SEC-012` (`SEC-016c` bagian Anti-SSRF URL Aset): Memperketat `isSafeAssetUrl` di `backend/utils/validation.js` (wajib HTTPS di production, menolak `localhost`, IP privat/loopback/link-local/metadata cloud, kredensial, dan path traversal) serta menerapkannya konsisten di `paymentMethods.routes.js`, `games.routes.js`, dan `h2h.routes.js`.
+  - Teruji oleh 7 kasus baru di `backend/tests/integration/securityHardening.test.js`.
+- **Masih terbuka untuk roadmap fase berikutnya:**
+  - `SEC-005` (2FA TOTP Admin & path/IP allowlist panel admin)
+  - `SEC-011` (validasi skema penuh admin mis. Zod/Joi), `SEC-014` (`bcrypt` cost 12, expiry token reset `<= 30` menit + `FOR UPDATE`, migrasi JWT ke cookie `HttpOnly` + CSRF)
+  - `SEC-015` (verifikasi sertifikat DB CA `rejectUnauthorized: true`)
+  - `SEC-017`, `SEC-018`, `SEC-019`, `SEC-021`, `SEC-022`, `SEC-024`, `SEC-025`, `SEC-026`, `SEC-027`, `SEC-028`, `SEC-029` (rate limit admin/publik & Turnstile, penyempurnaan cron advisory lock & guard bulk-disable, ledger `balance_before`/`balance_after`, paginasi server, penghapusan `/api/test`, validator param ID seragam).

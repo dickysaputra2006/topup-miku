@@ -143,3 +143,25 @@
    - `git status --short` (kosong)
    - `git worktree list` (1 entri)
    - `git ls-files --eol` pada seluruh file yang diubah/ditambah (`i/lf w/lf`)
+
+---
+
+## 4. Ringkasan Eksekusi & Ukuran File Aktual
+
+- **Commit 1 (`SEC-016a` — `05ec7c8`):**
+  - `backend/middleware/errorHandler.js` (`50` baris, batas `<= 300`)
+  - `backend/app.js` (`108` -> `110` baris setelah Commit 2, batas `<= 150`)
+  - `docs/security-hardening-plan.md`
+- **Commit 2 (`SEC-016b` — `056f509`):**
+  - `migrations/012_add_admin_audit_logs.sql` (`40` baris)
+  - `migrations/README.md` (`255` baris)
+  - `backend/services/auditLogService.js` (`153` baris, batas `<= 600`)
+  - Rute admin (`balance.routes.js`: `104`, `deposits.routes.js`: `239`, `transactions.routes.js`: `186`, `margins.routes.js`: `142`, `games.routes.js`: `223`, `paymentMethods.routes.js`: `274` baris pasca Commit 3, seluruhnya `<= 400`)
+- **Commit 3 (`SEC-016c` — `c17b926`):**
+  - `backend/middleware/securityHeaders.js` (`63` baris, batas `<= 300`)
+  - `backend/utils/logger.js` (`143` baris, batas `<= 300`)
+  - `backend/utils/validation.js` (`189` baris, batas `<= 300`)
+  - `backend/routes/h2h.routes.js` (`187` baris, batas `<= 400`) + sanitasi `logSafeError` dan anti-SSRF pada rute admin tersentuh
+- **Commit 4 (`SEC-016d`):**
+  - `backend/tests/integration/securityHardening.test.js` (`7` kasus uji integrasi baru, batas `<= 800`)
+  - Pembaruan `docs/refactor-baseline-tests.txt` (`192` -> `199` tes), `AUDIT_SECURITY.md`, dan `docs/security-hardening-plan.md`
