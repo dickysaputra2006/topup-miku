@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const BOT_PRODUCT_BLACKLIST = ['FXGT', 'Via Login', 'Gifts'];
 const MAX_BODY_SIZE = '100kb';
 const DUPLICATE_ORDER_WINDOW_SECONDS = 15;
@@ -7,7 +9,6 @@ const REF_ID_REGEX = /^[A-Za-z0-9._:-]{1,100}$/;
 const INVOICE_ID_REGEX = /^[A-Za-z0-9_-]{3,64}$/;
 
 // === KONFIGURASI FOXY API ===
-const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const PROVIDER_TIMEOUT_MS = 15000; // 15 detik untuk semua request ke provider
 const FOXY_CACHE_TTL = 5 * 60 * 1000; // 5 menit
 
@@ -23,7 +24,7 @@ module.exports = {
     UUID_REGEX,
     REF_ID_REGEX,
     INVOICE_ID_REGEX,
-    FOXY_BASE_URL,
+    FOXY_BASE_URL: (process.env.FOXY_BASE_URL || 'https://api.foxygamestore.com').replace(/\/+$/, ''),
     PROVIDER_TIMEOUT_MS,
     FOXY_CACHE_TTL,
     ALLOWED_PAYMENT_METHOD_TYPES,

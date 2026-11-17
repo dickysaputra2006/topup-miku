@@ -4,7 +4,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const REQUIRED_ENV = ['JWT_SECRET'];
 const RECOMMENDED_RUNTIME_ENV = ['DB_USER', 'DB_HOST', 'DB_NAME', 'DB_PASSWORD', 'DB_PORT', 'FOXY_API_KEY'];
-// Optional local/dev integrations: CORS_ORIGINS, APP_BASE_URL, BREVO_API_KEY, PGS_KEY, PGS_API_KEY.
+// Optional local/dev integrations: FOXY_BASE_URL, CORS_ORIGINS, APP_BASE_URL, BREVO_API_KEY, PGS_KEY, PGS_API_KEY.
 const DEFAULT_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:3001',
@@ -48,6 +48,21 @@ function validateEnvironment({ strict = false } = {}) {
 
     if (!process.env.FOXY_CALLBACK_URL) {
         console.warn('[env] FOXY_CALLBACK_URL is not set. Using default: https://mikutopup.my.id/api/foxy/callback');
+    }
+
+    const rawFoxyBaseUrl = (process.env.FOXY_BASE_URL || '').trim();
+    if (rawFoxyBaseUrl) {
+        let parsedFoxyUrl = null;
+        try {
+            parsedFoxyUrl = new URL(rawFoxyBaseUrl);
+        } catch {
+            parsedFoxyUrl = null;
+        }
+        if (!parsedFoxyUrl || !['http:', 'https:'].includes(parsedFoxyUrl.protocol)) {
+            const message = 'FOXY_BASE_URL must be a valid http:// or https:// URL.';
+            if (strict) throw new Error(message);
+            console.warn(`[env] ${message}`);
+        }
     }
 }
 
