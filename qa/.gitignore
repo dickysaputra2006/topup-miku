@@ -1,0 +1,6 @@
+node_modules/
+artifacts/db_pre_audit.sql
+artifacts/playwright-report/
+artifacts/playwright-results.json
+test-results/
+*.log

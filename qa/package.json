@@ -1,0 +1,14 @@
+{
+  "name": "topup-miku-qa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "QA automation, mock provider, callback simulator, and Playwright E2E/API audit suite for topup-miku",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "mock:foxy": "node mocks/foxyMockServer.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}
