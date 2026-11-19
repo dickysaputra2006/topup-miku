@@ -237,20 +237,20 @@
     }
 
     function applyFlashSaleSelection() {
-        const { formatRupiah } = global.MikuShared.format;
-        const { fsProductId, fsPrice } = app.state;
+        const { fsProductId } = app.state;
         const { productListContainer } = app.state.els;
-        if (!fsProductId || !fsPrice || !productListContainer) return;
+        if (!fsProductId || !productListContainer) return;
 
-        const fsCard = productListContainer.querySelector(`[data-product-id="${fsProductId}"]`);
+        const safeId = (global.CSS && typeof global.CSS.escape === 'function')
+            ? global.CSS.escape(String(fsProductId))
+            : null;
+        const fsCard = safeId
+            ? productListContainer.querySelector(`.product-card-selectable[data-product-id="${safeId}"]`)
+            : Array.from(productListContainer.querySelectorAll('.product-card-selectable'))
+                .find((el) => el.dataset.productId === String(fsProductId));
         if (!fsCard) return;
 
-        fsCard.classList.add('is-flash-sale');
-        fsCard.dataset.price = String(fsPrice);
-        const priceEl = fsCard.querySelector('.product-card-price');
-        if (priceEl) priceEl.textContent = formatRupiah(Number(fsPrice));
-
-        handleProductSelection(fsCard, fsProductId, fsPrice, fsCard.dataset.name);
+        handleProductSelection(fsCard, fsCard.dataset.productId, fsCard.dataset.price, fsCard.dataset.name);
     }
 
     async function fetchGameData() {

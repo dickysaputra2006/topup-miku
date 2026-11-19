@@ -388,7 +388,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 card.className = 'flash-sale-card';
                 const link = document.createElement('a');
                 link.className = 'flash-sale-link';
-                link.href = `product.html?gameId=${encodeURIComponent(product.game_id)}&fsProductId=${encodeURIComponent(product.product_id)}&fsPrice=${encodeURIComponent(product.discount_price)}`;
+                link.href = `product.html?gameId=${encodeURIComponent(product.game_id)}&fsProductId=${encodeURIComponent(product.product_id)}`;
 
                 const media = document.createElement('div');
                 media.className = 'flash-sale-media';

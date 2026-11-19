@@ -97,6 +97,8 @@
 }
 
 .password-wrapper input {
+    width: 100%;
+    box-sizing: border-box;
     margin-bottom: 0;
     padding-right: 48px;
 }

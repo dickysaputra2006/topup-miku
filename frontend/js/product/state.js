@@ -10,7 +10,6 @@
         gameId: null,
         token: null,
         fsProductId: null,
-        fsPrice: null,
         products: [],
         selectedProductId: null,
         selectedProductName: '',
@@ -84,7 +83,7 @@
             productId: app.state.selectedProductId,
             targetGameId,
             targetServerId,
-            promoCode: (app.state.appliedPromo && app.state.appliedPromo.valid) ? promoCodeInput.value : null,
+            promoCode: (app.state.appliedPromo && app.state.appliedPromo.valid) ? (app.state.appliedPromo.promo_code || promoCodeInput.value.trim()) : null,
         };
     };
 
@@ -300,7 +299,6 @@
         app.state.gameId = gameId;
         app.state.token = token;
         app.state.fsProductId = params.get('fsProductId');
-        app.state.fsPrice = params.get('fsPrice');
         app.state.orderIdempotencyKey = generateIdempotencyKey();
         app.state.els = collectProductElements();
 
