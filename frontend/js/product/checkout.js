@@ -76,6 +76,9 @@
             summaryIgnEl,
             summaryProductEl,
             summaryMethodEl,
+            summaryBalanceRowEl,
+            summaryUserBalanceEl,
+            balanceMethodDescEl,
             summaryDiscountRowEl,
             summaryDiscountEl,
             targetGameIdInput,
@@ -97,6 +100,16 @@
         if (summaryProductEl) summaryProductEl.textContent = app.state.selectedProductId ? selectedName : '-';
         if (summaryMethodEl) {
             summaryMethodEl.textContent = PAYMENT_METHOD_LABELS[app.state.selectedPaymentMethod] || 'Belum dipilih';
+        }
+        const hasWalletBalance = Boolean(app.state.token) && Number.isFinite(app.state.userBalance);
+        if (summaryBalanceRowEl && summaryUserBalanceEl) {
+            summaryBalanceRowEl.classList.toggle('hidden', !hasWalletBalance);
+            if (hasWalletBalance) summaryUserBalanceEl.textContent = formatRupiah(app.state.userBalance);
+        }
+        if (balanceMethodDescEl) {
+            balanceMethodDescEl.textContent = hasWalletBalance
+                ? `Saldo tersedia: ${formatRupiah(app.state.userBalance)}`
+                : 'Proses instan dari saldo akun Anda';
         }
 
         const finalPrice = computeFinalPrice();

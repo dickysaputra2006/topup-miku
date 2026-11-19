@@ -101,7 +101,7 @@
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td class="td-mono"><a href="/invoice.html?id=${encodeURIComponent(tx.invoice_id)}" target="_blank" class="history-link">${escapeHtml(tx.invoice_id)}</a></td>
+                    <td class="td-mono"><a href="/invoice.html?id=${encodeURIComponent(tx.invoice_id)}" target="_blank" class="history-link cell-truncate" title="${escapeHtml(tx.invoice_id)}">${escapeHtml(tx.invoice_id)}</a></td>
                     <td>${escapeHtml(tx.user_name || '-')}</td>
                     <td><span class="cell-truncate" title="${escapeHtml(tx.product_name || '-')}">${escapeHtml(tx.product_name || '-')}</span></td>
                     <td class="td-numeric">${escapeHtml(formattedPrice)}</td>

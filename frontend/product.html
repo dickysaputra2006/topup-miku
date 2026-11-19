@@ -107,7 +107,7 @@
                     <button type="button" class="payment-method-card selected" data-method="balance" aria-pressed="true">
                         <span class="payment-method-info">
                             <strong>Saldo Akun MIKU Store</strong>
-                            <small>Proses instan dari saldo akun Anda</small>
+                            <small id="balance-method-desc">Proses instan dari saldo akun Anda</small>
                         </span>
                         <span class="payment-method-fee tabular-nums">Biaya Rp 0</span>
                     </button>
@@ -144,6 +144,7 @@
                     <p><span>Nickname</span> <strong id="summary-ign">-</strong></p>
                     <p><span>Nominal</span> <strong id="summary-product">-</strong></p>
                     <p><span>Metode Pembayaran</span> <strong id="summary-method">Saldo Akun</strong></p>
+                    <p id="summary-balance-row" class="hidden"><span>Saldo Anda</span> <strong id="summary-user-balance" class="tabular-nums">-</strong></p>
                     <p id="summary-discount-row" class="hidden"><span>Potongan Promo</span> <strong id="summary-discount" class="tabular-nums">-</strong></p>
                     <hr>
                     <p class="total-payment"><span>Total Bayar</span> <strong id="total-price" class="tabular-nums">-</strong></p>
@@ -188,6 +189,7 @@
                     <i class="fas fa-eye-slash toggle-password"></i>
                 </div>
                 <a href="#" class="forgot-password">Lupa Password?</a>
+                <p id="login-error-msg" class="auth-inline-error hidden" role="alert"></p>
                 <button type="submit">Masuk</button>
             </form>
             <p class="switch-form">Belum punya akun? <a href="#" id="show-register">Daftar di sini</a></p>

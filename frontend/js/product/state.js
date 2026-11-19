@@ -9,6 +9,7 @@
     app.state = {
         gameId: null,
         token: null,
+        userBalance: null,
         fsProductId: null,
         products: [],
         selectedProductId: null,
@@ -50,6 +51,9 @@
             summaryIgnEl: document.getElementById('summary-ign'),
             summaryProductEl: document.getElementById('summary-product'),
             summaryMethodEl: document.getElementById('summary-method'),
+            summaryBalanceRowEl: document.getElementById('summary-balance-row'),
+            summaryUserBalanceEl: document.getElementById('summary-user-balance'),
+            balanceMethodDescEl: document.getElementById('balance-method-desc'),
             summaryDiscountRowEl: document.getElementById('summary-discount-row'),
             summaryDiscountEl: document.getElementById('summary-discount'),
             userAuthButton: document.getElementById('user-auth-button'),
@@ -58,6 +62,7 @@
             promoResultEl: document.getElementById('promo-result'),
             modal: document.getElementById('auth-modal'),
             closeModalButton: document.getElementById('close-modal-btn'),
+            loginErrorMsgEl: document.getElementById('login-error-msg'),
             loginContainer: document.getElementById('login-container'),
             registerContainer: document.getElementById('register-container'),
             forgotPasswordContainer: document.getElementById('forgot-password-container'),
@@ -100,13 +105,22 @@
         return signature;
     };
 
+    function showLoginError(message) {
+        const { loginErrorMsgEl } = app.state.els;
+        if (!loginErrorMsgEl) return;
+        loginErrorMsgEl.textContent = message || '';
+        loginErrorMsgEl.classList.toggle('hidden', !message);
+    }
+
     app.showModal = function showModal() {
         const { modal } = app.state.els;
+        showLoginError('');
         if (modal) modal.classList.remove('hidden');
     };
 
     app.hideModal = function hideModal() {
         const { modal } = app.state.els;
+        showLoginError('');
         if (modal) modal.classList.add('hidden');
     };
 
@@ -125,26 +139,34 @@
                 });
                 if (!response.ok) throw new Error('Sesi tidak valid.');
                 const user = await response.json();
+                const parsedBalance = Number(user.balance);
+                app.state.userBalance = Number.isFinite(parsedBalance) ? parsedBalance : null;
                 userAuthButton.innerHTML = `<i class="fas fa-user-circle" aria-hidden="true"></i> ${escapeHtml(user.username)}`;
                 userAuthButton.href = 'dashboard.html';
                 userAuthButton.onclick = null;
             } catch (_) {
                 clearAuthToken();
                 app.state.token = null;
+                app.state.userBalance = null;
                 userAuthButton.textContent = 'Masuk';
                 userAuthButton.href = '#';
                 userAuthButton.onclick = (e) => { e.preventDefault(); app.showModal(); };
             }
         } else {
+            app.state.userBalance = null;
             userAuthButton.textContent = 'Masuk';
             userAuthButton.href = '#';
             userAuthButton.onclick = (e) => { e.preventDefault(); app.showModal(); };
+        }
+        if (app.checkout && typeof app.checkout.syncActionState === 'function') {
+            app.checkout.syncActionState();
         }
     }
 
     function bindAuthEvents() {
         const { setAuthToken } = global.MikuShared.auth;
         const {
+            modal,
             closeModalButton,
             showRegisterLink,
             showLoginLink,
@@ -158,6 +180,11 @@
         } = app.state.els;
 
         if (closeModalButton) closeModalButton.addEventListener('click', app.hideModal);
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) app.hideModal();
+            });
+        }
 
         if (showRegisterLink) {
             showRegisterLink.addEventListener('click', (e) => {
@@ -195,25 +222,28 @@
         });
 
         if (loginForm) {
+            loginForm.addEventListener('input', () => showLoginError(''));
             loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const data = {
-                    username: loginForm.querySelector('input[name="username"]').value,
-                    password: loginForm.querySelector('input[name="password"]').value,
-                };
+                showLoginError('');
+                const username = String(loginForm.querySelector('input[name="username"]').value || '').trim();
+                const password = loginForm.querySelector('input[name="password"]').value;
+                if (!username || !password) {
+                    showLoginError('Username dan kata sandi wajib diisi.');
+                    return;
+                }
                 try {
                     const response = await fetch(`${app.AUTH_API_URL}/login`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data),
+                        body: JSON.stringify({ username, password }),
                     });
                     const result = await response.json();
                     if (!response.ok) throw new Error(result.message);
                     setAuthToken(result.token);
-                    alert(result.message);
                     window.location.reload();
                 } catch (error) {
-                    alert(`Error Login: ${error.message}`);
+                    showLoginError(error.message || 'Gagal masuk. Periksa username dan kata sandi Anda.');
                 }
             });
         }

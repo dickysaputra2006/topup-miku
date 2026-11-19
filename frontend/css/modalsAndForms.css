@@ -151,6 +151,18 @@
     border-color: var(--accent-hover);
 }
 
+.auth-inline-error {
+    margin: 0 0 var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-sm);
+    background-color: var(--danger-soft);
+    color: var(--danger-text);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.4;
+}
+
 .switch-form {
     text-align: center;
     margin: var(--space-4) 0 0;
