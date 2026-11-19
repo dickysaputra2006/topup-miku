@@ -203,21 +203,28 @@ test('@bug-BUG-002: Editor Harga Manual Admin tidak boleh mengirim role "admin" 
     await page.goto(`${BASE_URL}/admin.html`, { waitUntil: 'networkidle' });
 
     const editBtn = page.locator('.manual-price-btn').first();
+    const productId = await editBtn.getAttribute('data-product-id');
     await editBtn.click();
     await expect(page.locator('#manual-price-editor')).toBeVisible();
+    await expect(page.locator('#manual-price-admin')).toHaveCount(0);
     const isManualChecked = await page.isChecked('#use-manual-prices-toggle');
     if (!isManualChecked) {
         await page.locator('#use-manual-prices-toggle').locator('..').click();
     }
     await page.fill('#manual-price-bronze', '1600');
-    await page.fill('#manual-price-admin', '1500');
 
-    const [saveRes] = await Promise.all([
-        page.waitForResponse((r) => r.url().includes('/manual-prices') && r.request().method() === 'POST'),
-        page.click('#save-manual-price-btn'),
-    ]);
-    // Expected: Admin UI saves cleanly (200), not 400 due to sending "admin"
-    expect(saveRes.status()).toBe(200);
+    try {
+        const [saveRes] = await Promise.all([
+            page.waitForResponse((r) => r.url().includes('/manual-prices') && r.request().method() === 'POST'),
+            page.click('#save-manual-price-btn'),
+        ]);
+        // Expected: Admin UI saves cleanly (200), not 400 due to sending "admin"
+        expect(saveRes.status()).toBe(200);
+    } finally {
+        if (productId) {
+            await pool.query('UPDATE products SET use_manual_prices = false, manual_prices = NULL WHERE id = $1', [productId]).catch(() => {});
+        }
+    }
 });
 
 test('@bug-BUG-016: Form Tambah Promo Admin harus mengirim promo-max-discount (max_discount_amount) ke backend', async ({ page }) => {

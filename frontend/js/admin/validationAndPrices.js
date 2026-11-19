@@ -349,9 +349,13 @@
                 if (!app.state.selectedProductIdForPrice) { app.notify('Produk belum dipilih.', 'error'); return; }
                 const saveBtn = document.getElementById('save-manual-price-btn');
                 if (saveBtn) saveBtn.disabled = true;
+                const allowedRoles = new Set(app.ADMIN_PRICE_ROLE_ORDER.map(r => r.toLowerCase()));
                 const manual_prices = {};
                 document.querySelectorAll('#manual-price-inputs-container input').forEach(input => {
-                    if (input.value !== '') manual_prices[input.dataset.roleName] = parseFloat(input.value);
+                    const roleKey = String(input.dataset.roleName || '').toLowerCase();
+                    if (input.value !== '' && allowedRoles.has(roleKey)) {
+                        manual_prices[roleKey] = parseFloat(input.value);
+                    }
                 });
                 const data = {
                     use_manual_prices: document.getElementById('use-manual-prices-toggle').checked,
@@ -365,6 +369,7 @@
                     if (!response.ok) throw new Error(result.message);
                     closeManualPriceModal();
                     app.notify(result.message || 'Harga jual manual disimpan.', 'success');
+                    await app.catalog.fetchAdminProducts();
                 } catch (error) {
                     app.notify(`Error: ${error.message}`, 'error');
                 } finally {

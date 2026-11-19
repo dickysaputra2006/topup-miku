@@ -163,6 +163,13 @@
                 const rules = {};
                 if (document.getElementById('promo-min-price').value) rules.min_price = parseInt(document.getElementById('promo-min-price').value, 10);
                 if (document.getElementById('promo-max-uses-user').value) rules.max_uses_per_user = parseInt(document.getElementById('promo-max-uses-user').value, 10);
+                const maxDiscountRaw = document.getElementById('promo-max-discount')?.value;
+                if (maxDiscountRaw !== undefined && String(maxDiscountRaw).trim() !== '') {
+                    const maxDiscountVal = parseInt(maxDiscountRaw, 10);
+                    if (Number.isFinite(maxDiscountVal) && maxDiscountVal > 0) {
+                        rules.max_discount_amount = maxDiscountVal;
+                    }
+                }
                 if (document.getElementById('promo-allowed-games').value) rules.allowed_game_ids = document.getElementById('promo-allowed-games').value.split(',').map(id => parseInt(id.trim(), 10));
                 if (document.getElementById('promo-allowed-products').value) rules.allowed_product_ids = document.getElementById('promo-allowed-products').value.split(',').map(id => parseInt(id.trim(), 10));
 
