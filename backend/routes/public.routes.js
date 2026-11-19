@@ -82,7 +82,7 @@ module.exports = function createPublicRoutes(deps) {
                 FROM products p 
                 JOIN games g ON p.game_id = g.id
                 LEFT JOIN game_margins gm ON p.game_id = gm.game_id
-                WHERE p.status = 'Active' ORDER BY g.name ASC, p.price ASC
+                WHERE p.status = 'Active' AND g.status = 'Active' ORDER BY g.name ASC, p.price ASC
             `);
             const { rows: roles } = await pool.query(`SELECT name, margin_percent FROM roles ORDER BY id ASC`);
             const { rows: games } = await pool.query("SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC");
@@ -95,9 +95,9 @@ module.exports = function createPublicRoutes(deps) {
             const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, Number(fs.discount_price)]));
 
             const productsWithRolePrices = products.map(product => {
-                const productWithPrices = { 
-                    id: product.id, game_name: product.game_name, product_name: product.name, 
-                    provider_sku: product.provider_sku, base_price: product.price 
+                const productWithPrices = {
+                    id: product.id, game_name: product.game_name, product_name: product.name,
+                    provider_sku: product.provider_sku
                 }; 
                 
                 roles.forEach(role => {

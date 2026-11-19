@@ -109,7 +109,7 @@ module.exports = function createAuthRoutes(deps) {
             if (!username || !password) {
                 return res.status(400).json({ message: 'Input tidak boleh kosong.' });
             }
-            const sql = 'SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = $1 OR u.email = $2';
+            const sql = 'SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.username = $1 OR LOWER(u.email) = LOWER($2)';
             const { rows } = await pool.query(sql, [username, username]);
             if (rows.length === 0) {
                 return res.status(401).json({ message: 'Username atau password salah.' });
@@ -119,7 +119,14 @@ module.exports = function createAuthRoutes(deps) {
             if (!isPasswordMatch) {
                 return res.status(401).json({ message: 'Username atau password salah.' });
             }
-            const token = jwt.sign({ id: user.id, username: user.username, role: user.role_name }, JWT_SECRET, { expiresIn: '1d' });
+            const tokenVersion = user.token_version !== undefined && user.token_version !== null
+                ? Number(user.token_version)
+                : 1;
+            const token = jwt.sign(
+                { id: user.id, username: user.username, role: user.role_name, tokenVersion },
+                JWT_SECRET,
+                { expiresIn: '1d' }
+            );
             res.status(200).json({ message: 'Login berhasil!', token });
         } catch (error) {
             logSafeError('Error during login:', error);
@@ -238,7 +245,7 @@ module.exports = function createAuthRoutes(deps) {
 
             const hashedPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
             await client.query(
-                'UPDATE users SET password = $1 WHERE email = $2',
+                'UPDATE users SET password = $1, token_version = COALESCE(token_version, 1) + 1 WHERE LOWER(email) = LOWER($2)',
                 [hashedPassword, userEmail]
             );
 

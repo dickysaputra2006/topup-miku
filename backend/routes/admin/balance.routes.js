@@ -1,8 +1,36 @@
 const express = require('express');
 const { logSafeError } = require('../../utils/logger');
 const {
+    getBodyObject,
+    requireString,
+    requirePositiveInt,
+} = require('../../utils/schemaValidators');
+const {
     recordAdminAuditLog: defaultRecordAdminAuditLog,
 } = require('../../services/auditLogService');
+
+function validateBalanceAdjustmentPayload(req) {
+    const bodyRes = getBodyObject(req);
+    if (bodyRes.error) return { error: bodyRes.error };
+    const body = bodyRes.value;
+
+    const usernameRes = requireString(body.username, 'Username', { min: 1, max: 255 });
+    if (usernameRes.error) return { error: usernameRes.error };
+
+    const amountRes = requirePositiveInt(body.amount, 'Jumlah saldo', { min: 1, max: 100000000 });
+    if (amountRes.error) return { error: amountRes.error };
+
+    const descriptionRes = requireString(body.description, 'Deskripsi', { min: 1, max: 255 });
+    if (descriptionRes.error) return { error: descriptionRes.error };
+
+    return {
+        value: {
+            username: usernameRes.value,
+            amount: amountRes.value,
+            description: descriptionRes.value,
+        },
+    };
+}
 
 /**
  * Daftarkan route admin untuk manajemen saldo manual (add/reduce).
@@ -26,19 +54,30 @@ module.exports = function createAdminBalanceRoutes(deps) {
     const router = express.Router();
 
     router.post('/api/admin/balance/add', protectAdmin, async (req, res) => {
+        const parsed = validateBalanceAdjustmentPayload(req);
+        if (parsed.error) return res.status(400).json({ message: parsed.error });
+        const { username, amount: addedAmount, description } = parsed.value;
+
         const client = await pool.connect();
+        let inTx = false;
         try {
             await client.query('BEGIN');
-            const { username, amount, description } = req.body;
-            if (!username || !amount || !description || isNaN(amount) || amount <= 0) throw new Error('Input tidak valid.');
-            const { rows } = await client.query('SELECT id, balance FROM users WHERE username = $1 OR email = $2 FOR UPDATE', [username, username]);
-            if (rows.length === 0) throw new Error('Pengguna tidak ditemukan.');
+            inTx = true;
+            const { rows } = await client.query(
+                'SELECT id, balance FROM users WHERE username = $1 OR LOWER(email) = LOWER($2) FOR UPDATE',
+                [username, username]
+            );
+            if (rows.length === 0) {
+                await client.query('ROLLBACK');
+                inTx = false;
+                return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+            }
             const user = rows[0];
-            const addedAmount = parseInt(amount);
             await client.query('UPDATE users SET balance = balance + $1 WHERE id = $2', [addedAmount, user.id]);
             const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
             await client.query(historySql, [user.id, addedAmount, 'Deposit', description, `ADMIN_ADD-${Date.now()}`]);
             await client.query('COMMIT');
+            inTx = false;
             await recordAdminAuditLog(pool, {
                 req,
                 action: 'admin.balance.add',
@@ -46,15 +85,15 @@ module.exports = function createAdminBalanceRoutes(deps) {
                 targetId: String(user.id),
                 beforeData: { balance: Number(user.balance) },
                 afterData: {
-                    username: String(username),
+                    username,
                     amount: addedAmount,
                     balance: Number(user.balance) + addedAmount,
-                    description: String(description),
+                    description,
                 },
             });
-            res.json({ message: `Saldo sebesar ${amount} berhasil ditambahkan ke akun ${username}.` });
+            res.json({ message: `Saldo sebesar ${addedAmount} berhasil ditambahkan ke akun ${username}.` });
         } catch (error) {
-            await client.query('ROLLBACK');
+            if (inTx) await client.query('ROLLBACK').catch(() => {});
             logSafeError('Error adding balance manually:', error);
             res.status(500).json({ message: 'Gagal menambah saldo.' });
         } finally {
@@ -63,20 +102,35 @@ module.exports = function createAdminBalanceRoutes(deps) {
     });
 
     router.post('/api/admin/balance/reduce', protectAdmin, async (req, res) => {
+        const parsed = validateBalanceAdjustmentPayload(req);
+        if (parsed.error) return res.status(400).json({ message: parsed.error });
+        const { username, amount: numericAmount, description } = parsed.value;
+
         const client = await pool.connect();
+        let inTx = false;
         try {
             await client.query('BEGIN');
-            const { username, amount, description } = req.body;
-            const numericAmount = Number(amount);
-            if (!username || !description || !Number.isFinite(numericAmount) || numericAmount <= 0) throw new Error('Input tidak valid.');
-            const { rows } = await client.query('SELECT id, balance FROM users WHERE username = $1 OR email = $2 FOR UPDATE', [username, username]);
-            if (rows.length === 0) throw new Error('Pengguna tidak ditemukan.');
+            inTx = true;
+            const { rows } = await client.query(
+                'SELECT id, balance FROM users WHERE username = $1 OR LOWER(email) = LOWER($2) FOR UPDATE',
+                [username, username]
+            );
+            if (rows.length === 0) {
+                await client.query('ROLLBACK');
+                inTx = false;
+                return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+            }
             const user = rows[0];
-            if (Number(user.balance) < numericAmount) throw new Error('Saldo pengguna tidak mencukupi untuk dikurangi.');
+            if (Number(user.balance) < numericAmount) {
+                await client.query('ROLLBACK');
+                inTx = false;
+                return res.status(400).json({ message: 'Saldo pengguna tidak mencukupi untuk dikurangi.' });
+            }
             await client.query('UPDATE users SET balance = balance - $1 WHERE id = $2 AND balance >= $1', [numericAmount, user.id]);
             const historySql = 'INSERT INTO balance_history (user_id, amount, type, description, reference_id) VALUES ($1, $2, $3, $4, $5)';
             await client.query(historySql, [user.id, -numericAmount, 'Refund', description, `ADMIN_REDUCE-${Date.now()}`]);
             await client.query('COMMIT');
+            inTx = false;
             await recordAdminAuditLog(pool, {
                 req,
                 action: 'admin.balance.reduce',
@@ -84,15 +138,15 @@ module.exports = function createAdminBalanceRoutes(deps) {
                 targetId: String(user.id),
                 beforeData: { balance: Number(user.balance) },
                 afterData: {
-                    username: String(username),
+                    username,
                     amount: numericAmount,
                     balance: Number(user.balance) - numericAmount,
-                    description: String(description),
+                    description,
                 },
             });
             res.json({ message: `Saldo akun ${username} berhasil dikurangi sebesar ${numericAmount}.` });
         } catch (error) {
-            await client.query('ROLLBACK');
+            if (inTx) await client.query('ROLLBACK').catch(() => {});
             logSafeError('Error reducing balance manually:', error);
             res.status(500).json({ message: 'Gagal mengurangi saldo.' });
         } finally {

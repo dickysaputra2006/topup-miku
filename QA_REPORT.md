@@ -2,7 +2,7 @@
 
 ## 1. Ringkasan Eksekutif & Verdict Kesiapan
 
-- **Verdict Kesiapan:** **`BELUM SIAP`** *(untuk rilis penuh ke pengguna; **Batch 1 — `BUG-026`, `BUG-007`, `BUG-024`, `BUG-004`, `BUG-003`, `BUG-006` telah diperbaiki & lulus regresi pada branch `fix/pricing-and-provider-safety`**, tersisa Batch 2/3 untuk temuan keamanan/UI lainnya)*
+- **Verdict Kesiapan:** **`BELUM SIAP`** *(untuk rilis penuh ke pengguna; **Batch 1 — `BUG-026`, `BUG-007`, `BUG-024`, `BUG-004`, `BUG-003`, `BUG-006` telah diperbaiki & lulus regresi pada branch `fix/pricing-and-provider-safety`**, dan **Batch 2A — `BUG-008`, `BUG-011`, `BUG-005`, `BUG-009`, `BUG-015` telah diperbaiki pada branch `fix/sec-batch-2a`**, tersisa Batch 2B/3 untuk temuan keamanan/UI lainnya)*
 - **Ringkasan Eksekutif:**
   Audit penuh (statis, eksplorasi browser multi-viewport, E2E top-up/deposit/H2H dengan mock provider, dan pengujian keamanan/konkurensi DB) mengonfirmasi fondasi keamanan inti **kuat** pada jalur 3-fase order (`FOR UPDATE` + lock-free provider HTTP), anti-double-refund, Zero-Trust callback Foxy, SSRF webhook DNS pinning, serta bcrypt cost 12. Namun ditemukan **26 bug terbukti (`CONFIRMED`)**, termasuk bug berdampak bisnis langsung: item flash sale utama `DUMMY-ML-86` tidak bisa dibeli (`400 Harga sedang diperbarui`), cache harga Foxy 5 menit memungkinkan penjualan rugi saat harga provider naik, cron/`sync-products` mengabaikan `FOXY_BASE_URL`, endpoint publik `POST /api/test` terbuka tanpa auth, editor Harga Manual Admin gagal `HTTP 400`, serta form Promo Admin diam-diam membuang batas diskon maksimum (`promo-max-discount`). Perlu menyelesaikan minimal prioritas #1–#8 sebelum go-live.
 
@@ -143,7 +143,7 @@
 - **Rekomendasi:** Tambahkan `AND (max_uses IS NULL OR uses_count < max_uses)` dan cek `discount_price < normalPrice` pada seluruh query katalog.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-004`).
 
-### `[BUG-005]` `POST /api/admin/balance/add` Menerima `"1e5"` (`+Rp 1`) & `0.5` (Mutasi `Rp 0`) — `HIGH` — `CONFIRMED`
+### `[BUG-005]` `POST /api/admin/balance/add` Menerima `"1e5"` (`+Rp 1`) & `0.5` (Mutasi `Rp 0`) — `HIGH` — `FIXED (Batch 2A)`
 - **Area:** Business Logic / Validation / Ledger Integrity
 - **Langkah reproduksi:**
   1. Kirim `POST /api/admin/balance/add` dengan `{ userId, amount: "1e5" }` lalu `{ userId, amount: 0.5 }` memakai token admin.
@@ -168,7 +168,7 @@
 - **Rekomendasi:** Tolak respons `/v1/order` jika `typeof foxyRes.data !== 'object' || foxyRes.data === null || foxyRes.data.status !== true`.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-006`).
 
-### `[BUG-008]` User Tidak Bisa Mengubah Email Setelah Pernah Meminta Reset Password (`500` FK Error) — `HIGH` — `CONFIRMED`
+### `[BUG-008]` User Tidak Bisa Mengubah Email Setelah Pernah Meminta Reset Password (`500` FK Error) — `HIGH` — `FIXED (Batch 2A)`
 - **Area:** Database Schema / Member Profile
 - **Langkah reproduksi:**
   1. Panggil `POST /api/auth/forgot-password` untuk email user (menyisipkan baris di `password_resets`).
@@ -181,7 +181,7 @@
 - **Rekomendasi:** Tambahkan migrasi `ON UPDATE CASCADE` pada `fk_password_resets_email` atau hapus baris `password_resets` lama dalam transaksi `PUT /api/user/profile` saat email berubah.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-008`).
 
-### `[BUG-009]` `PUT /api/user/whitelisted-ips` dengan Elemen Non-String (`[123]`) Menghapus Seluruh IP Allowlist — `HIGH` — `CONFIRMED`
+### `[BUG-009]` `PUT /api/user/whitelisted-ips` dengan Elemen Non-String (`[123]`) Menghapus Seluruh IP Allowlist — `HIGH` — `FIXED (Batch 2A)`
 - **Area:** Security / H2H Configuration
 - **Langkah reproduksi:**
   1. User punya `whitelisted_ips = ['203.0.113.10']`.
@@ -206,7 +206,7 @@
 - **Rekomendasi:** Tambahkan `GET /h2h/order/:refOrInvoiceId` dan `GET /h2h/transactions` (paginasi terikat `req.user.id`).
 - **Test regresi:** `qa/tests/03-h2h-and-security.api.spec.js` (`@bug-BUG-010`).
 
-### `[BUG-011]` JWT Lama Tetap Valid Setelah Ganti Password & Login Email Huruf Campuran Gagal `401` — `HIGH` — `CONFIRMED`
+### `[BUG-011]` JWT Lama Tetap Valid Setelah Ganti Password & Login Email Huruf Campuran Gagal `401` — `HIGH` — `FIXED (Batch 2A)`
 - **Area:** Security / Authentication (`SEC-014`)
 - **Langkah reproduksi:**
   1. Login menggunakan email versi kapital campuran (`QA.TEST@LOCAL.TEST`) dari akun yang terdaftar lowercase.
@@ -282,7 +282,7 @@
 - **Rekomendasi:** Teruskan `recordAdminAuditLog` dan catat audit log pada seluruh rute mutasi admin & WA Bot.
 - **Test regresi:** `qa/tests/03-h2h-and-security.api.spec.js` (`@bug-BUG-014`).
 
-### `[BUG-015]` `/api/public/compare-prices` Membocorkan Produk Game `Inactive` & Kolom Modal `base_price` — `MEDIUM` — `CONFIRMED`
+### `[BUG-015]` `/api/public/compare-prices` Membocorkan Produk Game `Inactive` & Kolom Modal `base_price` — `MEDIUM` — `FIXED (Batch 2A)`
 - **Area:** Data Exposure / Pricing Leak
 - **Langkah reproduksi:**
   1. Buat game `Inactive` yang memiliki produk `Active`, lalu panggil `GET /api/public/compare-prices`.
