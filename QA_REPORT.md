@@ -2,7 +2,7 @@
 
 ## 1. Ringkasan Eksekutif & Verdict Kesiapan
 
-- **Verdict Kesiapan:** **`BELUM SIAP`** *(untuk rilis penuh ke pengguna tanpa perbaikan)*
+- **Verdict Kesiapan:** **`BELUM SIAP`** *(untuk rilis penuh ke pengguna; **Batch 1 — `BUG-026`, `BUG-007`, `BUG-024`, `BUG-004`, `BUG-003`, `BUG-006` telah diperbaiki & lulus regresi pada branch `fix/pricing-and-provider-safety`**, tersisa Batch 2/3 untuk temuan keamanan/UI lainnya)*
 - **Ringkasan Eksekutif:**
   Audit penuh (statis, eksplorasi browser multi-viewport, E2E top-up/deposit/H2H dengan mock provider, dan pengujian keamanan/konkurensi DB) mengonfirmasi fondasi keamanan inti **kuat** pada jalur 3-fase order (`FOR UPDATE` + lock-free provider HTTP), anti-double-refund, Zero-Trust callback Foxy, SSRF webhook DNS pinning, serta bcrypt cost 12. Namun ditemukan **26 bug terbukti (`CONFIRMED`)**, termasuk bug berdampak bisnis langsung: item flash sale utama `DUMMY-ML-86` tidak bisa dibeli (`400 Harga sedang diperbarui`), cache harga Foxy 5 menit memungkinkan penjualan rugi saat harga provider naik, cron/`sync-products` mengabaikan `FOXY_BASE_URL`, endpoint publik `POST /api/test` terbuka tanpa auth, editor Harga Manual Admin gagal `HTTP 400`, serta form Promo Admin diam-diam membuang batas diskon maksimum (`promo-max-discount`). Perlu menyelesaikan minimal prioritas #1–#8 sebelum go-live.
 
@@ -52,7 +52,7 @@
 
 ## 5. Daftar Bug Terbukti (`CONFIRMED`) — Diurutkan Berdasarkan Severity
 
-### `[BUG-024]` Flash Sale Unggulan (`DUMMY-ML-86`, Rp 17.500) Selalu Gagal Checkout `HTTP 400` & Admin Bisa Buat Flash Sale di Bawah Modal — `CRITICAL` — `CONFIRMED`
+### `[BUG-024]` Flash Sale Unggulan (`DUMMY-ML-86`, Rp 17.500) Selalu Gagal Checkout `HTTP 400` & Admin Bisa Buat Flash Sale di Bawah Modal — `CRITICAL` — `FIXED (Batch 1)`
 - **Area:** Business Logic / Checkout / Admin Flash Sale
 - **Langkah reproduksi:**
   1. Buka `http://localhost:3000` atau klik kartu Flash Sale `86 Diamonds (Rp 17.500)` (`product.html?gameId=1&fsProductId=2&fsPrice=17500.00`).
@@ -65,7 +65,7 @@
 - **Rekomendasi:** Validasi `discount_price >= product.price` (atau tandai subsidi resmi) pada `POST /api/admin/flash-sales`, perbaiki harga flash sale seed (`>= 19.000`), dan samakan role baseline storefront ke `BRONZE`.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-024`).
 
-### `[BUG-026]` Cache Produk Foxy 5 Menit Loloskan Penjualan Rugi Saat Harga Provider Naik — `CRITICAL` — `CONFIRMED`
+### `[BUG-026]` Cache Produk Foxy 5 Menit Loloskan Penjualan Rugi Saat Harga Provider Naik — `CRITICAL` — `FIXED (Batch 1)`
 - **Area:** Business Logic / Pricing / Financial Safety
 - **Langkah reproduksi:**
   1. Lakukan 1 order normal `DUMMY-ML-19` (modal `5.000`, jual BRONZE `5.601`) sehingga cache `foxyProductCache` terisi.
@@ -79,7 +79,7 @@
 - **Rekomendasi:** Nonaktifkan cache untuk jalur `POST /api/order` & `/h2h/order` (atau TTL sangat singkat mis. 5–15 detik) serta simpan `provider_cost` di `transactions`.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-026`).
 
-### `[BUG-007]` Harga Modal Foxy Non-Numerik (`NaN`) Menembus Price Guard — `CRITICAL` — `CONFIRMED`
+### `[BUG-007]` Harga Modal Foxy Non-Numerik (`NaN`) Menembus Price Guard — `CRITICAL` — `FIXED (Batch 1)`
 - **Area:** Business Logic / Pricing
 - **Langkah reproduksi:**
   1. Konfigurasikan respons `/v1/products` mengembalikan `product_price: "NOT_A_NUMBER"` pada SKU yang dipesan.
@@ -117,7 +117,7 @@
 - **Rekomendasi:** Hapus `'Admin'` dari `ADMIN_PRICE_ROLE_ORDER` (dan `PUBLIC_ROLE_ORDER` bila perlu) serta refresh tabel produk setelah simpan.
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-002`).
 
-### `[BUG-003]` `jobs/pendingTransactions.js` & `jobs/productSync.js` Abaikan `FOXY_BASE_URL` Env — `HIGH` — `CONFIRMED`
+### `[BUG-003]` `jobs/pendingTransactions.js` & `jobs/productSync.js` Abaikan `FOXY_BASE_URL` Env — `HIGH` — `FIXED (Batch 1)`
 - **Area:** Configuration / Cron & Provider Safety
 - **Langkah reproduksi:**
   1. Set `FOXY_BASE_URL=http://127.0.0.1:4010` di `.env`.
@@ -130,7 +130,7 @@
 - **Rekomendasi:** Impor `FOXY_BASE_URL` & `PROVIDER_TIMEOUT_MS` dari `../config/constants.js`.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-003`).
 
-### `[BUG-004]` Flash Sale yang Kuotanya Sudah Habis Tetap Diiklankan di Katalog Publik & H2H — `HIGH` — `CONFIRMED`
+### `[BUG-004]` Flash Sale yang Kuotanya Sudah Habis Tetap Diiklankan di Katalog Publik & H2H — `HIGH` — `FIXED (Batch 1)`
 - **Area:** Business Logic / Pricing Consistency
 - **Langkah reproduksi:**
   1. Buat entri `flash_sales` aktif dengan `max_uses = 1, uses_count = 1` untuk produk `DUMMY-FF-50` (`discount_price = 6600`).
@@ -155,7 +155,7 @@
 - **Rekomendasi:** Gunakan `requirePositiveInt` & `getBodyObject` dari `utils/schemaValidators.js` pada `balance.routes.js`.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-005`).
 
-### `[BUG-006]` Respons HTML/Non-JSON `200 OK` dari Provider Dianggap Order Berhasil (`201 Pending`) — `HIGH` — `CONFIRMED`
+### `[BUG-006]` Respons HTML/Non-JSON `200 OK` dari Provider Dianggap Order Berhasil (`201 Pending`) — `HIGH` — `FIXED (Batch 1)`
 - **Area:** Provider Integration / Order Reliability
 - **Langkah reproduksi:**
   1. Set mock Foxy `orderBehavior = 'invalid_json'` (mengembalikan HTTP `200` HTML Cloudflare/error page).
