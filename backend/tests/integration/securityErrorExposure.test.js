@@ -81,6 +81,7 @@ describe('Security: Error Exposure Tests', () => {
         mock.method(pool, 'connect', async () => ({
             query: async (sql) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK') return {};
+                if (typeof sql === 'string' && sql.includes('SELECT token_version FROM users')) return { rows: [] };
                 throw new Error('Another sensitive error');
             },
             release: () => {}

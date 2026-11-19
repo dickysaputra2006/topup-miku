@@ -110,7 +110,7 @@ module.exports = function createUserRoutes(deps) {
             const isPasswordMatch = await bcrypt.compare(currentPassword, user.password);
             if (!isPasswordMatch) return res.status(401).json({ message: 'Password saat ini salah.' });
             const hashedNewPassword = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
-            const sqlUpdate = 'UPDATE users SET password = $1 WHERE id = $2';
+            const sqlUpdate = 'UPDATE users SET password = $1, token_version = COALESCE(token_version, 1) + 1 WHERE id = $2';
             await pool.query(sqlUpdate, [hashedNewPassword, req.user.id]);
             res.json({ message: 'Password berhasil diubah.' });
         } catch (error) {

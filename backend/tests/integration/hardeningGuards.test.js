@@ -297,7 +297,8 @@ describe('Phase 8: Audit 2 Concurrency & Hardening Guards', () => {
         assert.strictEqual(resInvalid.status, 400);
 
         // 4. Error 23505 duplikat nomor_wa
-        mock.method(pool, 'query', async () => {
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT token_version FROM users')) return { rows: [] };
             const err = new Error('duplicate key value violates unique constraint');
             err.code = '23505';
             err.constraint = 'uq_users_nomor_wa';
@@ -315,7 +316,8 @@ describe('Phase 8: Audit 2 Concurrency & Hardening Guards', () => {
         pool.query.mock.restore();
 
         // 5. Error 23505 duplikat email
-        mock.method(pool, 'query', async () => {
+        mock.method(pool, 'query', async (sql) => {
+            if (typeof sql === 'string' && sql.includes('SELECT token_version FROM users')) return { rows: [] };
             const err = new Error('duplicate key value violates unique constraint');
             err.code = '23505';
             err.constraint = 'users_email_key';

@@ -24,6 +24,7 @@ describe('QA Batch 1: Pricing Integrity & Provider Safety Guards', () => {
     function mockOrderClient({ balance = 100000, basePrice = 5000, marginPercent = 12, sku = 'SKU-B1-1', onRefund } = {}) {
         let balanceDeducted = false;
         let refunded = false;
+        const queryMock = mock.method(pool, 'query', async () => ({ rows: [] }));
         const connectMock = mock.method(pool, 'connect', async () => ({
             query: async (sql) => {
                 if (sql === 'BEGIN' || sql === 'ROLLBACK' || sql === 'COMMIT') return {};
@@ -75,7 +76,14 @@ describe('QA Batch 1: Pricing Integrity & Provider Safety Guards', () => {
             release: () => {},
         }));
         return {
-            connectMock,
+            connectMock: {
+                mock: {
+                    restore: () => {
+                        queryMock.mock.restore();
+                        connectMock.mock.restore();
+                    },
+                },
+            },
             getState: () => ({ balanceDeducted, refunded }),
         };
     }

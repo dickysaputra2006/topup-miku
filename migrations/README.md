@@ -253,3 +253,13 @@ Apply manually:
 ```powershell
 psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\012_add_admin_audit_logs.sql
 ```
+
+### `013_auth_revocation_and_email_cascade.sql`
+- **BUG-008 & BUG-011:** Adds `users.token_version INTEGER NOT NULL DEFAULT 1` for JWT revocation after password change/reset, and updates `fk_password_resets_email` on `password_resets(email)` to include `ON UPDATE CASCADE` so users who requested password reset can still update their profile email.
+- **Safe & Idempotent:** Additive column (`ADD COLUMN IF NOT EXISTS`) plus idempotent constraint refresh inside a transaction.
+
+Apply manually:
+
+```powershell
+psql "postgresql://USER:PASSWORD@localhost:5432/DB_NAME" -f .\migrations\013_auth_revocation_and_email_cascade.sql
+```

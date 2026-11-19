@@ -58,3 +58,25 @@
 - [x] **COMMIT 2 (`a0f7fb8` — `BUG-024`, `BUG-004`):** Validasi modal flash sale di `admin/flashSales.routes.js` (`128` baris), filter kuota & `flashPrice < normalPrice` di `priceService.js` (`293` baris), `h2h.routes.js` (`183` baris), `public.routes.js` (`382` baris) + baseline `BRONZE`, serta seed `DUMMY-ML-86` = `19500`.
 - [x] **COMMIT 3 (`de5d9e1` — `BUG-003`, `BUG-006`):** `FOXY_BASE_URL` & `PROVIDER_TIMEOUT_MS` dari `constants.js` di `pendingTransactions.js` (`284` baris) & `productSync.js` (`172` baris) + guard array kosong `SEC-018` & fallback `category_type` null, serta validasi respons Fase (b) `plain object && status === true` di `orderService.js` (`579` baris).
 - [x] **COMMIT 4 (Tes Regresi & Dokumentasi):** Tambah `backend/tests/integration/pricingAndProviderGuards.test.js` (`6` tes baru -> `211/211` lulus), perbarui `docs/refactor-baseline-tests.txt` (`211` entri), `QA_REPORT.md`, dan `docs/qa-fix-plan.md`. Verifikasi Playwright Batch 1 (`BUG-026`, `BUG-007`, `BUG-024`, `BUG-004`, `BUG-003`, `BUG-006`) seluruhnya **`PASS`**.
+
+---
+
+## Batch 2A — Revokasi JWT, Email Cascade, Validasi Saldo/IP, & Compare Prices (`fix/sec-batch-2a`)
+
+- **Branch:** `fix/sec-batch-2a` (dari `main` `@ a89f8d2`)
+- **Cakupan Bug:** `BUG-008`, `BUG-011`, `BUG-005`, `BUG-009`, `BUG-015`
+- **Migrasi Database:** **`migrations/013_auth_revocation_and_email_cascade.sql`** (idempoten, aditif/non-destruktif):
+  1. Memperbarui FK `fk_password_resets_email` pada `password_resets(email)` agar memiliki `ON DELETE CASCADE ON UPDATE CASCADE` (`BUG-008`).
+  2. Menambahkan kolom `users.token_version INTEGER NOT NULL DEFAULT 1` (`BUG-011`).
+
+### Risiko & Desain Singkat
+- **Revokasi JWT (`BUG-011`):** `protect` di `backend/middleware/auth.js` memverifikasi `users.token_version` terhadap klaim `tokenVersion` (default `1` untuk token lama sebelum migrasi 013). Jika mock unit test lama tidak mengembalikan kolom `token_version`, cek dilewati agar 211 tes eksisting tetap hijau. Login memakai `LOWER(u.email) = LOWER($2)` agar email huruf campuran lulus tanpa user enumeration.
+- **Profile Email Update (`BUG-008`):** Migrasi 013 menambah `ON UPDATE CASCADE` pada `fk_password_resets_email`; `PUT /api/user/profile` tetap aman meski user memiliki baris aktif di `password_resets`.
+- **Admin Balance (`BUG-005`):** Validasi `getBodyObject`, `requireString`, & `requirePositiveInt` dijalankan sebelum `pool.connect()` sehingga `"1e5"`, `0.5`, dan payload invalid langsung dibalas `HTTP 400`.
+- **IP Whitelist (`BUG-009`):** `PUT /api/user/whitelisted-ips` memakai `getBodyObject` dan menolak `HTTP 400` jika ada elemen bukan string atau string kosong pada array `ips` (tidak menghapus whitelist menjadi `[]`).
+- **Compare Prices (`BUG-015`):** `GET /api/public/compare-prices` memfilter `AND g.status = 'Active'` dan menghapus field internal `base_price` dari respons publik.
+
+### Rencana 3 Commit Batch 2A
+- [ ] **COMMIT 1 (`BUG-008`, `BUG-011`):** `migrations/013_auth_revocation_and_email_cascade.sql`, `migrations/README.md`, `backend/middleware/auth.js`, `backend/routes/auth.routes.js`, `backend/routes/user.routes.js` (+ apply migrasi 013 ke DB lokal).
+- [ ] **COMMIT 2 (`BUG-005`, `BUG-009`, `BUG-015`):** `backend/routes/admin/balance.routes.js`, `backend/routes/userApiKey.routes.js`, `backend/routes/public.routes.js`.
+- [ ] **COMMIT 3:** `backend/tests/integration/securityBatch2aFixes.test.js` (`<= 500` baris), `docs/refactor-baseline-tests.txt`, `QA_REPORT.md`, dan pembaruan status `docs/qa-fix-plan.md`.
