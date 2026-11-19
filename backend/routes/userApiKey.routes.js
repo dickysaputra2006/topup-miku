@@ -4,6 +4,7 @@ const { logSafeError } = require('../utils/logger');
 const { normalizeString } = require('../utils/strings');
 const { hashApiKey } = require('../utils/crypto');
 const { isValidIpOrCidr } = require('../utils/networkSecurity');
+const { getBodyObject } = require('../utils/schemaValidators');
 
 /**
  * Daftarkan route manajemen API key, webhook secret, dan IP whitelist H2H pengguna.
@@ -151,22 +152,34 @@ module.exports = function createUserApiKeyRoutes(deps) {
     // Memperbarui daftar IP yang di-whitelist oleh pengguna
     router.put('/api/user/whitelisted-ips', protect, async (req, res) => {
         try {
-            const { ips } = req.body;
-            // Validasi sederhana: pastikan data yang dikirim adalah array
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) {
+                return res.status(400).json({ message: bodyRes.error });
+            }
+            const { ips } = bodyRes.value;
+            // Validasi ketat: wajib array berisi string IP/CIDR valid tanpa elemen non-string atau kosong
             if (!Array.isArray(ips)) {
                 return res.status(400).json({ message: 'Format data tidak valid, harus berupa array.' });
             }
             if (ips.length > 20) {
                 return res.status(400).json({ message: 'Maksimal 20 IP whitelist.' });
             }
-            const cleanedIps = [...new Set(ips.map(ip => normalizeString(ip, 64)).filter(Boolean))];
-            if (!cleanedIps.every(isValidIpOrCidr)) {
-                return res.status(400).json({ message: 'Daftar IP mengandung format yang tidak valid.' });
+            const validatedIps = [];
+            for (const rawIp of ips) {
+                if (typeof rawIp !== 'string') {
+                    return res.status(400).json({ message: 'Setiap IP whitelist harus berupa teks IP atau CIDR yang valid.' });
+                }
+                const normalized = normalizeString(rawIp, 64);
+                if (!normalized || !isValidIpOrCidr(normalized)) {
+                    return res.status(400).json({ message: 'Daftar IP mengandung format yang tidak valid.' });
+                }
+                validatedIps.push(normalized);
             }
+            const cleanedIps = [...new Set(validatedIps)];
             await pool.query('UPDATE users SET whitelisted_ips = $1 WHERE id = $2', [cleanedIps, req.user.id]);
             res.json({ message: 'Daftar IP berhasil diperbarui.' });
         } catch (error) {
-            console.error('Error updating whitelisted IPs:', error);
+            logSafeError('Error updating whitelisted IPs:', error);
             res.status(500).json({ message: 'Gagal memperbarui daftar IP.' });
         }
     });
