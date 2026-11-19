@@ -1,8 +1,10 @@
 const axios = require('axios');
 const {
-    pool,
     FOXY_BASE_URL,
     PROVIDER_TIMEOUT_MS,
+} = require('../config/constants');
+const {
+    pool,
     foxyApiHeaders,
     safeAxiosError,
     safeErrorDetail,
@@ -43,7 +45,15 @@ async function syncProductsWithFoxy() {
             throw new Error('[cron][sync] Foxy API response format invalid — expected array.');
         }
 
-        const providerSkus = new Set(providerProducts.map(p => p.product_code));
+        if (providerProducts.length === 0) {
+            throw new Error('[cron][sync] Foxy API returned empty product list — aborting sync to prevent mass catalog deactivation.');
+        }
+
+        const providerSkus = new Set(
+            providerProducts
+                .filter(p => p && typeof p.product_code === 'string' && p.product_code.trim() !== '')
+                .map(p => p.product_code)
+        );
 
         // 2. Ambil semua produk, game, dan kategori dari DB
         const { rows: localProducts } = await client.query('SELECT id, provider_sku, price, status FROM products');
@@ -62,13 +72,15 @@ async function syncProductsWithFoxy() {
 
         // 3. Loop produk dari Foxy untuk kumpulkan data batch
         for (const product of providerProducts) {
-            const gameName = product.category_title;
-            const categoryName = product.category_type;
-            const productName = product.product_name;
-            const productCode = product.product_code;
-            const basePriceFoxy = product.product_price;
+            if (!product || typeof product !== 'object') continue;
+            const gameName = typeof product.category_title === 'string' ? product.category_title.trim() : '';
+            const rawCategoryName = typeof product.category_type === 'string' ? product.category_type.trim() : '';
+            const categoryName = rawCategoryName || 'Umum';
+            const productName = typeof product.product_name === 'string' ? product.product_name.trim() : '';
+            const productCode = typeof product.product_code === 'string' ? product.product_code.trim() : '';
+            const basePriceFoxy = Number(product.product_price);
 
-            if (!gameName || !productName || !productCode || basePriceFoxy === undefined) continue;
+            if (!gameName || !productName || !productCode || !Number.isFinite(basePriceFoxy) || basePriceFoxy <= 0) continue;
 
             let gameId = localGameMap.get(gameName.toLowerCase());
             if (!gameId) {
@@ -96,6 +108,10 @@ async function syncProductsWithFoxy() {
             productBatch.names.push(productName);
             productBatch.skus.push(productCode);
             productBatch.prices.push(basePriceFoxy);
+        }
+
+        if (productBatch.skus.length === 0) {
+            throw new Error('[cron][sync] No valid products parsed from Foxy response — aborting sync to prevent catalog deactivation.');
         }
 
         // 4. Jalankan UPSERT batch

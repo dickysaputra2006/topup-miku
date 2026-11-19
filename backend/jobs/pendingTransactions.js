@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { createPool } = require('../config/db.js');
+const { FOXY_BASE_URL, PROVIDER_TIMEOUT_MS } = require('../config/constants');
 const axios = require('axios');
 const { dispatchSafeH2HWebhook } = require('../utils/webhookClient.js');
 const { rollbackTransactionResources } = require('../services/refundService');
@@ -12,9 +13,7 @@ const pool = createPool();
 // ============================================================
 // === KONFIGURASI FOXY API ===
 // ============================================================
-const FOXY_BASE_URL = 'https://api.foxygamestore.com';
 const FOXY_API_KEY = process.env.FOXY_API_KEY;
-const PROVIDER_TIMEOUT_MS = 15000; // 15 detik
 
 const foxyApiHeaders = {
     'Authorization': FOXY_API_KEY,

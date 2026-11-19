@@ -337,8 +337,18 @@ async function submitOrderToFoxyProvider({ productSku, targetGameId, targetServe
     let isTimeoutOrAmbiguous = false;
     try {
         const foxyRes = await axios.post(`${FOXY_BASE_URL}/v1/order`, foxyPayload, foxyConfig);
-        if (foxyRes && foxyRes.data && foxyRes.data.status === false) {
-            const rejectErr = new Error(foxyRes.data.message || 'Provider menolak pesanan.');
+        const foxyBody = foxyRes && foxyRes.data;
+        const isValidSuccessObject = Boolean(
+            foxyBody &&
+            typeof foxyBody === 'object' &&
+            !Array.isArray(foxyBody) &&
+            foxyBody.status === true
+        );
+        if (!isValidSuccessObject) {
+            const rejectMsg = (foxyBody && typeof foxyBody === 'object' && typeof foxyBody.message === 'string' && foxyBody.message)
+                ? foxyBody.message
+                : 'Provider menolak pesanan.';
+            const rejectErr = new Error(rejectMsg);
             rejectErr.isExplicitRejection = true;
             throw rejectErr;
         }
