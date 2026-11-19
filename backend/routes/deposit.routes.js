@@ -185,6 +185,8 @@ module.exports = function createDepositRoutes(deps) {
         try {
             await client.query('BEGIN');
             inTransaction = true;
+            // Kunci baris user untuk mencegah race condition permintaan deposit paralel menembus batas 2 Pending
+            await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [userId]);
             const pendingCheck = await client.query(
                 "SELECT COUNT(*) AS count FROM deposits WHERE user_id = $1 AND status = 'Pending'",
                 [userId]

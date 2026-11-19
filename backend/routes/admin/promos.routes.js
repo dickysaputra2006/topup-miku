@@ -13,16 +13,27 @@ const {
     validatePromoRulesObject,
 } = require('../../utils/schemaValidators');
 
+const {
+    recordAdminAuditLog: defaultRecordAdminAuditLog,
+} = require('../../services/auditLogService');
+
 /**
  * Daftarkan route admin untuk manajemen kode promo.
  */
 module.exports = function createAdminPromosRoutes(deps) {
-    const { pool, protectAdmin } = deps || {};
+    const {
+        pool,
+        protectAdmin,
+        recordAdminAuditLog = defaultRecordAdminAuditLog,
+    } = deps || {};
     if (!pool || typeof pool.query !== 'function') {
         throw new TypeError('createAdminPromosRoutes requires a valid pool');
     }
     if (typeof protectAdmin !== 'function') {
         throw new TypeError('createAdminPromosRoutes requires a protectAdmin middleware');
+    }
+    if (typeof recordAdminAuditLog !== 'function') {
+        throw new TypeError('createAdminPromosRoutes requires a recordAdminAuditLog function');
     }
 
     const router = express.Router();
@@ -78,7 +89,22 @@ module.exports = function createAdminPromosRoutes(deps) {
                 rulesRes.value,
                 maxUsesRes.value,
             ]);
-            res.status(201).json(rows[0]);
+            const createdPromo = rows[0];
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.promo.create',
+                targetType: 'promo',
+                targetId: createdPromo && createdPromo.id != null ? String(createdPromo.id) : codeRes.value,
+                afterData: {
+                    code: codeRes.value,
+                    type: typeRes.value,
+                    value: valueRes.value,
+                    max_uses: maxUsesRes.value,
+                    expires_at: expiresAt,
+                    rules: rulesRes.value,
+                },
+            });
+            res.status(201).json(createdPromo);
         } catch (error) {
             if (error.code === '23505') return res.status(409).json({ message: 'Kode promo sudah ada.' });
             logSafeError('Gagal membuat kode promo:', error);
@@ -112,6 +138,14 @@ module.exports = function createAdminPromosRoutes(deps) {
             const sql = 'UPDATE promo_codes SET is_active = $1 WHERE id = $2 RETURNING *';
             const { rows } = await pool.query(sql, [activeRes.value, idRes.value]);
             if (rows.length === 0) return res.status(404).json({ message: 'Kode promo tidak ditemukan.' });
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.promo.toggle',
+                targetType: 'promo',
+                targetId: String(idRes.value),
+                beforeData: { is_active: !activeRes.value },
+                afterData: { code: rows[0].code, is_active: activeRes.value },
+            });
             res.json(rows[0]);
         } catch (error) {
             logSafeError('Gagal mengubah status promo:', error);

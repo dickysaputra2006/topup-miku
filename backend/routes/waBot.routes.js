@@ -2,6 +2,7 @@ const express = require('express');
 const { logSafeError } = require('../utils/logger');
 const { formatRupiahBot } = require('../utils/strings');
 const { requireWaBotAdminToken: defaultRequireWaBotAdminToken } = require('../middleware/waBotAuth');
+const { recordAdminAuditLog: defaultRecordAdminAuditLog } = require('../services/auditLogService');
 
 /**
  * Daftarkan route admin WA bot untuk pembacaan serta approve/reject deposit.
@@ -11,6 +12,7 @@ module.exports = function createWaBotRoutes(deps) {
         pool,
         createNotification,
         requireWaBotAdminToken = defaultRequireWaBotAdminToken,
+        recordAdminAuditLog = defaultRecordAdminAuditLog,
     } = deps || {};
 
     if (!pool || typeof pool.query !== 'function' || typeof pool.connect !== 'function') {
@@ -21,6 +23,9 @@ module.exports = function createWaBotRoutes(deps) {
     }
     if (typeof requireWaBotAdminToken !== 'function') {
         throw new TypeError('createWaBotRoutes requires a requireWaBotAdminToken middleware');
+    }
+    if (typeof recordAdminAuditLog !== 'function') {
+        throw new TypeError('createWaBotRoutes requires a recordAdminAuditLog function');
     }
 
     const router = express.Router();
@@ -214,6 +219,14 @@ module.exports = function createWaBotRoutes(deps) {
             );
 
             await client.query('COMMIT');
+            await recordAdminAuditLog(client, {
+                req,
+                action: 'wabot.deposit.approve',
+                targetType: 'deposit',
+                targetId: String(deposit.id),
+                beforeData: { status: 'Pending', amount: Number(deposit.amount) },
+                afterData: { status: 'Approved', user_id: deposit.user_id, channel: 'wa_bot', note: adminNote || null },
+            });
 
             // Notifikasi async — tidak blok response
             const amountNum = Number(deposit.amount) || 0;
@@ -293,10 +306,18 @@ module.exports = function createWaBotRoutes(deps) {
             );
 
             await client.query('COMMIT');
-
-            // Notifikasi async — tidak blok response
             const amountNum = Number(deposit.amount) || 0;
             const reason = (req.body && req.body.reason) ? String(req.body.reason).slice(0, 200) : '';
+            await recordAdminAuditLog(client, {
+                req,
+                action: 'wabot.deposit.reject',
+                targetType: 'deposit',
+                targetId: String(deposit.id),
+                beforeData: { status: 'Pending', amount: amountNum },
+                afterData: { status: 'Rejected', user_id: deposit.user_id, channel: 'wa_bot', reason: reason || null },
+            });
+
+            // Notifikasi async — tidak blok response
             const notifMessage = reason
                 ? `Deposit #${deposit.id} sebesar ${formatRupiahBot(amountNum)} ditolak. Alasan: ${reason}`
                 : `Deposit #${deposit.id} sebesar ${formatRupiahBot(amountNum)} ditolak. Hubungi admin untuk informasi lebih lanjut.`;
