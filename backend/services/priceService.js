@@ -13,33 +13,34 @@ function calculateMarginSellingPrice(basePrice, marginPercent) {
  */
 function calculateCatalogProducts(products, userRoleName, globalMarginsMap, flashSaleMap) {
     return products.map(p => {
-        let finalPrice;
+        const manualPrice = p.manual_prices ? p.manual_prices[userRoleName] : null;
+        let normalPrice;
+        // PRIORITAS 1: HARGA MANUAL
+        if (p.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
+            normalPrice = Number(manualPrice);
+        } else {
+            let margin = globalMarginsMap[userRoleName] || 0; // Default: margin global
+            // PRIORITAS 2: MARGIN PER GAME
+            if (p.use_custom_margin) {
+                const customMargin = p[`${userRoleName}_margin`];
+                if (customMargin !== null && customMargin !== undefined) {
+                    margin = customMargin;
+                }
+            }
+            normalPrice = Math.ceil(Number(p.base_price) * (1 + Number(margin) / 100));
+        }
+
+        let finalPrice = normalPrice;
         let originalPrice = null;
         let isFlashSale = false;
 
-        // PRIORITAS 0: FLASH SALE
+        // PRIORITAS 0: FLASH SALE (hanya jika harga flash sale valid dan lebih murah dari harga normal)
         if (flashSaleMap.has(p.id)) {
-            isFlashSale = true;
-            finalPrice = flashSaleMap.get(p.id); // Harga langsung dari flash sale
-
-            // Hitung harga asli sebelum diskon untuk ditampilkan (dicoret)
-            const margin = globalMarginsMap[userRoleName] || 0;
-            originalPrice = Math.ceil(p.base_price * (1 + margin / 100));
-        } else {
-            const manualPrice = p.manual_prices ? p.manual_prices[userRoleName] : null;
-            // PRIORITAS 1: HARGA MANUAL
-            if (p.use_manual_prices && manualPrice) {
-                finalPrice = manualPrice;
-            } else {
-                let margin = globalMarginsMap[userRoleName] || 0; // Default: margin global
-                // PRIORITAS 2: MARGIN PER GAME
-                if (p.use_custom_margin) {
-                    const customMargin = p[`${userRoleName}_margin`];
-                    if (customMargin !== null && customMargin !== undefined) {
-                        margin = customMargin;
-                    }
-                }
-                finalPrice = Math.ceil(p.base_price * (1 + margin / 100));
+            const flashPrice = Number(flashSaleMap.get(p.id));
+            if (Number.isFinite(flashPrice) && flashPrice > 0 && flashPrice < normalPrice) {
+                isFlashSale = true;
+                finalPrice = flashPrice;
+                originalPrice = normalPrice;
             }
         }
 
@@ -92,9 +93,11 @@ async function getGameProductsCatalog({ pool, gameId, user }) {
 
     const { rows: activeFlashSales } = await pool.query(`
         SELECT product_id, discount_price FROM flash_sales
-        WHERE is_active = true AND NOW() BETWEEN start_at AND end_at
+        WHERE is_active = true
+          AND NOW() BETWEEN start_at AND end_at
+          AND (max_uses IS NULL OR uses_count < max_uses)
     `);
-    const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, fs.discount_price]));
+    const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, Number(fs.discount_price)]));
 
     const { rows: globalMargins } = await pool.query('SELECT name, margin_percent FROM roles');
     const globalMarginsMap = globalMargins.reduce((acc, role) => {

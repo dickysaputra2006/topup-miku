@@ -340,7 +340,7 @@ async function seedCatalog(client) {
         if (existingFs.length > 0) {
             await client.query(
                 `UPDATE flash_sales
-                 SET discount_price = 17500, start_at = NOW() - INTERVAL '1 hour',
+                 SET discount_price = 19500, start_at = NOW() - INTERVAL '1 hour',
                      end_at = NOW() + INTERVAL '7 days', max_uses = 50, is_active = true, updated_at = NOW()
                  WHERE id = $1`,
                 [existingFs[0].id]
@@ -348,7 +348,7 @@ async function seedCatalog(client) {
         } else {
             await client.query(
                 `INSERT INTO flash_sales (product_id, discount_price, start_at, end_at, max_uses, uses_count, is_active)
-                 VALUES ($1, 17500, NOW() - INTERVAL '1 hour', NOW() + INTERVAL '7 days', 50, 0, true)`,
+                 VALUES ($1, 19500, NOW() - INTERVAL '1 hour', NOW() + INTERVAL '7 days', 50, 0, true)`,
                 [flashProductId]
             );
         }

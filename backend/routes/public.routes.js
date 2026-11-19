@@ -87,7 +87,10 @@ module.exports = function createPublicRoutes(deps) {
             const { rows: roles } = await pool.query(`SELECT name, margin_percent FROM roles ORDER BY id ASC`);
             const { rows: games } = await pool.query("SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC");
             const { rows: activeFlashSales } = await pool.query(
-                `SELECT product_id, discount_price FROM flash_sales WHERE is_active = true AND NOW() BETWEEN start_at AND end_at`
+                `SELECT product_id, discount_price FROM flash_sales
+                 WHERE is_active = true
+                   AND NOW() BETWEEN start_at AND end_at
+                   AND (max_uses IS NULL OR uses_count < max_uses)`
             );
             const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, Number(fs.discount_price)]));
 
@@ -148,11 +151,14 @@ module.exports = function createPublicRoutes(deps) {
                     FROM flash_sales fs
                     JOIN products p ON fs.product_id = p.id
                     JOIN games g ON p.game_id = g.id
-                    LEFT JOIN roles r ON r.id = 1 
+                    LEFT JOIN roles r ON LOWER(r.name) = 'bronze'
                     WHERE 
                         fs.is_active = true AND
+                        p.status = 'Active' AND
+                        g.status = 'Active' AND
                         NOW() BETWEEN fs.start_at AND fs.end_at AND
-                        (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses)
+                        (fs.max_uses IS NULL OR fs.uses_count < fs.max_uses) AND
+                        fs.discount_price < CEIL(p.price * (1 + COALESCE(r.margin_percent, 0) / 100))
                     ORDER BY fs.end_at ASC;
                 `;
             const { rows } = await pool.query(sql);

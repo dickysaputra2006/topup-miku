@@ -69,6 +69,21 @@ module.exports = function createAdminFlashSalesRoutes(deps) {
             const maxUsesRes = optionalPositiveInt(body.max_uses, 'Maksimal kuota flash sale', { min: 1, max: 1000000 });
             if (maxUsesRes.error) return res.status(400).json({ message: maxUsesRes.error });
 
+            const allowBelowCost = body.allow_below_cost === true;
+            const { rows: productRows } = await pool.query(
+                'SELECT id, price FROM products WHERE id = $1 LIMIT 1',
+                [productRes.value]
+            );
+            if (!productRows || productRows.length === 0) {
+                return res.status(404).json({ message: 'Produk tidak ditemukan.' });
+            }
+            const baseCost = Number(productRows[0].price);
+            if (!allowBelowCost && Number.isFinite(baseCost) && priceRes.value < baseCost) {
+                return res.status(400).json({
+                    message: 'Harga flash sale tidak boleh lebih rendah dari harga modal produk.'
+                });
+            }
+
             let rules = null;
             if (body.max_discount_amount !== undefined && body.max_discount_amount !== null && String(body.max_discount_amount).trim() !== '') {
                 const maxDiscRes = requireBoundedNumber(body.max_discount_amount, 'max_discount_amount', { min: 1, max: 100000000 });
