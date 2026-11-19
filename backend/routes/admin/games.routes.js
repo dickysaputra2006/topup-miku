@@ -235,11 +235,6 @@ module.exports = function createAdminGamesRoutes(deps) {
         }
     });
 
-    router.post('/api/test', (req, res) => {
-        console.log('SUKSES: Rute /api/test diakses dengan metode POST.');
-        res.status(200).json({ message: 'Halo! Rute tes POST ini berfungsi!' });
-    });
-
     // Preview daftar service PGS terbaru (tidak menulis file)
     router.get('/api/admin/validation-services/pgs-preview', protectAdmin, async (req, res) => {
         const pgsKey = process.env.PGS_KEY;

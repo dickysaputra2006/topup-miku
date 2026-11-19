@@ -10,6 +10,7 @@ const {
 } = require('../../utils/schemaValidators');
 const { syncProductsWithFoxy } = require('../../jobs/productSync');
 const { invalidateFoxyProductCache } = require('../../services/foxyClient');
+const { recordAdminAuditLog: defaultRecordAdminAuditLog } = require('../../services/auditLogService');
 
 /**
  * Validasi dan sanitasi objek validation_config sebelum disimpan ke DB.
@@ -104,12 +105,15 @@ function sanitizeValidationConfig(validation_config) {
  * Daftarkan route admin untuk manajemen produk, status produk, dan pengaturan validasi produk.
  */
 module.exports = function createAdminProductsRoutes(deps) {
-    const { pool, protectAdmin } = deps || {};
+    const { pool, protectAdmin, recordAdminAuditLog = defaultRecordAdminAuditLog } = deps || {};
     if (!pool || typeof pool.query !== 'function') {
         throw new TypeError('createAdminProductsRoutes requires a valid pool');
     }
     if (typeof protectAdmin !== 'function') {
         throw new TypeError('createAdminProductsRoutes requires a protectAdmin middleware');
+    }
+    if (typeof recordAdminAuditLog !== 'function') {
+        throw new TypeError('createAdminProductsRoutes requires a recordAdminAuditLog function');
     }
 
     const router = express.Router();
@@ -174,6 +178,13 @@ module.exports = function createAdminProductsRoutes(deps) {
 
             const sql = 'INSERT INTO products (game_id, category_id, name, provider_sku, price, status) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (provider_sku) DO UPDATE SET name = EXCLUDED.name, price = EXCLUDED.price, game_id = EXCLUDED.game_id, category_id = EXCLUDED.category_id, status = EXCLUDED.status';
             await pool.query(sql, [gameIdRes.value, categoryIdRes.value, nameRes.value, skuRes.value, priceRes.value, 'Active']);
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.product.upsert',
+                targetType: 'product',
+                targetId: skuRes.value,
+                afterData: { game_id: gameIdRes.value, category_id: categoryIdRes.value, name: nameRes.value, price: priceRes.value, status: 'Active' },
+            });
             res.status(201).json({ message: `Produk ${nameRes.value} berhasil ditambahkan.` });
         } catch (error) {
             logSafeError('Error adding product:', error);
@@ -204,6 +215,13 @@ module.exports = function createAdminProductsRoutes(deps) {
                 return res.status(404).json({ message: 'Produk tidak ditemukan.' });
             }
 
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.product.status',
+                targetType: 'product',
+                targetId: String(idRes.value),
+                afterData: { status: statusRes.value },
+            });
             res.json({ message: `Status produk berhasil diubah menjadi ${statusRes.value}.` });
 
         } catch (error) {
@@ -229,6 +247,13 @@ module.exports = function createAdminProductsRoutes(deps) {
                 [safeConfig, idRes.value]
             );
             if (rowCount === 0) return res.status(404).json({ message: 'Produk tidak ditemukan.' });
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.product.validation',
+                targetType: 'product',
+                targetId: String(idRes.value),
+                afterData: { validation_config: safeConfig },
+            });
             res.json({ message: 'Pengaturan validasi produk berhasil diperbarui.' });
         } catch (error) {
             logSafeError('Error updating product validation:', error);
@@ -264,6 +289,13 @@ module.exports = function createAdminProductsRoutes(deps) {
                 'UPDATE products SET validation_config = $1 WHERE id = ANY($2::int[])',
                 [safeConfig, safeIds]
             );
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.product.bulk_validation',
+                targetType: 'product',
+                targetId: `batch:${safeIds.length}`,
+                afterData: { product_ids_count: safeIds.length, updated_count: rowCount, validation_config: safeConfig },
+            });
             res.json({ message: `Pengaturan validasi berhasil diperbarui untuk ${rowCount} produk.` });
         } catch (error) {
             logSafeError('Error updating bulk product validation:', error);
@@ -300,6 +332,13 @@ module.exports = function createAdminProductsRoutes(deps) {
 
             await syncProductsWithFoxy(effectiveMargin);
             invalidateFoxyProductCache();
+            await recordAdminAuditLog(pool, {
+                req,
+                action: 'admin.product.sync',
+                targetType: 'product_catalog',
+                targetId: 'foxy_sync',
+                afterData: { margin_percent: effectiveMargin },
+            });
 
             res.json({ message: `Sinkronisasi produk berhasil dipicu dengan margin ${effectiveMargin}%.` });
         } catch (error) {

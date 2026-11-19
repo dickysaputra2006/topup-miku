@@ -72,7 +72,7 @@ function createApp({ pool = defaultPool } = {}) {
 
     app.use(createAdminBalanceRoutes({ pool, protectAdmin, recordAdminAuditLog }));
     app.use(createAdminGamesRoutes({ pool, protectAdmin, recordAdminAuditLog }));
-    app.use(createAdminProductsRoutes({ pool, protectAdmin }));
+    app.use(createAdminProductsRoutes({ pool, protectAdmin, recordAdminAuditLog }));
 
     app.use(createAdminTransactionsRoutes({
         pool,
@@ -81,15 +81,15 @@ function createApp({ pool = defaultPool } = {}) {
         rollbackTransactionResources,
         recordAdminAuditLog,
     }));
-    app.use(createAdminPromosRoutes({ pool, protectAdmin }));
-    app.use(createAdminFlashSalesRoutes({ pool, protectAdmin }));
+    app.use(createAdminPromosRoutes({ pool, protectAdmin, recordAdminAuditLog }));
+    app.use(createAdminFlashSalesRoutes({ pool, protectAdmin, recordAdminAuditLog }));
     app.use(createAdminMarginsRoutes({ pool, protectAdmin, recordAdminAuditLog }));
 
     // === PUBLIC ENDPOINTS ===
     app.use(createCatalogRoutes({ pool, protect, softProtect }));
 
     // === WA BOT ADMIN DEPOSITS ENDPOINTS ===
-    app.use(createWaBotRoutes({ pool, createNotification, requireWaBotAdminToken }));
+    app.use(createWaBotRoutes({ pool, createNotification, requireWaBotAdminToken, recordAdminAuditLog }));
 
     // === ORDER & H2H ENDPOINTS ===
     app.use(createOrderRoutes({ pool, protect }));

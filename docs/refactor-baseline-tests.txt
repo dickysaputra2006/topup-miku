@@ -174,6 +174,11 @@ QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG
 QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG-011 (1): login menerima email huruf campuran secara case-insensitive dan menyematkan klaim tokenVersion pada JWT
 QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG-011 (2): PUT /api/user/password dan POST /api/auth/reset-password menaikkan token_version serta mencabut JWT lama (401)
 QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG-015: GET /api/public/compare-prices memfilter g.status = Active dan tidak membocorkan base_price
+QA Batch 2B: Deposit Concurrency, Callback Retry, Audit Log, Debug Removal & H2H Status :: BUG-001: endpoint debug POST /api/test telah dihapus dan mengembalikan 404 Not Found
+QA Batch 2B: Deposit Concurrency, Callback Retry, Audit Log, Debug Removal & H2H Status :: BUG-010: GET /h2h/transactions dan GET /h2h/order/:refOrInvoiceId mendukung paginasi, filter status, dan isolasi user_id (anti-IDOR 404)
+QA Batch 2B: Deposit Concurrency, Callback Retry, Audit Log, Debug Removal & H2H Status :: BUG-012: POST /api/foxy/callback menghapus cooldown jika /v1/status gagal 500 sehingga retry segera memproses Success
+QA Batch 2B: Deposit Concurrency, Callback Retry, Audit Log, Debug Removal & H2H Status :: BUG-013: POST /api/deposit/request mengunci baris users (FOR UPDATE) sebelum hitung Pending sehingga request paralel dibatasi maksimal 2 (429)
+QA Batch 2B: Deposit Concurrency, Callback Retry, Audit Log, Debug Removal & H2H Status :: BUG-014: aksi mutasi admin produk, promo, flash sale, dan WA bot approve/reject mencatat admin_audit_logs
 SEC-001: Foxy Callback Security Hardening :: cross-check /v1/status vs DB: SKU atau trx_id tidak cocok -> log warning (invoice + reason saja) & status tidak berubah
 SEC-001: Foxy Callback Security Hardening :: fail-closed: tanpa secret ditolak 403, hanya bisa dilewati non-prod dengan ALLOW_INSECURE_CALLBACK=true
 SEC-001: Foxy Callback Security Hardening :: respons /v1/status tanpa SKU dan nominal tetap diproses normal

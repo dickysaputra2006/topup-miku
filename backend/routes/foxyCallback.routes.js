@@ -169,6 +169,7 @@ function createFoxyCallbackRoutes(deps) {
             );
             foxyData = foxyStatusRes && foxyStatusRes.data && foxyStatusRes.data.data;
         } catch (verifyErr) {
+            callbackVerificationCooldown.delete(trx_id);
             console.error('[callback] Gagal re-verify status ke Foxy:', safeAxiosError(verifyErr, 'Foxy'));
             return res.status(200).json(CALLBACK_SUCCESS_RESPONSE);
         }

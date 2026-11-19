@@ -2,14 +2,41 @@ const express = require('express');
 const { logSafeError } = require('../utils/logger');
 const { normalizeString } = require('../utils/strings');
 const { parseOptionalRefId } = require('../utils/validation');
+const { requirePositiveInt } = require('../utils/schemaValidators');
 const { validateWebhookUrl } = require('../utils/webhookClient.js');
 const {
     getSafeOrderErrorMessage,
     executeH2HOrder,
 } = require('../services/orderService');
 
+const H2H_STATUS_MAP = new Map([
+    ['pending', 'Pending'],
+    ['processing', 'Processing'],
+    ['success', 'Success'],
+    ['failed', 'Failed'],
+    ['partial refund', 'Partial Refund'],
+    ['partial_refund', 'Partial Refund'],
+]);
+
+function formatH2HTransactionRow(row) {
+    return {
+        invoice_id: row.invoice_id,
+        ref_id: row.ref_id || null,
+        product_id: row.product_id,
+        product_name: row.product_name || null,
+        sku: row.sku || null,
+        target_game_id: row.target_game_id,
+        target_server_id: row.target_server_id || null,
+        price: Number(row.price),
+        status: row.status,
+        provider_sn: row.provider_sn || null,
+        created_at: row.created_at,
+        updated_at: row.updated_at || null,
+    };
+}
+
 /**
- * Daftarkan seluruh route reseller H2H (/h2h/order, /h2h/products, /h2h/profile/callback, /h2h/profile).
+ * Daftarkan seluruh route reseller H2H (/h2h/order, /h2h/order/:refOrInvoiceId, /h2h/transactions, /h2h/products, /h2h/profile/callback, /h2h/profile).
  */
 module.exports = function createH2HRoutes(deps) {
     const {
@@ -162,6 +189,98 @@ module.exports = function createH2HRoutes(deps) {
         } catch (error) {
             logSafeError('H2H Update Callback Error:', error);
             res.status(500).json({ success: false, message: 'Gagal memperbarui callback URL.' });
+        }
+    });
+
+    router.get('/h2h/transactions', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res) => {
+        try {
+            let page = 1;
+            if (req.query.page !== undefined && String(req.query.page).trim() !== '') {
+                const pageRes = requirePositiveInt(req.query.page, 'page', { min: 1, max: 100000 });
+                if (pageRes.error) return res.status(400).json({ success: false, message: pageRes.error });
+                page = pageRes.value;
+            }
+
+            let limit = 20;
+            if (req.query.limit !== undefined && String(req.query.limit).trim() !== '') {
+                const limitRes = requirePositiveInt(req.query.limit, 'limit', { min: 1, max: 50 });
+                if (limitRes.error) return res.status(400).json({ success: false, message: limitRes.error });
+                limit = limitRes.value;
+            }
+
+            let statusFilter = null;
+            if (req.query.status !== undefined && String(req.query.status).trim() !== '') {
+                const rawStatus = normalizeString(req.query.status, 32).toLowerCase();
+                statusFilter = H2H_STATUS_MAP.get(rawStatus) || null;
+                if (!statusFilter) {
+                    return res.status(400).json({ success: false, message: 'Filter status tidak valid.' });
+                }
+            }
+
+            const offset = (page - 1) * limit;
+            const filterClause = statusFilter ? 'WHERE t.user_id = $1 AND t.status = $2' : 'WHERE t.user_id = $1';
+            const filterParams = statusFilter ? [req.user.id, statusFilter] : [req.user.id];
+
+            const countSql = `SELECT COUNT(*)::int AS total FROM transactions t ${filterClause}`;
+            const countRes = await pool.query(countSql, filterParams);
+            const total = countRes && countRes.rows && countRes.rows[0] ? Number(countRes.rows[0].total) || 0 : 0;
+
+            const limitParamIdx = filterParams.length + 1;
+            const offsetParamIdx = filterParams.length + 2;
+            const listSql = `
+                SELECT t.invoice_id, t.ref_id, t.product_id, p.name AS product_name, p.provider_sku AS sku,
+                       t.target_game_id, t.target_server_id, t.price, t.status, t.provider_sn,
+                       t.created_at, t.updated_at
+                FROM transactions t
+                LEFT JOIN products p ON t.product_id = p.id
+                ${filterClause}
+                ORDER BY t.created_at DESC
+                LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
+            `;
+            const { rows } = await pool.query(listSql, [...filterParams, limit, offset]);
+
+            res.json({
+                success: true,
+                message: 'Daftar transaksi H2H berhasil diambil.',
+                data: (rows || []).map(formatH2HTransactionRow),
+                pagination: { page, limit, total },
+            });
+        } catch (error) {
+            logSafeError('H2H Get Transactions Error:', error);
+            res.status(500).json({ success: false, message: 'Gagal mengambil riwayat transaksi H2H.' });
+        }
+    });
+
+    router.get('/h2h/order/:refOrInvoiceId', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res) => {
+        try {
+            const refOrInvoiceId = normalizeString(req.params.refOrInvoiceId, 100);
+            if (!refOrInvoiceId || !/^[A-Za-z0-9_.\-:]{1,100}$/.test(refOrInvoiceId)) {
+                return res.status(400).json({ success: false, message: 'Format invoice_id atau ref_id tidak valid.' });
+            }
+
+            const sql = `
+                SELECT t.invoice_id, t.ref_id, t.product_id, p.name AS product_name, p.provider_sku AS sku,
+                       t.target_game_id, t.target_server_id, t.price, t.status, t.provider_sn,
+                       t.created_at, t.updated_at
+                FROM transactions t
+                LEFT JOIN products p ON t.product_id = p.id
+                WHERE t.user_id = $1 AND (t.invoice_id = $2 OR t.ref_id = $2)
+                ORDER BY t.created_at DESC
+                LIMIT 1
+            `;
+            const { rows } = await pool.query(sql, [req.user.id, refOrInvoiceId]);
+            if (!rows || rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Transaksi tidak ditemukan.' });
+            }
+
+            res.json({
+                success: true,
+                message: 'Status transaksi H2H berhasil diambil.',
+                data: formatH2HTransactionRow(rows[0]),
+            });
+        } catch (error) {
+            logSafeError('H2H Get Order Status Error:', error);
+            res.status(500).json({ success: false, message: 'Gagal mengambil status transaksi H2H.' });
         }
     });
 

@@ -147,8 +147,17 @@ Catatan pembaruan implementasi pasca-refaktorisasi modular backend dan batch `SE
   - `SEC-011` (Validasi Skema Input Terpusat):
     - Menambahkan `backend/utils/schemaValidators.js` (`283` baris) serta validasi skema ketat (body plain object, panjang string, `requirePositiveInt`, `requireBoundedNumber`, enum whitelist, rentang tanggal, peta `manual_prices` & `rules`) pada 8 rute admin (`promos`, `flashSales`, `margins`, `products`, `games`, `deposits`, `transactions`, `paymentMethods`) serta rute publik/member (`user`, `catalog`, `public`).
     - Teruji oleh 6 kasus baru pada `backend/tests/integration/authAndSchemaHardening.test.js`.
+- **Ditutup / diperkuat pada QA Fix Batch 1, 2A, & 2B (`fix/pricing-and-provider-safety`, `fix/sec-batch-2a`, `fix/sec-batch-2b`):**
+  - `SEC-003` & `SEC-018` (Batch 1): jalur order bypass cache Foxy 5 menit, validasi fail-closed modal `NaN`/negatif, validasi respons HTTP 200 `/v1/order`, sinkronisasi `FOXY_BASE_URL` di cron/productSync, guard array kosong `productSync`, dan validasi modal flash sale (`pricingAndProviderGuards.test.js`).
+  - `SEC-014` (sisa revokasi JWT) & `SEC-011` (sisa `balance.routes.js`) (Batch 2A): migrasi `013_auth_revocation_and_email_cascade.sql` (`users.token_version` + `ON UPDATE CASCADE`), revokasi JWT pasca ganti/reset password di `protect`, login email case-insensitive, validasi ketat `balance.routes.js` & `whitelisted-ips`, dan penghapusan `base_price`/game `Inactive` di `compare-prices` (`securityBatch2aFixes.test.js`).
+  - `SEC-010` (cakupan penuh Audit Log), `SEC-021` (concurrency deposit `FOR UPDATE`), & `SEC-026` (penghapusan `/api/test`) (Batch 2B):
+    - `POST /api/deposit/request` mengunci `SELECT id FROM users WHERE id = $1 FOR UPDATE` sebelum menghitung deposit `Pending` (`BUG-013`).
+    - `POST /api/foxy/callback` membersihkan cooldown pada blok `catch` saat `/v1/status` error sementara (`BUG-012`).
+    - Seluruh aksi mutasi `admin/products.routes.js`, `promos.routes.js`, `flashSales.routes.js`, dan `waBot.routes.js` kini mencatat `admin_audit_logs` (`BUG-014`).
+    - Endpoint debug publik `POST /api/test` dihapus (`404`, `BUG-001`) dan ditambahkan endpoint read-only H2H `GET /h2h/transactions` & `GET /h2h/order/:refOrInvoiceId` dengan isolasi `user_id` (`BUG-010`, baseline `88` route).
+    - Teruji oleh 5 kasus baru di `backend/tests/integration/securityBatch2bFixes.test.js`.
 - **Masih terbuka untuk roadmap fase berikutnya:**
   - `SEC-005` (2FA TOTP Admin & path/IP allowlist panel admin)
-  - `SEC-011` (sisa validasi nominal `balance.routes.js`), `SEC-014` (sisa migrasi cookie `HttpOnly` + CSRF & `token_version` revokasi JWT)
+  - `SEC-014` (sisa migrasi cookie `HttpOnly` + CSRF)
   - `SEC-015` (verifikasi sertifikat DB CA `rejectUnauthorized: true`)
-  - `SEC-017`, `SEC-018`, `SEC-019`, `SEC-021`, `SEC-022`, `SEC-024`, `SEC-025`, `SEC-026`, `SEC-027`, `SEC-028`, `SEC-029` (rate limit admin/publik & Turnstile, penyempurnaan cron advisory lock & guard bulk-disable, ledger `balance_before`/`balance_after`, paginasi server, penghapusan `/api/test`, validator param ID seragam).
+  - `SEC-017`, `SEC-019`, `SEC-021` (sisa `crypto.randomInt` & `expires_at` deposit), `SEC-022`, `SEC-024`, `SEC-025`, `SEC-027`, `SEC-028`, `SEC-029` (rate limit admin/publik & Turnstile, cron advisory lock, ledger `balance_before`/`balance_after`, paginasi endpoint admin/member, validator param ID seragam).

@@ -79,4 +79,27 @@
 ### Rencana & Status Eksekusi 3 Commit Batch 2A
 - [x] **COMMIT 1 (`8f2f80e` — `BUG-008`, `BUG-011`):** `migrations/013_auth_revocation_and_email_cascade.sql` (`34` baris, sudah diterapkan ke DB lokal `topup_miku_local`), `migrations/README.md` (`265` baris), `backend/middleware/auth.js` (`107` baris), `backend/routes/auth.routes.js` (`268` baris), `backend/routes/user.routes.js` (`253` baris), serta penyesuaian kompatibilitas tes (`--test-force-exit` & mock `token_version`).
 - [x] **COMMIT 2 (`a3ddd27` — `BUG-005`, `BUG-009`, `BUG-015`):** `backend/routes/admin/balance.routes.js` (`158` baris), `backend/routes/userApiKey.routes.js` (`188` baris), `backend/routes/public.routes.js` (`382` baris).
-- [x] **COMMIT 3 (Tes Regresi & Dokumentasi):** Tambah `backend/tests/integration/securityBatch2aFixes.test.js` (`6` tes baru -> `217/217` lulus), perbarui `docs/refactor-baseline-tests.txt` (`217` entri), `QA_REPORT.md` (status `FIXED (Batch 2A)` untuk 5 bug), dan pembaruan status `docs/qa-fix-plan.md`.
+- [x] **COMMIT 3 (`fa5e866` — Tes Regresi & Dokumentasi):** Tambah `backend/tests/integration/securityBatch2aFixes.test.js` (`6` tes baru -> `217/217` lulus), perbarui `docs/refactor-baseline-tests.txt` (`217` entri), `QA_REPORT.md` (status `FIXED (Batch 2A)` untuk 5 bug), dan pembaruan status `docs/qa-fix-plan.md`.
+
+---
+
+## Batch 2B — Concurrency Deposit, Callback Retry, Audit Log, Hapus `/api/test`, & Status H2H (`fix/sec-batch-2b`)
+
+- **Branch:** `fix/sec-batch-2b` (dari `main` `@ f009661`)
+- **Cakupan Bug:** `BUG-013`, `BUG-012`, `BUG-014`, `BUG-001`, `BUG-010`
+- **Migrasi Database:** Tidak ada migrasi skema baru (`001`–`013` tetap utuh).
+
+### Pemetaan Kontrak & Risiko
+- **`BUG-013` (`backend/routes/deposit.routes.js`, saat ini `290` baris):** Tambah `SELECT id FROM users WHERE id = $1 FOR UPDATE` segera setelah `BEGIN` pada `POST /api/deposit/request` sebelum menghitung jumlah deposit `Pending` (`>= 2` -> `HTTP 429`). Mengserialisasi request paralel per user tanpa mengubah respons atau mengganggu pre-check `Idempotency-Key`.
+- **`BUG-012` (`backend/routes/foxyCallback.routes.js`, saat ini `313` baris):** Hapus key `trx_id` dari `callbackVerificationCooldown` pada blok `catch` saat `axios.get('/v1/status/...')` gagal (5xx/timeout) agar retry segera setelah provider pulih tidak tertahan cooldown 5 detik. Cooldown tetap aktif ketika verifikasi berhasil dijangkau.
+- **`BUG-014` (`products.routes.js` `312` baris, `promos.routes.js` `123` baris, `flashSales.routes.js` `128` baris, `waBot.routes.js` `330` baris, & wiring `app.js`):** Teruskan `recordAdminAuditLog` dan catat secara fail-safe pada seluruh aksi mutasi produk (`create`, `status`, `validation`, `bulk-validation`, `sync-products`), promo (`create`, `toggle`), flash sale (`create`, `delete`), serta WA Bot (`approve`, `reject` menggunakan `client` pasca-`COMMIT` agar fail-safe sekaligus kompatibel dengan mock pool). Semua file route tetap `<= 400` baris.
+- **`BUG-001` (`backend/routes/admin/games.routes.js`, saat ini `271` baris):** Hapus endpoint debug publik `POST /api/test` (`404 Not Found`).
+- **`BUG-010` (`backend/routes/h2h.routes.js`, saat ini `183` baris):** Tambah dua endpoint read-only bermiddleware `protectH2HIp, protectH2H, h2hUserLimiter`:
+  1. `GET /h2h/transactions` (paginasi `page`/`limit` maks `50`, filter `status` opsional ter-whitelist, `WHERE t.user_id = $1`).
+  2. `GET /h2h/order/:refOrInvoiceId` (`WHERE t.user_id = $1 AND (t.invoice_id = $2 OR t.ref_id = $2)` -> `404` bila tidak ditemukan atau milik user lain).
+- **Baseline Route Resmi:** Perbarui `docs/routes.baseline.txt`, `docs/layers.baseline.txt`, dan `docs/effective-chain.baseline.txt` (`87 - 1 + 2 = 88` route) via `scripts/dump-routes.js` dan verifikasi `scripts/check-route-overlap.js` (`88/88`, `overlap_conflicts=0`).
+
+### Rencana & Status Eksekusi 3 Commit Batch 2B
+- [x] **COMMIT 1 (`3100350` — `BUG-013`, `BUG-012`, `BUG-014`):** `deposit.routes.js` (`292` baris), `foxyCallback.routes.js` (`314` baris), `admin/products.routes.js` (`351` baris), `admin/promos.routes.js` (`157` baris), `admin/flashSales.routes.js` (`161` baris), `waBot.routes.js` (`351` baris), `app.js` (`110` baris).
+- [x] **COMMIT 2 (`fe89718` — `BUG-001`, `BUG-010`, & Route Baseline):** `admin/games.routes.js` (`266` baris), `h2h.routes.js` (`302` baris), pembaruan `docs/routes.baseline.txt`, `docs/layers.baseline.txt`, dan `docs/effective-chain.baseline.txt` (`88/88`, `overlap_conflicts=0`).
+- [x] **COMMIT 3 (Tes Regresi & Dokumentasi):** Tambah `backend/tests/integration/securityBatch2bFixes.test.js` (`5` tes baru -> `222/222` lulus), perbarui `docs/refactor-baseline-tests.txt` (`222` entri), `QA_REPORT.md` (status `FIXED (Batch 2B)` untuk 5 bug), `AUDIT_SECURITY.md`, dan `docs/qa-fix-plan.md`.
