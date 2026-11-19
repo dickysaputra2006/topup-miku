@@ -66,13 +66,15 @@ module.exports = function createH2HRoutes(deps) {
             const { rows: globalRoleRows } = await pool.query('SELECT margin_percent FROM roles WHERE id = $1', [h2hPartner.role_id]);
             const globalMargin = globalRoleRows[0].margin_percent;
 
-            // 1. Ambil semua item flash sale yang sedang aktif
+            // 1. Ambil semua item flash sale yang sedang aktif & masih punya kuota
             const { rows: activeFlashSales } = await pool.query(`
                 SELECT product_id, discount_price FROM flash_sales
-                WHERE is_active = true AND NOW() BETWEEN start_at AND end_at
+                WHERE is_active = true
+                  AND NOW() BETWEEN start_at AND end_at
+                  AND (max_uses IS NULL OR uses_count < max_uses)
             `);
             // 2. Buat Peta (Map) untuk pencarian cepat
-            const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, fs.discount_price]));
+            const flashSaleMap = new Map(activeFlashSales.map(fs => [fs.product_id, Number(fs.discount_price)]));
 
             const productQuery = `
                 SELECT p.id, p.name as product_name, p.provider_sku, p.price as base_price, g.name as game_name,
@@ -87,16 +89,14 @@ module.exports = function createH2HRoutes(deps) {
             const { rows: allActiveProducts } = await pool.query(productQuery);
 
             const partnerProductList = allActiveProducts.map(product => {
-                let finalPrice;
-                let originalPrice = null;
-                let isFlashSale = false;
+                const manualPrice = product.manual_prices ? product.manual_prices[partnerRoleName] : null;
+                let normalPrice;
 
-                // PRIORITAS 0: FLASH SALE
-                if (flashSaleMap.has(product.id)) {
-                    isFlashSale = true;
-                    finalPrice = flashSaleMap.get(product.id);
-
-                    // Hitung harga asli partner sebelum diskon untuk referensi
+                // PRIORITAS 1: HARGA MANUAL
+                if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
+                    normalPrice = Number(manualPrice);
+                } else {
+                    // PRIORITAS 2 & 3: MARGIN
                     let margin = globalMargin;
                     if (product.use_custom_margin) {
                         const customMargin = product[`${partnerRoleName}_margin`];
@@ -104,24 +104,20 @@ module.exports = function createH2HRoutes(deps) {
                             margin = customMargin;
                         }
                     }
-                    originalPrice = Math.ceil(product.base_price * (1 + (margin / 100)));
+                    normalPrice = Math.ceil(Number(product.base_price) * (1 + (Number(margin) / 100)));
+                }
 
-                } else {
-                    const manualPrice = product.manual_prices ? product.manual_prices[partnerRoleName] : null;
+                let finalPrice = normalPrice;
+                let originalPrice = null;
+                let isFlashSale = false;
 
-                    // PRIORITAS 1: HARGA MANUAL
-                    if (product.use_manual_prices && manualPrice) {
-                        finalPrice = manualPrice;
-                    } else {
-                        // PRIORITAS 2 & 3: MARGIN
-                        let margin = globalMargin;
-                        if (product.use_custom_margin) {
-                            const customMargin = product[`${partnerRoleName}_margin`];
-                            if (customMargin !== null && customMargin !== undefined) {
-                                margin = customMargin;
-                            }
-                        }
-                        finalPrice = Math.ceil(product.base_price * (1 + (margin / 100)));
+                // PRIORITAS 0: FLASH SALE (hanya jika aktif, ada kuota, dan lebih murah dari harga normal)
+                if (flashSaleMap.has(product.id)) {
+                    const flashPrice = Number(flashSaleMap.get(product.id));
+                    if (Number.isFinite(flashPrice) && flashPrice > 0 && flashPrice < normalPrice) {
+                        isFlashSale = true;
+                        finalPrice = flashPrice;
+                        originalPrice = normalPrice;
                     }
                 }
 
