@@ -2,7 +2,7 @@
 
 ## 1. Ringkasan Eksekutif & Verdict Kesiapan
 
-- **Verdict Kesiapan:** **`BELUM SIAP`** *(untuk rilis penuh ke pengguna; **Batch 1 — `BUG-026`, `BUG-007`, `BUG-024`, `BUG-004`, `BUG-003`, `BUG-006` telah diperbaiki & lulus regresi pada branch `fix/pricing-and-provider-safety`**, dan **Batch 2A — `BUG-008`, `BUG-011`, `BUG-005`, `BUG-009`, `BUG-015` telah diperbaiki pada branch `fix/sec-batch-2a`**, tersisa Batch 2B/3 untuk temuan keamanan/UI lainnya)*
+- **Verdict Kesiapan:** **`BELUM SIAP`** *(untuk rilis penuh ke pengguna; **Batch 1 — `BUG-026`, `BUG-007`, `BUG-024`, `BUG-004`, `BUG-003`, `BUG-006`**, **Batch 2A — `BUG-008`, `BUG-011`, `BUG-005`, `BUG-009`, `BUG-015`**, dan **Batch 2B — `BUG-001`, `BUG-010`, `BUG-012`, `BUG-013`, `BUG-014` telah diperbaiki**, tersisa Batch 3 untuk temuan UI/frontend lainnya)*
 - **Ringkasan Eksekutif:**
   Audit penuh (statis, eksplorasi browser multi-viewport, E2E top-up/deposit/H2H dengan mock provider, dan pengujian keamanan/konkurensi DB) mengonfirmasi fondasi keamanan inti **kuat** pada jalur 3-fase order (`FOR UPDATE` + lock-free provider HTTP), anti-double-refund, Zero-Trust callback Foxy, SSRF webhook DNS pinning, serta bcrypt cost 12. Namun ditemukan **26 bug terbukti (`CONFIRMED`)**, termasuk bug berdampak bisnis langsung: item flash sale utama `DUMMY-ML-86` tidak bisa dibeli (`400 Harga sedang diperbarui`), cache harga Foxy 5 menit memungkinkan penjualan rugi saat harga provider naik, cron/`sync-products` mengabaikan `FOXY_BASE_URL`, endpoint publik `POST /api/test` terbuka tanpa auth, editor Harga Manual Admin gagal `HTTP 400`, serta form Promo Admin diam-diam membuang batas diskon maksimum (`promo-max-discount`). Perlu menyelesaikan minimal prioritas #1–#8 sebelum go-live.
 
@@ -92,7 +92,7 @@
 - **Rekomendasi:** Tambahkan pengecekan `if (!Number.isFinite(cost) || cost < 0) throw new Error(...)` di `fetchRealtimeFoxyCostForOrder()`.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-007`).
 
-### `[BUG-001]` Endpoint Debug `POST /api/test` Terbuka Publik Tanpa Autentikasi & Tanpa Rate Limit — `HIGH` — `CONFIRMED`
+### `[BUG-001]` Endpoint Debug `POST /api/test` Terbuka Publik Tanpa Autentikasi & Tanpa Rate Limit — `HIGH` — `FIXED (Batch 2B)`
 - **Area:** Security / Access Control
 - **Langkah reproduksi:**
   1. Kirim `POST http://localhost:3000/api/test` tanpa header `Authorization` maupun `X-API-Key`.
@@ -194,7 +194,7 @@
 - **Rekomendasi:** Tolak `400` jika ada elemen bukan string atau string kosong pada `ips`.
 - **Test regresi:** `qa/tests/03-h2h-and-security.api.spec.js` (`@bug-BUG-009`).
 
-### `[BUG-010]` Reseller H2H Tidak Memiliki Endpoint Cek Status / Daftar Transaksi — `HIGH` — `CONFIRMED`
+### `[BUG-010]` Reseller H2H Tidak Memiliki Endpoint Cek Status / Daftar Transaksi — `HIGH` — `FIXED (Batch 2B)`
 - **Area:** H2H API / Feature Gap
 - **Langkah reproduksi:**
   1. Kirim `GET /h2h/transactions` memakai `X-API-Key` reseller valid.
@@ -219,7 +219,7 @@
 - **Rekomendasi:** Lowercase `$2` saat login email; tambahkan `token_version` di tabel `users` & verifikasi di `protect`.
 - **Test regresi:** `qa/tests/03-h2h-and-security.api.spec.js` (`@bug-BUG-011`).
 
-### `[BUG-013]` Race Condition Request Deposit Paralel Tembus Batas Maksimal 2 Deposit Pending — `HIGH` — `CONFIRMED`
+### `[BUG-013]` Race Condition Request Deposit Paralel Tembus Batas Maksimal 2 Deposit Pending — `HIGH` — `FIXED (Batch 2B)`
 - **Area:** Concurrency / Database Integrity (`SEC-021`)
 - **Langkah reproduksi:**
   1. Kirim 6 request `POST /api/deposit/request` secara paralel (`Promise.all`) dari user yang sama dengan `Idempotency-Key` unik.
@@ -256,7 +256,7 @@
 - **Rekomendasi:** Hapus penimpaan harga dari `fsPrice` dan gunakan `CSS.escape(String(fsProductId))` saat query DOM.
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-017`).
 
-### `[BUG-012]` Cooldown Callback Foxy 5 Detik Memblokir Retry Setelah Kegagalan Sementara `/v1/status` — `MEDIUM` — `CONFIRMED`
+### `[BUG-012]` Cooldown Callback Foxy 5 Detik Memblokir Retry Setelah Kegagalan Sementara `/v1/status` — `MEDIUM` — `FIXED (Batch 2B)`
 - **Area:** Callback / Resilience
 - **Langkah reproduksi:**
   1. Order masuk status `Pending`.
@@ -269,7 +269,7 @@
 - **Rekomendasi:** Catat cooldown setelah `axios.get('/v1/status/...')` mendapat respons sukses (atau hapus key cooldown pada blok `catch`).
 - **Test regresi:** `qa/tests/03-h2h-and-security.api.spec.js` (`@bug-BUG-012`).
 
-### `[BUG-014]` Aksi Admin Produk & Promo Tidak Tercatat di `admin_audit_logs` — `MEDIUM` — `CONFIRMED`
+### `[BUG-014]` Aksi Admin Produk & Promo Tidak Tercatat di `admin_audit_logs` — `MEDIUM` — `FIXED (Batch 2B)`
 - **Area:** Auditability / Compliance (`SEC-010`)
 - **Langkah reproduksi:**
   1. Admin membuat kode promo (`POST /api/admin/promos`), mengubah produk/flash sale.

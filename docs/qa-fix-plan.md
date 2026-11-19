@@ -99,7 +99,7 @@
   2. `GET /h2h/order/:refOrInvoiceId` (`WHERE t.user_id = $1 AND (t.invoice_id = $2 OR t.ref_id = $2)` -> `404` bila tidak ditemukan atau milik user lain).
 - **Baseline Route Resmi:** Perbarui `docs/routes.baseline.txt`, `docs/layers.baseline.txt`, dan `docs/effective-chain.baseline.txt` (`87 - 1 + 2 = 88` route) via `scripts/dump-routes.js` dan verifikasi `scripts/check-route-overlap.js` (`88/88`, `overlap_conflicts=0`).
 
-### Rencana 3 Commit Batch 2B
-- [ ] **COMMIT 1 (`BUG-013`, `BUG-012`, `BUG-014`):** `deposit.routes.js`, `foxyCallback.routes.js`, `admin/products.routes.js`, `admin/promos.routes.js`, `admin/flashSales.routes.js`, `waBot.routes.js`, `app.js`, dan `docs/qa-fix-plan.md`.
-- [ ] **COMMIT 2 (`BUG-001`, `BUG-010`, & Route Baseline):** `admin/games.routes.js`, `h2h.routes.js`, `docs/routes.baseline.txt`, `docs/layers.baseline.txt`, `docs/effective-chain.baseline.txt`.
-- [ ] **COMMIT 3 (Tes Regresi & Dokumentasi):** `backend/tests/integration/securityBatch2bFixes.test.js` (`<= 500` baris), `docs/refactor-baseline-tests.txt`, `QA_REPORT.md`, `AUDIT_SECURITY.md`, dan `docs/qa-fix-plan.md`.
+### Rencana & Status Eksekusi 3 Commit Batch 2B
+- [x] **COMMIT 1 (`3100350` — `BUG-013`, `BUG-012`, `BUG-014`):** `deposit.routes.js` (`292` baris), `foxyCallback.routes.js` (`314` baris), `admin/products.routes.js` (`351` baris), `admin/promos.routes.js` (`157` baris), `admin/flashSales.routes.js` (`161` baris), `waBot.routes.js` (`351` baris), `app.js` (`110` baris).
+- [x] **COMMIT 2 (`fe89718` — `BUG-001`, `BUG-010`, & Route Baseline):** `admin/games.routes.js` (`266` baris), `h2h.routes.js` (`302` baris), pembaruan `docs/routes.baseline.txt`, `docs/layers.baseline.txt`, dan `docs/effective-chain.baseline.txt` (`88/88`, `overlap_conflicts=0`).
+- [x] **COMMIT 3 (Tes Regresi & Dokumentasi):** Tambah `backend/tests/integration/securityBatch2bFixes.test.js` (`5` tes baru -> `222/222` lulus), perbarui `docs/refactor-baseline-tests.txt` (`222` entri), `QA_REPORT.md` (status `FIXED (Batch 2B)` untuk 5 bug), `AUDIT_SECURITY.md`, dan `docs/qa-fix-plan.md`.
