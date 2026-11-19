@@ -4,7 +4,7 @@ const { FOXY_BASE_URL, PROVIDER_TIMEOUT_MS } = require('../config/constants');
 const { safeErrorDetail, safeAxiosError } = require('../utils/logger');
 const { parsePositiveQuota, isValidPriceAmount } = require('../utils/validation');
 const { rollbackTransactionResources } = require('./refundService');
-const { validateOrderGameIdIfNeeded, invalidateFoxyProductCache, getFoxyProducts } = require('./foxyClient');
+const { validateOrderGameIdIfNeeded, invalidateFoxyProductCache, fetchRealtimeFoxyCostForOrder } = require('./foxyClient');
 const { generateInvoiceId, generateProviderTrxId, resolveExistingIdempotentOrder, insertTransactionRecord, findRecentPendingDuplicate } = require('./idempotency');
 
 function getSafeOrderErrorMessage(error, fallback) {
@@ -133,32 +133,6 @@ async function preCheckOrderAndLookupProduct(pool, {
         return { product: products[0] };
     } finally {
         preClient.release();
-    }
-}
-
-async function fetchRealtimeFoxyCostForOrder(product, logPrefix, checkLogMsg) {
-    try {
-        console.log(checkLogMsg);
-        const providerProducts = await getFoxyProducts();
-        const currentFoxyProduct = providerProducts
-            ? providerProducts.find(p => p.product_code === product.provider_sku)
-            : null;
-        if (!currentFoxyProduct) {
-            console.warn(`${logPrefix} Product SKU ${product.provider_sku} not found in provider list.`);
-            throw new Error('Produk sedang tidak tersedia, silakan coba lagi nanti.');
-        }
-        return Number(currentFoxyProduct.product_price);
-    } catch (priceGuardErr) {
-        if (priceGuardErr.message && (
-            priceGuardErr.message.startsWith('Harga sedang diperbarui') ||
-            priceGuardErr.message.startsWith('Harga produk sedang diperbarui') ||
-            priceGuardErr.message.startsWith('Produk sedang tidak tersedia') ||
-            priceGuardErr.message.startsWith('Terjadi perubahan harga')
-        )) {
-            throw priceGuardErr;
-        }
-        console.warn(`${logPrefix} Provider check failed, blocking order:`, safeAxiosError(priceGuardErr, 'Foxy'));
-        throw new Error('Harga sedang diperbarui, coba lagi sebentar');
     }
 }
 

@@ -86,9 +86,9 @@ function invalidateFoxyProductCache() {
     foxyCacheTimestamp = null;
 }
 
-async function getFoxyProducts() {
+async function getFoxyProducts({ bypassCache = false } = {}) {
     const now = Date.now();
-    if (foxyProductCache && foxyCacheTimestamp && (now - foxyCacheTimestamp < FOXY_CACHE_TTL)) {
+    if (!bypassCache && foxyProductCache && foxyCacheTimestamp && (now - foxyCacheTimestamp < FOXY_CACHE_TTL)) {
         return foxyProductCache;
     }
 
@@ -118,8 +118,47 @@ async function getFoxyProducts() {
     }
 }
 
+/**
+ * Ambil harga modal provider secara realtime (bypass cache 5 menit) dengan validasi fail-closed.
+ */
+async function fetchRealtimeFoxyCostForOrder(product, logPrefix, checkLogMsg) {
+    try {
+        console.log(checkLogMsg);
+        const providerProducts = await getFoxyProducts({ bypassCache: true });
+        const currentFoxyProduct = Array.isArray(providerProducts)
+            ? providerProducts.find(p => p && p.product_code === product.provider_sku)
+            : null;
+        if (!currentFoxyProduct) {
+            console.warn(`${logPrefix} Product SKU ${product.provider_sku} not found in provider list.`);
+            throw new Error('Produk sedang tidak tersedia, silakan coba lagi nanti.');
+        }
+        const rawCost = currentFoxyProduct.product_price;
+        const parsedCost = (rawCost === null || rawCost === undefined || String(rawCost).trim() === '')
+            ? NaN
+            : Number(rawCost);
+        if (!Number.isFinite(parsedCost) || parsedCost < 0) {
+            console.warn(`${logPrefix} Invalid provider cost for SKU ${product.provider_sku}. Blocking order.`);
+            invalidateFoxyProductCache();
+            throw new Error('Harga produk sedang diperbarui, silakan coba lagi nanti.');
+        }
+        return parsedCost;
+    } catch (priceGuardErr) {
+        if (priceGuardErr.message && (
+            priceGuardErr.message.startsWith('Harga sedang diperbarui') ||
+            priceGuardErr.message.startsWith('Harga produk sedang diperbarui') ||
+            priceGuardErr.message.startsWith('Produk sedang tidak tersedia') ||
+            priceGuardErr.message.startsWith('Terjadi perubahan harga')
+        )) {
+            throw priceGuardErr;
+        }
+        console.warn(`${logPrefix} Provider check failed, blocking order:`, safeAxiosError(priceGuardErr, 'Foxy'));
+        throw new Error('Harga sedang diperbarui, coba lagi sebentar');
+    }
+}
+
 module.exports = {
     validateOrderGameIdIfNeeded,
     invalidateFoxyProductCache,
     getFoxyProducts,
+    fetchRealtimeFoxyCostForOrder,
 };
