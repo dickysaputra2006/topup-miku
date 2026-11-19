@@ -76,7 +76,7 @@
 - **IP Whitelist (`BUG-009`):** `PUT /api/user/whitelisted-ips` memakai `getBodyObject` dan menolak `HTTP 400` jika ada elemen bukan string atau string kosong pada array `ips` (tidak menghapus whitelist menjadi `[]`).
 - **Compare Prices (`BUG-015`):** `GET /api/public/compare-prices` memfilter `AND g.status = 'Active'` dan menghapus field internal `base_price` dari respons publik.
 
-### Rencana 3 Commit Batch 2A
-- [ ] **COMMIT 1 (`BUG-008`, `BUG-011`):** `migrations/013_auth_revocation_and_email_cascade.sql`, `migrations/README.md`, `backend/middleware/auth.js`, `backend/routes/auth.routes.js`, `backend/routes/user.routes.js` (+ apply migrasi 013 ke DB lokal).
-- [ ] **COMMIT 2 (`BUG-005`, `BUG-009`, `BUG-015`):** `backend/routes/admin/balance.routes.js`, `backend/routes/userApiKey.routes.js`, `backend/routes/public.routes.js`.
-- [ ] **COMMIT 3:** `backend/tests/integration/securityBatch2aFixes.test.js` (`<= 500` baris), `docs/refactor-baseline-tests.txt`, `QA_REPORT.md`, dan pembaruan status `docs/qa-fix-plan.md`.
+### Rencana & Status Eksekusi 3 Commit Batch 2A
+- [x] **COMMIT 1 (`8f2f80e` — `BUG-008`, `BUG-011`):** `migrations/013_auth_revocation_and_email_cascade.sql` (`34` baris, sudah diterapkan ke DB lokal `topup_miku_local`), `migrations/README.md` (`265` baris), `backend/middleware/auth.js` (`107` baris), `backend/routes/auth.routes.js` (`268` baris), `backend/routes/user.routes.js` (`253` baris), serta penyesuaian kompatibilitas tes (`--test-force-exit` & mock `token_version`).
+- [x] **COMMIT 2 (`a3ddd27` — `BUG-005`, `BUG-009`, `BUG-015`):** `backend/routes/admin/balance.routes.js` (`158` baris), `backend/routes/userApiKey.routes.js` (`188` baris), `backend/routes/public.routes.js` (`382` baris).
+- [x] **COMMIT 3 (Tes Regresi & Dokumentasi):** Tambah `backend/tests/integration/securityBatch2aFixes.test.js` (`6` tes baru -> `217/217` lulus), perbarui `docs/refactor-baseline-tests.txt` (`217` entri), `QA_REPORT.md` (status `FIXED (Batch 2A)` untuk 5 bug), dan pembaruan status `docs/qa-fix-plan.md`.

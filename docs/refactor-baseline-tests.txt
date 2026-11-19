@@ -168,6 +168,12 @@ QA Batch 1: Pricing Integrity & Provider Safety Guards :: BUG-006: respons HTTP 
 QA Batch 1: Pricing Integrity & Provider Safety Guards :: BUG-007: harga modal provider non-numerik (NaN), kosong, atau negatif ditolak fail-closed 400 sebelum potong saldo
 QA Batch 1: Pricing Integrity & Provider Safety Guards :: BUG-024: POST /api/admin/flash-sales tolak discount_price < modal (400) dan izinkan >= modal atau allow_below_cost=true
 QA Batch 1: Pricing Integrity & Provider Safety Guards :: BUG-026: jalur order bypass cache 5 menit sehingga lonjakan harga modal Foxy langsung ditolak 400 tanpa potong saldo
+QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG-005: POST /api/admin/balance/add dan /reduce menolak "1e5", 0.5, negatif, serta payload bukan objek (400) tanpa membuka transaksi DB
+QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG-008: migrasi 013 menambahkan ON UPDATE CASCADE pada fk_password_resets_email & PUT /api/user/profile memperbarui email 200
+QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG-009: PUT /api/user/whitelisted-ips menolak elemen non-string ([123]), string kosong, dan IP invalid (400) tanpa menghapus whitelist
+QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG-011 (1): login menerima email huruf campuran secara case-insensitive dan menyematkan klaim tokenVersion pada JWT
+QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG-011 (2): PUT /api/user/password dan POST /api/auth/reset-password menaikkan token_version serta mencabut JWT lama (401)
+QA Batch 2A: Auth Revocation, Email Cascade, Validation & Public Exposure :: BUG-015: GET /api/public/compare-prices memfilter g.status = Active dan tidak membocorkan base_price
 SEC-001: Foxy Callback Security Hardening :: cross-check /v1/status vs DB: SKU atau trx_id tidak cocok -> log warning (invoice + reason saja) & status tidak berubah
 SEC-001: Foxy Callback Security Hardening :: fail-closed: tanpa secret ditolak 403, hanya bisa dilewati non-prod dengan ALLOW_INSECURE_CALLBACK=true
 SEC-001: Foxy Callback Security Hardening :: respons /v1/status tanpa SKU dan nominal tetap diproses normal
