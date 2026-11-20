@@ -19,14 +19,17 @@ const H2H_STATUS_MAP = new Map([
 ]);
 
 function formatH2HTransactionRow(row) {
+    const rawTarget = typeof row.target_game_id === 'string' ? row.target_game_id : '';
+    const pipeIdx = rawTarget.indexOf('|');
+    const parsedServerId = pipeIdx !== -1 ? (rawTarget.slice(pipeIdx + 1) || null) : null;
     return {
         invoice_id: row.invoice_id,
         ref_id: row.ref_id || null,
         product_id: row.product_id,
         product_name: row.product_name || null,
         sku: row.sku || null,
-        target_game_id: row.target_game_id,
-        target_server_id: row.target_server_id || null,
+        target_game_id: pipeIdx !== -1 ? rawTarget.slice(0, pipeIdx) : row.target_game_id,
+        target_server_id: row.target_server_id || parsedServerId,
         price: Number(row.price),
         status: row.status,
         provider_sn: row.provider_sn || null,
@@ -229,7 +232,7 @@ module.exports = function createH2HRoutes(deps) {
             const offsetParamIdx = filterParams.length + 2;
             const listSql = `
                 SELECT t.invoice_id, t.ref_id, t.product_id, p.name AS product_name, p.provider_sku AS sku,
-                       t.target_game_id, t.target_server_id, t.price, t.status, t.provider_sn,
+                       t.target_game_id, t.price, t.status, t.provider_sn,
                        t.created_at, t.updated_at
                 FROM transactions t
                 LEFT JOIN products p ON t.product_id = p.id
@@ -260,7 +263,7 @@ module.exports = function createH2HRoutes(deps) {
 
             const sql = `
                 SELECT t.invoice_id, t.ref_id, t.product_id, p.name AS product_name, p.provider_sku AS sku,
-                       t.target_game_id, t.target_server_id, t.price, t.status, t.provider_sn,
+                       t.target_game_id, t.price, t.status, t.provider_sn,
                        t.created_at, t.updated_at
                 FROM transactions t
                 LEFT JOIN products p ON t.product_id = p.id

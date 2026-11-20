@@ -39,7 +39,7 @@ describe('QA Batch 2B: Deposit Concurrency, Callback Retry, Audit Log, Debug Rem
         const sampleTxRow = {
             invoice_id: 'H2H-OWN-001', ref_id: 'REF-OWN-1', product_id: 12,
             product_name: '86 Diamonds', sku: 'DUMMY-ML-86',
-            target_game_id: '123456', target_server_id: '1001',
+            target_game_id: '123456|1001',
             price: '19500', status: 'Success', provider_sn: 'SN-H2H-777',
             created_at: '2026-11-20T00:00:00.000Z', updated_at: '2026-11-20T00:01:00.000Z',
         };
@@ -81,9 +81,12 @@ describe('QA Batch 2B: Deposit Concurrency, Callback Retry, Audit Log, Debug Rem
             assert.strictEqual(listRes.status, 200);
             assert.strictEqual(listBody.success, true);
             assert.match(capturedListSql, /WHERE t\.user_id = \$1 AND t\.status = \$2/i);
+            assert.doesNotMatch(capturedListSql, /target_server_id/i);
             assert.deepStrictEqual(capturedListParams, [701, 'Success', 10, 0]);
             assert.deepStrictEqual(listBody.pagination, { page: 1, limit: 10, total: 1 });
             assert.strictEqual(listBody.data[0].invoice_id, 'H2H-OWN-001');
+            assert.strictEqual(listBody.data[0].target_game_id, '123456');
+            assert.strictEqual(listBody.data[0].target_server_id, '1001');
             assert.strictEqual(listBody.data[0].provider_sn, 'SN-H2H-777');
             assert.strictEqual(listBody.data[0].price, 19500);
 
@@ -106,7 +109,10 @@ describe('QA Batch 2B: Deposit Concurrency, Callback Retry, Audit Log, Debug Rem
             assert.strictEqual(detailRes.status, 200);
             assert.strictEqual(detailBody.success, true);
             assert.match(capturedDetailSql, /WHERE t\.user_id = \$1 AND \(t\.invoice_id = \$2 OR t\.ref_id = \$2\)/i);
+            assert.doesNotMatch(capturedDetailSql, /target_server_id/i);
             assert.strictEqual(detailBody.data.invoice_id, 'H2H-OWN-001');
+            assert.strictEqual(detailBody.data.target_game_id, '123456');
+            assert.strictEqual(detailBody.data.target_server_id, '1001');
             assert.strictEqual(detailBody.data.status, 'Success');
 
             // 4. Anti-IDOR: order milik user lain / tidak ada -> 404
