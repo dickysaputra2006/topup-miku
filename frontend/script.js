@@ -76,8 +76,14 @@ document.addEventListener('DOMContentLoaded', function () {
         container.appendChild(fb);
     }
 
-    function showModal() { if (modal) modal.classList.remove('hidden'); }
-    function hideModal() { if (modal) modal.classList.add('hidden'); }
+    function showLoginError(msg) {
+        const errEl = document.getElementById('login-error-msg');
+        if (!errEl) return;
+        errEl.textContent = msg || '';
+        errEl.classList.toggle('hidden', !msg);
+    }
+    function showModal() { showLoginError(''); if (modal) modal.classList.remove('hidden'); }
+    function hideModal() { showLoginError(''); if (modal) modal.classList.add('hidden'); }
 
     function setDrawerOpen(open) {
         if (!dropdownMenu) return;
@@ -86,22 +92,20 @@ document.addEventListener('DOMContentLoaded', function () {
         if (hamburgerBtn) hamburgerBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
-    function setMoreNavOpen(open) {
-        if (!moreNavMenu || !moreNavBtn) return;
-        moreNavMenu.classList.toggle('hidden', !open);
-        moreNavBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    function setPanelOpen(panel, btn, open) {
+        if (!panel || !btn) return;
+        panel.classList.toggle('hidden', !open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
-
-    function setNotificationOpen(open) {
-        if (!notificationPanel || !notificationToggleBtn) return;
-        notificationPanel.classList.toggle('hidden', !open);
-        notificationToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    }
+    function setMoreNavOpen(open) { setPanelOpen(moreNavMenu, moreNavBtn, open); }
+    function setNotificationOpen(open) { setPanelOpen(notificationPanel, notificationToggleBtn, open); }
 
     function setLoggedOutUI() {
         clearAuthToken();
         const userAuthButton = document.getElementById('user-auth-button');
         const dropdownAuthButton = document.getElementById('dropdown-auth-btn');
+        const drawerDashboardLink = document.getElementById('drawer-dashboard-link');
+        if (drawerDashboardLink) drawerDashboardLink.classList.add('hidden');
         if (userAuthButton) {
             userAuthButton.textContent = 'Masuk';
             userAuthButton.href = '#';
@@ -136,6 +140,8 @@ document.addEventListener('DOMContentLoaded', function () {
             userAuthButton.href = 'dashboard.html';
             userAuthButton.onclick = null;
 
+            const drawerDashboardLink = document.getElementById('drawer-dashboard-link');
+            if (drawerDashboardLink) drawerDashboardLink.classList.remove('hidden');
             dropdownAuthButton.textContent = 'Keluar';
             dropdownAuthButton.href = '#';
             dropdownAuthButton.onclick = (e) => {
@@ -195,6 +201,8 @@ document.addEventListener('DOMContentLoaded', function () {
         visibleCount += renderGameGrid(pcGames, 'pc-games-grid', category !== 'all' && category !== 'pc');
         visibleCount += renderGameGrid(voucherGames, 'voucher-grid', category !== 'all' && category !== 'voucher');
 
+        const emptyStateEl = document.getElementById('catalog-empty-state');
+        if (emptyStateEl) emptyStateEl.classList.toggle('hidden', !(allGamesData.length > 0 && visibleCount === 0));
         if (catalogCountEl) {
             catalogCountEl.textContent = allGamesData.length > 0 ? `${visibleCount} game ditampilkan` : '';
         }
@@ -388,7 +396,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 card.className = 'flash-sale-card';
                 const link = document.createElement('a');
                 link.className = 'flash-sale-link';
-                link.href = `product.html?gameId=${encodeURIComponent(product.game_id)}&fsProductId=${encodeURIComponent(product.product_id)}&fsPrice=${encodeURIComponent(product.discount_price)}`;
+                link.href = `product.html?gameId=${encodeURIComponent(product.game_id)}&fsProductId=${encodeURIComponent(product.product_id)}`;
 
                 const media = document.createElement('div');
                 media.className = 'flash-sale-media';
@@ -441,6 +449,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (drawerBackdrop) drawerBackdrop.addEventListener('click', () => setDrawerOpen(false));
 
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
+    if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(); });
     if (showRegisterLink) showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginContainer.classList.add('hidden'); registerContainer.classList.remove('hidden'); });
     if (showLoginLink) showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerContainer.classList.add('hidden'); loginContainer.classList.remove('hidden'); });
     if (forgotPasswordLink) forgotPasswordLink.addEventListener('click', (e) => { e.preventDefault(); loginContainer.classList.add('hidden'); forgotPasswordContainer.classList.remove('hidden'); });
@@ -511,25 +520,28 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (loginForm) {
+        loginForm.addEventListener('input', () => showLoginError(''));
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const data = {
-                username: loginForm.querySelector('input[name="username"]').value,
-                password: loginForm.querySelector('input[name="password"]').value,
-            };
+            showLoginError('');
+            const username = String(loginForm.querySelector('input[name="username"]').value || '').trim();
+            const password = loginForm.querySelector('input[name="password"]').value;
+            if (!username || !password) {
+                showLoginError('Username dan kata sandi wajib diisi.');
+                return;
+            }
             try {
                 const response = await fetch(`${API_URL_AUTH}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data),
+                    body: JSON.stringify({ username, password }),
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message);
                 setAuthToken(result.token);
-                alert(result.message);
                 window.location.reload();
             } catch (error) {
-                alert(`Error Login: ${error.message}`);
+                showLoginError(error.message || 'Gagal masuk. Periksa username dan kata sandi Anda.');
             }
         });
     }

@@ -38,9 +38,19 @@
         return { ready: true, label: 'Bayar Sekarang', hint: 'Semua langkah lengkap. Klik Bayar Sekarang untuk konfirmasi.' };
     }
 
+    function findSelectedProductCard(productId) {
+        if (!productId) return null;
+        const idStr = String(productId);
+        if (global.CSS && typeof global.CSS.escape === 'function') {
+            return document.querySelector(`.product-card-selectable[data-product-id="${global.CSS.escape(idStr)}"]`);
+        }
+        return Array.from(document.querySelectorAll('.product-card-selectable'))
+            .find((el) => el.dataset.productId === idStr) || null;
+    }
+
     function computeFinalPrice() {
         if (!app.state.selectedProductId) return null;
-        const selectedCard = document.querySelector(`.product-card-selectable[data-product-id='${app.state.selectedProductId}']`);
+        const selectedCard = findSelectedProductCard(app.state.selectedProductId);
         const basePrice = selectedCard ? parseFloat(selectedCard.dataset.price) : Number(app.state.selectedProductPrice || 0);
         if (!Number.isFinite(basePrice)) return null;
 
@@ -66,6 +76,9 @@
             summaryIgnEl,
             summaryProductEl,
             summaryMethodEl,
+            summaryBalanceRowEl,
+            summaryUserBalanceEl,
+            balanceMethodDescEl,
             summaryDiscountRowEl,
             summaryDiscountEl,
             targetGameIdInput,
@@ -80,15 +93,23 @@
         if (summaryTargetEl) summaryTargetEl.textContent = userId ? (serverId ? `${userId} (${serverId})` : userId) : '-';
         if (summaryIgnEl) summaryIgnEl.textContent = app.state.validatedNickname || '-';
 
-        const selectedCard = app.state.selectedProductId
-            ? document.querySelector(`.product-card-selectable[data-product-id='${app.state.selectedProductId}']`)
-            : null;
+        const selectedCard = findSelectedProductCard(app.state.selectedProductId);
         const selectedName = app.state.selectedProductName
             || (selectedCard && (selectedCard.dataset.name || (selectedCard.querySelector('.product-card-name') && selectedCard.querySelector('.product-card-name').textContent)))
             || '-';
         if (summaryProductEl) summaryProductEl.textContent = app.state.selectedProductId ? selectedName : '-';
         if (summaryMethodEl) {
             summaryMethodEl.textContent = PAYMENT_METHOD_LABELS[app.state.selectedPaymentMethod] || 'Belum dipilih';
+        }
+        const hasWalletBalance = Boolean(app.state.token) && Number.isFinite(app.state.userBalance);
+        if (summaryBalanceRowEl && summaryUserBalanceEl) {
+            summaryBalanceRowEl.classList.toggle('hidden', !hasWalletBalance);
+            if (hasWalletBalance) summaryUserBalanceEl.textContent = formatRupiah(app.state.userBalance);
+        }
+        if (balanceMethodDescEl) {
+            balanceMethodDescEl.textContent = hasWalletBalance
+                ? `Saldo tersedia: ${formatRupiah(app.state.userBalance)}`
+                : 'Proses instan dari saldo akun Anda';
         }
 
         const finalPrice = computeFinalPrice();
@@ -153,7 +174,7 @@
         const targetGameId = document.getElementById('target-game-id').value;
         const targetServerIdEl = document.getElementById('target-server-id');
         const targetServerId = targetServerIdEl ? targetServerIdEl.value : null;
-        const selectedCard = document.querySelector(`.product-card-selectable[data-product-id='${app.state.selectedProductId}']`);
+        const selectedCard = findSelectedProductCard(app.state.selectedProductId);
         const productName = app.state.selectedProductName || (selectedCard && selectedCard.dataset.name) || 'Produk';
         const productPriceText = selectedCard
             ? formatRupiah(parseFloat(selectedCard.dataset.price))
@@ -194,8 +215,15 @@
             const btn = e.target.closest('.payment-method-card');
             if (!btn) return;
             const method = btn.dataset.method || 'balance';
+            const paymentCards = paymentMethodList.querySelectorAll('.payment-method-card');
             const isAlreadySelected = app.state.selectedPaymentMethod === method;
-            paymentMethodList.querySelectorAll('.payment-method-card').forEach((card) => {
+            if (isAlreadySelected && paymentCards.length === 1) {
+                btn.classList.add('selected');
+                btn.setAttribute('aria-pressed', 'true');
+                syncActionState();
+                return;
+            }
+            paymentCards.forEach((card) => {
                 card.classList.remove('selected');
                 card.setAttribute('aria-pressed', 'false');
             });
@@ -294,6 +322,17 @@
                     confirmBtn.disabled = false;
                     confirmBtn.textContent = 'Bayar Sekarang';
                     syncActionState();
+                }
+            });
+        }
+
+        if (promoCodeInput) {
+            promoCodeInput.addEventListener('input', () => {
+                if (app.state.appliedPromo) {
+                    app.state.appliedPromo = null;
+                    updatePrice();
+                } else if (promoResultEl && promoResultEl.textContent) {
+                    promoResultEl.innerHTML = '';
                 }
             });
         }

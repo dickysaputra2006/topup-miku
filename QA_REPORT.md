@@ -2,7 +2,7 @@
 
 ## 1. Ringkasan Eksekutif & Verdict Kesiapan
 
-- **Verdict Kesiapan:** **`BELUM SIAP`** *(untuk rilis penuh ke pengguna; **Batch 1 — `BUG-026`, `BUG-007`, `BUG-024`, `BUG-004`, `BUG-003`, `BUG-006`**, **Batch 2A — `BUG-008`, `BUG-011`, `BUG-005`, `BUG-009`, `BUG-015`**, dan **Batch 2B — `BUG-001`, `BUG-010`, `BUG-012`, `BUG-013`, `BUG-014` telah diperbaiki**, tersisa Batch 3 untuk temuan UI/frontend lainnya)*
+- **Verdict Kesiapan:** **`SIAP VERIFIKASI QA PENUH`** *(seluruh **26 bug `CONFIRMED`** + **`BUG-UI-01..02`** pada **Batch 1** [`BUG-026`, `BUG-007`, `BUG-024`, `BUG-004`, `BUG-003`, `BUG-006`], **Batch 2A** [`BUG-008`, `BUG-011`, `BUG-005`, `BUG-009`, `BUG-015`], **Batch 2B** [`BUG-001`, `BUG-010`, `BUG-012`, `BUG-013`, `BUG-014`], dan **Batch 3** [`BUG-002`, `BUG-016`, `BUG-017`, `BUG-018`, `BUG-019`, `BUG-020`, `BUG-021`, `BUG-022`, `BUG-023`, `BUG-025`, `BUG-UI-01..02`] telah diperbaiki dan siap verifikasi penuh 39 skenario Playwright)*
 - **Ringkasan Eksekutif:**
   Audit penuh (statis, eksplorasi browser multi-viewport, E2E top-up/deposit/H2H dengan mock provider, dan pengujian keamanan/konkurensi DB) mengonfirmasi fondasi keamanan inti **kuat** pada jalur 3-fase order (`FOR UPDATE` + lock-free provider HTTP), anti-double-refund, Zero-Trust callback Foxy, SSRF webhook DNS pinning, serta bcrypt cost 12. Namun ditemukan **26 bug terbukti (`CONFIRMED`)**, termasuk bug berdampak bisnis langsung: item flash sale utama `DUMMY-ML-86` tidak bisa dibeli (`400 Harga sedang diperbarui`), cache harga Foxy 5 menit memungkinkan penjualan rugi saat harga provider naik, cron/`sync-products` mengabaikan `FOXY_BASE_URL`, endpoint publik `POST /api/test` terbuka tanpa auth, editor Harga Manual Admin gagal `HTTP 400`, serta form Promo Admin diam-diam membuang batas diskon maksimum (`promo-max-discount`). Perlu menyelesaikan minimal prioritas #1–#8 sebelum go-live.
 
@@ -104,7 +104,7 @@
 - **Rekomendasi:** Hapus rute `/api/test` sepenuhnya atau batasi hanya non-production + `protectAdmin`.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-001`).
 
-### `[BUG-002]` Editor Harga Manual Produk di Panel Admin Selalu Gagal `HTTP 400` — `HIGH` — `CONFIRMED`
+### `[BUG-002]` Editor Harga Manual Produk di Panel Admin Selalu Gagal `HTTP 400` — `HIGH` — `FIXED (Batch 3)`
 - **Area:** UI / API Contract (`admin.html`)
 - **Langkah reproduksi:**
   1. Login sebagai `qa_admin`, buka `admin.html` → tab `Produk & Game`.
@@ -231,7 +231,7 @@
 - **Rekomendasi:** Tambahkan `SELECT id FROM users WHERE id = $1 FOR UPDATE` di awal transaksi `POST /api/deposit/request`.
 - **Test regresi:** `qa/tests/02-topup-and-business-logic.api.spec.js` (`@bug-BUG-013`).
 
-### `[BUG-016]` Form Promo Admin Mengabaikan Input Diskon Maksimal (`promo-max-discount`) — `HIGH` — `CONFIRMED`
+### `[BUG-016]` Form Promo Admin Mengabaikan Input Diskon Maksimal (`promo-max-discount`) — `HIGH` — `FIXED (Batch 3)`
 - **Area:** UI / Business Logic (`admin.html`)
 - **Langkah reproduksi:**
   1. Buka `admin.html` → tab `Promo`, pilih tipe `Persentase (%)`, isi Nilai `50`, isi Maksimal Diskon `2500`, lalu submit.
@@ -244,7 +244,7 @@
 - **Rekomendasi:** Baca `document.getElementById('promo-max-discount').value` dan masukkan ke `rules.max_discount_amount`.
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-016`).
 
-### `[BUG-017]` Query URL `fsPrice` pada `product.html` Dapat Dimanipulasi untuk Mengubah Harga Tampilan — `HIGH` — `CONFIRMED`
+### `[BUG-017]` Query URL `fsPrice` pada `product.html` Dapat Dimanipulasi untuk Mengubah Harga Tampilan — `HIGH` — `FIXED (Batch 3)`
 - **Area:** UI / Integrity (`product.html`)
 - **Langkah reproduksi:**
   1. Buka `http://localhost:3000/product.html?gameId=1&fsProductId=1&fsPrice=1`.
@@ -294,7 +294,7 @@
 - **Rekomendasi:** Tambahkan `AND g.status = 'Active'` dan hapus `base_price` (serta role internal `Admin`/`OWNER` bila tak perlu) dari JSON publik.
 - **Test regresi:** `qa/tests/03-h2h-and-security.api.spec.js` (`@bug-BUG-015`).
 
-### `[BUG-018]` Mengubah Teks `#promo-code-input` Setelah `Terapkan` Menyebabkan Desinkronisasi Diskon UI vs Backend — `MEDIUM` — `CONFIRMED`
+### `[BUG-018]` Mengubah Teks `#promo-code-input` Setelah `Terapkan` Menyebabkan Desinkronisasi Diskon UI vs Backend — `MEDIUM` — `FIXED (Batch 3)`
 - **Area:** UI / Checkout UX (`product.html`)
 - **Langkah reproduksi:**
   1. Pada `product.html` (`172 Diamonds`), masukkan `MIKUBARU`, klik `Terapkan` -> `#total-price` menampilkan harga diskon.
@@ -307,7 +307,7 @@
 - **Rekomendasi:** Reset `appliedPromo` dan perbarui harga setiap kali nilai `#promo-code-input` berubah.
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-018`).
 
-### `[BUG-020]` Input Deposit Member Memblokir Nominal Valid Non-Kelipatan 1.000 (`step="1000"`) — `MEDIUM` — `CONFIRMED`
+### `[BUG-020]` Input Deposit Member Memblokir Nominal Valid Non-Kelipatan 1.000 (`step="1000"`) — `MEDIUM` — `FIXED (Batch 3)`
 - **Area:** UI / Validation (`dashboard.html`)
 - **Langkah reproduksi:**
   1. Buka `dashboard.html` → tab `Isi Saldo / Deposit`, ketik `15500` pada `#amount`.
@@ -319,7 +319,7 @@
 - **Rekomendasi:** Ubah atribut menjadi `step="1"`.
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-020`).
 
-### `[BUG-021]` User Non-Admin Bisa Membuka `admin.html` & Memicu Banjir Request `403` — `MEDIUM` — `CONFIRMED`
+### `[BUG-021]` User Non-Admin Bisa Membuka `admin.html` & Memicu Banjir Request `403` — `MEDIUM` — `FIXED (Batch 3)`
 - **Area:** UI / Access Control (`admin.html`)
 - **Langkah reproduksi:**
   1. Login sebagai `qa_member`, buka `http://localhost:3000/admin.html`.
@@ -331,7 +331,7 @@
 - **Rekomendasi:** Tambahkan pengecekan profil/role saat `initAdminPage()` dan redirect jika bukan `Admin` atau token invalid (`401`/`403`).
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-021`).
 
-### `[BUG-022]` Input Alasan Penolakan Deposit Admin (`maxlength="300"`) Melebihi Batas Backend (`200`) — `MEDIUM` — `CONFIRMED`
+### `[BUG-022]` Input Alasan Penolakan Deposit Admin (`maxlength="300"`) Melebihi Batas Backend (`200`) — `MEDIUM` — `FIXED (Batch 3)`
 - **Area:** UI / API Validation Mismatch (`admin.html`)
 - **Langkah reproduksi:**
   1. Periksa `#reject-reason-input` di `admin.html` (`maxlength="300"`), lalu kirim alasan 250 karakter.
@@ -343,7 +343,7 @@
 - **Rekomendasi:** Ubah `maxlength="200"` pada `frontend/admin.html:703`.
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-022`).
 
-### `[BUG-023]` Mengklik Metode Pembayaran Tunggal ("Saldo Akun") Membatalkan Pilihan — `MEDIUM` — `CONFIRMED`
+### `[BUG-023]` Mengklik Metode Pembayaran Tunggal ("Saldo Akun") Membatalkan Pilihan — `MEDIUM` — `FIXED (Batch 3)`
 - **Area:** UI / Checkout UX (`product.html`)
 - **Langkah reproduksi:**
   1. Buka `product.html?gameId=1`, lihat kartu `"Saldo Akun MIKU Store"` dalam keadaan `.selected`.
@@ -356,7 +356,7 @@
 - **Rekomendasi:** Jangan toggle-off bila `paymentCards.length === 1`.
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-023`).
 
-### `[BUG-025]` Ikon Eye Toggle Password `reset-password.html` Keluar `167px` di Luar Kotak Input — `MEDIUM` — `CONFIRMED`
+### `[BUG-025]` Ikon Eye Toggle Password `reset-password.html` Keluar `167px` di Luar Kotak Input — `MEDIUM` — `FIXED (Batch 3)`
 - **Area:** UI / CSS Layout (`reset-password.html`)
 - **Langkah reproduksi:**
   1. Buka `http://localhost:3000/reset-password.html?token=abcd1234` pada `1440x900`.
@@ -369,7 +369,7 @@
 - **Rekomendasi:** Berikan `position: relative; width: 100%;` pada `.password-wrapper` di `reset-password.html` dan style visual `:disabled` yang kontras.
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-025`).
 
-### `[BUG-019]` Missing `/favicon.ico` Menyebabkan Console Error `404` di Seluruh Halaman — `LOW` — `CONFIRMED`
+### `[BUG-019]` Missing `/favicon.ico` Menyebabkan Console Error `404` di Seluruh Halaman — `LOW` — `FIXED (Batch 3)`
 - **Area:** UI / Assets
 - **Langkah reproduksi:**
   1. Buka halaman mana saja (`index.html`, `kebijakan-refund.html`, dll.) lalu cek Network/Console browser.
@@ -381,7 +381,7 @@
 - **Rekomendasi:** Tambahkan `frontend/favicon.ico` atau `<link rel="icon" href="data:...">`.
 - **Test regresi:** `qa/tests/01-ui-exploratory.spec.js` (`@bug-BUG-019`).
 
-### `[BUG-UI-01]` & `[BUG-UI-02]` Cacat Visual & UX Tambahan Hasil Eksplorasi Browser — `MEDIUM`/`LOW` — `CONFIRMED`
+### `[BUG-UI-01]` & `[BUG-UI-02]` Cacat Visual & UX Tambahan Hasil Eksplorasi Browser — `MEDIUM`/`LOW` — `FIXED (Batch 3)`
 1. **Tabel bertumpuk & terpotong pada `1440x900` (`MEDIUM`):**
    - `dashboard.html` tab `Mutasi Saldo`: teks deskripsi panjang bertabrakan secara visual dengan kolom `Jumlah` (`-Rp 5.601`), dan tabel `Transaksi Terbaru` di `Overview` memotong kolom kanan bahkan di `1440px`.
    - `admin.html`: keempat tabel utama (`Produk & Game` 12 kolom, `Deposit`, `Pembayaran`, `Transaksi`) melampaui lebar kontainer di `1440px` sehingga kolom aksi tersembunyi di scroll horizontal.

@@ -163,12 +163,7 @@
 }
 
 #server-input-container select {
-    appearance: none;
-    padding-right: 2.25rem;
-    background-image: url("data:image/svg+xml;utf8,<svg fill='%23E6EAF2' viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
-    background-repeat: no-repeat;
-    background-position: right 0.75rem center;
-    background-size: 18px 18px;
+    background-image: none;
 }
 
 #order-form input:focus,

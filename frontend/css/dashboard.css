@@ -276,7 +276,7 @@
     color: var(--text-muted);
 }
 
-/* --- Isolated Table Horizontal Scroll Wrapper --- */
+/* --- Isolated Table Horizontal Scroll Wrapper & 1440px Fit --- */
 .dashboard-content .table-container {
     width: 100%;
     max-width: 100%;
@@ -287,15 +287,83 @@
 
 .dashboard-content .table-container table {
     width: 100%;
-    min-width: 560px;
+    min-width: 0;
+    font-size: var(--text-xs);
+}
+
+.dashboard-content .table-container th,
+.dashboard-content .table-container td {
+    padding: var(--space-2) var(--space-3);
+}
+
+.dashboard-tx-invoice-link {
+    display: inline-block;
+    max-width: 155px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+}
+
+#overview-recent-container table th:nth-child(2),
+#overview-recent-container table td:nth-child(2),
+#overview-recent-container table th:nth-child(5),
+#overview-recent-container table td:nth-child(5),
+#overview-recent-container table th:nth-child(6),
+#overview-recent-container table td:nth-child(6),
+#transactions-table th:nth-child(2),
+#transactions-table td:nth-child(2),
+#transactions-table th:nth-child(5),
+#transactions-table td:nth-child(5),
+#transactions-table th:nth-child(6),
+#transactions-table td:nth-child(6) {
     white-space: nowrap;
 }
 
-#transaksi-tab .table-container table {
-    min-width: 640px;
+#overview-recent-container table td:nth-child(3),
+#transactions-table td:nth-child(3) {
+    white-space: normal;
+    max-width: 185px;
+}
+
+#overview-recent-container table td:nth-child(4),
+#transactions-table td:nth-child(4) {
+    max-width: 115px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#mutasi-table th:nth-child(1),
+#mutasi-table td:nth-child(1),
+#mutasi-table th:nth-child(2),
+#mutasi-table td:nth-child(2),
+#mutasi-table th:nth-child(4),
+#mutasi-table td:nth-child(4) {
+    white-space: nowrap;
+}
+
+#mutasi-table th:nth-child(4),
+#mutasi-table td:nth-child(4) {
+    text-align: right;
+}
+
+#mutasi-table td:nth-child(3) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: none;
+    min-width: 200px;
 }
 
 @media (max-width: 768px) {
+    .dashboard-content .table-container table {
+        min-width: 560px;
+    }
+
+    #transaksi-tab .table-container table {
+        min-width: 600px;
+    }
+
     .dashboard-container {
         flex-direction: column;
         padding-block: var(--space-4) var(--space-8);

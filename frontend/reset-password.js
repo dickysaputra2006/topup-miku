@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusEl = document.getElementById('reset-status-msg');
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
+    setupPasswordToggles();
 
     function showResetStatus(message, type) {
         if (!statusEl) return;
@@ -54,6 +55,4 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-
-    setupPasswordToggles();
 });

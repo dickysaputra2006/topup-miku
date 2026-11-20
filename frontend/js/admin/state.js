@@ -5,7 +5,7 @@
 
     app.ADMIN_API_URL = '/api/admin';
     app.PUBLIC_API_URL = '/api';
-    app.ADMIN_PRICE_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD', 'Admin'];
+    app.ADMIN_PRICE_ROLE_ORDER = ['BRONZE', 'PARTNER', 'SILVER', 'GOLD'];
 
     app.state = {
         token: null,
@@ -263,6 +263,12 @@
             setSidebarOpen(false);
         });
 
+        global.addEventListener('resize', () => {
+            if (global.innerWidth > 768 && sidebar && sidebar.classList.contains('active')) {
+                setSidebarOpen(false);
+            }
+        });
+
         if (navLinks.length > 0 && sections.length > 0) {
             navLinks.forEach(link => {
                 link.addEventListener('click', (e) => {
@@ -290,6 +296,32 @@
     }
 
     async function initAdminPage() {
+        const { apiFetch } = global.MikuShared.api;
+        const { clearAuthToken } = global.MikuShared.auth;
+        try {
+            const profileRes = await apiFetch(`${app.PUBLIC_API_URL}/user/profile`, {
+                auth: true,
+                token: app.state.token,
+            });
+            if (profileRes.status === 401 || profileRes.status === 403) {
+                if (profileRes.status === 401) clearAuthToken();
+                global.location.replace('index.html');
+                return;
+            }
+            if (!profileRes.ok) {
+                global.location.replace('index.html');
+                return;
+            }
+            const profile = await profileRes.json();
+            if (!profile || String(profile.role || '').toLowerCase() !== 'admin') {
+                global.location.replace('dashboard.html');
+                return;
+            }
+        } catch (_) {
+            global.location.replace('index.html');
+            return;
+        }
+
         await app.validationAndPrices.fetchAllValidatableGames();
         await app.catalog.fetchAdminGames();
         await app.catalog.fetchAdminProducts();

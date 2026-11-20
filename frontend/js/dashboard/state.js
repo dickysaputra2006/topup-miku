@@ -130,6 +130,12 @@
                 if (toggleBtn && typeof toggleBtn.focus === 'function') toggleBtn.focus();
             }
         });
+
+        global.addEventListener('resize', function () {
+            if (global.innerWidth > 768 && sidebar && sidebar.classList.contains('active')) {
+                setSidebarOpen(sidebar, false);
+            }
+        });
     }
 
     function setupSectionNavigation() {

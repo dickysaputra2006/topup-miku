@@ -161,9 +161,9 @@
             .sort((a, b) => app.ADMIN_PRICE_ROLE_ORDER.indexOf(a.name) - app.ADMIN_PRICE_ROLE_ORDER.indexOf(b.name));
 
         if (tableHeaderThead) {
-            let headerHtml = '<th>Game</th><th>Nama Produk</th><th class="td-numeric">Harga Pokok</th><th>SKU</th>';
-            displayRoles.forEach(role => { headerHtml += `<th class="td-numeric">Harga ${escapeHtml(role.name)}</th>`; });
-            headerHtml += '<th>Status</th><th>Validasi</th><th>Harga Manual</th>';
+            let headerHtml = '<th>Game</th><th>Produk</th><th class="td-numeric">Modal</th><th>SKU</th>';
+            displayRoles.forEach(role => { headerHtml += `<th class="td-numeric">${escapeHtml(role.name)}</th>`; });
+            headerHtml += '<th>Status</th><th>Validasi</th><th>Manual</th>';
             tableHeaderThead.innerHTML = headerHtml;
         }
 
@@ -186,7 +186,7 @@
             row.dataset.productId = product.id;
             const gameName = product.game_name || gameMap.get(String(product.game_id)) || '-';
             let rowHtml = `
-                <td>${escapeHtml(gameName)}</td>
+                <td><span class="cell-truncate" title="${escapeHtml(gameName)}">${escapeHtml(gameName)}</span></td>
                 <td><span class="cell-truncate" title="${escapeHtml(product.name)}">${escapeHtml(product.name)}</span></td>
                 <td class="td-numeric">${escapeHtml(formatRupiah(product.price, { withDecimals: true }))}</td>
                 <td class="td-mono">${escapeHtml(product.provider_sku)}</td>

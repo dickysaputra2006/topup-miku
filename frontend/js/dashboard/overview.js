@@ -167,10 +167,10 @@
             const rowsHtml = recent.map(tx => {
                 const label = statusLabel(tx.status, 'Perlu Review');
                 return `<tr>
-                    <td><a href="invoice.html?id=${encodeURIComponent(tx.invoice_id)}" class="history-link">${escapeHtml(tx.invoice_id)}</a></td>
+                    <td><a href="invoice.html?id=${encodeURIComponent(tx.invoice_id)}" class="history-link dashboard-tx-invoice-link" title="${escapeHtml(tx.invoice_id)}">${escapeHtml(tx.invoice_id)}</a></td>
                     <td>${escapeHtml(formatDateId(tx.created_at))}</td>
                     <td>${escapeHtml(tx.product_name)}</td>
-                    <td>${escapeHtml(tx.target_game_id)}</td>
+                    <td title="${escapeHtml(tx.target_game_id)}">${escapeHtml(tx.target_game_id)}</td>
                     <td class="tabular-nums">${escapeHtml(formatRupiah(tx.price))}</td>
                     <td><span class="status-badge ${statusClass(tx.status)}">${escapeHtml(label)}</span></td>
                 </tr>`;

@@ -167,11 +167,43 @@
     border-color: var(--accent);
 }
 
-/* Sticky Table Wrapper: aman di scroll horizontal 360px & sticky header */
+/* Sticky Table Wrapper: aman di scroll horizontal 360px, pas 1440px & sticky header */
 .admin-table-scroll {
     max-height: min(62vh, 560px);
     overflow: auto;
     position: relative;
+}
+
+.admin-table-scroll table {
+    min-width: 100%;
+    font-size: var(--text-xs);
+}
+
+.admin-table-scroll th,
+.admin-table-scroll td {
+    padding: var(--space-2) 0.5rem;
+}
+
+.admin-table-scroll .cell-truncate {
+    max-width: 135px;
+}
+
+.admin-table-scroll .resolve-btn,
+.admin-table-scroll .edit-btn-compact {
+    min-height: 32px;
+    padding: 0 var(--space-2);
+}
+
+@media (min-width: 1280px) {
+    .admin-page-container.container {
+        max-width: 1380px;
+    }
+
+    .admin-page-container .sidebar {
+        flex: 0 0 216px;
+        min-width: 200px;
+        max-width: 224px;
+    }
 }
 
 .admin-table-scroll table thead th {

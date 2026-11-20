@@ -103,3 +103,35 @@
 - [x] **COMMIT 1 (`3100350` — `BUG-013`, `BUG-012`, `BUG-014`):** `deposit.routes.js` (`292` baris), `foxyCallback.routes.js` (`314` baris), `admin/products.routes.js` (`351` baris), `admin/promos.routes.js` (`157` baris), `admin/flashSales.routes.js` (`161` baris), `waBot.routes.js` (`351` baris), `app.js` (`110` baris).
 - [x] **COMMIT 2 (`fe89718` — `BUG-001`, `BUG-010`, & Route Baseline):** `admin/games.routes.js` (`266` baris), `h2h.routes.js` (`302` baris), pembaruan `docs/routes.baseline.txt`, `docs/layers.baseline.txt`, dan `docs/effective-chain.baseline.txt` (`88/88`, `overlap_conflicts=0`).
 - [x] **COMMIT 3 (Tes Regresi & Dokumentasi):** Tambah `backend/tests/integration/securityBatch2bFixes.test.js` (`5` tes baru -> `222/222` lulus), perbarui `docs/refactor-baseline-tests.txt` (`222` entri), `QA_REPORT.md` (status `FIXED (Batch 2B)` untuk 5 bug), `AUDIT_SECURITY.md`, dan `docs/qa-fix-plan.md`.
+
+---
+
+## Batch 3 — Perbaikan Frontend & UI/UX (`fix/ui-batch-3`)
+
+- **Branch:** `fix/ui-batch-3` (dari `main` bersih pasca-merge Batch 2B)
+- **Cakupan Bug:** `BUG-002`, `BUG-016`, `BUG-021`, `BUG-022`, `BUG-017`, `BUG-018`, `BUG-023`, `BUG-019`, `BUG-020`, `BUG-025`, serta `BUG-UI-01` & `BUG-UI-02`
+- **Batas Ukuran File & Kebijakan:** Tidak ada perubahan di `backend/`. Semua JS `<= 600` baris (`frontend/script.js` dijaga `<= 595` baris), CSS `<= 800` baris (`admin.css` & `publicPages.css` dijaga `<= 780` baris), `limit_warnings=0`.
+
+### Pemetaan Perbaikan & Target File
+- **Admin Panel (`COMMIT 1`):**
+  - `BUG-002` (`admin/state.js`, `admin/validationAndPrices.js`, `qa/tests/01-ui-exploratory.spec.js`): hapus role `'Admin'` dari `ADMIN_PRICE_ROLE_ORDER`, filter hanya role komersial (`bronze`, `partner`, `silver`, `gold`), dan refresh tabel produk pasca-simpan harga manual.
+  - `BUG-016` (`admin/promosAndFlashSales.js`): baca `#promo-max-discount` dan kirim sebagai `rules.max_discount_amount` jika positif.
+  - `BUG-021` (`admin/state.js`): cek `GET /api/user/profile` di `initAdminPage()` sebelum memuat `/api/admin/*`; redirect `401`/error ke `index.html` dan non-admin ke `dashboard.html`; tutup sidebar otomatis saat resize `> 768px`.
+  - `BUG-022` (`admin.html`): ubah `maxlength="300"` pada `#reject-reason-input` menjadi `maxlength="200"`.
+- **Checkout, Dashboard, & Publik (`COMMIT 2`):**
+  - `BUG-017` (`product/state.js`, `product/validation.js`, `product/checkout.js`, `script.js`): hentikan override harga URL `fsPrice`, hapus `&fsPrice=` pada link flash sale, dan amankan selector `fsProductId` memakai `CSS.escape` / lookup atribut aman.
+  - `BUG-018` (`product/checkout.js`, `product/state.js`): reset `appliedPromo` dan panggil `updatePrice()` pada event `input` `#promo-code-input`.
+  - `BUG-023` (`product/checkout.js`): jangan toggle-off metode pembayaran bila `paymentCards.length === 1`.
+  - `BUG-019` (`frontend/favicon.ico`): tambahkan file ikon binary ICO 32x32 valid (`200 OK`).
+  - `BUG-020` (`dashboard.html`): ubah `step="1000"` pada `#amount` menjadi `step="1"`.
+  - `BUG-025` (`css/modalsAndForms.css`, `css/publicPages.css`, `reset-password.js`): perbaiki `.password-wrapper` agar toggle mata tetap di sisi kanan dalam input, beri styling `:disabled` kontras, dan panggil `setupPasswordToggles()` sebelum guard `!token`.
+- **Table Layout `1440px`, Select Caret, UX Polish & Dokumen (`COMMIT 3`):**
+  - `BUG-UI-01` (`css/dashboard.css`, `css/admin.css`, `js/dashboard/{overview,transactions}.js`, `js/admin/{catalog,transactionsAndRoles}.js`): tata ulang tabel `dashboard.html` (`Mutasi Saldo`, `Transaksi Terbaru`, `Riwayat Transaksi`) dan `admin.html` (`Produk & Game`, `Deposit`, `Pembayaran`, `Transaksi`) agar terbaca utuh tanpa bertumpuk di `1440px`.
+  - Select caret ganda (`css/portal.css`, `css/product.css`): hapus SVG `background-image` ganda pada `#game-selector-dropdown` dan `#server-input-container select` agar seragam menggunakan 1 panah native dark-mode (`appearance: auto` atau tanpa duplikasi arrow).
+  - UX Polish `BUG-UI-01..02` (`index.html`, `script.js`, `product.html`, `js/product/{state,checkout}.js`, `js/dashboard/state.js`, `css/storefront.css`, `css/modalsAndForms.css`): empty state kategori storefront, tutup auth modal pada klik backdrop, inline login error + trim username, sembunyikan link Dashboard drawer saat logged out, judul Flash Sale 2 baris, tampilkan saldo wallet pada ringkasan checkout, dan auto-tutup drawer dashboard saat resize `> 768px`.
+  - Perbarui `QA_REPORT.md` & `docs/qa-fix-plan.md`.
+
+### Rencana & Status Eksekusi 3 Commit Batch 3
+- [x] **COMMIT 1 (`6c472d3` — `BUG-002`, `BUG-016`, `BUG-021`, `BUG-022`):** `admin/state.js` (`358` baris), `admin/validationAndPrices.js` (`389` baris), `admin/promosAndFlashSales.js` (`321` baris), `admin.html` (`729` baris), `qa/tests/01-ui-exploratory.spec.js` (`344` baris), `docs/qa-fix-plan.md`.
+- [x] **COMMIT 2 (`078d832` — `BUG-017`, `BUG-018`, `BUG-023`, `BUG-019`, `BUG-020`, `BUG-025`):** `product/state.js` (`314` baris), `product/validation.js` (`371` baris), `product/checkout.js` (`377` baris), `script.js` (`582` baris), `favicon.ico` (`4.286` byte), `dashboard.html` (`660` baris), `css/modalsAndForms.css` (`241` baris), `css/publicPages.css` (`744` baris), `reset-password.js` (`58` baris).
+- [x] **COMMIT 3 (`BUG-UI-01..02`, Tabel `1440px`, Select Caret, & Dokumen):** `css/dashboard.css` (`391` baris), `css/admin.css` (`745` baris), `css/portal.css` (`197` baris), `css/product.css` (`628` baris), `css/storefront.css` (`448` baris), `css/modalsAndForms.css` (`253` baris), `js/dashboard/{state,overview,transactions}.js`, `js/admin/{catalog,transactionsAndRoles}.js`, `index.html`, `script.js`, `product.html`, `js/product/{state,checkout}.js`, `QA_REPORT.md`, `docs/qa-fix-plan.md`.
