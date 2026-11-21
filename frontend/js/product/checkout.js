@@ -144,10 +144,16 @@
      * Hitung ulang tampilan harga akhir dan pesan promo aktif.
      */
     function updatePrice() {
+        const { formatRupiah } = global.MikuShared.format;
+        const { escapeHtml } = global.MikuShared.dom;
         const { promoResultEl } = app.state.els;
         if (promoResultEl) {
             if (app.state.appliedPromo && app.state.appliedPromo.valid) {
-                promoResultEl.innerHTML = `<span class="success"><i class="fas fa-check-circle" aria-hidden="true"></i> Kode promo berhasil diterapkan.</span>`;
+                const discountAmount = Number(app.state.appliedPromo.discount || 0);
+                const discountLabel = Number.isFinite(discountAmount) && discountAmount > 0
+                    ? ` (Potongan ${escapeHtml(formatRupiah(discountAmount))})`
+                    : '';
+                promoResultEl.innerHTML = `<span class="success"><i class="fas fa-check-circle" aria-hidden="true"></i> Kode promo berhasil diterapkan${discountLabel}.</span>`;
             } else {
                 promoResultEl.innerHTML = '';
             }
