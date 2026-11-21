@@ -102,12 +102,21 @@
             if (el) el.textContent = initials;
         });
 
+        const roleLabel = data.role || 'Member';
         const headerNameEl = document.getElementById('header-user-name');
         if (headerNameEl) headerNameEl.textContent = data.username || data.full_name || 'Member';
+        const headerRoleEl = document.getElementById('header-user-role');
+        if (headerRoleEl) headerRoleEl.textContent = roleLabel;
         const sidebarNameEl = document.getElementById('sidebar-user-name');
         if (sidebarNameEl) sidebarNameEl.textContent = data.username || data.full_name || 'Member';
         const sidebarRoleEl = document.getElementById('sidebar-user-role');
-        if (sidebarRoleEl) sidebarRoleEl.textContent = data.role || 'Member';
+        if (sidebarRoleEl) sidebarRoleEl.textContent = roleLabel;
+
+        const adminLinkEl = document.getElementById('sidebar-admin-link');
+        if (adminLinkEl) {
+            const isAdmin = String(data.role || '').trim().toLowerCase() === 'admin';
+            adminLinkEl.classList.toggle('hidden', !isAdmin);
+        }
 
         if (editProfileForm) {
             editProfileForm.querySelector('[name="fullName"]').value = data.full_name || '';
