@@ -1,11 +1,14 @@
 /* MIKU Store — Design System Tokens (UI-1 Pro Standar) */
 
 :root {
-    /* 1. Neutral Scale (6 Levels) */
+    /* 1. Neutral Scale (6 Levels + Elevation Tokens) */
     --bg: #0B0F17;
     --surface: #121826;
     --surface-2: #1A2233;
+    --surface-elevated: #1E293B;
     --border: #263043;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-strong: #334155;
     --text: #E6EAF2;
     --text-muted: #8B95A7;
 
@@ -29,6 +32,7 @@
 
     /* 4. Typography Scale */
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
     --text-xs: 0.75rem;    /* 12px */
     --text-sm: 0.875rem;   /* 14px */
@@ -52,6 +56,8 @@
     --radius-pill: 999px;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
     --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.36);
+    --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 24px -12px rgba(0, 0, 0, 0.55);
+    --shadow-accent: 0 8px 20px -6px rgba(34, 184, 207, 0.35);
 
     /* 7. Z-Index Scale (Terstandarisasi) */
     --z-navbar: 50;
@@ -78,4 +84,13 @@
     --warning-color: var(--warning);
     --danger-color: var(--danger);
     --radius-lg: var(--radius-md);
+
+    /* 10. Progressive Perceptual Color Interpolation */
+    --in-oklab: ;
+}
+
+@supports (background: linear-gradient(in oklab, white, black)) {
+    :root {
+        --in-oklab: in oklab;
+    }
 }
