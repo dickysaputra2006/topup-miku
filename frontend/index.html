@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="css/modalsAndForms.css">
     <link rel="stylesheet" href="css/storefrontNav.css">
     <link rel="stylesheet" href="css/storefront.css">
+    <link rel="stylesheet" href="css/heroCarousel.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
@@ -118,19 +119,99 @@
 </header>
 
 <main id="main-content" class="container" tabindex="-1">
-    <section class="hero-section" aria-label="Ringkasan layanan">
-        <div class="hero-card">
-            <div class="hero-copy">
-                <span class="hero-eyebrow">Otomatis 24/7 • Harga Reseller</span>
-                <h1 class="hero-title">Top Up Game Instan &amp; Terpercaya</h1>
-                <p class="hero-subtitle">Pilih game favoritmu, masukkan ID tujuan, lalu selesaikan pembayaran dalam hitungan detik.</p>
+    <section class="hero-section" aria-roledescription="carousel" aria-label="Promo unggulan MIKU Store">
+        <div class="hero-carousel" data-hero-carousel>
+            <div class="hero-carousel-controls">
+                <button type="button" class="hero-nav-btn" data-carousel-prev aria-label="Slide promo sebelumnya">
+                    <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                </button>
+                <button type="button" class="hero-nav-btn" data-carousel-next aria-label="Slide promo berikutnya">
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
             </div>
-            <div class="hero-actions">
-                <a href="#catalog-controls" class="topup-btn hero-cta">Pilih Game</a>
-                <a href="cek-transaksi.html" class="header-btn">Cek Transaksi</a>
+
+            <div class="hero-carousel-track" tabindex="0" role="group" aria-label="Daftar promo unggulan">
+                <div class="hero-slide" role="group" aria-roledescription="slide" aria-label="1 dari 3" data-marker-name="Promo Top Up Instan 24/7">
+                    <div class="hero-slide-body">
+                        <span class="hero-eyebrow-pill"><i class="fas fa-bolt" aria-hidden="true"></i> Otomatis 24/7 &bull; 1&ndash;30 Detik</span>
+                        <h1 class="hero-title">Top Up Game Instan &amp; Terpercaya</h1>
+                        <p class="hero-subtitle">Pilih game favoritmu, masukkan ID tujuan dengan cek nickname otomatis, lalu bayar aman dalam hitungan detik.</p>
+                        <div class="hero-slide-actions">
+                            <a href="#catalog-controls" class="topup-btn hero-cta">Pilih Game <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+                        </div>
+                    </div>
+                    <div class="hero-slide-visual">
+                        <img src="assets/banners/banner-topup-instan.svg" alt="Banner layanan top up game otomatis 24 jam MIKU Store" width="1200" height="420" fetchpriority="high">
+                    </div>
+                </div>
+
+                <div class="hero-slide" data-theme="flash" role="group" aria-roledescription="slide" aria-label="2 dari 3" data-marker-name="Promo Flash Sale Harian">
+                    <div class="hero-slide-body">
+                        <span class="hero-eyebrow-pill"><i class="fas fa-fire" aria-hidden="true"></i> Penawaran Terbatas</span>
+                        <h2 class="hero-title">Promo Flash Sale Setiap Hari</h2>
+                        <p class="hero-subtitle">Dapatkan potongan harga spesial untuk nominal game populer sebelum kuota promo dan waktu hitung mundur berakhir.</p>
+                        <div class="hero-slide-actions">
+                            <a href="#flash-sale-section" class="topup-btn hero-cta" data-flash-sale-cta>Lihat Flash Sale <i class="fas fa-bolt" aria-hidden="true"></i></a>
+                        </div>
+                    </div>
+                    <div class="hero-slide-visual">
+                        <img src="assets/banners/banner-flash-sale.svg" alt="Banner promo Flash Sale top up game MIKU Store" width="1200" height="420" loading="lazy">
+                    </div>
+                </div>
+
+                <div class="hero-slide" data-theme="reseller" role="group" aria-roledescription="slide" aria-label="3 dari 3" data-marker-name="Harga Reseller dan API H2H">
+                    <div class="hero-slide-body">
+                        <span class="hero-eyebrow-pill"><i class="fas fa-layer-group" aria-hidden="true"></i> Khusus Member &amp; Reseller</span>
+                        <h2 class="hero-title">Harga Reseller &amp; API H2H 24 Jam</h2>
+                        <p class="hero-subtitle">Bandingkan harga tier Partner, Silver, hingga Gold serta hubungkan toko Anda langsung lewat API H2H otomatis.</p>
+                        <div class="hero-slide-actions">
+                            <a href="compare-prices.html" class="topup-btn hero-cta">Daftar Harga Reseller <i class="fas fa-tags" aria-hidden="true"></i></a>
+                        </div>
+                    </div>
+                    <div class="hero-slide-visual">
+                        <img src="assets/banners/banner-reseller-h2h.svg" alt="Banner harga reseller bertingkat dan API H2H MIKU Store" width="1200" height="420" loading="lazy">
+                    </div>
+                </div>
+            </div>
+
+            <p id="hero-carousel-status" class="visually-hidden" role="status" aria-live="polite"></p>
+
+            <div class="hero-carousel-footer">
+                <nav class="hero-carousel-markers" aria-label="Pilih slide promo"></nav>
             </div>
         </div>
     </section>
+
+    <ul class="trust-strip" aria-label="Keunggulan layanan MIKU Store">
+        <li class="trust-item">
+            <span class="trust-icon" aria-hidden="true"><i class="fas fa-bolt"></i></span>
+            <div class="trust-text">
+                <strong>Proses 1&ndash;30 Detik</strong>
+                <small>Sistem kirim otomatis 24/7</small>
+            </div>
+        </li>
+        <li class="trust-item">
+            <span class="trust-icon" aria-hidden="true"><i class="fas fa-user-check"></i></span>
+            <div class="trust-text">
+                <strong>Cek Nickname Otomatis</strong>
+                <small>Validasi ID sebelum bayar</small>
+            </div>
+        </li>
+        <li class="trust-item">
+            <span class="trust-icon" aria-hidden="true"><i class="fas fa-tags"></i></span>
+            <div class="trust-text">
+                <strong>Harga Reseller &amp; H2H</strong>
+                <small>Margin kompetitif tiap tier</small>
+            </div>
+        </li>
+        <li class="trust-item">
+            <span class="trust-icon" aria-hidden="true"><i class="fas fa-shield-halved"></i></span>
+            <div class="trust-text">
+                <strong>Garansi Refund Gagal</strong>
+                <small>Saldo kembali otomatis 100%</small>
+            </div>
+        </li>
+    </ul>
 
     <section id="flash-sale-section" class="content-section hidden" aria-label="Flash Sale">
         <div class="flash-sale-header">
@@ -284,6 +365,7 @@
 <script defer src="js/shared/auth.js"></script>
 <script defer src="js/shared/api.js"></script>
 <script defer src="js/shared/storefrontCards.js"></script>
+<script defer src="js/shared/heroCarousel.js"></script>
 <script defer src="script.js"></script>
 </body>
 </html>
