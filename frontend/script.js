@@ -1,8 +1,9 @@
 document.addEventListener('DOMContentLoaded', function () {
-    const { formatRupiah, formatDateId } = window.MikuShared.format;
+    const { formatRupiah } = window.MikuShared.format;
     const { escapeHtml, uiState, setupPasswordToggles } = window.MikuShared.dom;
     const { getAuthToken, setAuthToken, clearAuthToken, consumeLogoutMessage } = window.MikuShared.auth;
     const { apiFetch } = window.MikuShared.api;
+    const storefrontNav = window.MikuShared.storefrontNav;
     const {
         getInitials,
         attachSimpleThumbFallback,
@@ -16,10 +17,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const API_URL_AUTH = '/api/auth';
     const API_URL = '/api';
 
-    const hamburgerBtn = document.getElementById('hamburger-btn');
-    const closeDrawerBtn = document.getElementById('close-drawer-btn');
     const dropdownMenu = document.getElementById('dropdown-menu');
-    const drawerBackdrop = document.getElementById('drawer-backdrop');
     const moreNavBtn = document.getElementById('more-nav-btn');
     const moreNavMenu = document.getElementById('more-nav-menu');
     const modal = document.getElementById('auth-modal');
@@ -36,11 +34,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const searchInput = document.getElementById('search-input');
     const searchResults = document.getElementById('search-results');
-    const notificationContainer = document.getElementById('notification-container');
-    const notificationToggleBtn = document.getElementById('notification-toggle-btn');
     const notificationBadge = document.getElementById('notification-badge');
-    const notificationPanel = document.getElementById('notification-panel');
-    const notificationList = document.getElementById('notification-list');
     const categoryChips = document.querySelectorAll('.category-chip');
     const catalogCountEl = document.getElementById('catalog-count');
 
@@ -59,20 +53,11 @@ document.addEventListener('DOMContentLoaded', function () {
     function showModal() { showLoginError(''); if (modal) modal.classList.remove('hidden'); }
     function hideModal() { showLoginError(''); if (modal) modal.classList.add('hidden'); }
 
-    function setDrawerOpen(open) {
-        if (!dropdownMenu) return;
-        dropdownMenu.classList.toggle('active', open);
-        if (drawerBackdrop) drawerBackdrop.classList.toggle('hidden', !open);
-        if (hamburgerBtn) hamburgerBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    function setMoreNavOpen(open) {
+        if (!moreNavMenu || !moreNavBtn) return;
+        moreNavMenu.classList.toggle('hidden', !open);
+        moreNavBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
-
-    function setPanelOpen(panel, btn, open) {
-        if (!panel || !btn) return;
-        panel.classList.toggle('hidden', !open);
-        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    }
-    function setMoreNavOpen(open) { setPanelOpen(moreNavMenu, moreNavBtn, open); }
-    function setNotificationOpen(open) { setPanelOpen(notificationPanel, notificationToggleBtn, open); }
 
     function setLoggedOutUI() {
         clearAuthToken();
@@ -88,7 +73,12 @@ document.addEventListener('DOMContentLoaded', function () {
         if (dropdownAuthButton) {
             dropdownAuthButton.textContent = 'Masuk';
             dropdownAuthButton.href = '#';
-            dropdownAuthButton.onclick = (e) => { e.preventDefault(); setDrawerOpen(false); showModal(); };
+            dropdownAuthButton.onclick = (e) => {
+                e.preventDefault();
+                if (storefrontNav) storefrontNav.setDrawerOpen(false);
+                else if (dropdownMenu) dropdownMenu.classList.remove('active');
+                showModal();
+            };
         }
         if (notificationBadge) notificationBadge.classList.add('hidden');
     }
@@ -229,66 +219,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    async function checkUnreadNotifications() {
-        const currentToken = getAuthToken();
-        if (!currentToken) return;
-        try {
-            const response = await apiFetch(`${API_URL}/user/notifications/unread-count`, { auth: true, token: currentToken });
-            if (response.status === 401 || response.status === 403 || !response.ok) return;
-            const data = await response.json();
-            if (data.count > 0) {
-                notificationBadge.textContent = String(data.count);
-                notificationBadge.classList.remove('hidden');
-            } else {
-                notificationBadge.classList.add('hidden');
-            }
-        } catch (error) {
-            console.error('Gagal mengecek notifikasi:', error);
-        }
-    }
-
-    async function showNotifications() {
-        const currentToken = getAuthToken();
-        if (!currentToken) {
-            notificationList.innerHTML = '<p class="notification-state">Masuk terlebih dahulu untuk melihat notifikasi.</p>';
-            return;
-        }
-        notificationList.innerHTML = '<p class="notification-state">Memuat...</p>';
-        try {
-            const response = await apiFetch(`${API_URL}/user/notifications`, { auth: true, token: currentToken });
-            if (response.status === 401 || response.status === 403) {
-                notificationList.innerHTML = '';
-                return;
-            }
-            const notifications = await response.json();
-            notificationList.innerHTML = '';
-            if (!Array.isArray(notifications) || notifications.length === 0) {
-                notificationList.innerHTML = '<p class="notification-state">Tidak ada notifikasi.</p>';
-            } else {
-                notifications.forEach((notif) => {
-                    const notifLink = document.createElement('a');
-                    const rawLink = String(notif.link || '#');
-                    notifLink.href = (rawLink.startsWith('/') || rawLink.startsWith('http') || rawLink === '#') ? rawLink : '#';
-                    notifLink.className = notif.is_read ? 'notification-item' : 'notification-item unread';
-                    notifLink.innerHTML = `<p class="notification-item-msg">${escapeHtml(notif.message)}</p>
-                        <small class="notification-item-date">${escapeHtml(formatDateId(notif.created_at))}</small>`;
-                    notificationList.appendChild(notifLink);
-                });
-            }
-            const tokenForMark = getAuthToken();
-            if (tokenForMark) {
-                await apiFetch(`${API_URL}/user/notifications/mark-as-read`, {
-                    method: 'POST',
-                    auth: true,
-                    token: tokenForMark,
-                }).catch(() => {});
-            }
-            if (notificationBadge) notificationBadge.classList.add('hidden');
-        } catch (_) {
-            notificationList.innerHTML = '<p class="notification-state error">Gagal memuat notifikasi.</p>';
-        }
-    }
-
     function startFlashSaleCountdown(flashSales) {
         if (flashSaleTimerInterval) {
             clearInterval(flashSaleTimerInterval);
@@ -368,24 +298,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (moreNavBtn && moreNavMenu) {
         moreNavBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            setNotificationOpen(false);
+            if (storefrontNav) storefrontNav.setNotificationOpen(false);
             setMoreNavOpen(moreNavMenu.classList.contains('hidden'));
         });
     }
-
-    if (notificationToggleBtn && notificationPanel) {
-        notificationToggleBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            setMoreNavOpen(false);
-            const willOpen = notificationPanel.classList.contains('hidden');
-            setNotificationOpen(willOpen);
-            if (willOpen) showNotifications();
-        });
-    }
-
-    if (hamburgerBtn) hamburgerBtn.addEventListener('click', (e) => { e.stopPropagation(); setDrawerOpen(!dropdownMenu.classList.contains('active')); });
-    if (closeDrawerBtn) closeDrawerBtn.addEventListener('click', () => setDrawerOpen(false));
-    if (drawerBackdrop) drawerBackdrop.addEventListener('click', () => setDrawerOpen(false));
 
     if (closeModalButton) closeModalButton.addEventListener('click', hideModal);
     if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(); });
@@ -503,21 +419,17 @@ document.addEventListener('DOMContentLoaded', function () {
             const isEditable = document.activeElement && document.activeElement.isContentEditable;
             if (!isEditable && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
                 e.preventDefault();
-                searchInput.focus();
+                if (window.innerWidth <= 768 && storefrontNav) storefrontNav.setSearchOpen(true);
+                else searchInput.focus();
             }
         } else if (e.key === 'Escape') {
             if (searchResults && !searchResults.classList.contains('hidden')) searchResults.classList.add('hidden');
             setMoreNavOpen(false);
-            setNotificationOpen(false);
-            setDrawerOpen(false);
             hideModal();
         }
     });
 
     window.addEventListener('click', (e) => {
-        if (notificationPanel && !notificationPanel.classList.contains('hidden') && notificationContainer && !notificationContainer.contains(e.target)) {
-            setNotificationOpen(false);
-        }
         if (moreNavMenu && !moreNavMenu.classList.contains('hidden') && moreNavBtn && !moreNavBtn.contains(e.target) && !moreNavMenu.contains(e.target)) {
             setMoreNavOpen(false);
         }
@@ -526,8 +438,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    if (!getAuthToken() && new URLSearchParams(window.location.search).get('login') === '1') {
+        showModal();
+    }
+
     updateAuthButton();
     displayGames();
-    checkUnreadNotifications();
     displayFlashSales();
 });

@@ -1,0 +1,105 @@
+/* MIKU Store — App Shell, Scroll Offsets, Mobile Search Toggle, Mobile Notif Panel & Left Icon Rail */
+
+#flash-sale-section,
+#catalog,
+#catalog-controls {
+    scroll-margin-top: calc(var(--navbar-height, 60px) + 16px);
+}
+
+.catalog-anchor {
+    display: block;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
+}
+
+.mobile-search-toggle,
+.mobile-search-close {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .mobile-search-toggle {
+        display: inline-flex;
+    }
+
+    header .header-center {
+        display: none;
+        order: 3;
+        flex: 1 0 100%;
+        width: 100%;
+        padding-top: var(--space-1);
+    }
+
+    header .header-center.is-mobile-open {
+        display: flex;
+    }
+
+    .mobile-search-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+        padding: 0;
+        background: transparent;
+        border: none;
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        font-size: var(--text-sm);
+        cursor: pointer;
+    }
+
+    .mobile-search-close:hover {
+        color: var(--text);
+        background-color: var(--surface-2);
+    }
+
+    header .header-center #search-input {
+        padding-right: 2.75rem;
+    }
+
+    header .header-container,
+    header .header-right,
+    .notif-wrapper {
+        position: static;
+    }
+
+    .notification-panel {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none;
+        max-height: min(65dvh, 400px);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .notification-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .notification-item-msg {
+        overflow-wrap: anywhere;
+    }
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: no-preference) {
+    .notification-panel:not(.hidden) {
+        transform-origin: top center;
+    }
+}

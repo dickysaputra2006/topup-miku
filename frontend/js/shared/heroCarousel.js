@@ -136,16 +136,32 @@
             stepSlide(e.key === 'ArrowRight' ? 1 : -1);
         });
 
-        root.querySelectorAll('[data-flash-sale-cta]').forEach((cta) => {
+        function scrollToTarget(el) {
+            if (!el) return;
+            const navApi = global.MikuShared && global.MikuShared.storefrontNav;
+            if (navApi && typeof navApi.scrollToSection === 'function') {
+                navApi.scrollToSection(el);
+                return;
+            }
+            const headerEl = document.querySelector('header');
+            const offset = (headerEl ? headerEl.getBoundingClientRect().height : 60) + 16;
+            const top = Math.max(0, Math.round(el.getBoundingClientRect().top + global.scrollY - offset));
+            global.scrollTo({ top, behavior: reducedMotionQuery.matches ? 'auto' : 'smooth' });
+        }
+
+        root.querySelectorAll('[data-flash-sale-cta], a[href="#catalog"], a[href="#catalog-controls"]').forEach((cta) => {
             cta.addEventListener('click', (e) => {
-                const fsSection = document.getElementById('flash-sale-section');
-                if (fsSection && fsSection.classList.contains('hidden')) {
-                    e.preventDefault();
-                    const catalogEl = document.getElementById('catalog-controls');
-                    if (catalogEl) {
-                        catalogEl.scrollIntoView({ behavior: reducedMotionQuery.matches ? 'auto' : 'smooth' });
-                    }
+                const href = cta.getAttribute('href') || '';
+                const isFlash = cta.hasAttribute('data-flash-sale-cta') || href === '#flash-sale-section';
+                let target = isFlash
+                    ? document.getElementById('flash-sale-section')
+                    : (document.getElementById('catalog') || document.getElementById('catalog-controls'));
+                if (isFlash && (!target || target.classList.contains('hidden'))) {
+                    target = document.getElementById('catalog') || document.getElementById('catalog-controls');
                 }
+                if (!target) return;
+                e.preventDefault();
+                scrollToTarget(target);
             });
         });
 

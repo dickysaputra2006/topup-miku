@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="css/storefrontNav.css">
     <link rel="stylesheet" href="css/storefront.css">
     <link rel="stylesheet" href="css/heroCarousel.css">
+    <link rel="stylesheet" href="css/appShell.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
@@ -49,6 +50,7 @@
                     <a href="validate.html">Validasi ID</a>
                     <a href="compare-prices.html">Pricelist</a>
                     <a href="leaderboard.html">Leaderboard</a>
+                    <a href="kontak.html">Kontak CS</a>
                     <a href="dashboard.html" id="drawer-dashboard-link" class="hidden">Dashboard</a>
                     <a href="#" id="dropdown-auth-btn" class="drawer-auth-link">Masuk</a>
                 </nav>
@@ -56,7 +58,7 @@
             <div id="drawer-backdrop" class="drawer-backdrop hidden" aria-hidden="true"></div>
         </div>
 
-        <div class="header-center">
+        <div id="header-search-wrap" class="header-center">
             <search class="search-container">
                 <div class="search-input-wrapper">
                     <i class="fas fa-search search-icon" aria-hidden="true"></i>
@@ -71,6 +73,9 @@
                         spellcheck="false"
                     >
                     <kbd class="search-kbd" aria-hidden="true">/</kbd>
+                    <button type="button" id="mobile-search-close" class="mobile-search-close" aria-label="Tutup pencarian">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                    </button>
                 </div>
                 <div id="search-results" class="search-results-list hidden" role="region" aria-label="Hasil pencarian"></div>
             </search>
@@ -94,6 +99,16 @@
                     <a href="leaderboard.html">Leaderboard</a>
                 </div>
             </div>
+            <button
+                type="button"
+                id="mobile-search-toggle"
+                class="header-icon-btn mobile-search-toggle"
+                aria-label="Cari game"
+                aria-expanded="false"
+                aria-controls="header-search-wrap"
+            >
+                <i class="fas fa-search" aria-hidden="true"></i>
+            </button>
             <div id="notification-container" class="notif-wrapper">
                 <button
                     type="button"
@@ -137,7 +152,7 @@
                         <h1 class="hero-title">Top Up Game Instan &amp; Terpercaya</h1>
                         <p class="hero-subtitle">Pilih game favoritmu, masukkan ID tujuan dengan cek nickname otomatis, lalu bayar aman dalam hitungan detik.</p>
                         <div class="hero-slide-actions">
-                            <a href="#catalog-controls" class="topup-btn hero-cta">Pilih Game <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+                            <a href="#catalog" class="topup-btn hero-cta">Pilih Game <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
                         </div>
                     </div>
                     <div class="hero-slide-visual">
@@ -232,6 +247,7 @@
         </div>
     </section>
 
+    <div id="catalog" class="catalog-anchor"></div>
     <section id="catalog-controls" class="catalog-controls" aria-label="Filter kategori katalog">
         <div class="category-filter-bar" role="group" aria-label="Kategori game">
             <button type="button" class="category-chip active" data-category="all" aria-pressed="true"><i class="fas fa-border-all" aria-hidden="true"></i> Semua</button>
@@ -364,6 +380,7 @@
 <script defer src="js/shared/dom.js"></script>
 <script defer src="js/shared/auth.js"></script>
 <script defer src="js/shared/api.js"></script>
+<script defer src="js/shared/storefrontNav.js"></script>
 <script defer src="js/shared/storefrontCards.js"></script>
 <script defer src="js/shared/heroCarousel.js"></script>
 <script defer src="script.js"></script>
