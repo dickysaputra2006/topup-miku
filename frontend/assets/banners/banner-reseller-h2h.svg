@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="Ilustrasi harga reseller dan integrasi API H2H MIKU Store">
+  <defs>
+    <linearGradient id="bg-reseller" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B0F17"/>
+      <stop offset="55%" stop-color="#101B29"/>
+      <stop offset="100%" stop-color="#0D2C2B"/>
+    </linearGradient>
+    <radialGradient id="glow-reseller" cx="0.62" cy="0.45" r="0.54">
+      <stop offset="0%" stop-color="#22C55E" stop-opacity="0.24"/>
+      <stop offset="55%" stop-color="#22B8CF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#0B0F17" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="420" rx="20" fill="url(#bg-reseller)"/>
+  <rect width="1200" height="420" rx="20" fill="url(#glow-reseller)"/>
+  <g stroke="#22B8CF" stroke-opacity="0.35" stroke-width="2" fill="none">
+    <path d="M180 280 C300 220, 390 250, 500 185"/>
+    <path d="M500 185 C630 130, 740 220, 880 140"/>
+    <path d="M500 185 C640 260, 760 270, 960 280"/>
+  </g>
+  <g>
+    <circle cx="180" cy="280" r="10" fill="#121826" stroke="#22B8CF" stroke-width="2.5"/>
+    <circle cx="500" cy="185" r="14" fill="#121826" stroke="#22C55E" stroke-width="2.5"/>
+    <circle cx="880" cy="140" r="12" fill="#121826" stroke="#22B8CF" stroke-width="2.5"/>
+    <circle cx="960" cy="280" r="10" fill="#121826" stroke="#22C55E" stroke-width="2.5"/>
+  </g>
+  <g transform="translate(560, 96)">
+    <rect x="0" y="34" width="230" height="176" rx="16" fill="#121826" stroke="#263043" stroke-width="1.5"/>
+    <rect x="26" y="0" width="230" height="176" rx="16" fill="#1A2233" stroke="#22B8CF" stroke-opacity="0.55" stroke-width="2"/>
+    <rect x="50" y="28" width="90" height="10" rx="5" fill="#22B8CF"/>
+    <rect x="50" y="48" width="140" height="8" rx="4" fill="#8B95A7" fill-opacity="0.45"/>
+    <rect x="54" y="114" width="24" height="38" rx="5" fill="#263043"/>
+    <rect x="90" y="98" width="24" height="54" rx="5" fill="#22B8CF" fill-opacity="0.5"/>
+    <rect x="126" y="80" width="24" height="72" rx="5" fill="#22B8CF"/>
+    <rect x="162" y="64" width="24" height="88" rx="5" fill="#22C55E"/>
+  </g>
+  <g transform="translate(150, 108)" opacity="0.9">
+    <rect x="0" y="0" width="180" height="82" rx="14" fill="#121826" stroke="#263043" stroke-width="1.5"/>
+    <rect x="20" y="22" width="18" height="18" rx="4" fill="#22B8CF" fill-opacity="0.35" stroke="#22B8CF" stroke-width="1.5"/>
+    <rect x="48" y="25" width="98" height="9" rx="4.5" fill="#E6EAF2" fill-opacity="0.8"/>
+    <rect x="20" y="52" width="128" height="8" rx="4" fill="#22C55E" fill-opacity="0.65"/>
+  </g>
+</svg>

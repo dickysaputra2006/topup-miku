@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="Ilustrasi top up game otomatis 24 jam MIKU Store">
+  <defs>
+    <linearGradient id="bg-instan" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B0F17"/>
+      <stop offset="55%" stop-color="#111A2B"/>
+      <stop offset="100%" stop-color="#0F2636"/>
+    </linearGradient>
+    <radialGradient id="glow-instan" cx="0.68" cy="0.45" r="0.52">
+      <stop offset="0%" stop-color="#22B8CF" stop-opacity="0.34"/>
+      <stop offset="55%" stop-color="#22B8CF" stop-opacity="0.09"/>
+      <stop offset="100%" stop-color="#22B8CF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bolt-instan" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#67E8F9"/>
+      <stop offset="100%" stop-color="#22B8CF"/>
+    </linearGradient>
+    <pattern id="grid-instan" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#E6EAF2" stroke-opacity="0.05" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="420" rx="20" fill="url(#bg-instan)"/>
+  <rect width="1200" height="420" rx="20" fill="url(#grid-instan)"/>
+  <rect width="1200" height="420" rx="20" fill="url(#glow-instan)"/>
+  <g stroke="#22B8CF" stroke-opacity="0.22" stroke-width="1.5" fill="none">
+    <path d="M-40 340 L460 70"/>
+    <path d="M80 390 L600 95"/>
+    <path d="M740 380 L1220 110"/>
+  </g>
+  <g opacity="0.55">
+    <circle cx="240" cy="120" r="3" fill="#22B8CF"/>
+    <circle cx="960" cy="95" r="4" fill="#67E8F9"/>
+    <circle cx="1040" cy="310" r="3" fill="#22B8CF"/>
+    <circle cx="380" cy="300" r="2.5" fill="#E6EAF2" fill-opacity="0.45"/>
+  </g>
+  <g transform="translate(600, 210)">
+    <circle r="150" fill="none" stroke="#22B8CF" stroke-opacity="0.16" stroke-width="1.5" stroke-dasharray="10 8"/>
+    <circle r="118" fill="#121826" fill-opacity="0.72" stroke="#22B8CF" stroke-opacity="0.4" stroke-width="1.5"/>
+    <polygon points="0,-92 80,-46 80,46 0,92 -80,46 -80,-46" fill="#1A2233" stroke="#22B8CF" stroke-width="2"/>
+    <polygon points="0,-72 62,-36 62,36 0,72 -62,36 -62,-36" fill="none" stroke="#67E8F9" stroke-opacity="0.35" stroke-width="1"/>
+    <polygon points="10,-52 -24,6 2,6 -12,52 28,-8 2,-8" fill="url(#bolt-instan)"/>
+  </g>
+  <g transform="translate(150, 140)" opacity="0.85">
+    <rect x="0" y="0" width="160" height="72" rx="14" fill="#121826" stroke="#263043" stroke-width="1.5"/>
+    <rect x="18" y="20" width="52" height="10" rx="5" fill="#22B8CF"/>
+    <rect x="18" y="40" width="110" height="8" rx="4" fill="#263043"/>
+  </g>
+  <g transform="translate(880, 230)" opacity="0.85">
+    <rect x="0" y="0" width="175" height="76" rx="14" fill="#121826" stroke="#263043" stroke-width="1.5"/>
+    <circle cx="28" cy="38" r="14" fill="#22C55E" fill-opacity="0.2" stroke="#22C55E" stroke-width="1.5"/>
+    <path d="M22 38 L26 42 L35 33" fill="none" stroke="#22C55E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="56" y="26" width="88" height="9" rx="4.5" fill="#E6EAF2" fill-opacity="0.7"/>
+    <rect x="56" y="44" width="60" height="7" rx="3.5" fill="#8B95A7" fill-opacity="0.5"/>
+  </g>
+</svg>

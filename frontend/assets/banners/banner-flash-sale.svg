@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" role="img" aria-label="Ilustrasi promo Flash Sale harian MIKU Store">
+  <defs>
+    <linearGradient id="bg-flash" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B0F17"/>
+      <stop offset="52%" stop-color="#171C2E"/>
+      <stop offset="100%" stop-color="#261B1A"/>
+    </linearGradient>
+    <radialGradient id="glow-flash" cx="0.58" cy="0.48" r="0.5">
+      <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.34"/>
+      <stop offset="50%" stop-color="#22B8CF" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#0B0F17" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent-flash" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FCD34D"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="420" rx="20" fill="url(#bg-flash)"/>
+  <rect width="1200" height="420" rx="20" fill="url(#glow-flash)"/>
+  <g opacity="0.22" fill="#22B8CF">
+    <polygon points="0,330 420,420 0,420"/>
+    <polygon points="860,0 1200,0 1200,220" fill="#F59E0B"/>
+  </g>
+  <g stroke="#F59E0B" stroke-opacity="0.22" fill="none" stroke-width="1.5">
+    <circle cx="600" cy="210" r="168"/>
+    <circle cx="600" cy="210" r="132" stroke-dasharray="8 8"/>
+  </g>
+  <g transform="translate(600, 210)">
+    <polygon points="-96,-58 64,-58 106,0 64,58 -96,58" fill="#121826" stroke="#F59E0B" stroke-width="2.5"/>
+    <polygon points="-78,-42 52,-42 84,0 52,42 -78,42" fill="#1A2233" stroke="#22B8CF" stroke-opacity="0.35" stroke-width="1"/>
+    <circle cx="58" cy="0" r="10" fill="#0B0F17" stroke="#F59E0B" stroke-width="2"/>
+    <polygon points="-14,-34 -36,4 -16,4 -28,36 6,-4 -14,-4" fill="url(#accent-flash)"/>
+    <rect x="8" y="-14" width="34" height="9" rx="4.5" fill="#22B8CF"/>
+    <rect x="8" y="4" width="24" height="9" rx="4.5" fill="#E6EAF2" fill-opacity="0.7"/>
+  </g>
+  <g transform="translate(170, 245)" opacity="0.9">
+    <rect x="0" y="0" width="164" height="62" rx="12" fill="#121826" stroke="#263043" stroke-width="1.5"/>
+    <rect x="16" y="18" width="44" height="24" rx="12" fill="#DC2626"/>
+    <rect x="74" y="20" width="68" height="8" rx="4" fill="#E6EAF2" fill-opacity="0.75"/>
+    <rect x="74" y="34" width="46" height="7" rx="3.5" fill="#F59E0B" fill-opacity="0.8"/>
+  </g>
+</svg>

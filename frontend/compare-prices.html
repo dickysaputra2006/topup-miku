@@ -46,9 +46,12 @@
         </aside>
 
         <main class="dashboard-content">
-            <div class="public-page-header">
-                <h1 class="public-page-title">Perbandingan Harga Produk</h1>
-                <p class="public-page-subtitle">Bandingkan harga jual untuk setiap level akun (Bronze, Partner, Silver, dan Gold).</p>
+            <div class="public-page-header public-page-header--rich">
+                <span class="public-header-icon" aria-hidden="true"><i class="fas fa-tags"></i></span>
+                <div class="public-header-copy">
+                    <h1 class="public-page-title">Perbandingan Harga Produk</h1>
+                    <p class="public-page-subtitle">Bandingkan harga jual untuk setiap level akun (Bronze, Partner, Silver, dan Gold).</p>
+                </div>
             </div>
 
             <section class="card compare-card" aria-labelledby="compare-product-list-title">
@@ -56,6 +59,10 @@
                     <h2 id="compare-product-list-title">Pilih Game untuk Melihat Perbandingan Harga</h2>
                     <p class="form-description">Pilih game di panel samping atau kolom filter untuk memuat daftar harga SKU aktif.</p>
                 </div>
+                <p class="compare-tier-note">
+                    <i class="fas fa-bolt" aria-hidden="true"></i>
+                    Tier Reseller memperoleh harga margin terendah secara otomatis pada transaksi web dan API H2H.
+                </p>
                 <div class="modern-table-wrapper">
                     <div tabindex="0" role="region" aria-labelledby="compare-product-list-title" class="table-container">
                         <table id="compare-prices-table" class="modern-table">

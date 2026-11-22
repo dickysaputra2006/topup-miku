@@ -14,10 +14,10 @@
     let currentPeriod = 'all_time';
 
     function rankBadge(rank) {
-        if (rank === 1) return { label: '#1', cls: 'gold' };
-        if (rank === 2) return { label: '#2', cls: 'silver' };
-        if (rank === 3) return { label: '#3', cls: 'bronze' };
-        return { label: String(rank), cls: '' };
+        if (rank === 1) return { label: '#1', cls: 'gold', icon: 'fas fa-crown' };
+        if (rank === 2) return { label: '#2', cls: 'silver', icon: 'fas fa-medal' };
+        if (rank === 3) return { label: '#3', cls: 'bronze', icon: 'fas fa-medal' };
+        return { label: String(rank), cls: '', icon: '' };
     }
 
     function rankLabelClass(label) {
@@ -71,7 +71,8 @@
             return `
                 <div class="lb-entry${entryClass}" role="listitem">
                     <div class="lb-rank-badge ${badge.cls}" aria-label="Peringkat ${rank}">
-                        ${escapeHtml(badge.label)}
+                        ${badge.icon ? `<span class="lb-medal-icon" aria-hidden="true"><i class="${badge.icon}"></i></span>` : ''}
+                        <span>${escapeHtml(badge.label)}</span>
                     </div>
                     <div class="lb-info">
                         <div class="lb-name">${safeName}</div>
