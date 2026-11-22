@@ -1,8 +1,14 @@
 document.addEventListener('DOMContentLoaded', function () {
     const { formatRupiah, formatDateId } = window.MikuShared.format;
-    const { escapeHtml, isSafeImageUrl, uiState, setupPasswordToggles } = window.MikuShared.dom;
+    const { escapeHtml, uiState, setupPasswordToggles } = window.MikuShared.dom;
     const { getAuthToken, setAuthToken, clearAuthToken, consumeLogoutMessage } = window.MikuShared.auth;
     const { apiFetch } = window.MikuShared.api;
+    const {
+        getInitials,
+        attachSimpleThumbFallback,
+        buildGameCard,
+        buildFlashSaleCard,
+    } = window.MikuShared.storefrontCards;
 
     const logoutMessage = consumeLogoutMessage();
     if (logoutMessage) alert(logoutMessage);
@@ -43,38 +49,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let isFetchingProfile = false;
     let searchDebounceTimer = null;
     let flashSaleTimerInterval = null;
-
-    function getInitials(name) {
-        const words = String(name || '').trim().split(/\s+/).filter(Boolean);
-        if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
-        return (words[0] || 'MG').slice(0, 2).toUpperCase();
-    }
-
-    function attachThumbFallback(container, imageUrl, altText, fallbackClass, initialsText) {
-        const safeUrl = isSafeImageUrl(imageUrl) ? imageUrl : '';
-        if (!safeUrl) {
-            const fb = document.createElement('span');
-            fb.className = fallbackClass;
-            fb.setAttribute('aria-hidden', 'true');
-            fb.textContent = initialsText;
-            container.appendChild(fb);
-            return;
-        }
-        const img = document.createElement('img');
-        img.src = safeUrl;
-        img.alt = altText;
-        img.loading = 'lazy';
-        const fb = document.createElement('span');
-        fb.className = `${fallbackClass} hidden`;
-        fb.setAttribute('aria-hidden', 'true');
-        fb.textContent = initialsText;
-        img.addEventListener('error', () => {
-            img.classList.add('hidden');
-            fb.classList.remove('hidden');
-        });
-        container.appendChild(img);
-        container.appendChild(fb);
-    }
 
     function showLoginError(msg) {
         const errEl = document.getElementById('login-error-msg');
@@ -168,24 +142,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (parentSection) parentSection.classList.remove('hidden');
 
         games.forEach((game) => {
-            const card = document.createElement('a');
-            card.href = `product.html?gameId=${encodeURIComponent(game.id)}`;
-            card.className = 'product-card';
-
-            const media = document.createElement('div');
-            media.className = 'game-card-media';
-            attachThumbFallback(media, game.image_url, game.name, 'game-card-fallback', getInitials(game.name));
-
-            const body = document.createElement('div');
-            body.className = 'game-card-body';
-            const title = document.createElement('span');
-            title.className = 'game-card-title';
-            title.textContent = game.name;
-            body.appendChild(title);
-
-            card.appendChild(media);
-            card.appendChild(body);
-            gridContainer.appendChild(card);
+            gridContainer.appendChild(buildGameCard(game));
         });
         return games.length;
     }
@@ -253,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const thumb = document.createElement('div');
             thumb.className = 'search-result-thumb';
-            attachThumbFallback(thumb, game.image_url, game.name, 'search-result-initials', getInitials(game.name));
+            attachSimpleThumbFallback(thumb, game.image_url, game.name, 'search-result-initials', getInitials(game.name));
 
             const meta = document.createElement('div');
             meta.className = 'search-result-meta';
@@ -392,29 +349,11 @@ document.addEventListener('DOMContentLoaded', function () {
             startFlashSaleCountdown(flashSales);
 
             flashSales.forEach((product) => {
-                const card = document.createElement('div');
-                card.className = 'flash-sale-card';
-                const link = document.createElement('a');
-                link.className = 'flash-sale-link';
-                link.href = `product.html?gameId=${encodeURIComponent(product.game_id)}&fsProductId=${encodeURIComponent(product.product_id)}`;
-
-                const media = document.createElement('div');
-                media.className = 'flash-sale-media';
-                attachThumbFallback(media, product.game_image_url, product.product_name, 'game-card-fallback', getInitials(product.game_name || product.product_name));
-
-                const info = document.createElement('div');
-                info.className = 'flash-sale-info';
-                info.innerHTML = `
-                    <span class="fs-product-name">${escapeHtml(product.product_name)}</span>
-                    <div class="fs-price-row">
-                        <span class="fs-price-discounted">${escapeHtml(formatRupiah(product.discount_price, { withDecimals: true }))}</span>
-                        <span class="fs-price-original">${escapeHtml(formatRupiah(product.original_price, { withDecimals: true }))}</span>
-                    </div>
-                `;
-                link.appendChild(media);
-                link.appendChild(info);
-                card.appendChild(link);
-                flashSaleTrack.appendChild(card);
+                const matchedGame = allGamesData.find((g) => String(g.id) === String(product.game_id));
+                const enriched = matchedGame && !product.game_category
+                    ? { ...product, game_category: matchedGame.category }
+                    : product;
+                flashSaleTrack.appendChild(buildFlashSaleCard(enriched, formatRupiah));
             });
         } catch (error) {
             console.error('Gagal memuat flash sale:', error);
