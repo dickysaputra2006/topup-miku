@@ -62,13 +62,37 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    function findHighlightedTier(roles) {
+        if (!Array.isArray(roles) || roles.length === 0) return '';
+        let bestName = '';
+        let lowestMargin = Infinity;
+        roles.forEach(role => {
+            const margin = Number(role.margin_percent);
+            if (Number.isFinite(margin) && margin >= 0 && margin < lowestMargin) {
+                lowestMargin = margin;
+                bestName = role.name;
+            } else if (Number.isFinite(margin) && margin === lowestMargin && role.name === 'GOLD') {
+                bestName = role.name;
+            }
+        });
+        if (bestName) return bestName;
+        if (roles.some(r => r.name === 'PARTNER')) return 'PARTNER';
+        if (roles.some(r => r.name === 'GOLD')) return 'GOLD';
+        return '';
+    }
+
     function renderProductsTable(products, roles) {
         compareTableBody.innerHTML = '';
         compareTableHeader.innerHTML = '';
+        const highlightedTier = findHighlightedTier(roles);
 
         let headerHtml = '<th>Nama Game</th><th>Produk</th><th>SKU</th>';
         roles.forEach(role => {
-            headerHtml += `<th>Harga ${escapeHtml(role.name)}</th>`;
+            if (role.name === highlightedTier) {
+                headerHtml += `<th class="col-tier-highlight"><span class="tier-th-wrap"><span>Harga ${escapeHtml(role.name)}</span><span class="tier-highlight-badge">Terbaik Reseller</span></span></th>`;
+            } else {
+                headerHtml += `<th>Harga ${escapeHtml(role.name)}</th>`;
+            }
         });
         compareTableHeader.innerHTML = headerHtml;
 
@@ -84,7 +108,8 @@ document.addEventListener('DOMContentLoaded', function () {
             let rowHtml = `<td>${escapeHtml(product.game_name || '-')}</td><td>${escapeHtml(product.product_name || '-')}</td><td><code>${escapeHtml(product.provider_sku || '-')}</code></td>`;
             roles.forEach(role => {
                 const rolePriceKey = `price_${role.name.toLowerCase()}`;
-                rowHtml += `<td>${escapeHtml(formatRupiah(product[rolePriceKey] || 0))}</td>`;
+                const colClass = role.name === highlightedTier ? ' class="col-tier-highlight"' : '';
+                rowHtml += `<td${colClass}>${escapeHtml(formatRupiah(product[rolePriceKey] || 0))}</td>`;
             });
             row.innerHTML = rowHtml;
             compareTableBody.appendChild(row);
