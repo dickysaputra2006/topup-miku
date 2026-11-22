@@ -4,7 +4,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Member - MIKU Store</title>
+    <title>Dashboard Akun - MIKU Store</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap">
     <link rel="stylesheet" href="css/tokens.css">
     <link rel="stylesheet" href="css/base.css">
     <link rel="stylesheet" href="css/components.css">
@@ -47,7 +50,7 @@
                 <a href="#" class="header-user-chip dashboard-nav-link" data-target="dashboard-main" aria-label="Ringkasan Akun">
                     <span class="user-avatar-circle" id="header-user-initials">--</span>
                     <span class="header-user-meta">
-                        <small>Member</small>
+                        <small id="header-user-role">Member</small>
                         <strong id="header-user-name">Akun</strong>
                     </span>
                 </a>
@@ -56,9 +59,9 @@
     </header>
 
     <div class="dashboard-container container">
-        <aside class="sidebar" id="dashboard-sidebar" aria-label="Menu member">
+        <aside class="sidebar" id="dashboard-sidebar" aria-label="Menu akun">
             <div class="sidebar-top-header">
-                <span class="sidebar-portal-badge"><i class="fas fa-shield-halved" aria-hidden="true"></i> Area Member</span>
+                <span class="sidebar-portal-badge"><i class="fas fa-shield-halved" aria-hidden="true"></i> Area Akun</span>
                 <button type="button" class="menu-toggle-btn header-icon-btn" aria-label="Tutup menu">
                     <i class="fas fa-times" aria-hidden="true"></i>
                 </button>
@@ -67,6 +70,7 @@
                 <span class="sidebar-group-title">Navigasi Utama</span>
                 <a href="index.html" class="sidebar-store-link"><i class="fas fa-store" aria-hidden="true"></i> Kembali ke Toko</a>
                 <a href="#" class="dashboard-nav-link active" data-target="dashboard-main"><i class="fas fa-th-large" aria-hidden="true"></i> Dashboard</a>
+                <a href="admin.html" id="sidebar-admin-link" class="sidebar-admin-link hidden"><i class="fas fa-user-shield" aria-hidden="true"></i> Panel Admin</a>
 
                 <span class="sidebar-group-title">Transaksi</span>
                 <a href="#" class="dashboard-nav-link" data-target="transaksi-tab"><i class="fas fa-history" aria-hidden="true"></i> Riwayat Transaksi</a>
@@ -95,7 +99,7 @@
             <section id="dashboard-main" class="dashboard-section">
                 <div class="dashboard-page-header">
                     <div>
-                        <h1 class="dashboard-page-title">Dashboard Member</h1>
+                        <h1 class="dashboard-page-title">Dashboard Akun</h1>
                         <p class="dashboard-page-subtitle">Selamat datang kembali, <strong id="overview-greeting-name">Member</strong>.</p>
                     </div>
                 </div>
@@ -105,6 +109,7 @@
                         <div>
                             <div class="card-head-row">
                                 <span class="section-eyebrow"><i class="fas fa-wallet" aria-hidden="true"></i> Saldo Akun</span>
+                                <span class="wallet-status-pill"><i class="fas fa-circle-check" aria-hidden="true"></i> Dompet Aktif</span>
                             </div>
                             <div class="balance-details">
                                 <p class="balance-amount tabular-nums" id="profile-balance">Memuat...</p>
