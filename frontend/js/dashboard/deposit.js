@@ -82,40 +82,6 @@
         }
     }
 
-    function renderDepositMethodsGrid(selectedCode) {
-        const { escapeHtml } = global.MikuShared.dom;
-        const grid = document.getElementById('deposit-methods-grid');
-        if (!grid) return;
-        if (!Array.isArray(app.state.activePaymentMethods) || app.state.activePaymentMethods.length === 0) {
-            grid.innerHTML = '<div class="ui-state empty">Belum ada metode pembayaran aktif saat ini. Hubungi admin.</div>';
-            return;
-        }
-        grid.innerHTML = app.state.activePaymentMethods.map(pm => {
-            const meta = getMethodVisualMeta(pm.name, pm.type);
-            const isSelected = Boolean(selectedCode && String(pm.code).toLowerCase() === String(selectedCode).toLowerCase());
-            const minFormatted = formatRupiahId(pm.min_amount || 10000);
-            const ownerSuffix = pm.account_name ? ` • A/N ${escapeHtml(pm.account_name)}` : '';
-            const acctNumber = pm.account_number ? escapeHtml(pm.account_number) : '';
-            const numberOrQrisHtml = acctNumber
-                ? `<p class="deposit-method-number">${acctNumber}</p>
-                   <button type="button" class="copy-deposit-number-btn" data-number="${acctNumber}">
-                       <i class="fas fa-copy" aria-hidden="true"></i> Salin Nomor
-                   </button>`
-                : (pm.is_qris
-                    ? '<p class="deposit-method-number">Scan QRIS pada rincian metode di bawah</p>'
-                    : '<p class="deposit-method-number">-</p>');
-
-            return `
-                <div class="deposit-method-item deposit-method-selectable ${isSelected ? 'is-selected' : ''}" role="button" tabindex="0" aria-pressed="${isSelected ? 'true' : 'false'}" data-method-code="${escapeHtml(pm.code)}">
-                    <small class="deposit-method-type-label">${escapeHtml(meta.typeLabel)}${ownerSuffix}</small>
-                    <span class="deposit-method-label"><i class="${meta.iconClass}" aria-hidden="true"></i> ${escapeHtml(pm.name)}</span>
-                    ${numberOrQrisHtml}
-                    <small class="deposit-method-min-label">Min. ${escapeHtml(minFormatted)}${pm.is_qris ? ' • Tanpa kode unik' : ''}</small>
-                </div>
-            `;
-        }).join('');
-    }
-
     function renderSelectedDepositMethodInfo(selectedValue) {
         const { escapeHtml, isSafeImageUrl } = global.MikuShared.dom;
         const methodInfo = document.getElementById('deposit-method-info');
@@ -123,7 +89,6 @@
         const amountHint = document.getElementById('deposit-amount-hint');
         const pm = findPaymentMethod(selectedValue);
 
-        renderDepositMethodsGrid(pm ? pm.code : '');
         updateDepositPreview();
 
         if (!methodInfo) return;
@@ -209,15 +174,9 @@
      * Muat daftar metode pembayaran aktif dari API untuk form deposit.
      */
     async function loadDepositPaymentMethods() {
-        const { escapeHtml } = global.MikuShared.dom;
         const { apiFetch } = global.MikuShared.api;
-        const grid = document.getElementById('deposit-methods-grid');
         const methodSelect = document.getElementById('deposit-method');
         const previousVal = methodSelect ? methodSelect.value : '';
-
-        if (grid && app.state.activePaymentMethods.length === 0) {
-            grid.innerHTML = '<div class="ui-state loading">Memuat metode pembayaran...</div>';
-        }
 
         try {
             const response = await apiFetch('/api/payment-methods', { auth: true, token: app.state.token });
@@ -226,6 +185,11 @@
             app.state.activePaymentMethods = Array.isArray(methods) ? methods : [];
 
             if (methodSelect) {
+                if (app.state.activePaymentMethods.length === 0) {
+                    methodSelect.innerHTML = '<option value="" disabled selected>-- Belum ada metode pembayaran aktif --</option>';
+                    renderSelectedDepositMethodInfo('');
+                    return;
+                }
                 methodSelect.innerHTML = '<option value="" disabled selected>-- Pilih Metode Pembayaran --</option>';
                 app.state.activePaymentMethods.forEach(pm => {
                     const option = document.createElement('option');
@@ -236,11 +200,8 @@
                 const stillExists = findPaymentMethod(previousVal);
                 methodSelect.value = stillExists ? stillExists.code : '';
                 renderSelectedDepositMethodInfo(methodSelect.value);
-            } else {
-                renderDepositMethodsGrid('');
             }
         } catch (error) {
-            if (grid) grid.innerHTML = `<div class="ui-state error">${escapeHtml(error.message)}</div>`;
             if (methodSelect) methodSelect.innerHTML = '<option value="" disabled selected>-- Gagal memuat metode --</option>';
         }
     }
@@ -296,7 +257,6 @@
         const instructionText = document.getElementById('instruction-text');
         const methodSelect = document.getElementById('deposit-method');
         const methodError = document.getElementById('deposit-method-error');
-        const methodsGrid = document.getElementById('deposit-methods-grid');
         const amountInput = document.getElementById('amount');
         const presetsContainer = document.getElementById('deposit-presets');
         if (!depositForm || app.state.depositFormSetup) return;
@@ -321,28 +281,6 @@
             });
             methodSelect.addEventListener('invalid', () => {
                 syncSelectAriaState(methodSelect, methodError, true);
-            });
-        }
-
-        if (methodsGrid && methodSelect) {
-            const selectCard = (card) => {
-                if (!card || !card.dataset.methodCode) return;
-                methodSelect.value = card.dataset.methodCode;
-                syncSelectAriaState(methodSelect, methodError, true);
-                renderSelectedDepositMethodInfo(methodSelect.value);
-            };
-            methodsGrid.addEventListener('click', (event) => {
-                if (event.target.closest('.copy-deposit-number-btn')) return;
-                selectCard(event.target.closest('.deposit-method-selectable'));
-            });
-            methodsGrid.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                    const card = event.target.closest('.deposit-method-selectable');
-                    if (card && !event.target.closest('.copy-deposit-number-btn')) {
-                        event.preventDefault();
-                        selectCard(card);
-                    }
-                }
             });
         }
 

@@ -17,7 +17,7 @@
     display: flex;
     align-items: flex-start;
     gap: var(--space-2);
-    margin: var(--space-4) 0 0;
+    margin: 0 0 var(--space-4);
     padding: var(--space-3);
     background-color: var(--warning-soft);
     border: 1px solid rgba(245, 158, 11, 0.35);
@@ -25,64 +25,6 @@
     font-size: var(--text-xs);
     color: var(--warning);
     line-height: 1.5;
-}
-
-/* --- Payment Methods Grid --- */
-.deposit-method-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
-}
-
-.deposit-method-item {
-    background-color: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: var(--space-4);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    cursor: pointer;
-    transition: border-color var(--transition-fast), background-color var(--transition-fast);
-}
-
-.deposit-method-item:hover {
-    border-color: var(--accent);
-    background-color: var(--surface-2);
-}
-
-.deposit-method-item.is-selected {
-    border-color: var(--accent);
-    background-color: var(--accent-soft);
-}
-
-.deposit-method-type-label {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-}
-
-.deposit-method-label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-weight: 700;
-    font-size: var(--text-sm);
-    color: var(--accent);
-}
-
-.deposit-method-number {
-    margin: 0;
-    font-family: var(--font-mono);
-    font-size: var(--text-sm);
-    font-weight: 600;
-    color: var(--text);
-    word-break: break-all;
-}
-
-.deposit-method-min-label {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
 }
 
 .copy-deposit-number-btn {
@@ -502,10 +444,6 @@
 }
 
 @media (max-width: 768px) {
-    .deposit-method-grid {
-        grid-template-columns: 1fr;
-    }
-
     .deposit-preset-chip,
     .tx-filter-chip,
     .copy-deposit-number-btn {
