@@ -134,6 +134,12 @@
             btn.disabled = !state.ready;
             if (app.state.isOrderSubmitting) {
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Memproses...';
+            } else if (state.ready) {
+                btn.textContent = '';
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-shield-halved';
+                icon.setAttribute('aria-hidden', 'true');
+                btn.append(icon, document.createTextNode(` ${state.label}`));
             } else {
                 btn.textContent = state.label;
             }

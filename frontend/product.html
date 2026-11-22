@@ -59,15 +59,19 @@
 <main id="main-content" class="container product-main" tabindex="-1">
     <div class="order-page-wrapper">
         <div class="order-main-col">
-            <section id="game-info" class="card" aria-label="Informasi game">
+            <section id="game-info" class="card game-hero-header" aria-label="Informasi game">
                 <div class="game-hero-thumb">
                     <img id="game-image" src="" alt="Logo game" fetchpriority="high" class="hidden">
-                    <span id="game-image-fallback" class="game-hero-fallback" aria-hidden="true">MG</span>
+                    <span id="game-image-fallback" class="game-hero-fallback" data-category="mobile" aria-hidden="true">MG</span>
                 </div>
                 <div class="game-info-text">
-                    <span class="game-badge">Proses Otomatis 24/7</span>
+                    <span class="game-badge"><i class="fas fa-bolt" aria-hidden="true"></i> Proses Otomatis 24/7</span>
                     <h1 id="game-name">Memuat nama game...</h1>
                     <p>Isi ID tujuan, pilih nominal, dan selesaikan pembayaran secara langsung.</p>
+                    <ul class="game-trust-pills" aria-label="Jaminan layanan">
+                        <li><i class="fas fa-user-check" aria-hidden="true"></i> Validasi ID Real-Time</li>
+                        <li><i class="fas fa-shield-halved" aria-hidden="true"></i> Refund Otomatis Jika Gagal</li>
+                    </ul>
                 </div>
             </section>
 

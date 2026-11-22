@@ -11,11 +11,38 @@
         return (words[0] || 'MG').slice(0, 2).toUpperCase();
     }
 
+    function normalizeHeroCategory(category) {
+        const raw = String(category || '').trim().toLowerCase();
+        if (raw.includes('mobile') || raw.includes('mlbb')) return 'mobile';
+        if (raw.includes('pc')) return 'pc';
+        if (raw.includes('voucher') || raw.includes('life')) return 'voucher';
+        return 'other';
+    }
+
+    function splitProductBonus(rawName) {
+        const text = String(rawName || '').trim();
+        const match = text.match(/^(.*?)\s*(\([^()]+\))$/);
+        if (match && match[1].trim()) {
+            return { main: match[1].trim(), bonus: match[2].trim() };
+        }
+        return { main: text, bonus: '' };
+    }
+
+    function computeDiscountPct(origPrice, currentPrice) {
+        const orig = Number(origPrice);
+        const curr = Number(currentPrice);
+        if (!Number.isFinite(orig) || !Number.isFinite(curr) || orig <= 0 || curr <= 0 || curr >= orig) return 0;
+        return Math.round((1 - (curr / orig)) * 100);
+    }
+
     function applyHeroImage(game) {
         const { isSafeImageUrl } = global.MikuShared.dom;
         const { gameImageEl, gameImageFallbackEl } = app.state.els;
         const initials = getInitials(game && game.name);
-        if (gameImageFallbackEl) gameImageFallbackEl.textContent = initials;
+        if (gameImageFallbackEl) {
+            gameImageFallbackEl.textContent = initials;
+            gameImageFallbackEl.dataset.category = normalizeHeroCategory(game && game.category);
+        }
         if (!gameImageEl) return;
 
         const safeUrl = game && isSafeImageUrl(game.image_url) ? game.image_url : '';
@@ -218,17 +245,68 @@
             card.dataset.price = String(product.price);
             card.dataset.name = String(product.name);
 
+            const checkBadge = document.createElement('span');
+            checkBadge.className = 'product-card-check';
+            checkBadge.setAttribute('aria-hidden', 'true');
+            const checkIcon = document.createElement('i');
+            checkIcon.className = 'fas fa-check';
+            checkBadge.appendChild(checkIcon);
+
+            const head = document.createElement('span');
+            head.className = 'product-card-head';
+            const itemIcon = document.createElement('i');
+            itemIcon.className = product.isFlashSale ? 'fas fa-bolt product-card-icon is-flash' : 'fas fa-gem product-card-icon';
+            itemIcon.setAttribute('aria-hidden', 'true');
+
+            const titleWrap = document.createElement('span');
+            titleWrap.className = 'product-card-title-wrap';
+            const { main, bonus } = splitProductBonus(product.name);
+            const nameEl = document.createElement('span');
+            nameEl.className = 'product-card-name';
+            nameEl.textContent = main;
+            titleWrap.appendChild(nameEl);
+            if (bonus) {
+                const bonusEl = document.createElement('span');
+                bonusEl.className = 'product-card-bonus';
+                bonusEl.textContent = bonus;
+                titleWrap.appendChild(bonusEl);
+            }
+            head.append(itemIcon, titleWrap);
+
             const origPrice = Number(product.original_price || product.originalPrice || 0);
             const hasStrike = origPrice > Number(product.price);
+            const discountPct = computeDiscountPct(origPrice, product.price);
 
-            card.innerHTML = `
-                <span class="product-card-name">${escapeHtml(product.name)}</span>
-                <span class="product-card-pricing">
-                    <span class="product-card-price">${escapeHtml(formatRupiah(product.price))}</span>
-                    ${hasStrike ? `<span class="product-card-strike">${escapeHtml(formatRupiah(origPrice))}</span>` : ''}
-                    ${product.isFlashSale ? '<em class="product-tag">Flash Sale</em>' : ''}
-                </span>
-            `;
+            const pricing = document.createElement('span');
+            pricing.className = 'product-card-pricing';
+            const priceRow = document.createElement('span');
+            priceRow.className = 'product-card-price-row';
+            const priceEl = document.createElement('span');
+            priceEl.className = 'product-card-price';
+            priceEl.textContent = formatRupiah(product.price);
+            priceRow.appendChild(priceEl);
+
+            if (discountPct > 0) {
+                const pill = document.createElement('span');
+                pill.className = 'product-discount-pill';
+                pill.textContent = `-${discountPct}%`;
+                priceRow.appendChild(pill);
+            } else if (product.isFlashSale) {
+                const pill = document.createElement('span');
+                pill.className = 'product-discount-pill is-flash-label';
+                pill.textContent = 'Flash';
+                priceRow.appendChild(pill);
+            }
+            pricing.appendChild(priceRow);
+
+            if (hasStrike) {
+                const strikeEl = document.createElement('span');
+                strikeEl.className = 'product-card-strike';
+                strikeEl.textContent = formatRupiah(origPrice);
+                pricing.appendChild(strikeEl);
+            }
+
+            card.append(checkBadge, head, pricing);
             card.addEventListener('click', () => {
                 handleProductSelection(card, card.dataset.productId, card.dataset.price, card.dataset.name);
             });

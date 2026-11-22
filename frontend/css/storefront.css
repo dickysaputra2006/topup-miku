@@ -151,6 +151,8 @@
     gap: var(--space-3);
     overflow-x: auto;
     scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    touch-action: manipulation;
     padding-bottom: var(--space-2);
     scrollbar-width: thin;
 }
@@ -161,8 +163,9 @@
     background-color: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
-    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+    transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .flash-sale-card:hover {
@@ -177,6 +180,7 @@
 }
 
 .flash-sale-media {
+    position: relative;
     width: 100%;
     aspect-ratio: 16 / 9;
     background-color: var(--surface-2);
@@ -191,6 +195,26 @@
     height: 100%;
     object-fit: cover;
     display: block;
+}
+
+.fs-discount-badge {
+    position: absolute;
+    top: var(--space-2);
+    right: var(--space-2);
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background-color: #DC2626;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    color: #FFFFFF;
+    font-family: var(--font-display);
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.3;
+    letter-spacing: 0.01em;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
 .flash-sale-info {
@@ -215,12 +239,14 @@
 .fs-price-row {
     display: flex;
     align-items: baseline;
+    flex-wrap: wrap;
     gap: var(--space-2);
     margin-top: var(--space-1);
     font-variant-numeric: tabular-nums;
 }
 
 .fs-price-discounted {
+    font-family: var(--font-display);
     font-size: var(--text-sm);
     font-weight: 700;
     color: var(--accent);
@@ -232,23 +258,82 @@
     color: var(--text-muted);
 }
 
-/* --- Category Filter Chips Bar --- */
+.fs-quota {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.fs-quota-progress {
+    flex: 1 1 auto;
+    height: 5px;
+    appearance: none;
+    border: none;
+    border-radius: var(--radius-pill);
+    background-color: var(--surface-2);
+    overflow: hidden;
+}
+
+.fs-quota-progress::-webkit-progress-bar {
+    background-color: var(--surface-2);
+    border-radius: var(--radius-pill);
+}
+
+.fs-quota-progress::-webkit-progress-value {
+    background-color: var(--accent);
+    border-radius: var(--radius-pill);
+}
+
+.fs-quota-progress::-moz-progress-bar {
+    background-color: var(--accent);
+    border-radius: var(--radius-pill);
+}
+
+.fs-quota-text {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+/* --- Category Filter Chips Bar (Sticky Below Navbar) --- */
 .catalog-controls {
+    position: sticky;
+    top: var(--navbar-height, 60px);
+    z-index: 20;
     display: flex;
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: var(--space-3);
     margin-bottom: var(--space-6);
+    padding: var(--space-3) var(--space-4);
+    background-color: rgba(11, 15, 23, 0.9);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+@supports (backdrop-filter: blur(8px)) {
+    .catalog-controls {
+        background-color: rgba(11, 15, 23, 0.78);
+        backdrop-filter: blur(8px);
+    }
 }
 
 .category-filter-bar {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2);
+    max-width: 100%;
+    min-width: 0;
 }
 
 .category-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     min-height: 40px;
     padding: var(--space-2) var(--space-4);
     background-color: var(--surface);
@@ -257,7 +342,13 @@
     color: var(--text-muted);
     font-size: var(--text-sm);
     font-weight: 600;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+    white-space: nowrap;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.category-chip i {
+    font-size: 0.8em;
+    opacity: 0.85;
 }
 
 .category-chip:hover {
@@ -270,6 +361,13 @@
     background-color: var(--accent);
     border-color: var(--accent);
     color: var(--accent-fg);
+    font-weight: 700;
+    box-shadow: var(--shadow-accent);
+}
+
+.category-chip.active i,
+.category-chip[aria-pressed="true"] i {
+    opacity: 1;
 }
 
 .catalog-count {
@@ -294,10 +392,11 @@
     background-color: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
     overflow: hidden;
     text-decoration: none;
     color: var(--text);
-    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+    transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .product-card:hover {
@@ -316,6 +415,20 @@
     justify-content: center;
 }
 
+.game-card-media[data-has-image="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+        to top var(--in-oklab),
+        rgba(11, 15, 23, 0.76) 0%,
+        rgba(11, 15, 23, 0.16) 36%,
+        transparent 62%
+    );
+}
+
 .game-card-media img {
     width: 100%;
     height: 100%;
@@ -323,17 +436,123 @@
     display: block;
 }
 
+/* --- Category-Themed Fallback Artwork (SF-4) --- */
 .game-card-fallback {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+    height: 100%;
+    padding: var(--space-3);
+    background-color: var(--surface-2);
+    background-image:
+        radial-gradient(circle at 82% 16%, rgba(148, 163, 184, 0.2), transparent 56%),
+        repeating-linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.025) 0 1px,
+            transparent 1px 14px
+        ),
+        linear-gradient(145deg var(--in-oklab), #162033 0%, #101726 55%, #1A2538 100%);
+}
+
+.game-card-fallback[data-category="mobile"] {
+    background-image:
+        radial-gradient(circle at 84% 16%, rgba(34, 184, 207, 0.28), transparent 56%),
+        repeating-linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.025) 0 1px,
+            transparent 1px 14px
+        ),
+        linear-gradient(145deg var(--in-oklab), #0E2B3D 0%, #142038 56%, #18364A 100%);
+}
+
+.game-card-fallback[data-category="pc"] {
+    background-image:
+        radial-gradient(circle at 84% 16%, rgba(139, 92, 246, 0.26), transparent 56%),
+        repeating-linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.025) 0 1px,
+            transparent 1px 14px
+        ),
+        linear-gradient(145deg var(--in-oklab), #23193E 0%, #151C32 56%, #1F2842 100%);
+}
+
+.game-card-fallback[data-category="voucher"] {
+    background-image:
+        radial-gradient(circle at 84% 16%, rgba(16, 185, 129, 0.26), transparent 56%),
+        repeating-linear-gradient(
+            135deg,
+            rgba(255, 255, 255, 0.025) 0 1px,
+            transparent 1px 14px
+        ),
+        linear-gradient(145deg var(--in-oklab), #0D302A 0%, #132330 56%, #12363A 100%);
+}
+
+.fallback-watermark {
+    position: absolute;
+    right: -10px;
+    bottom: -10px;
+    z-index: 0;
+    font-size: 4.5rem;
+    color: var(--text);
+    opacity: 0.08;
+    pointer-events: none;
+}
+
+.fallback-monogram {
+    position: relative;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 100%;
-    height: 100%;
-    font-size: var(--text-xl);
-    font-weight: 700;
-    color: var(--accent);
-    background-color: var(--surface-2);
+    min-width: 56px;
+    height: 56px;
+    padding-inline: var(--space-3);
+    border-radius: var(--radius-md);
+    background-color: rgba(11, 15, 23, 0.54);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: 800;
     letter-spacing: 0.04em;
+    color: var(--text);
+}
+
+.fallback-cat-pill {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: var(--radius-pill);
+    background-color: rgba(11, 15, 23, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+}
+
+.game-card-fallback--compact {
+    flex-direction: row;
+    gap: var(--space-2);
+    padding: var(--space-2);
+}
+
+.game-card-fallback--compact .fallback-watermark {
+    font-size: 3.25rem;
+}
+
+.game-card-fallback--compact .fallback-monogram {
+    min-width: 40px;
+    height: 40px;
+    font-size: var(--text-sm);
 }
 
 .game-card-body {
@@ -416,6 +635,43 @@
     margin: 0;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+    .flash-sale-track {
+        scroll-behavior: smooth;
+    }
+
+    .product-card,
+    .flash-sale-card {
+        transition:
+            border-color var(--transition-fast),
+            background-color var(--transition-fast),
+            box-shadow var(--transition-fast),
+            translate 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+            scale 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .product-card:hover,
+    .flash-sale-card:hover {
+        translate: 0 -3px;
+        box-shadow: var(--shadow-md);
+    }
+
+    .product-card:active,
+    .flash-sale-card:active {
+        scale: 0.985;
+    }
+
+    .game-card-media img,
+    .flash-sale-media img {
+        transition: scale 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .product-card:hover .game-card-media img,
+    .flash-sale-card:hover .flash-sale-media img {
+        scale: 1.04;
+    }
+}
+
 @media (max-width: 768px) {
     .hero-card {
         flex-direction: column;
@@ -429,8 +685,28 @@
         flex-wrap: wrap;
     }
 
+    .catalog-controls {
+        top: var(--navbar-height, 56px);
+        padding: var(--space-2) var(--space-3);
+        gap: var(--space-2);
+    }
+
+    .category-filter-bar {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+        width: 100%;
+        padding-bottom: 2px;
+    }
+
+    .category-filter-bar::-webkit-scrollbar {
+        display: none;
+    }
+
     .category-chip {
         min-height: 44px;
+        flex: 0 0 auto;
     }
 
     .product-grid {
@@ -444,5 +720,22 @@
     .footer-grid {
         grid-template-columns: 1fr;
         gap: var(--space-6);
+    }
+}
+
+@media (forced-colors: active) {
+    .catalog-controls,
+    .product-card,
+    .flash-sale-card,
+    .fs-discount-badge,
+    .fallback-monogram,
+    .fallback-cat-pill {
+        border: 1px solid CanvasText;
+    }
+
+    .category-chip.active,
+    .category-chip[aria-pressed="true"] {
+        outline: 2px solid Highlight;
+        outline-offset: -2px;
     }
 }
