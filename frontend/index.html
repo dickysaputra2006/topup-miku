@@ -18,7 +18,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
-<body>
+<body class="has-app-shell">
 <a href="#main-content" class="skip-link visually-hidden">Lewati ke konten utama</a>
 
 <header>
@@ -82,23 +82,6 @@
         </div>
 
         <nav class="header-right" aria-label="Navigasi utama">
-            <a href="cek-transaksi.html" class="header-btn cek-trx-btn">Cek Transaksi</a>
-            <div class="more-nav-group">
-                <button
-                    type="button"
-                    id="more-nav-btn"
-                    class="header-btn"
-                    aria-expanded="false"
-                    aria-controls="more-nav-menu"
-                >
-                    Lainnya <i class="fas fa-chevron-down" aria-hidden="true"></i>
-                </button>
-                <div id="more-nav-menu" class="more-nav-panel hidden">
-                    <a href="validate.html">Validasi ID</a>
-                    <a href="compare-prices.html">Pricelist</a>
-                    <a href="leaderboard.html">Leaderboard</a>
-                </div>
-            </div>
             <button
                 type="button"
                 id="mobile-search-toggle"
@@ -132,6 +115,38 @@
         </nav>
     </div>
 </header>
+
+<aside class="icon-rail" aria-label="Navigasi cepat">
+    <nav class="icon-rail-group" aria-label="Menu utama">
+        <a href="index.html" class="icon-rail-link active" data-nav-key="home" data-tooltip="Beranda" aria-label="Beranda" aria-current="page">
+            <i class="fas fa-home" aria-hidden="true"></i>
+        </a>
+        <a href="index.html#catalog" class="icon-rail-link" data-nav-key="catalog" data-tooltip="Katalog Game" aria-label="Katalog Game">
+            <i class="fas fa-gamepad" aria-hidden="true"></i>
+        </a>
+        <a href="index.html#flash-sale-section" class="icon-rail-link" data-nav-key="flash-sale" data-tooltip="Flash Sale" aria-label="Flash Sale">
+            <i class="fas fa-bolt" aria-hidden="true"></i>
+        </a>
+    </nav>
+    <hr class="icon-rail-divider" aria-hidden="true">
+    <nav class="icon-rail-group" aria-label="Alat &amp; informasi">
+        <a href="cek-transaksi.html" class="icon-rail-link" data-nav-key="cek-transaksi" data-tooltip="Cek Transaksi" aria-label="Cek Transaksi">
+            <i class="fas fa-receipt" aria-hidden="true"></i>
+        </a>
+        <a href="compare-prices.html" class="icon-rail-link" data-nav-key="compare-prices" data-tooltip="Daftar Harga" aria-label="Daftar Harga">
+            <i class="fas fa-tags" aria-hidden="true"></i>
+        </a>
+        <a href="validate.html" class="icon-rail-link" data-nav-key="validate" data-tooltip="Validasi ID" aria-label="Validasi ID">
+            <i class="fas fa-id-card" aria-hidden="true"></i>
+        </a>
+        <a href="leaderboard.html" class="icon-rail-link" data-nav-key="leaderboard" data-tooltip="Leaderboard" aria-label="Leaderboard">
+            <i class="fas fa-trophy" aria-hidden="true"></i>
+        </a>
+        <a href="kontak.html" class="icon-rail-link" data-nav-key="kontak" data-tooltip="Kontak &amp; CS" aria-label="Kontak &amp; CS">
+            <i class="fas fa-headset" aria-hidden="true"></i>
+        </a>
+    </nav>
+</aside>
 
 <main id="main-content" class="container" tabindex="-1">
     <section class="hero-section" aria-roledescription="carousel" aria-label="Promo unggulan MIKU Store">

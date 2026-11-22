@@ -129,7 +129,25 @@
         const { apiFetch } = global.MikuShared.api;
         const { escapeHtml } = global.MikuShared.dom;
         const { userAuthButton } = app.state.els;
+        const dropAuthBtn = document.getElementById('dropdown-auth-btn');
+        const drawerDash = document.getElementById('drawer-dashboard-link');
         if (!userAuthButton) return;
+
+        const applyGuestState = () => {
+            if (drawerDash) drawerDash.classList.add('hidden');
+            userAuthButton.textContent = 'Masuk';
+            userAuthButton.href = '#';
+            userAuthButton.onclick = (e) => { e.preventDefault(); app.showModal(); };
+            if (dropAuthBtn) {
+                dropAuthBtn.textContent = 'Masuk';
+                dropAuthBtn.href = '#';
+                dropAuthBtn.onclick = (e) => {
+                    e.preventDefault();
+                    global.MikuShared?.storefrontNav?.setDrawerOpen(false);
+                    app.showModal();
+                };
+            }
+        };
 
         if (app.state.token) {
             try {
@@ -144,19 +162,25 @@
                 userAuthButton.innerHTML = `<i class="fas fa-user-circle" aria-hidden="true"></i> ${escapeHtml(user.username)}`;
                 userAuthButton.href = 'dashboard.html';
                 userAuthButton.onclick = null;
+                if (drawerDash) drawerDash.classList.remove('hidden');
+                if (dropAuthBtn) {
+                    dropAuthBtn.textContent = 'Keluar';
+                    dropAuthBtn.href = '#';
+                    dropAuthBtn.onclick = (e) => {
+                        e.preventDefault();
+                        clearAuthToken();
+                        global.location.reload();
+                    };
+                }
             } catch (_) {
                 clearAuthToken();
                 app.state.token = null;
                 app.state.userBalance = null;
-                userAuthButton.textContent = 'Masuk';
-                userAuthButton.href = '#';
-                userAuthButton.onclick = (e) => { e.preventDefault(); app.showModal(); };
+                applyGuestState();
             }
         } else {
             app.state.userBalance = null;
-            userAuthButton.textContent = 'Masuk';
-            userAuthButton.href = '#';
-            userAuthButton.onclick = (e) => { e.preventDefault(); app.showModal(); };
+            applyGuestState();
         }
         if (app.checkout && typeof app.checkout.syncActionState === 'function') {
             app.checkout.syncActionState();
