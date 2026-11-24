@@ -309,7 +309,7 @@
     z-index: calc(var(--z-dropdown) - 1);
 }
 
-@media (min-width: 769px) {
+@media (min-width: 900px) {
     #hamburger-btn,
     #dropdown-menu,
     #drawer-backdrop {
@@ -317,7 +317,7 @@
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 899px) {
     .search-container {
         max-width: 100%;
     }
@@ -376,6 +376,7 @@
     .drawer-links a {
         display: flex;
         align-items: center;
+        gap: var(--space-3);
         min-height: 44px;
         padding: var(--space-2) var(--space-3);
         border-radius: var(--radius-sm);
@@ -384,6 +385,13 @@
         font-size: var(--text-sm);
         font-weight: 500;
         transition: background-color var(--transition-fast);
+    }
+
+    .drawer-links a i {
+        width: 18px;
+        text-align: center;
+        color: var(--text-muted);
+        flex-shrink: 0;
     }
 
     .drawer-links a:hover {
@@ -396,6 +404,10 @@
         font-weight: 600;
     }
 
+    .drawer-links a[aria-current="page"] i {
+        color: var(--accent);
+    }
+
     .drawer-auth-link {
         margin-top: var(--space-2);
         border: 1px solid var(--border);
@@ -404,7 +416,7 @@
     }
 }
 
-@media (max-width: 768px) and (prefers-reduced-motion: no-preference) {
+@media (max-width: 899px) and (prefers-reduced-motion: no-preference) {
     .dropdown-menu {
         transition: transform var(--transition-fast), visibility var(--transition-fast);
     }

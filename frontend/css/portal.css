@@ -39,10 +39,6 @@
         padding: 6px var(--space-3);
     }
 
-    .sidebar-store-link {
-        display: none;
-    }
-
     #menu-toggle-btn,
     .sidebar .menu-toggle-btn {
         display: none !important;
@@ -172,6 +168,56 @@
 #game-selector-dropdown:hover,
 #game-selector-dropdown:focus {
     border-color: var(--accent);
+}
+
+@media (min-width: 769px) {
+    .sidebar-nav a.sidebar-store-link {
+        display: none;
+    }
+
+    body.portal-shell header .header-container.container {
+        max-width: none;
+        width: 100%;
+        margin-inline: 0;
+        padding-inline: clamp(16px, 2.2vw, 32px);
+    }
+
+    body.portal-shell .dashboard-container.container,
+    body.portal-shell .admin-page-container.container {
+        max-width: none;
+        width: 100%;
+        margin-inline: 0;
+        padding: 0;
+        gap: 0;
+        align-items: flex-start;
+    }
+
+    body.portal-shell .sidebar,
+    body.portal-shell #dashboard-sidebar,
+    body.portal-shell #admin-sidebar {
+        flex: 0 0 252px;
+        width: 252px;
+        min-width: 252px;
+        max-width: 252px;
+        position: sticky;
+        top: var(--navbar-height, 60px);
+        height: calc(100vh - var(--navbar-height, 60px));
+        height: calc(100dvh - var(--navbar-height, 60px));
+        max-height: calc(100vh - var(--navbar-height, 60px));
+        max-height: calc(100dvh - var(--navbar-height, 60px));
+        border: none;
+        border-right: 1px solid var(--border);
+        border-radius: 0;
+        padding: var(--space-4);
+    }
+
+    body.portal-shell .dashboard-content,
+    body.portal-shell .admin-content {
+        flex: 1 1 0%;
+        max-width: none;
+        min-width: 0;
+        padding: var(--space-6) clamp(24px, 3vw, 44px) var(--space-12);
+    }
 }
 
 /* --- Mobile Drawer Behavior (<= 768px) --- */

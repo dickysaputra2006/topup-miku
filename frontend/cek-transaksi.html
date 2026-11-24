@@ -13,24 +13,105 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/publicPages.css">
     <link rel="stylesheet" href="css/invoice.css">
+    <link rel="stylesheet" href="css/storefrontNav.css">
+    <link rel="stylesheet" href="css/appShell.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="icon" href="/favicon.ico" type="image/x-icon">
 </head>
-<body class="check-transaction-page">
+<body class="check-transaction-page has-app-shell">
 
 <header>
     <div class="header-container container">
         <div class="header-left">
+            <button
+                type="button"
+                id="hamburger-btn"
+                class="header-icon-btn"
+                aria-label="Buka menu navigasi"
+                aria-expanded="false"
+                aria-controls="dropdown-menu"
+            >
+                <i class="fas fa-bars" aria-hidden="true"></i>
+            </button>
             <a href="index.html" class="logo-link">
                 <span class="logo">MIKU<span class="logo-accent">Store</span></span>
             </a>
+            <div id="dropdown-menu" class="dropdown-menu" aria-label="Menu mobile">
+                <div class="drawer-header">
+                    <span class="logo">MIKU<span class="logo-accent">Store</span></span>
+                    <button type="button" id="close-drawer-btn" class="header-icon-btn" aria-label="Tutup menu">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <nav class="drawer-links" aria-label="Navigasi mobile">
+                    <a href="index.html">Beranda</a>
+                    <a href="cek-transaksi.html" aria-current="page">Cek Transaksi</a>
+                    <a href="validate.html">Validasi ID</a>
+                    <a href="compare-prices.html">Pricelist</a>
+                    <a href="leaderboard.html">Leaderboard</a>
+                    <a href="kontak.html">Kontak CS</a>
+                    <a href="dashboard.html" id="drawer-dashboard-link" class="hidden">Dashboard</a>
+                    <a href="index.html?login=1" id="dropdown-auth-btn" class="drawer-auth-link">Masuk</a>
+                </nav>
+            </div>
+            <div id="drawer-backdrop" class="drawer-backdrop hidden" aria-hidden="true"></div>
         </div>
         <nav class="header-right" aria-label="Navigasi halaman publik">
-            <a href="compare-prices.html" class="header-btn">Pricelist</a>
-            <a href="index.html" class="header-btn">Kembali ke Toko</a>
+            <div id="notification-container" class="notif-wrapper">
+                <button
+                    type="button"
+                    id="notification-toggle-btn"
+                    class="header-icon-btn"
+                    aria-label="Notifikasi"
+                    aria-expanded="false"
+                    aria-controls="notification-panel"
+                >
+                    <i class="fas fa-bell" aria-hidden="true"></i>
+                    <span id="notification-badge" class="badge-count hidden">0</span>
+                </button>
+                <div id="notification-panel" class="notification-panel hidden">
+                    <div class="notification-header">
+                        <h4>Notifikasi</h4>
+                    </div>
+                    <div id="notification-list" class="notification-list"></div>
+                </div>
+            </div>
+            <a href="index.html?login=1" id="user-auth-button" class="header-btn">Masuk</a>
         </nav>
     </div>
 </header>
+
+<aside class="icon-rail" aria-label="Navigasi cepat">
+    <nav class="icon-rail-group" aria-label="Menu utama">
+        <a href="index.html" class="icon-rail-link" data-nav-key="home" data-tooltip="Beranda" aria-label="Beranda">
+            <i class="fas fa-home" aria-hidden="true"></i>
+        </a>
+        <a href="index.html#catalog" class="icon-rail-link" data-nav-key="catalog" data-tooltip="Katalog Game" aria-label="Katalog Game">
+            <i class="fas fa-gamepad" aria-hidden="true"></i>
+        </a>
+        <a href="index.html#flash-sale-section" class="icon-rail-link" data-nav-key="flash-sale" data-tooltip="Flash Sale" aria-label="Flash Sale">
+            <i class="fas fa-bolt" aria-hidden="true"></i>
+        </a>
+    </nav>
+    <hr class="icon-rail-divider" aria-hidden="true">
+    <nav class="icon-rail-group" aria-label="Alat &amp; informasi">
+        <a href="cek-transaksi.html" class="icon-rail-link active" data-nav-key="cek-transaksi" data-tooltip="Cek Transaksi" aria-label="Cek Transaksi" aria-current="page">
+            <i class="fas fa-receipt" aria-hidden="true"></i>
+        </a>
+        <a href="compare-prices.html" class="icon-rail-link" data-nav-key="compare-prices" data-tooltip="Daftar Harga" aria-label="Daftar Harga">
+            <i class="fas fa-tags" aria-hidden="true"></i>
+        </a>
+        <a href="validate.html" class="icon-rail-link" data-nav-key="validate" data-tooltip="Validasi ID" aria-label="Validasi ID">
+            <i class="fas fa-id-card" aria-hidden="true"></i>
+        </a>
+        <a href="leaderboard.html" class="icon-rail-link" data-nav-key="leaderboard" data-tooltip="Leaderboard" aria-label="Leaderboard">
+            <i class="fas fa-trophy" aria-hidden="true"></i>
+        </a>
+        <a href="kontak.html" class="icon-rail-link" data-nav-key="kontak" data-tooltip="Kontak &amp; CS" aria-label="Kontak &amp; CS">
+            <i class="fas fa-headset" aria-hidden="true"></i>
+        </a>
+    </nav>
+</aside>
 
 <main class="container public-main">
     <div class="public-narrow-wrap">
@@ -94,6 +175,9 @@
 
 <script defer src="js/shared/format.js"></script>
 <script defer src="js/shared/dom.js"></script>
+<script defer src="js/shared/auth.js"></script>
+<script defer src="js/shared/api.js"></script>
+<script defer src="js/shared/storefrontNav.js"></script>
 <script defer src="cek-transaksi.js"></script>
 </body>
 </html>
