@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dokumentasi Integrasi API H2H - MIKU Store</title>
+    <meta name="description" content="Dokumentasi lengkap API Host-to-Host (H2H) MIKU Store untuk reseller: autentikasi, IP allowlist, endpoint order idempoten, cek transaksi, dan verifikasi webhook HMAC-SHA256.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap">
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/storefrontNav.css">
+    <link rel="stylesheet" href="css/appShell.css">
+    <link rel="stylesheet" href="css/apiDocs.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+</head>
+<body class="api-docs-page has-app-shell">
+<a href="#main-content" class="skip-link visually-hidden">Lewati ke dokumentasi API</a>
+
+<header>
+    <div class="header-container container">
+        <div class="header-left">
+            <button
+                type="button"
+                id="hamburger-btn"
+                class="header-icon-btn"
+                aria-label="Buka menu navigasi"
+                aria-expanded="false"
+                aria-controls="dropdown-menu"
+            >
+                <i class="fas fa-bars" aria-hidden="true"></i>
+            </button>
+            <a href="index.html" class="logo-link">
+                <span class="logo">MIKU<span class="logo-accent">Store</span></span>
+            </a>
+            <div id="dropdown-menu" class="dropdown-menu" aria-label="Menu mobile">
+                <div class="drawer-header">
+                    <span class="logo">MIKU<span class="logo-accent">Store</span></span>
+                    <button type="button" id="close-drawer-btn" class="header-icon-btn" aria-label="Tutup menu">
+                        <i class="fas fa-times" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <nav class="drawer-links" aria-label="Navigasi mobile">
+                    <a href="index.html">Beranda</a>
+                    <a href="cek-transaksi.html">Cek Transaksi</a>
+                    <a href="validate.html">Validasi ID</a>
+                    <a href="compare-prices.html">Pricelist</a>
+                    <a href="leaderboard.html">Leaderboard</a>
+                    <a href="kontak.html">Kontak CS</a>
+                    <a href="dashboard.html" id="drawer-dashboard-link" class="hidden">Dashboard</a>
+                    <a href="index.html?login=1" id="dropdown-auth-btn" class="drawer-auth-link">Masuk</a>
+                </nav>
+            </div>
+            <div id="drawer-backdrop" class="drawer-backdrop hidden" aria-hidden="true"></div>
+        </div>
+        <nav class="header-right" aria-label="Navigasi dokumentasi API">
+            <div id="notification-container" class="notif-wrapper">
+                <button
+                    type="button"
+                    id="notification-toggle-btn"
+                    class="header-icon-btn"
+                    aria-label="Notifikasi"
+                    aria-expanded="false"
+                    aria-controls="notification-panel"
+                >
+                    <i class="fas fa-bell" aria-hidden="true"></i>
+                    <span id="notification-badge" class="badge-count hidden">0</span>
+                </button>
+                <div id="notification-panel" class="notification-panel hidden">
+                    <div class="notification-header">
+                        <h4>Notifikasi</h4>
+                    </div>
+                    <div id="notification-list" class="notification-list"></div>
+                </div>
+            </div>
+            <a href="index.html?login=1" id="user-auth-button" class="header-btn">Masuk</a>
+        </nav>
+    </div>
+</header>
+
+<aside class="icon-rail" aria-label="Navigasi cepat">
+    <nav class="icon-rail-group" aria-label="Menu utama">
+        <a href="index.html" class="icon-rail-link" data-nav-key="home" data-tooltip="Beranda" aria-label="Beranda">
+            <i class="fas fa-home" aria-hidden="true"></i>
+        </a>
+        <a href="index.html#catalog" class="icon-rail-link" data-nav-key="catalog" data-tooltip="Katalog Game" aria-label="Katalog Game">
+            <i class="fas fa-gamepad" aria-hidden="true"></i>
+        </a>
+        <a href="index.html#flash-sale-section" class="icon-rail-link" data-nav-key="flash-sale" data-tooltip="Flash Sale" aria-label="Flash Sale">
+            <i class="fas fa-bolt" aria-hidden="true"></i>
+        </a>
+    </nav>
+    <hr class="icon-rail-divider" aria-hidden="true">
+    <nav class="icon-rail-group" aria-label="Alat &amp; informasi">
+        <a href="cek-transaksi.html" class="icon-rail-link" data-nav-key="cek-transaksi" data-tooltip="Cek Transaksi" aria-label="Cek Transaksi">
+            <i class="fas fa-receipt" aria-hidden="true"></i>
+        </a>
+        <a href="compare-prices.html" class="icon-rail-link" data-nav-key="compare-prices" data-tooltip="Daftar Harga" aria-label="Daftar Harga">
+            <i class="fas fa-tags" aria-hidden="true"></i>
+        </a>
+        <a href="validate.html" class="icon-rail-link" data-nav-key="validate" data-tooltip="Validasi ID" aria-label="Validasi ID">
+            <i class="fas fa-id-card" aria-hidden="true"></i>
+        </a>
+        <a href="leaderboard.html" class="icon-rail-link" data-nav-key="leaderboard" data-tooltip="Leaderboard" aria-label="Leaderboard">
+            <i class="fas fa-trophy" aria-hidden="true"></i>
+        </a>
+        <a href="kontak.html" class="icon-rail-link" data-nav-key="kontak" data-tooltip="Kontak &amp; CS" aria-label="Kontak &amp; CS">
+            <i class="fas fa-headset" aria-hidden="true"></i>
+        </a>
+    </nav>
+</aside>
+
+<main id="main-content" class="container api-docs-main" tabindex="-1">
+    <section class="docs-hero" aria-labelledby="docs-page-title">
+        <div class="docs-hero-top">
+            <div class="docs-hero-copy">
+                <span class="docs-eyebrow"><i class="fas fa-plug" aria-hidden="true"></i> MIKU Store H2H REST API</span>
+                <h1 id="docs-page-title" class="docs-title">Dokumentasi Integrasi API Reseller</h1>
+                <p class="docs-subtitle">Panduan teknis integrasi Host-to-Host (H2H) untuk mengambil katalog harga tier, mengirim transaksi top up idempoten, memantau status, dan memverifikasi webhook dari sistem pusat MIKU Store.</p>
+            </div>
+            <a href="dashboard.html" class="docs-hero-cta">
+                <i class="fas fa-sliders" aria-hidden="true"></i> Kelola API Key di Dashboard
+            </a>
+        </div>
+
+        <div class="docs-baseurl-bar">
+            <div class="docs-baseurl-meta">
+                <span class="docs-baseurl-label">Base URL Server H2H</span>
+                <code id="docs-base-url" class="docs-baseurl-value" data-docs-origin>https://domain-toko-anda.com</code>
+            </div>
+            <span class="copy-wrap">
+                <button type="button" class="copy-btn" command="--copy" commandfor="docs-base-url">
+                    <i class="fas fa-copy" aria-hidden="true"></i> Salin Base URL
+                </button>
+                <span class="copy-tip" role="status"></span>
+            </span>
+        </div>
+    </section>
+
+    <div class="docs-layout">
+        <details class="docs-toc-mobile">
+            <summary class="docs-toc-summary">
+                <span><i class="fas fa-list-ul" aria-hidden="true"></i> Daftar Isi Dokumentasi</span>
+                <i class="fas fa-chevron-down docs-toc-chevron" aria-hidden="true"></i>
+            </summary>
+            <nav class="docs-toc-nav" aria-label="Daftar isi dokumentasi mobile">
+                <a href="#ringkasan" class="docs-toc-link active" aria-current="location">1. Ringkasan Alur</a>
+                <a href="#autentikasi" class="docs-toc-link">2. Autentikasi &amp; Allowed IP</a>
+                <a href="#endpoint-profile" class="docs-toc-link">3. GET /h2h/profile</a>
+                <a href="#endpoint-products" class="docs-toc-link">4. GET /h2h/products</a>
+                <a href="#endpoint-order" class="docs-toc-link">5. POST /h2h/order</a>
+                <a href="#endpoint-order-detail" class="docs-toc-link">6. GET /h2h/order/:id</a>
+                <a href="#endpoint-transactions" class="docs-toc-link">7. GET /h2h/transactions</a>
+                <a href="#endpoint-callback-url" class="docs-toc-link">8. PUT /h2h/profile/callback</a>
+                <a href="#webhook" class="docs-toc-link">9. Webhook &amp; HMAC</a>
+                <a href="#kode-status" class="docs-toc-link">10. Kode Status HTTP</a>
+            </nav>
+        </details>
+
+        <aside class="docs-toc-desktop" aria-label="Daftar isi dokumentasi">
+            <p class="docs-toc-title">Daftar Isi</p>
+            <nav class="docs-toc-nav" aria-label="Navigasi bagian dokumentasi">
+                <a href="#ringkasan" class="docs-toc-link active" aria-current="location">1. Ringkasan Alur</a>
+                <a href="#autentikasi" class="docs-toc-link">2. Autentikasi &amp; Allowed IP</a>
+                <a href="#endpoint-profile" class="docs-toc-link">3. GET /h2h/profile</a>
+                <a href="#endpoint-products" class="docs-toc-link">4. GET /h2h/products</a>
+                <a href="#endpoint-order" class="docs-toc-link">5. POST /h2h/order</a>
+                <a href="#endpoint-order-detail" class="docs-toc-link">6. GET /h2h/order/:id</a>
+                <a href="#endpoint-transactions" class="docs-toc-link">7. GET /h2h/transactions</a>
+                <a href="#endpoint-callback-url" class="docs-toc-link">8. PUT /h2h/profile/callback</a>
+                <a href="#webhook" class="docs-toc-link">9. Webhook &amp; HMAC</a>
+                <a href="#kode-status" class="docs-toc-link">10. Kode Status HTTP</a>
+            </nav>
+        </aside>
+
+        <div class="docs-content">
+            <section id="ringkasan" class="docs-section" data-docs-section tabindex="-1">
+                <h2>1. Ringkasan Alur Integrasi</h2>
+                <p class="docs-lead">Seluruh endpoint H2H dipasang langsung pada prefix <code>/h2h/*</code> menggunakan format request dan respons JSON dengan batas ukuran payload <code>100 KB</code>.</p>
+                <ol class="docs-list">
+                    <li><strong>Buat API Key</strong> di Dashboard &rarr; Integrasi H2H, lalu simpan API Key dan Webhook Secret yang hanya ditampilkan sekali.</li>
+                    <li><strong>Daftarkan Allowed IP</strong> (IP publik server atau rentang CIDR Anda) untuk mengunci akses API Key.</li>
+                    <li><strong>Sinkronkan produk</strong> secara berkala lewat <code>GET /h2h/products</code> untuk mendapatkan <code>productId</code> dan harga modal akun Anda.</li>
+                    <li><strong>Kirim transaksi</strong> via <code>POST /h2h/order</code> dengan menyertakan <code>ref_id</code> unik agar percobaan ulang aman (idempoten).</li>
+                    <li><strong>Terima pembaruan final</strong> secara real-time melalui Webhook Callback bertanda tangan HMAC-SHA256 atau polling <code>GET /h2h/order/:refOrInvoiceId</code>.</li>
+                </ol>
+            </section>
+
+            <section id="autentikasi" class="docs-section" data-docs-section tabindex="-1">
+                <h2>2. Autentikasi, Allowed IP &amp; Batas Request</h2>
+                <p class="docs-lead">Setiap permintaan ke endpoint <code>/h2h/*</code> wajib lolos pemeriksaan IP Allowlist (jika diisi) dan autentikasi API Key.</p>
+                <ul class="docs-list">
+                    <li><strong>Header Wajib:</strong> <code>X-API-Key: &lt;API_KEY_ANDA&gt;</code> (kunci acak 64 karakter hex / 32 byte; kunci lama 48 karakter hex tetap didukung selama masa transisi).</li>
+                    <li><strong>Header Body JSON:</strong> Sertakan <code>Content-Type: application/json</code> untuk permintaan <code>POST</code> dan <code>PUT</code>.</li>
+                    <li><strong>Allowed IP:</strong> Maksimal <code>20</code> entri IPv4/IPv6 tunggal atau rentang CIDR (mis. <code>203.0.113.10</code> atau <code>203.0.113.0/24</code>). Jika terisi minimal 1 IP, akses dari IP lain ditolak dengan HTTP <code>403</code>.</li>
+                    <li><strong>Rate Limit:</strong> Maksimal <code>60 request/menit</code> per API Key dan per user pada grup <code>/h2h/*</code> (serta batas umum <code>300 request/5 menit</code> per IP). Batas kuota transaksi atau nominal harian H2H juga dapat berlaku sesuai kebijakan sistem pusat.</li>
+                </ul>
+                <div class="docs-callout docs-callout--warning">
+                    <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                    <span>Jangan pernah meletakkan <code>X-API-Key</code> atau Webhook Secret pada kode frontend, repositori publik, atau parameter query URL.</span>
+                </div>
+            </section>
+
+            <section id="endpoint-profile" class="docs-section" data-docs-section tabindex="-1">
+                <div class="endpoint-head">
+                    <span class="method-badge method-badge--get">GET</span>
+                    <code class="endpoint-path">/h2h/profile</code>
+                </div>
+                <p class="docs-lead">Mengambil profil akun reseller beserta sisa saldo dan tier role aktif Anda.</p>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Contoh cURL</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-curl-profile">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin cURL
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-curl-profile" class="docs-pre" tabindex="0">curl -X GET "<span data-docs-origin>https://domain-toko-anda.com</span>/h2h/profile" \
+  -H "X-API-Key: &lt;API_KEY_ANDA&gt;"</pre>
+                </div>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Respons 200 OK</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-res-profile">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-res-profile" class="docs-pre" tabindex="0">{
+  "success": true,
+  "message": "Profil berhasil diambil.",
+  "data": {
+    "username": "reseller_demo",
+    "balance": "150000.00",
+    "role": "Partner"
+  }
+}</pre>
+                </div>
+            </section>
+
+            <section id="endpoint-products" class="docs-section" data-docs-section tabindex="-1">
+                <div class="endpoint-head">
+                    <span class="method-badge method-badge--get">GET</span>
+                    <code class="endpoint-path">/h2h/products</code>
+                </div>
+                <p class="docs-lead">Mengambil seluruh daftar produk dan game berstatus aktif lengkap dengan harga final reseller (sudah memperhitungkan harga manual, custom margin game, margin role, dan promo Flash Sale aktif bila lebih hemat).</p>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Contoh cURL</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-curl-products">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin cURL
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-curl-products" class="docs-pre" tabindex="0">curl -X GET "<span data-docs-origin>https://domain-toko-anda.com</span>/h2h/products" \
+  -H "X-API-Key: &lt;API_KEY_ANDA&gt;"</pre>
+                </div>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Respons 200 OK</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-res-products">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-res-products" class="docs-pre" tabindex="0">{
+  "success": true,
+  "message": "Daftar produk berhasil diambil.",
+  "data": [
+    {
+      "productId": 12,
+      "game_name": "Mobile Legends",
+      "product_name": "86 Diamonds",
+      "sku": "ML86",
+      "price": 19500,
+      "isFlashSale": false,
+      "originalPrice": null
+    },
+    {
+      "productId": 15,
+      "game_name": "Mobile Legends",
+      "product_name": "Weekly Diamond Pass",
+      "sku": "MLWDP",
+      "price": 24000,
+      "isFlashSale": true,
+      "originalPrice": 26500
+    }
+  ]
+}</pre>
+                </div>
+            </section>
+
+            <section id="endpoint-order" class="docs-section" data-docs-section tabindex="-1">
+                <div class="endpoint-head">
+                    <span class="method-badge method-badge--post">POST</span>
+                    <code class="endpoint-path">/h2h/order</code>
+                </div>
+                <p class="docs-lead">Membuat transaksi pembelian top up secara atomik memakai saldo akun Anda. Gunakan <code>ref_id</code> unik per pesanan agar percobaan ulang (retry) ketika jaringan bermasalah tidak menimbulkan pemotongan saldo ganda.</p>
+
+                <h3>Parameter Request Body (JSON)</h3>
+                <div tabindex="0" role="region" aria-label="Parameter POST h2h order" class="docs-table-wrap">
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th>Tipe</th>
+                                <th>Wajib</th>
+                                <th>Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td data-label="Field"><code>productId</code></td>
+                                <td data-label="Tipe">number</td>
+                                <td data-label="Wajib">Ya</td>
+                                <td data-label="Keterangan">ID numerik produk dari <code>GET /h2h/products</code> (bilangan bulat positif).</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Field"><code>targetGameId</code></td>
+                                <td data-label="Tipe">string</td>
+                                <td data-label="Wajib">Ya</td>
+                                <td data-label="Keterangan">User ID akun game tujuan (maks. 80 karakter).</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Field"><code>targetServerId</code></td>
+                                <td data-label="Tipe">string</td>
+                                <td data-label="Wajib">Kondisional</td>
+                                <td data-label="Keterangan">Zone / Server ID tujuan (maks. 80 karakter; wajib jika game memerlukan Server ID).</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Field"><code>ref_id</code></td>
+                                <td data-label="Tipe">string</td>
+                                <td data-label="Wajib">Sangat disarankan</td>
+                                <td data-label="Keterangan">ID referensi unik sistem Anda untuk idempotency: <code>1–100</code> karakter pola <code>^[A-Za-z0-9._:-]{1,100}$</code>.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="docs-callout docs-callout--accent">
+                    <i class="fas fa-repeat" aria-hidden="true"></i>
+                    <span><strong>Aturan Idempotency:</strong> Jika <code>ref_id</code> dikirim ulang dengan <code>productId</code>, <code>targetGameId</code>, dan <code>targetServerId</code> yang identik, server membalas HTTP <code>200</code> + <code>"idempotent": true</code> tanpa transaksi baru. Jika payload berbeda dengan <code>ref_id</code> sama, server menolak dengan HTTP <code>409</code>. Tanpa <code>ref_id</code>, order identik dalam 15 detik selama status masih <code>Pending</code> ditolak dengan HTTP <code>400</code>. Jika koneksi ke upstream timeout, transaksi tetap berstatus <code>Pending</code> (HTTP <code>201</code>) untuk rekonsiliasi otomatis.</span>
+                </div>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Contoh cURL</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-curl-order">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin cURL
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-curl-order" class="docs-pre" tabindex="0">curl -X POST "<span data-docs-origin>https://domain-toko-anda.com</span>/h2h/order" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: &lt;API_KEY_ANDA&gt;" \
+  -d '{
+    "productId": 12,
+    "targetGameId": "12345678",
+    "targetServerId": "2001",
+    "ref_id": "ORD-20261124-001"
+  }'</pre>
+                </div>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Respons 201 Created</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-res-order-201">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-res-order-201" class="docs-pre" tabindex="0">{
+  "success": true,
+  "message": "Pesanan H2H Anda sedang diproses!",
+  "data": {
+    "invoiceId": "H2H-1732450123-AB12",
+    "status": "Pending",
+    "productName": "86 Diamonds",
+    "target": "12345678|2001",
+    "price": 19500
+  }
+}</pre>
+                </div>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Respons 200 OK (Retry Idempotent)</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-res-order-200">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-res-order-200" class="docs-pre" tabindex="0">{
+  "success": true,
+  "idempotent": true,
+  "message": "Transaksi H2H sudah tercatat sebelumnya (idempotent).",
+  "data": {
+    "invoiceId": "H2H-1732450123-AB12",
+    "status": "Pending",
+    "productName": "86 Diamonds",
+    "target": "12345678|2001",
+    "price": 19500
+  }
+}</pre>
+                </div>
+            </section>
+
+            <section id="endpoint-order-detail" class="docs-section" data-docs-section tabindex="-1">
+                <div class="endpoint-head">
+                    <span class="method-badge method-badge--get">GET</span>
+                    <code class="endpoint-path">/h2h/order/:refOrInvoiceId</code>
+                </div>
+                <p class="docs-lead">Memeriksa status dan detail satu transaksi milik akun Anda menggunakan <code>invoice_id</code> (mis. <code>H2H-1732450123-AB12</code>) maupun <code>ref_id</code> milik Anda.</p>
+
+                <ul class="docs-list">
+                    <li><strong>Nilai <code>status</code> yang mungkin muncul:</strong> <code>Pending</code>, <code>Processing</code>, <code>Success</code>, <code>Failed</code> (saldo sudah dikembalikan otomatis), dan <code>Partial Refund</code> (memerlukan peninjauan admin).</li>
+                    <li><strong>Parameter path:</strong> <code>1–100</code> karakter alfanumerik, titik, garis bawah, titik dua, atau tanda hubung (<code>^[A-Za-z0-9_.-:]{1,100}$</code>).</li>
+                </ul>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Contoh cURL</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-curl-order-detail">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin cURL
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-curl-order-detail" class="docs-pre" tabindex="0">curl -X GET "<span data-docs-origin>https://domain-toko-anda.com</span>/h2h/order/ORD-20261124-001" \
+  -H "X-API-Key: &lt;API_KEY_ANDA&gt;"</pre>
+                </div>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Respons 200 OK</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-res-order-detail">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-res-order-detail" class="docs-pre" tabindex="0">{
+  "success": true,
+  "message": "Status transaksi H2H berhasil diambil.",
+  "data": {
+    "invoice_id": "H2H-1732450123-AB12",
+    "ref_id": "ORD-20261124-001",
+    "product_id": 12,
+    "product_name": "86 Diamonds",
+    "sku": "ML86",
+    "target_game_id": "12345678",
+    "target_server_id": "2001",
+    "price": 19500,
+    "status": "Success",
+    "provider_sn": "SN-99887766",
+    "created_at": "2026-11-24T10:15:30.000Z",
+    "updated_at": "2026-11-24T10:15:42.000Z"
+  }
+}</pre>
+                </div>
+            </section>
+
+            <section id="endpoint-transactions" class="docs-section" data-docs-section tabindex="-1">
+                <div class="endpoint-head">
+                    <span class="method-badge method-badge--get">GET</span>
+                    <code class="endpoint-path">/h2h/transactions</code>
+                </div>
+                <p class="docs-lead">Mengambil daftar riwayat transaksi akun Anda terurut dari yang terbaru dengan paginasi dan filter status opsional.</p>
+
+                <h3>Query Parameters</h3>
+                <div tabindex="0" role="region" aria-label="Query parameter daftar transaksi H2H" class="docs-table-wrap">
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Tipe &amp; Batas</th>
+                                <th>Default</th>
+                                <th>Keterangan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td data-label="Parameter"><code>page</code></td>
+                                <td data-label="Tipe & Batas">integer (<code>1–100000</code>)</td>
+                                <td data-label="Default"><code>1</code></td>
+                                <td data-label="Keterangan">Nomor halaman hasil.</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Parameter"><code>limit</code></td>
+                                <td data-label="Tipe & Batas">integer (<code>1–50</code>)</td>
+                                <td data-label="Default"><code>20</code></td>
+                                <td data-label="Keterangan">Jumlah baris transaksi per halaman.</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Parameter"><code>status</code></td>
+                                <td data-label="Tipe & Batas">enum string (opsional)</td>
+                                <td data-label="Default">Semua</td>
+                                <td data-label="Keterangan">Nilai yang diterima: <code>pending</code>, <code>processing</code>, <code>success</code>, <code>failed</code>, <code>partial_refund</code> (atau <code>partial refund</code>).</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Contoh cURL</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-curl-transactions">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin cURL
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-curl-transactions" class="docs-pre" tabindex="0">curl -X GET "<span data-docs-origin>https://domain-toko-anda.com</span>/h2h/transactions?page=1&amp;limit=20&amp;status=success" \
+  -H "X-API-Key: &lt;API_KEY_ANDA&gt;"</pre>
+                </div>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Respons 200 OK</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-res-transactions">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-res-transactions" class="docs-pre" tabindex="0">{
+  "success": true,
+  "message": "Daftar transaksi H2H berhasil diambil.",
+  "data": [
+    {
+      "invoice_id": "H2H-1732450123-AB12",
+      "ref_id": "ORD-20261124-001",
+      "product_id": 12,
+      "product_name": "86 Diamonds",
+      "sku": "ML86",
+      "target_game_id": "12345678",
+      "target_server_id": "2001",
+      "price": 19500,
+      "status": "Success",
+      "provider_sn": "SN-99887766",
+      "created_at": "2026-11-24T10:15:30.000Z",
+      "updated_at": "2026-11-24T10:15:42.000Z"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 1
+  }
+}</pre>
+                </div>
+            </section>
+
+            <section id="endpoint-callback-url" class="docs-section" data-docs-section tabindex="-1">
+                <div class="endpoint-head">
+                    <span class="method-badge method-badge--put">PUT</span>
+                    <code class="endpoint-path">/h2h/profile/callback</code>
+                </div>
+                <p class="docs-lead">Mengatur atau memperbarui alamat URL Webhook Callback milik akun Anda secara terprogram (selain melalui form Dashboard &rarr; Integrasi H2H).</p>
+                <ul class="docs-list">
+                    <li><strong>Wajib HTTPS publik:</strong> Skema selain <code>https://</code>, URL berisi username/password, hostname internal/localhost, serta IP privat/loopback/link-local akan ditolak (HTTP <code>400</code>). Maksimal <code>2048</code> karakter.</li>
+                </ul>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Contoh cURL</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-curl-callback-put">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin cURL
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-curl-callback-put" class="docs-pre" tabindex="0">curl -X PUT "<span data-docs-origin>https://domain-toko-anda.com</span>/h2h/profile/callback" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: &lt;API_KEY_ANDA&gt;" \
+  -d '{
+    "callback_url": "https://server-anda.com/webhook/miku"
+  }'</pre>
+                </div>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Respons 200 OK</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-res-callback-put">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-res-callback-put" class="docs-pre" tabindex="0">{
+  "success": true,
+  "message": "Callback URL berhasil diperbarui."
+}</pre>
+                </div>
+            </section>
+
+            <section id="webhook" class="docs-section" data-docs-section tabindex="-1">
+                <h2>9. Verifikasi Webhook Callback (HMAC-SHA256)</h2>
+                <p class="docs-lead">Setiap transaksi H2H yang selesai melalui pembaruan callback atau rekonsiliasi sistem pusat akan dikirim ke URL callback Anda via metode <code>POST</code> JSON dengan batas timeout koneksi <code>5 detik</code> dan tanpa mengikuti HTTP redirect.</p>
+                <ul class="docs-list">
+                    <li><strong><code>X-Timestamp</code>:</strong> Unix timestamp dalam <strong>detik</strong> (string) saat payload ditandatangani. Tolak request jika selisih waktu server melebihi <strong>&le; 5 menit (<code>300 detik</code>)</strong> untuk mencegah replay attack.</li>
+                    <li><strong><code>X-Signature</code>:</strong> HMAC-SHA256 hex lowercase atas string <code>${X-Timestamp}.${rawBody}</code> memakai <strong>Webhook Secret</strong> Anda.</li>
+                    <li><strong>Raw Body Asli:</strong> Hitung signature langsung dari byte body mentah sebelum parsing JSON, lalu bandingkan dengan fungsi constant-time (<code>timingSafeEqual</code> / <code>hash_equals</code>).</li>
+                    <li><strong>Respons Endpoint Anda:</strong> Proses pembaruan status transaksi secara idempoten berdasar <code>invoice_id</code> dan kembalikan HTTP <code>2xx</code> (mis. <code>200 OK</code>) secepat mungkin.</li>
+                </ul>
+
+                <div class="docs-code-card">
+                    <div class="docs-code-header">
+                        <span class="docs-code-label">Contoh Payload Webhook (POST ke Server Anda)</span>
+                        <span class="copy-wrap">
+                            <button type="button" class="copy-btn" command="--copy" commandfor="code-webhook-payload">
+                                <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
+                            </button>
+                            <span class="copy-tip" role="status"></span>
+                        </span>
+                    </div>
+<pre id="code-webhook-payload" class="docs-pre" tabindex="0">{
+  "invoice_id": "H2H-1732450123-AB12",
+  "status": "Success",
+  "product_name": "86 Diamonds",
+  "price": 19500,
+  "serial_number": "SN-99887766",
+  "timestamp": "2026-11-24T10:15:42.000Z"
+}</pre>
+                </div>
+
+                <h3>Contoh Verifikasi Signature</h3>
+                <div class="docs-tabs" role="tablist" aria-label="Pilih bahasa contoh verifikasi webhook" data-docs-tabs>
+                    <button type="button" id="tab-webhook-node" class="docs-tab-btn" role="tab" aria-selected="true" aria-controls="panel-webhook-node">Node.js (Express)</button>
+                    <button type="button" id="tab-webhook-php" class="docs-tab-btn" role="tab" aria-selected="false" aria-controls="panel-webhook-php" tabindex="-1">PHP</button>
+                </div>
+
+                <div id="panel-webhook-node" class="docs-tab-panel" role="tabpanel" aria-labelledby="tab-webhook-node">
+                    <div class="docs-code-card">
+                        <div class="docs-code-header">
+                            <span class="docs-code-label">Node.js (Express raw body)</span>
+                            <span class="copy-wrap">
+                                <button type="button" class="copy-btn" command="--copy" commandfor="code-verify-node">
+                                    <i class="fas fa-copy" aria-hidden="true"></i> Salin Node.js
+                                </button>
+                                <span class="copy-tip" role="status"></span>
+                            </span>
+                        </div>
+<pre id="code-verify-node" class="docs-pre" tabindex="0">const crypto = require('crypto');
+const express = require('express');
+const app = express();
+
+app.post('/webhook/miku', express.raw({ type: 'application/json' }), (req, res) => {
+  const timestamp = String(req.header('X-Timestamp') || '');
+  const signature = String(req.header('X-Signature') || '').toLowerCase();
+  const rawBody = req.body.toString('utf8');
+  const secret = process.env.MIKU_WEBHOOK_SECRET || '';
+
+  const tsNum = Number(timestamp);
+  const nowSec = Math.floor(Date.now() / 1000);
+  if (!Number.isInteger(tsNum) || Math.abs(nowSec - tsNum) &gt; 300) {
+    return res.status(401).json({ error: 'Timestamp kedaluwarsa' });
+  }
+
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}.${rawBody}`)
+    .digest('hex');
+
+  const sigBuf = Buffer.from(signature, 'utf8');
+  const expBuf = Buffer.from(expected, 'utf8');
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+    return res.status(403).json({ error: 'Signature tidak valid' });
+  }
+
+  const event = JSON.parse(rawBody);
+  // Proses event.invoice_id &amp; event.status secara idempoten di database Anda
+  return res.status(200).json({ received: true });
+});</pre>
+                    </div>
+                </div>
+
+                <div id="panel-webhook-php" class="docs-tab-panel hidden" role="tabpanel" aria-labelledby="tab-webhook-php">
+                    <div class="docs-code-card">
+                        <div class="docs-code-header">
+                            <span class="docs-code-label">PHP (native)</span>
+                            <span class="copy-wrap">
+                                <button type="button" class="copy-btn" command="--copy" commandfor="code-verify-php">
+                                    <i class="fas fa-copy" aria-hidden="true"></i> Salin PHP
+                                </button>
+                                <span class="copy-tip" role="status"></span>
+                            </span>
+                        </div>
+<pre id="code-verify-php" class="docs-pre" tabindex="0">&lt;?php
+$rawBody   = file_get_contents('php://input');
+$timestamp = $_SERVER['HTTP_X_TIMESTAMP'] ?? '';
+$signature = strtolower($_SERVER['HTTP_X_SIGNATURE'] ?? '');
+$secret    = getenv('MIKU_WEBHOOK_SECRET') ?: '';
+
+if (!ctype_digit((string) $timestamp) || abs(time() - (int) $timestamp) &gt; 300) {
+    http_response_code(401);
+    exit(json_encode(['error' =&gt; 'Timestamp kedaluwarsa']));
+}
+
+$expected = hash_hmac('sha256', $timestamp . '.' . $rawBody, $secret);
+if (!hash_equals($expected, $signature)) {
+    http_response_code(403);
+    exit(json_encode(['error' =&gt; 'Signature tidak valid']));
+}
+
+$event = json_decode($rawBody, true);
+// Proses $event['invoice_id'] &amp; $event['status'] secara idempoten di database Anda
+http_response_code(200);
+echo json_encode(['received' =&gt; true]);</pre>
+                    </div>
+                </div>
+            </section>
+
+            <section id="kode-status" class="docs-section" data-docs-section tabindex="-1">
+                <h2>10. Kode Status &amp; Penanganan Error</h2>
+                <p class="docs-lead">Setiap respons error mengembalikan format JSON seragam <code>{"success": false, "message": "..."}</code>.</p>
+
+                <div tabindex="0" role="region" aria-label="Daftar kode status HTTP API H2H" class="docs-table-wrap">
+                    <table class="docs-table">
+                        <thead>
+                            <tr>
+                                <th>Status HTTP</th>
+                                <th>Arti</th>
+                                <th>Penyebab Umum &amp; Tindakan</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td data-label="Status HTTP"><code>200 OK</code></td>
+                                <td data-label="Arti">Berhasil / Retry Idempotent</td>
+                                <td data-label="Penyebab & Tindakan">Permintaan GET/PUT sukses, atau retry <code>POST /h2h/order</code> memakai <code>ref_id</code> dan payload yang sama (mengembalikan hasil transaksi terdahulu).</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Status HTTP"><code>201 Created</code></td>
+                                <td data-label="Arti">Order Dibuat</td>
+                                <td data-label="Penyebab & Tindakan">Transaksi baru berhasil masuk antrean atau langsung sukses dan saldo reseller telah terpotong secara atomik.</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Status HTTP"><code>400 Bad Request</code></td>
+                                <td data-label="Arti">Payload / Input Tidak Valid</td>
+                                <td data-label="Penyebab & Tindakan">Field wajib kosong, format <code>ref_id</code> tidak valid, saldo tidak cukup, produk tidak aktif, validasi ID gagal, URL callback tidak HTTPS/privat, atau order gagal dikirim ke upstream (saldo aman).</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Status HTTP"><code>401 Unauthorized</code></td>
+                                <td data-label="Arti">API Key Kosong</td>
+                                <td data-label="Penyebab & Tindakan">Header <code>X-API-Key</code> tidak disertakan pada request.</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Status HTTP"><code>403 Forbidden</code></td>
+                                <td data-label="Arti">Key Salah / IP Ditolak</td>
+                                <td data-label="Penyebab & Tindakan">API Key tidak valid atau telah dicabut, atau IP pengirim tidak terdaftar di Allowed IP reseller.</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Status HTTP"><code>404 Not Found</code></td>
+                                <td data-label="Arti">Tidak Ditemukan</td>
+                                <td data-label="Penyebab & Tindakan">Transaksi dengan <code>invoice_id</code> / <code>ref_id</code> terkait tidak ada pada akun Anda.</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Status HTTP"><code>409 Conflict</code></td>
+                                <td data-label="Arti">Konflik Idempotency</td>
+                                <td data-label="Penyebab & Tindakan"><code>ref_id</code> sudah pernah dipakai untuk <code>productId</code> atau target akun yang berbeda. Gunakan <code>ref_id</code> baru untuk transaksi berbeda.</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Status HTTP"><code>429 Too Many Requests</code></td>
+                                <td data-label="Arti">Batas Permintaan / Kuota</td>
+                                <td data-label="Penyebab & Tindakan">Melebihi rate limit <code>60 req/menit</code> atau batas transaksi/nominal harian H2H. Terapkan jeda backoff sebelum mencoba ulang.</td>
+                            </tr>
+                            <tr>
+                                <td data-label="Status HTTP"><code>500 Server Error</code></td>
+                                <td data-label="Arti">Gangguan Sistem Pusat</td>
+                                <td data-label="Penyebab & Tindakan">Kesalahan tak terduga di server pusat. Lakukan retry aman memakai <code>ref_id</code> yang sama atau cek status via <code>GET /h2h/order/:refOrInvoiceId</code>.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+</main>
+
+<footer>
+    <div class="container footer-content">
+        <div class="footer-links">
+            <a href="/syarat-ketentuan.html">Syarat &amp; Ketentuan</a>
+            <a href="/kebijakan-refund.html">Kebijakan Refund</a>
+            <a href="/kontak.html">Kontak Kami</a>
+            <a href="/cek-transaksi.html">Cek Transaksi</a>
+            <a href="/compare-prices.html">Pricelist</a>
+            <a href="/validate.html">Validasi ID</a>
+            <a href="/leaderboard.html">Leaderboard</a>
+        </div>
+        <p>&copy; 2026 MIKU Store. Seluruh hak cipta dilindungi.</p>
+    </div>
+</footer>
+
+<script defer src="js/shared/format.js"></script>
+<script defer src="js/shared/dom.js"></script>
+<script defer src="js/shared/auth.js"></script>
+<script defer src="js/shared/api.js"></script>
+<script defer src="js/shared/storefrontNav.js"></script>
+<script defer src="js/shared/apiDocs.js"></script>
+</body>
+</html>

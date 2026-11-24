@@ -389,6 +389,18 @@
             </section>
 
             <section id="integrasi" class="dashboard-section hidden">
+                <div class="h2h-section-header">
+                    <div>
+                        <h2 class="dashboard-page-title">Integrasi H2H</h2>
+                        <p class="dashboard-page-subtitle">Kelola kredensial API Key, Allowed IP, dan konfigurasi Webhook Callback reseller Anda.</p>
+                    </div>
+                    <a href="api-docs.html" target="_blank" rel="noopener noreferrer" class="h2h-btn h2h-btn-primary h2h-docs-cta">
+                        <i class="fas fa-book-open" aria-hidden="true"></i>
+                        <span>Dokumentasi Integrasi API</span>
+                        <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                    </a>
+                </div>
+
                 <div class="card h2h-card">
                     <div class="h2h-card-header">
                         <div>
@@ -416,6 +428,37 @@
                         <button type="button" id="revoke-api-key-btn" class="h2h-btn h2h-btn-danger hidden">
                             <i class="fas fa-ban" aria-hidden="true"></i> Revoke API Key
                         </button>
+                    </div>
+                </div>
+
+                <div class="card h2h-card">
+                    <h2>IP Allowlist H2H</h2>
+                    <p class="h2h-muted">
+                        Batasi akses seluruh endpoint <code>/h2h/*</code> memakai IP tunggal atau CIDR IPv4/IPv6 (pisahkan dengan koma, maksimal 20 entri).
+                    </p>
+
+                    <form id="whitelist-ip-form" class="form-row-container" autocomplete="off" novalidate>
+                        <input
+                            type="text"
+                            id="whitelist-ip-input"
+                            name="h2h_allowed_ips"
+                            placeholder="Contoh: 203.0.113.10, 203.0.113.0/24"
+                            aria-label="Tambah IP atau rentang CIDR"
+                            class="dashboard-input"
+                            autocomplete="off"
+                            autocorrect="off"
+                            autocapitalize="none"
+                            spellcheck="false"
+                        >
+                        <button type="submit" class="h2h-btn h2h-btn-primary">Simpan IP</button>
+                    </form>
+                    <p id="whitelist-ip-error" class="ip-error-msg hidden" role="alert"></p>
+
+                    <div id="current-ips-container" class="current-ips-wrap">
+                        <p class="current-ips-title">IP yang Terdaftar</p>
+                        <div id="current-ips-list" aria-live="polite">
+                            <p class="h2h-muted">Memuat...</p>
+                        </div>
                     </div>
                 </div>
 
@@ -451,85 +494,42 @@
                         </button>
                     </div>
 
-                    <form id="h2h-callback-form" class="h2h-callback-form" novalidate>
+                    <form id="h2h-callback-form" class="h2h-callback-form" autocomplete="off" novalidate>
                         <div class="h2h-form-field">
                             <label for="h2h-callback-url-input">URL Callback Webhook (HTTPS)</label>
-                            <input type="url" id="h2h-callback-url-input" placeholder="https://server-anda.com/callback/miku" class="dashboard-input" required>
+                            <input
+                                type="url"
+                                id="h2h-callback-url-input"
+                                name="h2h_webhook_callback_url"
+                                placeholder="https://server-anda.com/callback/miku"
+                                class="dashboard-input"
+                                autocomplete="off"
+                                autocorrect="off"
+                                autocapitalize="none"
+                                spellcheck="false"
+                                inputmode="url"
+                                required
+                            >
                         </div>
                         <div class="h2h-form-field">
                             <label for="h2h-callback-apikey-input">X-API-Key Verifikasi <span class="optional-tag">(otomatis terisi bila baru dibuat di sesi ini)</span></label>
-                            <input type="password" id="h2h-callback-apikey-input" placeholder="Tempel X-API-Key untuk simpan langsung via PUT /h2h/profile/callback" class="dashboard-input" autocomplete="off">
+                            <input
+                                type="password"
+                                id="h2h-callback-apikey-input"
+                                name="h2h_verify_x_api_key"
+                                placeholder="Tempel X-API-Key untuk simpan langsung via PUT /h2h/profile/callback"
+                                class="dashboard-input"
+                                autocomplete="new-password"
+                                autocorrect="off"
+                                autocapitalize="none"
+                                spellcheck="false"
+                            >
                         </div>
                         <div class="h2h-action-group">
                             <button type="submit" class="h2h-btn h2h-btn-secondary">Simpan Callback URL</button>
                         </div>
                         <div id="h2h-callback-result" class="h2h-status-feedback" aria-live="polite"></div>
                     </form>
-                </div>
-
-                <div class="card h2h-card">
-                    <h2>IP Allowlist H2H</h2>
-                    <p class="h2h-muted">
-                        Batasi akses seluruh endpoint <code>/h2h/*</code> memakai IP tunggal atau CIDR IPv4/IPv6 (pisahkan dengan koma, maksimal 20 entri).
-                    </p>
-
-                    <form id="whitelist-ip-form" class="form-row-container" novalidate>
-                        <input
-                            type="text"
-                            id="whitelist-ip-input"
-                            placeholder="Contoh: 203.0.113.10, 203.0.113.0/24"
-                            aria-label="Tambah IP atau rentang CIDR"
-                            class="dashboard-input"
-                        >
-                        <button type="submit" class="h2h-btn h2h-btn-primary">Simpan IP</button>
-                    </form>
-                    <p id="whitelist-ip-error" class="ip-error-msg hidden" role="alert"></p>
-
-                    <div id="current-ips-container" class="current-ips-wrap">
-                        <p class="current-ips-title">IP yang Terdaftar</p>
-                        <div id="current-ips-list" aria-live="polite">
-                            <p class="h2h-muted">Memuat...</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="h2h-quick-ref-card" class="card h2h-card">
-                    <h2>Referensi Cepat API H2H</h2>
-                    <p class="h2h-muted">Ringkasan integrasi reseller ke server MIKU Store dengan proteksi <code>ref_id</code> idempoten.</p>
-                    <div class="h2h-ref-grid">
-                        <div class="h2h-ref-item">
-                            <span class="h2h-field-label">Base URL Server</span>
-                            <div class="h2h-ref-row">
-                                <code id="h2h-base-url" class="h2h-code-value">-</code>
-                                <button type="button" id="h2h-copy-baseurl-btn" class="h2h-btn h2h-btn-secondary h2h-btn-compact">
-                                    <i class="fas fa-copy" aria-hidden="true"></i> Salin
-                                </button>
-                            </div>
-                        </div>
-                        <div class="h2h-ref-item">
-                            <span class="h2h-field-label">Header Autentikasi Wajib</span>
-                            <div class="h2h-ref-row">
-                                <code class="h2h-code-value">X-API-Key: &lt;API_KEY_ANDA&gt;</code>
-                                <button type="button" id="h2h-copy-header-btn" class="h2h-btn h2h-btn-secondary h2h-btn-compact">
-                                    <i class="fas fa-copy" aria-hidden="true"></i> Salin
-                                </button>
-                            </div>
-                        </div>
-                        <div class="h2h-ref-item">
-                            <div class="h2h-ref-row">
-                                <span class="h2h-field-label">Contoh Payload Minimal (POST /h2h/order)</span>
-                                <button type="button" id="h2h-copy-payload-btn" class="h2h-btn h2h-btn-secondary h2h-btn-compact">
-                                    <i class="fas fa-copy" aria-hidden="true"></i> Salin JSON
-                                </button>
-                            </div>
-                            <pre id="h2h-sample-payload" class="h2h-ref-code"></pre>
-                            <ul class="h2h-endpoints-list">
-                                <li><code>GET /h2h/products</code> &mdash; Daftar SKU produk &amp; harga reseller aktif</li>
-                                <li><code>GET /h2h/profile</code> &mdash; Info username, role, dan saldo akun saat ini</li>
-                                <li><code>PUT /h2h/profile/callback</code> &mdash; Atur URL callback JSON <code>{"callback_url": "https://..."}</code></li>
-                            </ul>
-                        </div>
-                    </div>
                 </div>
             </section>
 
