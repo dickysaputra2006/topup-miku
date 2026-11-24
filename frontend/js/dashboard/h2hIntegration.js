@@ -3,12 +3,6 @@
 
     const app = (global.MikuDashboard = global.MikuDashboard || {});
 
-    const SAMPLE_ORDER_PAYLOAD = JSON.stringify(
-        { productId: 1, targetGameId: '12345678', targetServerId: '2001', ref_id: 'ORDER-UNIK-001' },
-        null,
-        2
-    );
-
     function resetH2HCopyButton(button) {
         if (!button) return;
         if (button._copyResetTimer) {
@@ -277,21 +271,10 @@
         return result;
     }
 
-    function populateQuickReference() {
-        const baseUrlEl = document.getElementById('h2h-base-url');
-        const payloadSampleEl = document.getElementById('h2h-sample-payload');
-        const origin = (global.location && global.location.origin && global.location.origin !== 'null')
-            ? global.location.origin
-            : 'https://domain-toko-anda.com';
-        if (baseUrlEl) baseUrlEl.textContent = origin;
-        if (payloadSampleEl) payloadSampleEl.textContent = SAMPLE_ORDER_PAYLOAD;
-    }
-
     /**
-     * Muat status API Key, Webhook Secret, IP whitelist, dan referensi cepat untuk tab Integrasi H2H.
+     * Muat status API Key, IP allowlist, dan Webhook Secret untuk tab Integrasi H2H.
      */
     function loadIntegrasiSectionData() {
-        populateQuickReference();
         fetchApiKey();
         fetchWebhookSecretStatus();
         fetchAndDisplayWhitelistedIPs();
@@ -354,12 +337,6 @@
         const els = app.state.els;
         attachH2HCopyButton(els.h2hCopyPrimaryBtn, () => (els.h2hRevealedPrimaryValue ? els.h2hRevealedPrimaryValue.textContent.trim() : ''));
         attachH2HCopyButton(els.h2hCopySecondaryBtn, () => (els.h2hRevealedSecondaryValue ? els.h2hRevealedSecondaryValue.textContent.trim() : ''));
-        attachH2HCopyButton(document.getElementById('h2h-copy-baseurl-btn'), () => {
-            const el = document.getElementById('h2h-base-url');
-            return el ? el.textContent.trim() : '';
-        });
-        attachH2HCopyButton(document.getElementById('h2h-copy-header-btn'), () => 'X-API-Key: <API_KEY_ANDA>');
-        attachH2HCopyButton(document.getElementById('h2h-copy-payload-btn'), () => SAMPLE_ORDER_PAYLOAD);
         attachH2HCopyButton(
             els.copyWebhookSecretBtn,
             () => app.state.sessionWebhookSecret || '',
@@ -529,10 +506,9 @@
     }
 
     /**
-     * Pasang listener modal kredensial, toggle/salin secret, callback URL, IP whitelist, dan quick reference.
+     * Pasang listener modal kredensial, toggle/salin secret, callback URL, dan IP whitelist.
      */
     function bindEvents() {
-        populateQuickReference();
         bindModalAndCopyEvents();
         bindCredentialActionEvents();
         bindCallbackAndIpEvents();

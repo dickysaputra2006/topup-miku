@@ -1,4 +1,17 @@
-/* MIKU Store — Member Dashboard H2H Integration, Credentials, IP Allowlist & Reference */
+/* MIKU Store — Member Dashboard H2H Integration, Credentials & IP Allowlist */
+
+.h2h-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.h2h-docs-cta {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
 
 #integrasi .h2h-card {
     background-color: var(--surface);
@@ -280,59 +293,6 @@
     line-height: 1.5;
 }
 
-/* --- Quick Reference Card --- */
-.h2h-ref-grid {
-    display: grid;
-    gap: var(--space-3);
-    margin-top: var(--space-3);
-}
-
-.h2h-ref-item {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    background-color: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-}
-
-.h2h-ref-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-}
-
-.h2h-ref-code {
-    margin: 0;
-    padding: var(--space-3);
-    background-color: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    font-family: var(--font-mono);
-    font-size: var(--text-xs);
-    color: var(--text);
-    overflow-x: auto;
-    line-height: 1.5;
-}
-
-.h2h-endpoints-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: var(--space-1);
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-}
-
-.h2h-endpoints-list code {
-    color: var(--accent);
-    font-family: var(--font-mono);
-}
-
 /* --- H2H Modals (Secret Once-View & Confirm) --- */
 #h2h-secret-modal .h2h-modal-card,
 #h2h-confirm-modal .h2h-modal-card {
@@ -411,6 +371,14 @@
 }
 
 @media (max-width: 768px) {
+    .h2h-section-header {
+        align-items: stretch;
+    }
+
+    .h2h-docs-cta {
+        width: 100%;
+    }
+
     .form-row-container {
         flex-direction: column;
         align-items: stretch;

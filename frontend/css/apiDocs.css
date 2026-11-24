@@ -1,0 +1,322 @@
+/* MIKU Store — Dokumentasi Integrasi API H2H (Layout, TOC, Copy & Responsive Tables) */
+
+.api-docs-main {
+    flex: 1 0 auto;
+    min-width: 0;
+    padding-block: var(--space-6) var(--space-12);
+}
+
+.docs-hero,
+.docs-section {
+    min-width: 0;
+    max-width: 100%;
+    background-color: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+}
+
+.docs-hero { margin-bottom: var(--space-6); }
+.docs-hero-top { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); }
+.docs-hero-copy { min-width: 0; flex: 1 1 320px; }
+
+.docs-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.docs-title { margin: 0 0 var(--space-2); font-size: var(--text-xl); font-weight: 700; color: var(--text); }
+.docs-subtitle, .docs-lead { margin: 0; font-size: var(--text-sm); color: var(--text-muted); line-height: 1.6; }
+.docs-lead { margin-bottom: var(--space-4); }
+
+.docs-hero-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 44px;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-sm);
+    background-color: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.docs-hero-cta:hover,
+.docs-hero-cta:focus-visible { border-color: var(--accent); background-color: var(--accent-soft); }
+
+.docs-baseurl-bar {
+    margin-top: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.docs-baseurl-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.docs-baseurl-label { font-size: var(--text-xs); font-weight: 600; color: var(--text-muted); }
+.docs-baseurl-value { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--accent); overflow-wrap: anywhere; }
+
+/* --- 2-Column Layout & TOC --- */
+.docs-layout { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.docs-toc-desktop { display: none; }
+.docs-toc-mobile { background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); }
+
+.docs-toc-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    min-height: 44px;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--text);
+    cursor: pointer;
+    list-style: none;
+}
+
+.docs-toc-summary::-webkit-details-marker { display: none; }
+.docs-toc-mobile[open] .docs-toc-chevron { transform: rotate(180deg); }
+.docs-toc-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 var(--space-3) var(--space-3); }
+.docs-toc-desktop .docs-toc-nav { padding: var(--space-2); }
+
+.docs-toc-link {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    border-left: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.docs-toc-link:hover,
+.docs-toc-link:focus-visible { background-color: var(--surface-2); color: var(--text); }
+.docs-toc-link.active { background-color: var(--accent-soft); border-left-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+@media (min-width: 1080px) {
+    .docs-layout { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+    .docs-toc-mobile { display: none; }
+
+    .docs-toc-desktop {
+        display: block;
+        position: sticky;
+        top: calc(var(--navbar-height, 60px) + 20px);
+        max-height: calc(100dvh - var(--navbar-height, 60px) - 40px);
+        overflow-y: auto;
+        scrollbar-width: thin;
+        background-color: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: var(--space-2);
+    }
+
+    .docs-toc-desktop .docs-toc-title { margin: 0 0 var(--space-2); padding: var(--space-2) var(--space-3) 0; font-size: var(--text-xs); font-weight: 600; color: var(--text-muted); }
+    .docs-toc-desktop .docs-toc-link { min-height: 36px; font-size: var(--text-xs); }
+}
+
+/* --- Sections, Endpoints & Code Snippets --- */
+.docs-content { min-width: 0; display: flex; flex-direction: column; gap: var(--space-6); }
+.docs-section { scroll-margin-top: calc(var(--navbar-height, 60px) + 20px); }
+.docs-section h2 { margin: 0 0 var(--space-2); font-size: var(--text-lg); color: var(--text); }
+.docs-section h3 { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-sm); font-weight: 700; color: var(--text); }
+.docs-list { margin: 0 0 var(--space-4); padding-left: var(--space-4); color: var(--text-muted); font-size: var(--text-sm); line-height: 1.65; display: grid; gap: var(--space-2); }
+.docs-list strong { color: var(--text); }
+
+.docs-section p code,
+.docs-list code,
+.docs-table code {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.docs-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: var(--space-4) 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background-color: var(--bg);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    line-height: 1.55;
+}
+
+.docs-callout--accent { background-color: var(--accent-soft); border-color: rgba(34, 184, 207, 0.35); color: var(--text); }
+.docs-callout--warning { background-color: var(--warning-soft); border-color: rgba(245, 158, 11, 0.35); color: var(--warning); }
+.endpoint-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-3); }
+
+.method-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: 700;
+    letter-spacing: 0.03em;
+}
+
+.method-badge--get { background-color: var(--info-soft); color: var(--info); border: 1px solid rgba(96, 165, 250, 0.35); }
+.method-badge--post { background-color: var(--success-soft); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.35); }
+.method-badge--put { background-color: var(--warning-soft); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.35); }
+.endpoint-path { font-family: var(--font-mono); font-size: var(--text-base); font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+
+.docs-code-card { margin-top: var(--space-3); background-color: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; max-width: 100%; }
+
+.docs-code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+}
+
+.docs-code-label { font-size: var(--text-xs); font-weight: 600; color: var(--text-muted); }
+.copy-wrap { position: relative; display: inline-flex; align-items: center; gap: var(--space-2); }
+
+.copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
+    min-inline-size: 36px;
+    min-block-size: 36px;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background-color: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.copy-btn:hover,
+.copy-btn:focus-visible { border-color: var(--accent); background-color: var(--accent-soft); }
+.copy-btn[data-copied] { border-color: var(--success); background-color: var(--success-soft); color: var(--success); }
+.copy-btn[data-failed] { border-color: var(--danger); background-color: var(--danger-soft); color: var(--danger-text); }
+
+.copy-tip {
+    font-size: var(--text-xs);
+    font-weight: 600;
+    color: var(--success);
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    transition: opacity var(--transition-fast);
+}
+
+.copy-tip.is-visible { opacity: 1; }
+.copy-btn[data-failed] + .copy-tip { color: var(--danger-text); }
+
+pre.docs-pre {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    overflow-x: auto;
+    max-width: 100%;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+    color: var(--text);
+    tab-size: 2;
+}
+
+pre.docs-pre:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* --- Webhook Language Tabs & Responsive Tables --- */
+.docs-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-4) 0 var(--space-2); }
+
+.docs-tab-btn {
+    min-height: 40px;
+    padding: var(--space-1) var(--space-4);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background-color: var(--bg);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: var(--text-xs);
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.docs-tab-btn[aria-selected="true"] { background-color: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+.docs-table-wrap {
+    overflow-x: auto;
+    max-inline-size: 100%;
+    container-type: inline-size;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background-color: var(--bg);
+}
+
+.docs-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-xs); text-align: left; }
+
+.docs-table thead th {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    background-color: var(--surface-2);
+    color: var(--text);
+    font-weight: 700;
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--border);
+}
+
+.docs-table tbody td { padding: var(--space-3); border-bottom: 1px solid var(--border); color: var(--text-muted); vertical-align: top; line-height: 1.5; overflow-wrap: anywhere; }
+.docs-table tbody tr:last-child td { border-bottom: 0; }
+
+@container (width < 560px) {
+    .docs-table, .docs-table thead, .docs-table tbody, .docs-table tr, .docs-table td { display: block; }
+    .docs-table thead { display: none; }
+    .docs-table tbody tr { padding: var(--space-3); border-bottom: 1px solid var(--border); }
+    .docs-table tbody tr:last-child { border-bottom: 0; }
+    .docs-table tbody td { padding: var(--space-1) 0; border-bottom: 0; display: flex; flex-direction: column; gap: 2px; }
+    .docs-table tbody td::before { content: attr(data-label); font-weight: 700; color: var(--text); }
+}
+
+@media (max-width: 768px) {
+    .docs-hero, .docs-section { padding: var(--space-4); }
+    .copy-btn { min-inline-size: 44px; min-block-size: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .docs-hero-cta, .docs-toc-link, .copy-btn, .copy-tip, .docs-tab-btn { transition: none; }
+}
+
+@media (forced-colors: active) {
+    .docs-toc-link.active, .docs-tab-btn[aria-selected="true"], .copy-btn { border: 1px solid Highlight; }
+}
