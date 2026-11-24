@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { logSafeError } = require('../utils/logger');
-const { normalizeProfilePhone } = require('../utils/strings');
+const { normalizeProfilePhone, sanitizeBalanceHistoryDescription } = require('../utils/strings');
 const { isValidEmail, isValidPassword, isValidInvoiceId } = require('../utils/validation');
 const {
     getBodyObject,
@@ -124,7 +124,10 @@ module.exports = function createUserRoutes(deps) {
             // PostgreSQL: Menggunakan created_at sebagai timestamp
             const sql = `SELECT amount, type, description, reference_id, created_at FROM balance_history WHERE user_id = $1 ORDER BY created_at DESC`;
             const { rows } = await pool.query(sql, [req.user.id]);
-            res.json(rows);
+            res.json((rows || []).map((row) => ({
+                ...row,
+                description: sanitizeBalanceHistoryDescription(row.description),
+            })));
         } catch (error) {
             logSafeError('Error fetching balance history:', error);
             res.status(500).json({ message: 'Server error saat mengambil riwayat saldo.' });
@@ -217,7 +220,7 @@ module.exports = function createUserRoutes(deps) {
     router.get('/api/user/notifications', protect, async (req, res) => {
         try {
             const { rows } = await pool.query(
-                'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10', 
+                'SELECT id, message, link, is_read, created_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10',
                 [req.user.id]
             );
             res.json(rows);

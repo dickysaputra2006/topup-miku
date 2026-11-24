@@ -282,6 +282,63 @@ async function validatePromoCodeForProduct({ pool, userId, promoCode, productId,
     }
 }
 
+/**
+ * Pra-pemeriksaan saldo read-only sebelum panggilan eksternal (validator / provider).
+ * Memastikan 0 request keluar ke provider saat saldo sudah jelas tidak cukup.
+ */
+async function assertPreCheckOrderBalance(preClient, { userId, h2hUser, product, promoCode, insufficientMessage }) {
+    let balance = null;
+    let roleId = null;
+    let roleNameLower = '';
+    if (h2hUser && h2hUser.balance !== undefined && h2hUser.balance !== null && h2hUser.role_id) {
+        balance = Number(h2hUser.balance);
+        roleId = h2hUser.role_id;
+        roleNameLower = String(h2hUser.role_name || '').toLowerCase();
+    } else {
+        const { rows: userRows } = await preClient.query(
+            'SELECT balance, role_id, r.name as role_name FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = $1',
+            [userId]
+        );
+        if (!userRows || userRows.length === 0) return;
+        balance = Number(userRows[0].balance);
+        roleId = userRows[0].role_id;
+        roleNameLower = String(userRows[0].role_name || '').toLowerCase();
+    }
+    if (!Number.isFinite(balance)) return;
+    if (balance <= 0) throw new Error(insufficientMessage);
+
+    let estimatedPrice = Number(product.price);
+    const manualPrice = product.manual_prices ? product.manual_prices[roleNameLower] : null;
+    if (product.use_manual_prices && manualPrice !== null && manualPrice !== undefined && manualPrice !== '') {
+        estimatedPrice = Number(manualPrice);
+    } else if (roleId) {
+        const { rows: roleRows } = await preClient.query('SELECT margin_percent FROM roles WHERE id = $1', [roleId]);
+        if (roleRows && roleRows.length > 0) {
+            let margin = Number(roleRows[0].margin_percent);
+            if (product.use_custom_margin && product[`${roleNameLower}_margin`] !== null && product[`${roleNameLower}_margin`] !== undefined) {
+                margin = Number(product[`${roleNameLower}_margin`]);
+            }
+            if (Number.isFinite(margin)) estimatedPrice = Math.ceil(Number(product.price) * (1 + (margin / 100)));
+        }
+    }
+    const { rows: flashRows } = await preClient.query(
+        `SELECT discount_price FROM flash_sales
+         WHERE product_id = $1 AND is_active = true
+           AND NOW() BETWEEN start_at AND end_at
+           AND (max_uses IS NULL OR uses_count < max_uses)
+         ORDER BY discount_price ASC LIMIT 1`,
+        [product.id]
+    );
+    if (flashRows && flashRows.length > 0) {
+        const fp = Number(flashRows[0].discount_price);
+        if (Number.isFinite(fp) && fp > 0 && fp < estimatedPrice) estimatedPrice = fp;
+    }
+    const floorPrice = promoCode ? Math.min(estimatedPrice, Number(product.price)) : estimatedPrice;
+    if (Number.isFinite(floorPrice) && floorPrice > 0 && balance < floorPrice) {
+        throw new Error(insufficientMessage);
+    }
+}
+
 module.exports = {
     calculateMarginSellingPrice,
     calculateCatalogProducts,
@@ -290,4 +347,5 @@ module.exports = {
     calculatePromoDiscount,
     fetchProviderCostWithFallback,
     validatePromoCodeForProduct,
+    assertPreCheckOrderBalance,
 };

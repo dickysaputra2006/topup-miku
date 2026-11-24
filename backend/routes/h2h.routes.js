@@ -2,7 +2,7 @@ const express = require('express');
 const { logSafeError } = require('../utils/logger');
 const { normalizeString } = require('../utils/strings');
 const { parseOptionalRefId } = require('../utils/validation');
-const { requirePositiveInt } = require('../utils/schemaValidators');
+const { getBodyObject, requirePositiveInt } = require('../utils/schemaValidators');
 const { validateWebhookUrl } = require('../utils/webhookClient.js');
 const {
     getSafeOrderErrorMessage,
@@ -66,10 +66,16 @@ module.exports = function createH2HRoutes(deps) {
 
     router.post('/h2h/order', protectH2HIp, protectH2H, h2hUserLimiter, async (req, res) => {
         try {
-            const refId = parseOptionalRefId(req.body.ref_id);
-            const productId = Number(req.body.productId);
-            const targetGameId = normalizeString(req.body.targetGameId, 80);
-            const targetServerId = normalizeString(req.body.targetServerId, 80);
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ success: false, message: bodyRes.error });
+            const body = bodyRes.value;
+
+            const refId = parseOptionalRefId(body.ref_id);
+            const prodRes = requirePositiveInt(body.productId, 'productId');
+            if (prodRes.error) return res.status(400).json({ success: false, message: 'productId dan targetGameId wajib diisi.' });
+            const productId = prodRes.value;
+            const targetGameId = normalizeString(body.targetGameId, 80);
+            const targetServerId = normalizeString(body.targetServerId, 80);
             const h2hUser = req.user; // User didapat dari middleware protectH2H
 
             const result = await executeH2HOrder({

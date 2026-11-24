@@ -85,6 +85,7 @@ module.exports = function createPublicRoutes(deps) {
                 WHERE p.status = 'Active' AND g.status = 'Active' ORDER BY g.name ASC, p.price ASC
             `);
             const { rows: roles } = await pool.query(`SELECT name, margin_percent FROM roles ORDER BY id ASC`);
+            const publicRoles = roles.filter(r => ['bronze', 'silver', 'gold', 'partner'].includes(String(r.name || '').toLowerCase()));
             const { rows: games } = await pool.query("SELECT id, name FROM games WHERE status = 'Active' ORDER BY name ASC");
             const { rows: activeFlashSales } = await pool.query(
                 `SELECT product_id, discount_price FROM flash_sales
@@ -100,7 +101,7 @@ module.exports = function createPublicRoutes(deps) {
                     provider_sku: product.provider_sku
                 }; 
                 
-                roles.forEach(role => {
+                publicRoles.forEach(role => {
                     const roleNameLower = role.name.toLowerCase();
                     let finalPrice;
                     const manualPrice = product.manual_prices ? product.manual_prices[roleNameLower] : null;
@@ -126,7 +127,7 @@ module.exports = function createPublicRoutes(deps) {
                 return productWithPrices;
             });
 
-            res.json({ products: productsWithRolePrices, roles: roles, games: games });
+            res.json({ products: productsWithRolePrices, roles: publicRoles.map(r => ({ name: r.name })), games: games });
         } catch (error) {
             logSafeError('Error fetching public compare prices:', error);
             res.status(500).json({ message: 'Server error saat mengambil data perbandingan harga.' });

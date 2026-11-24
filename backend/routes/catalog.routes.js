@@ -1,5 +1,6 @@
 const express = require('express');
 const { logSafeError } = require('../utils/logger');
+const { sanitizePublicErrorMessage } = require('../utils/strings');
 const {
     getBodyObject,
     requirePlainObject,
@@ -132,9 +133,7 @@ module.exports = function createCatalogRoutes(deps) {
                 }
 
                 if (!mobapayResult.success) {
-                    const safeMsg = typeof mobapayResult.message === 'string' && mobapayResult.message.length > 0
-                        ? mobapayResult.message
-                        : 'Produk tidak tersedia untuk ID ini.';
+                    const safeMsg = sanitizePublicErrorMessage(mobapayResult.message, 'Produk tidak tersedia untuk ID ini.');
                     return res.status(400).json({ success: false, message: safeMsg });
                 }
 
@@ -148,7 +147,10 @@ module.exports = function createCatalogRoutes(deps) {
             // === PGS Validator (existing behaviour) ===
             const result = await validateGameId(validatorName, userId, effectiveZoneId, config.rules || {});
             if (result.success) res.json(result);
-            else res.status(400).json({ success: false, message: result.message });
+            else res.status(400).json({
+                success: false,
+                message: sanitizePublicErrorMessage(result.message, 'Validasi ID game gagal.')
+            });
         } catch (error) {
             logSafeError('[pre-validate] Error:', error);
             res.status(500).json({ success: false, message: 'Terjadi kesalahan pada server.' });
@@ -212,12 +214,18 @@ module.exports = function createCatalogRoutes(deps) {
                         }
                     };
                 } else {
-                    result = mcggResult;
+                    result = {
+                        success: false,
+                        message: sanitizePublicErrorMessage(mcggResult.message, 'Gagal memvalidasi ID game.')
+                    };
                 }
             } else {
                 const pgsResult = await validateGameId(gameCode, userId, zoneId, rules);
                 if (!pgsResult.success) {
-                    return res.status(400).json({ success: false, message: pgsResult.message });
+                    return res.status(400).json({
+                        success: false,
+                        message: sanitizePublicErrorMessage(pgsResult.message, 'Gagal memvalidasi ID game.')
+                    });
                 }
 
                 result = pgsResult;

@@ -8,7 +8,7 @@ const {
     CALLBACK_SUCCESS_RESPONSE,
 } = require('../config/constants');
 const { logSafeError, safeAxiosError } = require('../utils/logger');
-const { normalizeString } = require('../utils/strings');
+const { normalizeString, sanitizePublicErrorMessage } = require('../utils/strings');
 const { timingSafeStringEqual } = require('../utils/crypto');
 const { dispatchSafeH2HWebhook } = require('../utils/webhookClient.js');
 const { rollbackTransactionResources } = require('../services/refundService');
@@ -237,8 +237,9 @@ function createFoxyCallbackRoutes(deps) {
             } else if (verifiedStatus === 'FAILED' || verifiedStatus === 'REFUNDED') {
                 committedStatus = 'Failed';
                 finalSerialNumber = 'Tidak ada SN';
+                const safeRefundReason = sanitizePublicErrorMessage(verifiedMessage, 'Transaksi gagal diproses');
                 await rollbackTransactionResources(client, tx, {
-                    refundDescription: `Pengembalian dana untuk invoice ${tx.invoice_id} karena: ${verifiedMessage || 'Transaksi gagal dari provider'}`
+                    refundDescription: `Pengembalian dana untuk invoice ${tx.invoice_id} karena: ${safeRefundReason}`
                 });
                 await createNotification(tx.user_id, `Pesanan ${tx.invoice_id} gagal. Saldo telah dikembalikan.`, `/invoice.html?id=${tx.invoice_id}`);
             } else if (verifiedStatus === 'PARTIAL_REFUND') {
