@@ -21,6 +21,7 @@ const createCatalogRoutes = require('./routes/catalog.routes');
 const createUserRoutes = require('./routes/user.routes');
 const createUserApiKeyRoutes = require('./routes/userApiKey.routes');
 const createWaBotRoutes = require('./routes/waBot.routes');
+const createWaBotUsersRoutes = require('./routes/waBotUsers.routes');
 const createAdminDepositsRoutes = require('./routes/admin/deposits.routes');
 const createAdminBalanceRoutes = require('./routes/admin/balance.routes');
 const createAdminTransactionsRoutes = require('./routes/admin/transactions.routes');
@@ -70,7 +71,7 @@ function createApp({ pool = defaultPool } = {}) {
     app.use(createAdminDepositsRoutes({ pool, protectAdmin, createNotification, recordAdminAuditLog }));
     app.use(createAdminPaymentMethodsRoutes({ pool, protectAdmin, recordAdminAuditLog }));
 
-    app.use(createAdminBalanceRoutes({ pool, protectAdmin, recordAdminAuditLog }));
+    app.use(createAdminBalanceRoutes({ pool, protectAdmin, createNotification, recordAdminAuditLog }));
     app.use(createAdminGamesRoutes({ pool, protectAdmin, recordAdminAuditLog }));
     app.use(createAdminProductsRoutes({ pool, protectAdmin, recordAdminAuditLog }));
 
@@ -88,8 +89,9 @@ function createApp({ pool = defaultPool } = {}) {
     // === PUBLIC ENDPOINTS ===
     app.use(createCatalogRoutes({ pool, protect, softProtect }));
 
-    // === WA BOT ADMIN DEPOSITS ENDPOINTS ===
+    // === WA BOT ADMIN ENDPOINTS ===
     app.use(createWaBotRoutes({ pool, createNotification, requireWaBotAdminToken, recordAdminAuditLog }));
+    app.use(createWaBotUsersRoutes({ pool, createNotification, requireWaBotAdminToken, recordAdminAuditLog }));
 
     // === ORDER & H2H ENDPOINTS ===
     app.use(createOrderRoutes({ pool, protect }));

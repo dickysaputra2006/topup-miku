@@ -117,12 +117,143 @@
     }
 
     /**
-     * Pasang listener form pembaruan margin global dan delegasi resolusi transaksi bermodal konfirmasi.
+     * Render ringkasan info akun untuk panel Ubah Role.
+     */
+    function renderRoleUserPreview(user) {
+        const { escapeHtml } = global.MikuShared.dom;
+        const { formatRupiah } = global.MikuShared.format;
+        const { roleUserPreviewEl, targetUserRoleSelect } = app.state.els;
+        if (!roleUserPreviewEl) return;
+        if (!user) {
+            roleUserPreviewEl.innerHTML = '';
+            roleUserPreviewEl.classList.add('hidden');
+            return;
+        }
+        const safeRole = escapeHtml(user.role || '-');
+        roleUserPreviewEl.innerHTML = `
+            <div>
+                <strong>${escapeHtml(user.username || '-')}</strong>
+                ${user.email ? `<span class="text-muted-sm"> (${escapeHtml(user.email)})</span>` : ''}
+                <div class="text-muted-sm">Saldo: <strong class="tabular-nums">${escapeHtml(formatRupiah(user.balance || 0))}</strong></div>
+            </div>
+            <span class="status-badge">Role: ${safeRole}</span>
+        `;
+        roleUserPreviewEl.classList.remove('hidden');
+        if (targetUserRoleSelect && ['BRONZE', 'SILVER', 'GOLD', 'PARTNER'].includes(String(user.role || '').toUpperCase())) {
+            targetUserRoleSelect.value = String(user.role).toUpperCase();
+        }
+    }
+
+    /**
+     * Muat profil ringkas pengguna berdasarkan username atau email untuk validasi sebelum ubah role.
+     */
+    async function lookupUserForRole(silentIfNotFound = false) {
+        const { apiFetch } = global.MikuShared.api;
+        const { roleTargetUserInput, lookupUserRoleBtn } = app.state.els;
+        const identifier = roleTargetUserInput ? String(roleTargetUserInput.value || '').trim() : '';
+        if (!identifier) {
+            app.notify('Masukkan username atau email pengguna terlebih dahulu.', 'error');
+            return null;
+        }
+        if (lookupUserRoleBtn) lookupUserRoleBtn.disabled = true;
+        try {
+            const response = await apiFetch(`${app.ADMIN_API_URL}/users/lookup?q=${encodeURIComponent(identifier)}`, {
+                auth: true,
+                token: app.state.token,
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                renderRoleUserPreview(null);
+                if (!silentIfNotFound) throw new Error(result.message || 'Pengguna tidak ditemukan.');
+                return null;
+            }
+            renderRoleUserPreview(result.user);
+            return result.user;
+        } catch (error) {
+            if (!silentIfNotFound) app.notify(`Error: ${error.message}`, 'error');
+            return null;
+        } finally {
+            if (lookupUserRoleBtn) lookupUserRoleBtn.disabled = false;
+        }
+    }
+
+    /**
+     * Eksekusi pembaruan role pengguna setelah konfirmasi modal admin.
+     */
+    async function submitUserRoleUpdate(identifier, role) {
+        const { apiFetch } = global.MikuShared.api;
+        const { updateUserRoleBtn } = app.state.els;
+        if (updateUserRoleBtn) {
+            updateUserRoleBtn.disabled = true;
+            updateUserRoleBtn.textContent = 'Menyimpan...';
+        }
+        try {
+            const response = await apiFetch(`${app.ADMIN_API_URL}/users/role`, {
+                method: 'PUT',
+                auth: true,
+                token: app.state.token,
+                jsonBody: { identifier, role },
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.message || 'Gagal mengubah role pengguna.');
+            app.notify(result.message || `Role ${identifier} berhasil diubah menjadi ${role}.`, 'success');
+            await lookupUserForRole(true);
+        } catch (error) {
+            app.notify(`Gagal: ${error.message}`, 'error');
+        } finally {
+            if (updateUserRoleBtn) {
+                updateUserRoleBtn.disabled = false;
+                updateUserRoleBtn.textContent = 'Ubah Role Pengguna';
+            }
+        }
+    }
+
+    /**
+     * Pasang listener form pembaruan margin global, ubah role user, dan delegasi resolusi transaksi.
      */
     function bindEvents() {
         const { apiFetch } = global.MikuShared.api;
-        const { marginForm, marginFieldsContainer } = app.state.els;
+        const {
+            marginForm,
+            marginFieldsContainer,
+            userRoleForm,
+            roleTargetUserInput,
+            lookupUserRoleBtn,
+            targetUserRoleSelect,
+        } = app.state.els;
         const txTbody = document.getElementById('admin-transactions-tbody');
+
+        if (lookupUserRoleBtn) {
+            lookupUserRoleBtn.addEventListener('click', () => {
+                lookupUserForRole(false);
+            });
+        }
+        if (userRoleForm) {
+            userRoleForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const identifier = roleTargetUserInput ? String(roleTargetUserInput.value || '').trim() : '';
+                const targetRole = targetUserRoleSelect ? String(targetUserRoleSelect.value || '').trim() : '';
+                if (!identifier || !targetRole) {
+                    app.notify('Username/email dan role tujuan wajib diisi.', 'error');
+                    return;
+                }
+                const matchedUser = await lookupUserForRole(false);
+                if (!matchedUser) return;
+                app.openConfirmModal({
+                    title: `Ubah Role ${matchedUser.username}?`,
+                    message: 'Perubahan role berlaku segera dan mencabut sesi login lama pengguna agar tier baru langsung aktif.',
+                    details: [
+                        { label: 'Username', value: matchedUser.username },
+                        { label: 'Email', value: matchedUser.email || '-' },
+                        { label: 'Role Saat Ini', value: matchedUser.role || '-' },
+                        { label: 'Role Tujuan', value: targetRole },
+                    ],
+                    confirmLabel: `Ya, Ubah ke ${targetRole}`,
+                    danger: false,
+                    onConfirm: () => submitUserRoleUpdate(matchedUser.username, targetRole),
+                });
+            });
+        }
 
         if (txTbody) {
             txTbody.addEventListener('click', (e) => {

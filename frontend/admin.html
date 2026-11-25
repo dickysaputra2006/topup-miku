@@ -55,7 +55,7 @@
                 </a>
                 <a href="#saldo" class="admin-nav-link" data-target="saldo">
                     <i class="fas fa-wallet" aria-hidden="true"></i>
-                    <span class="admin-nav-label">Saldo</span>
+                    <span class="admin-nav-label">Saldo &amp; Role</span>
                 </a>
                 <a href="#margin" class="admin-nav-link" data-target="margin">
                     <i class="fas fa-percentage" aria-hidden="true"></i>
@@ -303,6 +303,27 @@
                             <button type="button" id="add-balance-btn" class="approve-btn">Tambah Saldo</button>
                             <button type="button" id="reduce-balance-btn" class="admin-btn-danger">Kurangi Saldo</button>
                         </div>
+                    </form>
+                </div>
+
+                <div class="card">
+                    <h3>Ubah Role / Tier Pengguna</h3>
+                    <form id="user-role-form" class="admin-form admin-form-bare">
+                        <label for="role-target-user">Username atau Email Pengguna</label>
+                        <input type="text" id="role-target-user" placeholder="Masukkan username atau email reseller" autocomplete="off" required>
+                        <div class="manual-balance-actions">
+                            <button type="button" id="lookup-user-role-btn" class="admin-btn-secondary">Cek Akun</button>
+                        </div>
+                        <div id="role-user-preview" class="role-user-preview hidden" aria-live="polite"></div>
+                        <label for="target-user-role-select">Role Tujuan</label>
+                        <select id="target-user-role-select" required>
+                            <option value="BRONZE">BRONZE (Reguler)</option>
+                            <option value="SILVER">SILVER</option>
+                            <option value="GOLD">GOLD</option>
+                            <option value="PARTNER">PARTNER (Reseller H2H)</option>
+                        </select>
+                        <button type="submit" id="update-user-role-btn">Ubah Role Pengguna</button>
+                        <small class="form-help">Promosi ke role Admin/Owner tetap dikunci demi keamanan dan hanya dapat dilakukan lewat akses database langsung.</small>
                     </form>
                 </div>
             </section>

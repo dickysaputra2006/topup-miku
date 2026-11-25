@@ -8,6 +8,11 @@ const {
 const {
     recordAdminAuditLog: defaultRecordAdminAuditLog,
 } = require('../../services/auditLogService');
+const {
+    extractTargetIdentifier,
+    lookupUserByIdentifier,
+    updateUserRoleAtomic,
+} = require('../../services/adminUserOpsService');
 
 function validateBalanceAdjustmentPayload(req) {
     const bodyRes = getBodyObject(req);
@@ -39,6 +44,7 @@ module.exports = function createAdminBalanceRoutes(deps) {
     const {
         pool,
         protectAdmin,
+        createNotification = async () => {},
         recordAdminAuditLog = defaultRecordAdminAuditLog,
     } = deps || {};
     if (!pool || typeof pool.query !== 'function' || typeof pool.connect !== 'function') {
@@ -151,6 +157,46 @@ module.exports = function createAdminBalanceRoutes(deps) {
             res.status(500).json({ message: 'Gagal mengurangi saldo.' });
         } finally {
             client.release();
+        }
+    });
+
+    router.get('/api/admin/users/lookup', protectAdmin, async (req, res) => {
+        try {
+            const result = await lookupUserByIdentifier({ pool, identifier: req.query ? req.query.q : '' });
+            if (result.error) return res.status(result.statusCode).json({ message: result.error });
+            return res.json({ user: result.user });
+        } catch (error) {
+            logSafeError('Error looking up user:', error);
+            return res.status(500).json({ message: 'Gagal mencari data pengguna.' });
+        }
+    });
+
+    router.put('/api/admin/users/role', protectAdmin, async (req, res) => {
+        const bodyRes = getBodyObject(req);
+        if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+        const body = bodyRes.value;
+
+        const idRes = extractTargetIdentifier(body);
+        if (idRes.error) return res.status(400).json({ message: idRes.error });
+
+        try {
+            const result = await updateUserRoleAtomic({
+                pool,
+                req,
+                identifier: idRes.value,
+                targetRole: body.role,
+                channel: 'admin',
+                recordAdminAuditLog,
+                createNotification,
+            });
+            if (result.error) return res.status(result.statusCode).json({ message: result.error });
+            return res.json({
+                message: `Role akun ${result.user.username} berhasil diubah menjadi ${result.user.role}.`,
+                user: result.user,
+            });
+        } catch (error) {
+            logSafeError('Error updating user role:', error);
+            return res.status(500).json({ message: 'Gagal mengubah role pengguna.' });
         }
     });
 
