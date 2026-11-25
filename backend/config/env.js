@@ -4,7 +4,7 @@ const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const REQUIRED_ENV = ['JWT_SECRET'];
 const RECOMMENDED_RUNTIME_ENV = ['DB_USER', 'DB_HOST', 'DB_NAME', 'DB_PASSWORD', 'DB_PORT', 'FOXY_API_KEY'];
-// Optional local/dev integrations: FOXY_BASE_URL, CORS_ORIGINS, APP_BASE_URL, BREVO_API_KEY, PGS_KEY, PGS_API_KEY.
+// Optional local/dev integrations: FOXY_BASE_URL, CORS_ORIGINS, APP_BASE_URL, SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, SMTP_FROM_NAME, SMTP_FROM_EMAIL, PGS_KEY, PGS_API_KEY.
 const DEFAULT_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://localhost:3001',

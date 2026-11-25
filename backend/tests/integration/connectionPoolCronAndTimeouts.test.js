@@ -355,12 +355,24 @@ describe('Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow', () => {
         const origEnv = {
             PGS_KEY: process.env.PGS_KEY,
             PGS_API_KEY: process.env.PGS_API_KEY,
-            BREVO_API_KEY: process.env.BREVO_API_KEY
+            SMTP_HOST: process.env.SMTP_HOST,
+            SMTP_PORT: process.env.SMTP_PORT,
+            SMTP_SECURE: process.env.SMTP_SECURE,
+            SMTP_USER: process.env.SMTP_USER,
+            SMTP_PASS: process.env.SMTP_PASS,
+            SMTP_FROM_EMAIL: process.env.SMTP_FROM_EMAIL
         };
         process.env.PGS_KEY = 'pgs-key-test';
         process.env.PGS_API_KEY = 'pgs-api-test';
-        process.env.BREVO_API_KEY = 'brevo-key-test';
+        process.env.SMTP_HOST = 'smtp.sumopod.com';
+        process.env.SMTP_PORT = '465';
+        process.env.SMTP_SECURE = 'true';
+        process.env.SMTP_USER = 'smtp-user-test';
+        process.env.SMTP_PASS = 'smtp-pass-test';
+        process.env.SMTP_FROM_EMAIL = 'noreply@mikutopup.my.id';
 
+        const nodemailer = require('nodemailer');
+        const origCreateTransport = nodemailer.createTransport;
         const mailerPath = require.resolve('../../utils/mailer');
         delete require.cache[mailerPath];
 
@@ -370,6 +382,14 @@ describe('Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow', () => {
         const { sendPasswordResetEmail } = require('../../utils/mailer');
 
         const capturedTimeouts = new Map();
+        nodemailer.createTransport = (transportOpts = {}) => {
+            capturedTimeouts.set('mailer:connection', transportOpts.connectionTimeout);
+            capturedTimeouts.set('mailer:greeting', transportOpts.greetingTimeout);
+            capturedTimeouts.set('mailer:socket', transportOpts.socketTimeout);
+            return {
+                sendMail: async () => ({ messageId: 'smtp-ok' })
+            };
+        };
         axios.post = async (url, _body, config = {}) => {
             if (url.includes('pgscode.id')) {
                 const action = _body && _body.action ? _body.action : 'unknown';
@@ -378,10 +398,6 @@ describe('Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow', () => {
                     return { data: { status: true, data: [] } };
                 }
                 return { data: { status: true, data: { username: 'Miku' } } };
-            }
-            if (url.includes('brevo.com')) {
-                capturedTimeouts.set('mailer', config.timeout);
-                return { data: { messageId: 'ok' } };
             }
             return { data: {} };
         };
@@ -415,7 +431,7 @@ describe('Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow', () => {
             });
             assert.strictEqual(pgsRes.status, 200);
 
-            for (const key of ['pgs:get-nick', 'stalk-mcgg', 'stalk-ml-main', 'stalk-ml-elig', 'mailer', 'pgs:get-service']) {
+            for (const key of ['pgs:get-nick', 'stalk-mcgg', 'stalk-ml-main', 'stalk-ml-elig', 'mailer:connection', 'mailer:greeting', 'mailer:socket', 'pgs:get-service']) {
                 const val = capturedTimeouts.get(key);
                 assert.ok(
                     typeof val === 'number' && val >= 5000 && val <= 10000,
@@ -423,12 +439,11 @@ describe('Phase 15: SEC-013: Connection Pool & 3-Phase Order Flow', () => {
                 );
             }
         } finally {
-            if (origEnv.PGS_KEY === undefined) delete process.env.PGS_KEY;
-            else process.env.PGS_KEY = origEnv.PGS_KEY;
-            if (origEnv.PGS_API_KEY === undefined) delete process.env.PGS_API_KEY;
-            else process.env.PGS_API_KEY = origEnv.PGS_API_KEY;
-            if (origEnv.BREVO_API_KEY === undefined) delete process.env.BREVO_API_KEY;
-            else process.env.BREVO_API_KEY = origEnv.BREVO_API_KEY;
+            nodemailer.createTransport = origCreateTransport;
+            for (const key of Object.keys(origEnv)) {
+                if (origEnv[key] === undefined) delete process.env[key];
+                else process.env[key] = origEnv[key];
+            }
             delete require.cache[mailerPath];
             pool.query.mock.restore();
             pool.connect.mock.restore();
