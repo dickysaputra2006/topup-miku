@@ -1,15 +1,27 @@
 # Jangan upload dependensi
 node_modules/
 
-# Folder dari VSCode
+# Folder dari VSCode & OS artifacts
 .vscode/
+.DS_Store
+Thumbs.db
 
-# File log dan environment
+# File log dan environment (kecuali template .env.example)
 *.log
 .env
+.env.*
+!.env.example
 backend/.env
-.agent
-.md
+backend/.env.*
+!backend/.env.example
+
+# Dokumentasi & artefak internal (tetap ada di lokal, tidak ikut ter-fetch ke server/GitHub)
+*.md
+.agent/
+
+# Output QA & Playwright
+qa/test-results/
+qa/playwright-report/
 
 # Antigravity / Gemini files
 .gemini/

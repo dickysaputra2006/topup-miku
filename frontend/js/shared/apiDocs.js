@@ -4,9 +4,14 @@
     const copyTimers = new WeakMap();
     let lastCopyMessage = '';
 
+    const DEFAULT_PUBLIC_ORIGIN = 'https://mikutopup.my.id';
+    const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
     function syncDocsOrigin() {
         const hasHttpOrigin = global.location && /^https?:$/i.test(global.location.protocol);
-        const origin = hasHttpOrigin ? global.location.origin : 'https://domain-toko-anda.com';
+        const hostname = hasHttpOrigin ? String(global.location.hostname || '').toLowerCase() : '';
+        const isLoopback = !hostname || LOOPBACK_HOSTS.has(hostname);
+        const origin = hasHttpOrigin && !isLoopback ? global.location.origin : DEFAULT_PUBLIC_ORIGIN;
         document.querySelectorAll('[data-docs-origin]').forEach((el) => {
             el.textContent = origin;
         });
