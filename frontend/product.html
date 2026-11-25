@@ -47,7 +47,6 @@
                 <nav class="drawer-links" aria-label="Navigasi mobile">
                     <a href="index.html">Beranda</a>
                     <a href="cek-transaksi.html">Cek Transaksi</a>
-                    <a href="validate.html">Validasi ID</a>
                     <a href="compare-prices.html">Pricelist</a>
                     <a href="leaderboard.html">Leaderboard</a>
                     <a href="kontak.html">Kontak CS</a>
@@ -102,9 +101,6 @@
         <a href="compare-prices.html" class="icon-rail-link" data-nav-key="compare-prices" data-tooltip="Daftar Harga" aria-label="Daftar Harga">
             <i class="fas fa-tags" aria-hidden="true"></i>
         </a>
-        <a href="validate.html" class="icon-rail-link" data-nav-key="validate" data-tooltip="Validasi ID" aria-label="Validasi ID">
-            <i class="fas fa-id-card" aria-hidden="true"></i>
-        </a>
         <a href="leaderboard.html" class="icon-rail-link" data-nav-key="leaderboard" data-tooltip="Leaderboard" aria-label="Leaderboard">
             <i class="fas fa-trophy" aria-hidden="true"></i>
         </a>
@@ -149,7 +145,7 @@
                     <h1 id="game-name">Memuat nama game...</h1>
                     <p>Isi ID tujuan, pilih nominal, dan selesaikan pembayaran secara langsung.</p>
                     <ul class="game-trust-pills" aria-label="Jaminan layanan">
-                        <li><i class="fas fa-user-check" aria-hidden="true"></i> Validasi ID Real-Time</li>
+                        <li><i class="fas fa-bolt" aria-hidden="true"></i> Proses Instan &amp; Otomatis</li>
                         <li><i class="fas fa-shield-halved" aria-hidden="true"></i> Refund Otomatis Jika Gagal</li>
                     </ul>
                 </div>
@@ -173,11 +169,12 @@
                         >
                     </div>
                     <div id="server-input-container" class="field-group hidden"></div>
-                    <div class="step-1-actions">
-                        <button type="button" id="validate-id-btn" class="edit-btn validate-inline-btn">Cek ID Akun</button>
-                        <span class="field-hint">ID divalidasi otomatis saat selesai diketik atau klik Cek ID Akun.</span>
+                    <p id="direct-id-hint" class="field-hint">Pastikan User ID dan Server ID sudah benar sebelum membayar. Jika ID salah/tidak terdaftar dan gagal diproses, saldo akan direfund otomatis.</p>
+                    <div id="step-1-validation-actions" class="step-1-actions hidden">
+                        <button type="button" id="validate-id-btn" class="edit-btn validate-inline-btn">Cek Kelayakan ID</button>
+                        <span class="field-hint">Produk ini memerlukan pengecekan kelayakan ID sebelum pembayaran.</span>
                     </div>
-                    <div id="validation-result" class="validation-slot" aria-live="polite"></div>
+                    <div id="validation-result" class="validation-slot hidden" aria-live="polite"></div>
                 </form>
             </section>
 
@@ -228,7 +225,7 @@
                 <div id="payment-info">
                     <p><span>Game</span> <strong id="summary-game">-</strong></p>
                     <p><span>Tujuan</span> <strong id="summary-target">-</strong></p>
-                    <p><span>Nickname</span> <strong id="summary-ign">-</strong></p>
+                    <p id="summary-ign-row" class="hidden"><span>Status / Nickname</span> <strong id="summary-ign">-</strong></p>
                     <p><span>Nominal</span> <strong id="summary-product">-</strong></p>
                     <p><span>Metode Pembayaran</span> <strong id="summary-method">Saldo Akun</strong></p>
                     <p id="summary-balance-row" class="hidden"><span>Saldo Anda</span> <strong id="summary-user-balance" class="tabular-nums">-</strong></p>
@@ -335,7 +332,7 @@
         <p class="form-description">Periksa kembali data akun dan nominal sebelum membayar.</p>
         <div class="confirmation-details">
             <h4>Informasi Akun</h4>
-            <p><span>IGN / Validasi:</span> <strong id="confirm-ign">-</strong></p>
+            <p id="confirm-ign-row" class="hidden"><span>Status / Nickname:</span> <strong id="confirm-ign">-</strong></p>
             <p><span>User ID:</span> <strong id="confirm-userid">-</strong></p>
             <p><span>Server ID:</span> <strong id="confirm-serverid">-</strong></p>
             <h4>Ringkasan Pesanan</h4>

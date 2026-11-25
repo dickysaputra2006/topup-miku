@@ -44,13 +44,21 @@ function calculateCatalogProducts(products, userRoleName, globalMarginsMap, flas
             }
         }
 
+        const requiresValidation = Boolean(
+            p.validation_config &&
+            p.validation_config.enabled === true &&
+            typeof p.validation_config.validator === 'string' &&
+            p.validation_config.validator.trim().length > 0
+        );
+
         return {
             id: p.id,
             name: p.name,
             provider_sku: p.provider_sku,
             price: finalPrice,
             isFlashSale: isFlashSale,
-            originalPrice: originalPrice
+            originalPrice: originalPrice,
+            requiresValidation: requiresValidation
         };
     });
 }
@@ -83,7 +91,7 @@ async function getGameProductsCatalog({ pool, gameId, user }) {
 
     const { rows: products } = await pool.query(`
         SELECT p.id, p.name, p.provider_sku, p.price as base_price, 
-               p.use_manual_prices, p.manual_prices,
+               p.use_manual_prices, p.manual_prices, p.validation_config,
                gm.use_custom_margin, gm.bronze_margin, gm.silver_margin, gm.gold_margin, gm.partner_margin
         FROM products p
         LEFT JOIN game_margins gm ON p.game_id = gm.game_id

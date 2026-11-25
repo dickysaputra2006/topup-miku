@@ -27,9 +27,9 @@
         if (!app.state.selectedProductId) {
             return { ready: false, label: 'Pilih nominal dulu', hint: 'Langkah 2: Pilih salah satu nominal top up.' };
         }
-        if (!app.state.isValidationSuccess) {
+        if (app.state.selectedProductRequiresValidation && !app.state.isValidationSuccess) {
             const label = app.state.lastValidationErrorMessage ? 'Periksa ulang User ID' : 'Validasi User ID dulu';
-            const hint = app.state.lastValidationErrorMessage || 'Langkah 1: Klik Cek ID Akun atau validasi ID sebelum membayar.';
+            const hint = app.state.lastValidationErrorMessage || 'Langkah 1: Klik Cek Kelayakan ID sebelum membayar.';
             return { ready: false, label, hint };
         }
         if (!app.state.selectedPaymentMethod) {
@@ -74,6 +74,7 @@
             summaryGameEl,
             summaryTargetEl,
             summaryIgnEl,
+            summaryIgnRowEl,
             summaryProductEl,
             summaryMethodEl,
             summaryBalanceRowEl,
@@ -91,6 +92,7 @@
 
         if (summaryGameEl && gameNameEl) summaryGameEl.textContent = gameNameEl.textContent || '-';
         if (summaryTargetEl) summaryTargetEl.textContent = userId ? (serverId ? `${userId} (${serverId})` : userId) : '-';
+        if (summaryIgnRowEl) summaryIgnRowEl.classList.toggle('hidden', !app.state.selectedProductRequiresValidation);
         if (summaryIgnEl) summaryIgnEl.textContent = app.state.validatedNickname || '-';
 
         const selectedCard = findSelectedProductCard(app.state.selectedProductId);
@@ -170,7 +172,7 @@
     function openConfirmationModal() {
         const { formatRupiah } = global.MikuShared.format;
         const { escapeHtml } = global.MikuShared.dom;
-        const { gameNameEl, totalPriceEl } = app.state.els;
+        const { gameNameEl, totalPriceEl, confirmIgnRowEl } = app.state.els;
         const readiness = getOrderReadiness();
 
         if (!readiness.ready) {
@@ -192,7 +194,9 @@
             ? formatRupiah(parseFloat(selectedCard.dataset.price))
             : formatRupiah(Number(app.state.selectedProductPrice || 0));
 
-        document.getElementById('confirm-ign').textContent = app.state.validatedNickname || 'Terverifikasi';
+        if (confirmIgnRowEl) confirmIgnRowEl.classList.toggle('hidden', !app.state.selectedProductRequiresValidation);
+        const confirmIgnEl = document.getElementById('confirm-ign');
+        if (confirmIgnEl) confirmIgnEl.textContent = app.state.selectedProductRequiresValidation ? (app.state.validatedNickname || 'Terverifikasi') : '-';
         document.getElementById('confirm-userid').textContent = targetGameId;
         document.getElementById('confirm-serverid').textContent = targetServerId || '-';
         document.getElementById('confirm-kategori').textContent = gameNameEl ? gameNameEl.textContent : '-';

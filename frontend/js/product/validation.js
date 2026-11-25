@@ -62,6 +62,22 @@
         gameImageEl.src = safeUrl;
     }
 
+    function syncValidationUiVisibility(requiresValidation) {
+        const showValidation = Boolean(requiresValidation);
+        const {
+            directIdHintEl,
+            validationActionsEl,
+            validationResultEl,
+            summaryIgnRowEl,
+            confirmIgnRowEl,
+        } = app.state.els;
+        if (directIdHintEl) directIdHintEl.classList.toggle('hidden', showValidation);
+        if (validationActionsEl) validationActionsEl.classList.toggle('hidden', !showValidation);
+        if (validationResultEl) validationResultEl.classList.toggle('hidden', !showValidation);
+        if (summaryIgnRowEl) summaryIgnRowEl.classList.toggle('hidden', !showValidation);
+        if (confirmIgnRowEl) confirmIgnRowEl.classList.toggle('hidden', !showValidation);
+    }
+
     function resetValidationState(hintMessage = '') {
         validationReqSeq += 1;
         const { uiState } = global.MikuShared.dom;
@@ -81,6 +97,13 @@
      * Jalankan pre-validasi akun game berdasarkan produk terpilih & ID tujuan.
      */
     async function runValidation() {
+        if (!app.state.selectedProductRequiresValidation) {
+            app.state.isValidationSuccess = true;
+            if (app.checkout && typeof app.checkout.syncActionState === 'function') {
+                app.checkout.syncActionState();
+            }
+            return;
+        }
         const { uiState, escapeHtml } = global.MikuShared.dom;
         const { validationResultEl, targetGameIdInput } = app.state.els;
         const targetIdEl = targetGameIdInput || document.getElementById('target-game-id');
@@ -188,7 +211,7 @@
     }
 
     function handleProductSelection(selectedCard, productId, productPrice, productName) {
-        const { promoCodeInput, targetGameIdInput } = app.state.els;
+        const { promoCodeInput, targetGameIdInput, validationResultEl } = app.state.els;
 
         document.querySelectorAll('.product-card-selectable').forEach((card) => {
             card.classList.remove('selected');
@@ -197,13 +220,26 @@
         selectedCard.classList.add('selected');
         selectedCard.setAttribute('aria-pressed', 'true');
 
+        const requiresValidation = selectedCard.dataset.requiresValidation === 'true';
         app.state.selectedProductId = productId;
         app.state.selectedProductPrice = Number(productPrice) || 0;
         app.state.selectedProductName = productName || (selectedCard.querySelector('.product-card-name') ? selectedCard.querySelector('.product-card-name').textContent : '');
+        app.state.selectedProductRequiresValidation = requiresValidation;
         app.state.appliedPromo = null;
         if (promoCodeInput) promoCodeInput.value = '';
 
+        syncValidationUiVisibility(requiresValidation);
         app.checkout.updatePrice();
+
+        if (!requiresValidation) {
+            validationReqSeq += 1;
+            app.state.isValidationSuccess = true;
+            app.state.validatedNickname = '';
+            app.state.lastValidationErrorMessage = '';
+            if (validationResultEl) validationResultEl.innerHTML = '';
+            app.checkout.syncActionState();
+            return;
+        }
 
         const hasUserId = Boolean(targetGameIdInput && String(targetGameIdInput.value || '').trim());
         const serverIdEl = document.getElementById('target-server-id');
@@ -212,7 +248,7 @@
         if (hasUserId && hasServerId) {
             runValidation();
         } else {
-            resetValidationState('Nominal dipilih. Isi ID tujuan di Langkah 1 untuk validasi otomatis.');
+            resetValidationState('Nominal dipilih. Isi ID tujuan di Langkah 1 lalu klik Cek Kelayakan ID.');
         }
     }
 
@@ -232,7 +268,7 @@
 
         const toolbar = document.createElement('div');
         toolbar.className = 'product-selection-toolbar';
-        toolbar.innerHTML = `<span class="tabular-nums">${app.state.products.length} pilihan nominal tersedia</span><span>Pilih nominal untuk cek harga &amp; ID.</span>`;
+        toolbar.innerHTML = `<span class="tabular-nums">${app.state.products.length} pilihan nominal tersedia</span><span>Pilih nominal untuk melihat harga.</span>`;
         productListContainer.appendChild(toolbar);
 
         app.state.products.forEach((product) => {
@@ -244,6 +280,7 @@
             card.dataset.productId = String(product.id);
             card.dataset.price = String(product.price);
             card.dataset.name = String(product.name);
+            card.dataset.requiresValidation = product.requiresValidation ? 'true' : 'false';
 
             const checkBadge = document.createElement('span');
             checkBadge.className = 'product-card-check';
@@ -386,12 +423,26 @@
                     if (serverEl) {
                         if (serverEl.tagName === 'SELECT') {
                             serverEl.addEventListener('change', () => {
+                                if (!app.state.selectedProductRequiresValidation) {
+                                    app.checkout.syncActionState();
+                                    return;
+                                }
                                 resetValidationState();
                                 runValidation();
                             });
                         } else {
-                            serverEl.addEventListener('input', () => resetValidationState());
+                            serverEl.addEventListener('input', () => {
+                                if (!app.state.selectedProductRequiresValidation) {
+                                    app.checkout.syncActionState();
+                                    return;
+                                }
+                                resetValidationState();
+                            });
                             serverEl.addEventListener('blur', () => {
+                                if (!app.state.selectedProductRequiresValidation) {
+                                    app.checkout.syncActionState();
+                                    return;
+                                }
                                 if (String(serverEl.value || '').trim().length > 0) runValidation();
                                 else app.checkout.syncActionState();
                             });
@@ -403,6 +454,7 @@
                 }
             }
 
+            syncValidationUiVisibility(false);
             renderProducts(data.products);
             applyFlashSaleSelection();
             app.checkout.syncActionState();
@@ -418,14 +470,24 @@
         if (orderForm) {
             orderForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                runValidation();
+                if (app.state.selectedProductRequiresValidation) {
+                    runValidation();
+                }
             });
         }
         if (targetGameIdInput) {
             targetGameIdInput.addEventListener('input', () => {
+                if (!app.state.selectedProductRequiresValidation) {
+                    app.checkout.syncActionState();
+                    return;
+                }
                 resetValidationState();
             });
             targetGameIdInput.addEventListener('blur', () => {
+                if (!app.state.selectedProductRequiresValidation) {
+                    app.checkout.syncActionState();
+                    return;
+                }
                 if (String(targetGameIdInput.value || '').trim().length > 0) {
                     runValidation();
                 } else {
@@ -434,7 +496,9 @@
             });
         }
         if (validateIdBtn) {
-            validateIdBtn.addEventListener('click', () => runValidation());
+            validateIdBtn.addEventListener('click', () => {
+                if (app.state.selectedProductRequiresValidation) runValidation();
+            });
         }
     }
 

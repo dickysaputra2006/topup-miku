@@ -5,7 +5,6 @@
     const RAIL_FILE_KEYS = {
         'cek-transaksi.html': 'cek-transaksi',
         'compare-prices.html': 'compare-prices',
-        'validate.html': 'validate',
         'leaderboard.html': 'leaderboard',
         'kontak.html': 'kontak',
     };
