@@ -133,6 +133,32 @@ function formatRupiahBot(amount) {
     return 'Rp ' + Number(amount).toLocaleString('id-ID');
 }
 
+const VENDOR_OR_INTERNAL_LEAK_RE = /foxy|pgscode|mobapay|https?:\/\/|econnrefused|etimedout|enotfound|insufficient\s+balance|buy_price|cost_price|provider_price|base_price|provider_response/i;
+
+/**
+ * Sanitasi pesan error/status eksternal agar tidak membocorkan nama vendor, URL internal, atau HTML ke pengguna.
+ */
+function sanitizePublicErrorMessage(message, fallback = 'Terjadi kesalahan saat memproses permintaan.') {
+    if (typeof message !== 'string') return fallback;
+    const trimmed = message.trim();
+    if (!trimmed || trimmed.length > 220) return fallback;
+    if (/[\r\n<>]|[\u0000-\u001F\u007F]/.test(trimmed)) return fallback;
+    if (VENDOR_OR_INTERNAL_LEAK_RE.test(trimmed)) return fallback;
+    return trimmed;
+}
+
+/**
+ * Sanitasi deskripsi mutasi saldo sebelum ditampilkan ke pengguna/reseller.
+ */
+function sanitizeBalanceHistoryDescription(description) {
+    if (typeof description !== 'string') return description;
+    if (!VENDOR_OR_INTERNAL_LEAK_RE.test(description)) return description;
+    const invMatch = description.match(/(?:TRX|H2H|INV|DEP)-[A-Za-z0-9_-]+/);
+    return invMatch
+        ? `Pengembalian dana untuk invoice ${invMatch[0]} karena transaksi gagal diproses`
+        : 'Mutasi saldo diproses oleh sistem';
+}
+
 module.exports = {
     normalizeString,
     normalizePhone,
@@ -143,4 +169,6 @@ module.exports = {
     maskLeaderboardName,
     leaderboardRankLabel,
     formatRupiahBot,
+    sanitizePublicErrorMessage,
+    sanitizeBalanceHistoryDescription,
 };

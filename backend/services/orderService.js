@@ -2,9 +2,11 @@ const axios = require('axios');
 const { FOXY_API_KEY, FOXY_CALLBACK_URL } = require('../config/env');
 const { FOXY_BASE_URL, PROVIDER_TIMEOUT_MS } = require('../config/constants');
 const { safeErrorDetail, safeAxiosError } = require('../utils/logger');
+const { sanitizePublicErrorMessage } = require('../utils/strings');
 const { parsePositiveQuota, isValidPriceAmount } = require('../utils/validation');
 const { rollbackTransactionResources } = require('./refundService');
 const { validateOrderGameIdIfNeeded, invalidateFoxyProductCache, fetchRealtimeFoxyCostForOrder } = require('./foxyClient');
+const { assertPreCheckOrderBalance } = require('./priceService');
 const { generateInvoiceId, generateProviderTrxId, resolveExistingIdempotentOrder, insertTransactionRecord, findRecentPendingDuplicate } = require('./idempotency');
 
 function getSafeOrderErrorMessage(error, fallback) {
@@ -35,7 +37,8 @@ function getSafeOrderErrorMessage(error, fallback) {
         'Format ref_id tidak valid', 'Header Idempotency-Key harus berupa UUID yang valid.',
         'ref_id sudah digunakan', 'Idempotency-Key sudah digunakan',
     ];
-    return allowedMessages.some(allowed => message.startsWith(allowed)) ? message : fallback;
+    if (!allowedMessages.some(allowed => message.startsWith(allowed))) return fallback;
+    return sanitizePublicErrorMessage(message, fallback);
 }
 
 function isProviderTimeoutOrAmbiguous(providerError) {
@@ -102,7 +105,7 @@ async function finalizeOrderAfterProviderCall({
 }
 
 async function preCheckOrderAndLookupProduct(pool, {
-    channel, userId, idempotencyKey, keyLabel, productId, targetGameId, targetServerId, useSubquery
+    channel, userId, h2hUser, promoCode, insufficientMessage, idempotencyKey, keyLabel, productId, targetGameId, targetServerId, useSubquery
 }) {
     const preClient = await pool.connect();
     try {
@@ -130,7 +133,10 @@ async function preCheckOrderAndLookupProduct(pool, {
             `;
         const { rows: products } = await preClient.query(productQuery, [productId]);
         if (products.length === 0) throw new Error('Produk tidak valid atau tidak aktif.');
-        return { product: products[0] };
+        const product = products[0];
+        if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
+        await assertPreCheckOrderBalance(preClient, { userId, h2hUser, product, promoCode, insufficientMessage });
+        return { product };
     } finally {
         preClient.release();
     }
@@ -369,13 +375,12 @@ async function executeWebOrder({ pool, userId, productId, targetGameId, targetSe
     }
 
     const preCheck = await preCheckOrderAndLookupProduct(pool, {
-        channel: 'web', userId, idempotencyKey, keyLabel: 'Idempotency-Key',
-        productId, targetGameId, targetServerId, useSubquery: true
+        channel: 'web', userId, promoCode, insufficientMessage: 'Saldo Anda tidak mencukupi.',
+        idempotencyKey, keyLabel: 'Idempotency-Key', productId, targetGameId, targetServerId, useSubquery: true
     });
     if (preCheck.earlyIdempotent) return preCheck.earlyIdempotent;
     const { product } = preCheck;
 
-    if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
     await validateOrderGameIdIfNeeded(product, targetGameId, targetServerId);
     const currentProviderCost = await fetchRealtimeFoxyCostForOrder(
         product, '[order]', '[order] Checking real-time price from Foxy...'
@@ -475,13 +480,12 @@ async function executeH2HOrder({ pool, h2hUser, productId, targetGameId, targetS
     }
 
     const preCheck = await preCheckOrderAndLookupProduct(pool, {
-        channel: 'h2h', userId: h2hUser.id, idempotencyKey: refId, keyLabel: 'ref_id',
-        productId, targetGameId, targetServerId, useSubquery: false
+        channel: 'h2h', userId: h2hUser.id, h2hUser, insufficientMessage: 'Saldo H2H Anda tidak mencukupi.',
+        idempotencyKey: refId, keyLabel: 'ref_id', productId, targetGameId, targetServerId, useSubquery: false
     });
     if (preCheck.earlyIdempotent) return preCheck.earlyIdempotent;
     const { product } = preCheck;
 
-    if (product.needs_server_id && !targetServerId) throw new Error('Server ID wajib diisi untuk game ini.');
     await validateOrderGameIdIfNeeded(product, targetGameId, targetServerId);
     const currentProviderCost = await fetchRealtimeFoxyCostForOrder(
         product, '[h2h-order]', `[h2h-order] Checking real-time price for SKU ${product.provider_sku}...`

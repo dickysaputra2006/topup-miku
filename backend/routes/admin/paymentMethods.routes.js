@@ -23,8 +23,8 @@ function normalizePaymentMethodPayload(body, existing = null) {
         return { error: 'Nama metode pembayaran wajib diisi.' };
     }
     const name = rawName.trim();
-    if (name.length > 100) {
-        return { error: 'Nama metode pembayaran maksimal 100 karakter.' };
+    if (name.length > 100 || /[<>]|[\u0000-\u001F\u007F]/.test(name)) {
+        return { error: 'Nama metode pembayaran tidak valid atau maksimal 100 karakter.' };
     }
 
     const rawCode = hasProp('code') ? src.code : existing?.code;
@@ -44,9 +44,15 @@ function normalizePaymentMethodPayload(body, existing = null) {
 
     const acctNumRes = parseOptionalText(src, 'account_number', existing?.account_number ?? null, 100);
     if (acctNumRes.error) return { error: 'Nomor rekening/HP ' + acctNumRes.error };
+    if (acctNumRes.value && !/^[A-Za-z0-9 .+\-_/()]{2,100}$/.test(acctNumRes.value)) {
+        return { error: 'Nomor rekening/HP mengandung karakter yang tidak diizinkan.' };
+    }
 
     const acctNameRes = parseOptionalText(src, 'account_name', existing?.account_name ?? null, 150);
     if (acctNameRes.error) return { error: 'Atas nama ' + acctNameRes.error };
+    if (acctNameRes.value && /[<>]|[\u0000-\u001F\u007F]/.test(acctNameRes.value)) {
+        return { error: 'Atas nama mengandung karakter yang tidak diizinkan.' };
+    }
 
     const qrisUrlRes = parseOptionalText(src, 'qris_image_url', existing?.qris_image_url ?? null, 1000);
     if (qrisUrlRes.error) return { error: 'URL gambar QRIS ' + qrisUrlRes.error };
@@ -56,6 +62,9 @@ function normalizePaymentMethodPayload(body, existing = null) {
 
     const instrRes = parseOptionalText(src, 'instructions', existing?.instructions ?? null, 1000);
     if (instrRes.error) return { error: 'Instruksi ' + instrRes.error };
+    if (instrRes.value && /[<>]|[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(instrRes.value)) {
+        return { error: 'Instruksi mengandung karakter yang tidak diizinkan.' };
+    }
 
     const rawMin = hasProp('min_amount') && src.min_amount !== '' && src.min_amount !== null
         ? src.min_amount

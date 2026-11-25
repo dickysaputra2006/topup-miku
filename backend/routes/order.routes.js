@@ -2,6 +2,7 @@ const express = require('express');
 const { logSafeError } = require('../utils/logger');
 const { normalizeString } = require('../utils/strings');
 const { parseOptionalIdempotencyKeyHeader } = require('../utils/validation');
+const { getBodyObject, requirePositiveInt } = require('../utils/schemaValidators');
 const {
     getSafeOrderErrorMessage,
     executeWebOrder,
@@ -23,11 +24,17 @@ module.exports = function createOrderRoutes(deps) {
 
     router.post('/api/order', protect, async (req, res) => {
         try {
+            const bodyRes = getBodyObject(req);
+            if (bodyRes.error) return res.status(400).json({ message: bodyRes.error });
+            const body = bodyRes.value;
+
             const idempotencyKey = parseOptionalIdempotencyKeyHeader(req);
-            const productId = Number(req.body.productId);
-            const targetGameId = normalizeString(req.body.targetGameId, 80);
-            const targetServerId = normalizeString(req.body.targetServerId, 80);
-            const promoCode = req.body.promoCode ? String(req.body.promoCode).trim().toUpperCase() : null;
+            const prodRes = requirePositiveInt(body.productId, 'Produk');
+            if (prodRes.error) return res.status(400).json({ message: 'Produk dan ID Game wajib diisi.' });
+            const productId = prodRes.value;
+            const targetGameId = normalizeString(body.targetGameId, 80);
+            const targetServerId = normalizeString(body.targetServerId, 80);
+            const promoCode = body.promoCode ? String(body.promoCode).trim().toUpperCase() : null;
             const userId = req.user.id;
 
             const result = await executeWebOrder({

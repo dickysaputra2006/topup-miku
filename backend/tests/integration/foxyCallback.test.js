@@ -230,7 +230,7 @@ describe('SEC-001: Foxy Callback Security Hardening', () => {
             if (foxyMode === 'SUCCESS_NO_SN') {
                 return { data: { status: true, data: { trx_id: 'SEC1-ZT-1', status: 'SUCCESS', product_code: 'SKU-ZT', product_price: 9000 } } };
             }
-            return { data: { status: true, data: { trx_id: 'SEC1-ZT-2', status: 'FAILED', message: 'FOXY-REAL-REASON', product_code: 'SKU-ZT', product_price: 9000 } } };
+            return { data: { status: true, data: { trx_id: 'SEC1-ZT-2', status: 'FAILED', message: 'UPSTREAM-VERIFIED-REASON', product_code: 'SKU-ZT', product_price: 9000 } } };
         };
 
         mock.method(pool, 'query', async (sql, params) => {
@@ -313,7 +313,7 @@ describe('SEC-001: Foxy Callback Security Hardening', () => {
             assert.strictEqual(res2.status, 200);
             assert.deepStrictEqual(await res2.json(), { message: 'Callback berhasil diproses.' });
             assert.strictEqual(savedRefundDescription.includes('SPOOFED-BODY-REASON'), false, 'req.body.message must NEVER enter refund description');
-            assert.ok(savedRefundDescription.includes('FOXY-REAL-REASON'), 'Refund description should come from Foxy verified status response');
+            assert.ok(savedRefundDescription.includes('UPSTREAM-VERIFIED-REASON'), 'Refund description should come from verified upstream status response');
         } finally {
             axios.get = origAxiosGet;
             pool.connect.mock.restore();

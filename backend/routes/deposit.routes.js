@@ -1,6 +1,7 @@
 const express = require('express');
 const { escapeHtml } = require('../utils/strings');
 const { parseOptionalIdempotencyKeyHeader } = require('../utils/validation');
+const { getBodyObject, requireBoundedNumber } = require('../utils/schemaValidators');
 
 async function findDepositByIdempotencyKey(queryable, userId, idempotencyKey) {
     const { rows } = await queryable.query(
@@ -111,14 +112,17 @@ module.exports = function createDepositRoutes(deps) {
             return res.status(keyErr.statusCode || 400).json({ message: keyErr.message });
         }
 
-        const { amount, method, note } = req.body;
+        const bodyRes = getBodyObject(req);
+        if (bodyRes.error) {
+            return res.status(400).json({ message: bodyRes.error });
+        }
+        const { amount, method, note } = bodyRes.value;
         const userId = req.user.id;
-        const parsedAmount = Number(amount);
-
-        // Validasi amount global
-        if (!Number.isFinite(parsedAmount) || parsedAmount < 10000 || parsedAmount > 100000000) {
+        const amountRes = requireBoundedNumber(amount, 'Jumlah deposit', { min: 10000, max: 100000000, integer: true });
+        if (amountRes.error) {
             return res.status(400).json({ message: 'Jumlah deposit tidak valid. Minimum Rp 10.000, maksimum Rp 100.000.000.' });
         }
+        const parsedAmount = amountRes.value;
 
         // Validasi method — wajib dan aktif di tabel payment_methods
         const trimmedMethod = typeof method === 'string' ? method.trim() : '';

@@ -62,20 +62,35 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function findHighlightedTier(roles) {
-        if (!Array.isArray(roles) || roles.length === 0) return '';
-        let bestName = '';
-        let lowestMargin = Infinity;
-        roles.forEach(role => {
-            const margin = Number(role.margin_percent);
-            if (Number.isFinite(margin) && margin >= 0 && margin < lowestMargin) {
-                lowestMargin = margin;
-                bestName = role.name;
-            } else if (Number.isFinite(margin) && margin === lowestMargin && role.name === 'GOLD') {
-                bestName = role.name;
+    function getSortPrice(product, roles) {
+        const bronze = Number(product && product.price_bronze);
+        if (Number.isFinite(bronze)) return bronze;
+        if (Array.isArray(roles)) {
+            for (const role of roles) {
+                const val = Number(product && product[`price_${String(role.name || '').toLowerCase()}`]);
+                if (Number.isFinite(val)) return val;
             }
-        });
-        if (bestName) return bestName;
+        }
+        return 0;
+    }
+
+    function findHighlightedTier(roles, products) {
+        if (!Array.isArray(roles) || roles.length === 0) return '';
+        if (Array.isArray(products) && products.length > 0) {
+            const sample = products[0];
+            let bestName = '';
+            let lowestPrice = Infinity;
+            roles.forEach(role => {
+                const p = Number(sample[`price_${String(role.name || '').toLowerCase()}`]);
+                if (Number.isFinite(p) && p > 0 && p < lowestPrice) {
+                    lowestPrice = p;
+                    bestName = role.name;
+                } else if (Number.isFinite(p) && p === lowestPrice && (role.name === 'PARTNER' || role.name === 'GOLD')) {
+                    bestName = role.name;
+                }
+            });
+            if (bestName) return bestName;
+        }
         if (roles.some(r => r.name === 'PARTNER')) return 'PARTNER';
         if (roles.some(r => r.name === 'GOLD')) return 'GOLD';
         return '';
@@ -84,7 +99,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderProductsTable(products, roles) {
         compareTableBody.innerHTML = '';
         compareTableHeader.innerHTML = '';
-        const highlightedTier = findHighlightedTier(roles);
+        const highlightedTier = findHighlightedTier(roles, products);
 
         let headerHtml = '<th>Nama Game</th><th>Produk</th><th>SKU</th>';
         roles.forEach(role => {
@@ -102,7 +117,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        const sorted = [...products].sort((a, b) => parseFloat(a.base_price) - parseFloat(b.base_price));
+        const sorted = [...products].sort((a, b) => getSortPrice(a, roles) - getSortPrice(b, roles));
         sorted.forEach(product => {
             const row = document.createElement('tr');
             let rowHtml = `<td>${escapeHtml(product.game_name || '-')}</td><td>${escapeHtml(product.product_name || '-')}</td><td><code>${escapeHtml(product.provider_sku || '-')}</code></td>`;
